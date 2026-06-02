@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "project-gestion-mobile",
+    "slug": "project-gestion-mobile",
+    "version": "1.0.0",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "platforms": ["ios", "android", "web"]
+  }
+}

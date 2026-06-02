@@ -1,0 +1,58 @@
+db:
+  port: 54321
+  major_version: 15
+
+api:
+  port: 54322
+  schemas:
+    - public
+    - storage
+    - graphql_public
+  extra_search_path:
+    - public
+    - extensions
+
+auth:
+  email:
+    enable_signup: true
+    enable_confirmations: false
+  external:
+    apple:
+      enabled: false
+    azure:
+      enabled: false
+    facebook:
+      enabled: false
+    github:
+      enabled: false
+    google:
+      enabled: false
+    keycloak:
+      enabled: false
+    linkedin:
+      enabled: false
+    notion:
+      enabled: false
+    twitch:
+      enabled: false
+    twitter:
+      enabled: false
+    discord:
+      enabled: false
+    slack:
+      enabled: false
+    spotify:
+      enabled: false
+    workos:
+      enabled: false
+
+analytics:
+  enabled: false
+
+vector:
+  enabled: false
+
+storage:
+  file_size_limit: 52428800
+  s3:
+    enabled: false

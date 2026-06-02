@@ -1,0 +1,11 @@
+# Supabase local development
+supabase/migrations
+supabase/.branches
+supabase/.temp
+
+# Environment variables
+.env.local
+.env.local.backup
+
+# VSCode Supabase extension cache
+.supabase/

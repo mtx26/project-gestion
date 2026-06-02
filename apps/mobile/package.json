@@ -1,0 +1,25 @@
+{
+  "name": "@project-gestion/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "expo start",
+    "build": "echo Mobile build will use EAS Build",
+    "start": "expo start",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "^51.0.0",
+    "react": "^18.2.0",
+    "react-native": "^0.74.0",
+    "@project-gestion/ui": "*",
+    "@project-gestion/types": "*",
+    "@project-gestion/utils": "*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "@types/react": "^18.3.0",
+    "@types/node": "^20.0.0"
+  }
+}
