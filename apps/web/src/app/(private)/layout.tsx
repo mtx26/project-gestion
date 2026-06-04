@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getSupabaseServerClient } from "../../lib/supabase-server";
+import { getOrCreateCurrentUserProfile } from "../../lib/profiles";
 import { withLoginNext } from "../../features/auth/routes";
 
 export default async function PrivateLayout({
@@ -17,6 +18,8 @@ export default async function PrivateLayout({
     const requestHeaders = await headers();
     redirect(withLoginNext(requestHeaders.get("x-current-path")));
   }
+
+  await getOrCreateCurrentUserProfile(supabase);
 
   return children;
 }
