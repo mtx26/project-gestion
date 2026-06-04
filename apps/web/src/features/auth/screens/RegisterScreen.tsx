@@ -1,46 +1,72 @@
 "use client";
 
-import { FormEvent } from "react";
+import { FormEvent, useState } from "react";
 import Link from "next/link";
-import { useAuthCredentials, useSupabaseAuth } from "@project-gestion/auth";
-import { getSupabaseBrowserClient } from "../../../lib/supabase";
+import { useRouter } from "next/navigation";
+import { getSupabaseBrowserClient } from "../../../lib/supabase-browser";
 import { AuthEmailInput } from "../components/AuthEmailInput";
 import { AuthMessage } from "../components/AuthMessage";
 import { AuthPasswordInput } from "../components/AuthPasswordInput";
-import { AuthSession } from "../components/AuthSession";
 import { AuthSubmitButton } from "../components/AuthSubmitButton";
-import { getRegisterRedirect } from "../redirects";
+import {
+  LOGIN_PATH,
+  withAuthRedirectNext,
+} from "../routes";
 
 export function RegisterScreen() {
+  const router = useRouter();
   const supabase = getSupabaseBrowserClient();
-  const auth = useSupabaseAuth(supabase, {
-    redirects: getRegisterRedirect,
-  });
-  const credentials = useAuthCredentials();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const emailRedirectTo =
+    typeof window === "undefined"
+      ? undefined
+      : window.location.origin + withAuthRedirectNext();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await auth.signUpWithPassword(credentials.email, credentials.password);
-  }
+    setMessage("");
 
-  if (auth.user) {
-    return <AuthSession auth={auth} />;
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo,
+        },
+      });
+
+      if (error) {
+        setMessage(error.message);
+        return;
+      }
+
+      if (data.session) {
+        router.replace(withAuthRedirectNext());
+        return;
+      }
+
+      setMessage("Check your email to confirm your account.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to register.");
+    }
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <h1>Register</h1>
-      <AuthEmailInput value={credentials.email} onChange={credentials.setEmail} />
+      <AuthEmailInput value={email} onChange={setEmail} />
       <AuthPasswordInput
         autoComplete="new-password"
-        value={credentials.password}
-        onChange={credentials.setPassword}
+        value={password}
+        onChange={setPassword}
       />
-      <AuthSubmitButton disabled={auth.loading} label="Register" />
+      <AuthSubmitButton disabled={false} label="Register" />
       <p>
-        <Link href="/login">Already have an account?</Link>
+        <Link href={LOGIN_PATH}>Already have an account?</Link>
       </p>
-      <AuthMessage message={auth.message} />
+      <AuthMessage message={message} />
     </form>
   );
 }

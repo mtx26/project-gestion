@@ -14,7 +14,7 @@ export function useSupabaseAuth(
   options: UseSupabaseAuthOptions = {}
 ): AuthController {
   const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const redirects = options.redirects;
 
@@ -27,20 +27,35 @@ export function useSupabaseAuth(
 
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!mounted) {
-        return;
-      }
+    supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (!mounted) {
+          return;
+        }
 
-      setSession(data.session);
-      setMessage(error?.message ?? "");
-      setLoading(false);
-    });
+        setSession(data.session);
+        setMessage(error?.message ?? "");
+      })
+      .catch((error: unknown) => {
+        if (!mounted) {
+          return;
+        }
+
+        setSession(null);
+        setMessage(error instanceof Error ? error.message : "Unable to load session.");
+      })
+      .finally(() => {
+        if (mounted) {
+          setLoading(false);
+        }
+      });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      setLoading(false);
     });
 
     return () => {

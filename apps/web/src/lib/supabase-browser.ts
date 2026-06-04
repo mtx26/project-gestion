@@ -1,13 +1,9 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-let supabase: SupabaseClient | null = null;
+let supabase: SupabaseClient | undefined;
 
 export function getSupabaseBrowserClient() {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
   if (supabase) {
     return supabase;
   }
