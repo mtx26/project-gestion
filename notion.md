@@ -1,129 +1,619 @@
-# Phase 1 — Architecture
+Pour un projet comme MediTime mais orienté **gestion de projet / GED / ERP léger**, je découperais beaucoup plus finement afin d'éviter les blocages.
 
-1. Initialiser le monorepo Turborepo
-2. Créer apps/web
-3. Créer apps/mobile
-4. Créer packages/ui
-5. Créer packages/types
-6. Créer packages/supabase
-7. Créer packages/utils
-8. Configurer TypeScript
-9. Vérifier que web et mobile démarrent
+# Phase 0 — Conception
+
+## 0.1 Analyse métier
+
+* Définir les types d'utilisateurs
+
+  * Administrateur
+  * Chef de projet
+  * Collaborateur
+  * Client
+* Définir les modules
+
+  * Projets
+  * Dossiers
+  * Documents
+  * Tâches
+  * Temps
+  * Finances
+* Définir les permissions
+* Définir les cas d'usage
+
+## 0.2 Architecture technique
+
+* Choix :
+
+  * React Web
+  * React Native Expo
+  * Supabase
+  * Turborepo
+  * TypeScript
+* Définir la structure du monorepo
+* Définir les conventions de nommage
+* Définir les types partagés
+
+---
+
+# Phase 1 — Monorepo
+
+## 1.1 Création Turborepo
+
+```bash
+npx create-turbo@latest
+```
+
+## 1.2 Applications
+
+### apps/web
+
+* React
+* Vite
+* React Router
+
+### apps/mobile
+
+* Expo
+* Expo Router
+
+## 1.3 Packages
+
+### packages/ui
+
+Composants partagés :
+
+* Button
+* Input
+* Modal
+* Card
+* Table
+
+### packages/types
+
+Interfaces :
+
+```ts
+Project
+Folder
+Document
+Task
+Role
+Permission
+User
+```
+
+### packages/supabase
+
+Client Supabase partagé
+
+### packages/utils
+
+Fonctions :
+
+```ts
+formatDate()
+formatMoney()
+slugify()
+```
+
+## 1.4 Configuration
+
+* ESLint
+* Prettier
+* TypeScript
+* Path aliases
+
+## 1.5 Validation
+
+* Web démarre
+* Mobile démarre
+* Package partagé fonctionne
+
+---
 
 # Phase 2 — Supabase
 
-1. Créer le projet Supabase
-2. Configurer Auth
-3. Configurer Storage
-4. Connecter web à Supabase
-5. Connecter mobile à Supabase
-6. Créer le package partagé Supabase
+## 2.1 Création projet
+
+* Région Europe
+* Activer PITR
+
+## 2.2 Auth
+
+* Email/password
+* OAuth Google
+
+## 2.3 Storage
+
+Créer buckets :
+
+### avatars
+
+```txt
+avatars/
+```
+
+### documents
+
+```txt
+projects/{projectId}/
+```
+
+### previews
+
+```txt
+previews/
+```
+
+## 2.4 Package partagé
+
+Créer :
+
+```ts
+createClient()
+```
+
+pour :
+
+* Web
+* Mobile
+
+## 2.5 Variables d'environnement
+
+Web :
+
+```env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
+
+Mobile :
+
+```env
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+---
 
 # Phase 3 — Base de données
 
-1. Créer profiles
-2. Créer projects
-3. Créer project_members
-4. Créer roles
-5. Créer role_permissions
-6. Créer folders
-7. Créer folder_permissions
-8. Créer documents
-9. Créer tasks
-10. Créer time_entries
-11. Créer financial_entries
-12. Créer comments
-13. Créer notifications
+## 3.1 Tables système
 
-Toutes les tables métier utilisent deleted_at et deleted_by.
+### profiles
 
-# Phase 4 — Auth
+```sql
+id uuid
+email
+fullname
+avatar_url
+created_at
+updated_at
+```
 
-1. Inscription
-2. Connexion
-3. Mot de passe oublié
-4. Création automatique du profile
-5. Protection des routes
+---
 
-# Phase 5 — Projet
+### notifications
 
-1. Création projet
-2. Liste projets
-3. Modification projet
-4. Archivage projet
-5. Gestion membres
+```sql
+id
+user_id
+title
+message
+read_at
+created_at
+```
 
-# Phase 6 — Permissions
+---
 
-1. Création rôles
-2. Attribution rôles
-3. Permissions par module
-4. Fonction has_folder_access()
-5. Inclusion utilisateur
-6. Exclusion utilisateur
-7. Inclusion rôle
-8. Exclusion rôle
-9. RLS Supabase
+# Phase 4 — Gestion des projets
 
-# Phase 7 — Dossiers
+## projects
 
-1. Création dossier
-2. Sous-dossiers
-3. Arborescence
-4. Permissions dossiers
+```sql
+id
+name
+description
+status
+owner_id
+created_at
+updated_at
+deleted_at
+deleted_by
+```
 
-# Phase 8 — Documents
+Fonctionnalités :
 
-1. Upload
-2. Téléchargement
-3. Prévisualisation
-4. Permissions documents
+* créer
+* modifier
+* archiver
+* supprimer logiquement
 
-# Phase 9 — Tâches
+---
 
-1. Création tâche
-2. Assignation
-3. Priorité
-4. Statut
-5. Échéances
-6. Vue calendrier basée sur les tâches
+## project_members
 
-# Phase 10 — Horaires
+```sql
+project_id
+user_id
+role_id
+joined_at
+```
 
-1. Encodage heures
-2. Validation heures
-3. Totaux
+Fonctionnalités :
 
-# Phase 11 — Finances
+* invitation
+* retrait
+* changement rôle
 
-1. Dépenses
-2. Factures
-3. Budgets
-4. Permissions finances
+---
 
-# Phase 12 — Commentaires
+# Phase 5 — Permissions
 
-1. Commentaires projets
-2. Commentaires dossiers
-3. Commentaires documents
-4. Commentaires tâches
+## roles
 
-# Phase 13 — Notifications
+```sql
+id
+project_id
+name
+```
 
-1. Notifications internes
-2. Realtime Supabase
+Exemples :
 
-# Phase 14 — Mobile
+```txt
+Admin
+Manager
+Collaborateur
+Client
+```
 
-1. Auth mobile
-2. Projets mobile
-3. Dossiers mobile
-4. Documents mobile
-5. Tâches mobile
+---
+
+## role_permissions
+
+```sql
+role_id
+permission
+```
+
+Exemple :
+
+```txt
+project.read
+project.write
+task.read
+task.write
+finance.read
+finance.write
+```
+
+---
+
+## Fonctions SQL
+
+### has_project_permission()
+
+```sql
+has_project_permission(
+  user_id,
+  project_id,
+  permission
+)
+```
+
+---
+
+### has_folder_access()
+
+```sql
+has_folder_access(
+  user_id,
+  folder_id
+)
+```
+
+---
+
+# Phase 6 — Arborescence documentaire
+
+## folders
+
+```sql
+id
+project_id
+parent_id
+name
+deleted_at
+deleted_by
+```
+
+Permet :
+
+```txt
+Projet
+ ├─ Administratif
+ ├─ Plans
+ │   ├─ Version A
+ │   ├─ Version B
+ └─ Factures
+```
+
+---
+
+## folder_permissions
+
+```sql
+folder_id
+role_id
+allow
+```
+
+---
+
+# Phase 7 — Documents
+
+## documents
+
+```sql
+id
+folder_id
+storage_path
+filename
+mime_type
+size
+version
+created_by
+deleted_at
+deleted_by
+```
+
+Fonctionnalités :
+
+### MVP
+
+* upload
+* download
+* aperçu PDF
+* suppression logique
+
+### V2
+
+* versioning
+* OCR
+* signatures
+
+---
+
+# Phase 8 — Tâches
+
+## tasks
+
+```sql
+id
+project_id
+title
+description
+status
+priority
+assigned_to
+start_date
+due_date
+completed_at
+deleted_at
+deleted_by
+```
+
+Statuts :
+
+```txt
+Todo
+In Progress
+Review
+Done
+```
+
+Priorités :
+
+```txt
+Low
+Medium
+High
+Critical
+```
+
+---
+
+# Phase 9 — Temps
+
+## time_entries
+
+```sql
+id
+task_id
+user_id
+duration
+date
+validated
+deleted_at
+deleted_by
+```
+
+Fonctionnalités :
+
+* encodage
+* validation
+* total projet
+* total utilisateur
+
+---
+
+# Phase 10 — Finances
+
+## financial_entries
+
+```sql
+id
+project_id
+type
+amount
+description
+date
+deleted_at
+deleted_by
+```
+
+Types :
+
+```txt
+Expense
+Invoice
+Budget
+```
+
+---
+
+# Phase 11 — Commentaires
+
+## comments
+
+```sql
+id
+author_id
+
+project_id nullable
+folder_id nullable
+document_id nullable
+task_id nullable
+
+content
+
+created_at
+updated_at
+deleted_at
+deleted_by
+```
+
+---
+
+# Phase 12 — Auth
+
+## Fonctionnalités
+
+* inscription
+* connexion
+* déconnexion
+* reset password
+* refresh token
+
+## Middleware
+
+Web :
+
+```txt
+PublicRoute
+ProtectedRoute
+AdminRoute
+```
+
+Mobile :
+
+```txt
+AuthGuard
+```
+
+---
+
+# Phase 13 — Realtime
+
+## Supabase Realtime
+
+Canaux :
+
+```txt
+projects
+tasks
+comments
+notifications
+```
+
+Événements :
+
+```txt
+INSERT
+UPDATE
+DELETE
+```
+
+---
+
+# Phase 14 — Mobile MVP
+
+## Écrans
+
+### Auth
+
+* Login
+* Register
+
+### Dashboard
+
+* Mes projets
+
+### Projet
+
+* Arborescence
+
+### Documents
+
+* Liste
+* Upload photo/PDF
+
+### Tâches
+
+* Liste
+* Modification statut
+
+---
 
 # Phase 15 — Déploiement
 
-1. Déploiement web
-2. Configuration production
-3. Tests complets
-4. Publication MVP
+## Web
+
+Frontend :
+
+* Vercel
+
+Backend :
+
+* [Supabase](https://supabase.com?utm_source=chatgpt.com)
+
+---
+
+## Mobile
+
+* Android
+* iOS
+
+via [Expo EAS](https://expo.dev/eas?utm_source=chatgpt.com)
+
+---
+
+# Phase 16 — MVP terminé
+
+À ce stade tu as déjà :
+
+✅ Auth
+✅ Gestion des projets
+✅ Gestion des membres
+✅ Permissions granulaires
+✅ Dossiers hiérarchiques
+✅ Documents
+✅ Tâches
+✅ Temps passé
+✅ Finances
+✅ Commentaires
+✅ Notifications temps réel
+✅ Application mobile
+
+Pour MediTime, je ferais même une étape supplémentaire avant de coder : un schéma complet PostgreSQL + RLS + diagramme des permissions. Ça évite de devoir refaire toute la sécurité plus tard.
