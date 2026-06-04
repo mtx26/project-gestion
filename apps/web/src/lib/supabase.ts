@@ -1,4 +1,4 @@
-import { createSupabaseAuthClient } from "@project-gestion/auth";
+import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 let supabase: SupabaseClient | null = null;
@@ -19,10 +19,7 @@ export function getSupabaseBrowserClient() {
     throw new Error("Missing Supabase public environment variables.");
   }
 
-  supabase = createSupabaseAuthClient({
-    url: supabaseUrl,
-    anonKey: supabaseKey,
-  });
+  supabase = createBrowserClient(supabaseUrl, supabaseKey);
 
   return supabase;
 }

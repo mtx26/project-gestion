@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent } from "react";
+import { FormEvent, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useAuthCredentials, useSupabaseAuth } from "@project-gestion/auth";
 import { getSupabaseBrowserClient } from "../../../lib/supabase";
 import { AuthEmailInput } from "../components/AuthEmailInput";
@@ -11,17 +12,28 @@ import { AuthSession } from "../components/AuthSession";
 import { AuthSubmitButton } from "../components/AuthSubmitButton";
 
 export function LoginScreen() {
+  const router = useRouter();
   const supabase = getSupabaseBrowserClient();
   const auth = useSupabaseAuth(supabase);
   const credentials = useAuthCredentials();
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await auth.signInWithPassword(credentials.email, credentials.password);
+    const result = await auth.signInWithPassword(credentials.email, credentials.password);
+
+    if (!result.error) {
+      router.replace("/secure");
+    }
   }
 
+  useEffect(() => {
+    if (auth.user) {
+      router.replace("/secure");
+    }
+  }, [auth.user, router]);
+
   if (auth.user) {
-    return <AuthSession auth={auth} />;
+    return null;
   }
 
   return (

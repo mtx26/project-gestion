@@ -19,7 +19,8 @@
       {
         "name": "next"
       }
-    ]
+    ],
+    "moduleResolution": "bundler"
   },
   "include": [
     "**/*.ts",

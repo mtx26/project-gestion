@@ -3,25 +3,27 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start",
+    "dev": "dotenv -e ../../.env -- next dev -p 3000",
+    "build": "dotenv -e ../../.env -- next build",
+    "start": "dotenv -e ../../.env -- next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@project-gestion/auth": "*",
+    "@project-gestion/types": "*",
+    "@project-gestion/ui": "*",
+    "@project-gestion/utils": "*",
+    "@supabase/ssr": "^0.10.3",
     "next": "^15.0.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0",
-    "@project-gestion/ui": "*",
-    "@project-gestion/types": "*",
-    "@project-gestion/utils": "*"
+    "react-dom": "^18.3.0"
   },
   "devDependencies": {
-    "typescript": "^5.3.0",
+    "@types/node": "^20.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
-    "@types/node": "^20.0.0"
+    "dotenv-cli": "^7.4.4",
+    "typescript": "^5.3.0"
   }
 }
