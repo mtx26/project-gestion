@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { getSupabaseBrowserClient } from "../../../lib/supabase-browser";
 import { AuthEmailInput } from "../components/AuthEmailInput";
+import { AuthGoogleButton } from "../components/AuthGoogleButton";
 import { AuthMessage } from "../components/AuthMessage";
 import { AuthPasswordInput } from "../components/AuthPasswordInput";
 import { AuthSubmitButton } from "../components/AuthSubmitButton";
@@ -45,6 +46,7 @@ export function LoginScreen() {
   return (
     <form onSubmit={handleSubmit}>
       <h1>Login</h1>
+      <AuthGoogleButton onError={setMessage} />
       <AuthEmailInput value={email} onChange={setEmail} />
       <AuthPasswordInput
         autoComplete="current-password"
