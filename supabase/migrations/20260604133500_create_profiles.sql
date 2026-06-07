@@ -1,5 +1,6 @@
 create table public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
+  name text,
   avatar_url text,
   created_at timestamp with time zone not null default timezone('utc'::text, now()),
   updated_at timestamp with time zone not null default timezone('utc'::text, now())
@@ -52,16 +53,23 @@ create or replace function public.handle_new_user_profile()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = ''
 as $$
 begin
-  insert into public.profiles (id, avatar_url)
+  insert into public.profiles (id, name, avatar_url)
   values (
     new.id,
-    coalesce(
+    nullif(
+      btrim(coalesce(
+        new.raw_user_meta_data ->> 'name',
+        new.raw_user_meta_data ->> 'full_name'
+      )),
+      ''
+    ),
+    nullif(coalesce(
       new.raw_user_meta_data ->> 'avatar_url',
       new.raw_user_meta_data ->> 'picture'
-    )
+    ), '')
   )
   on conflict (id) do nothing;
 

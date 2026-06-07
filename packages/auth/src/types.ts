@@ -7,6 +7,8 @@ export interface AuthActionResult {
   message: string;
 }
 
+export type AuthSignUpMetadata = Record<string, unknown>;
+
 export interface AuthController {
   session: Session | null;
   user: User | null;
@@ -14,6 +16,10 @@ export interface AuthController {
   message: string;
   clearMessage(): void;
   signInWithPassword(email: string, password: string): Promise<AuthActionResult>;
-  signUpWithPassword(email: string, password: string): Promise<AuthActionResult>;
+  signUpWithPassword(
+    email: string,
+    password: string,
+    metadata?: AuthSignUpMetadata
+  ): Promise<AuthActionResult>;
   signOut(): Promise<AuthActionResult>;
 }

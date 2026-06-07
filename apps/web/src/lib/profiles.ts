@@ -3,6 +3,7 @@ import type { User as AppUser } from "@project-gestion/types";
 
 interface ProfileRow {
   id: string;
+  name: string | null;
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
@@ -12,7 +13,7 @@ function toUser(row: ProfileRow, user: User): AppUser {
   return {
     id: row.id,
     email: user.email ?? "",
-    name: getStringMetadata(user, "name") ?? undefined,
+    name: row.name ?? undefined,
     avatarUrl: row.avatar_url,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -27,6 +28,7 @@ function getStringMetadata(user: User, key: string) {
 function getInitialProfileValues(user: User) {
   return {
     id: user.id,
+    name: getStringMetadata(user, "name") ?? getStringMetadata(user, "full_name"),
     avatar_url:
       getStringMetadata(user, "avatar_url") ?? getStringMetadata(user, "picture"),
   };
@@ -35,7 +37,7 @@ function getInitialProfileValues(user: User) {
 async function selectOwnProfile(supabase: SupabaseClient, user: User) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, avatar_url, created_at, updated_at")
+    .select("id, name, avatar_url, created_at, updated_at")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -86,7 +88,7 @@ export async function getOrCreateCurrentUserProfile(supabase: SupabaseClient) {
   const { data, error: insertError } = await supabase
     .from("profiles")
     .insert(getInitialProfileValues(user))
-    .select("id, avatar_url, created_at, updated_at")
+    .select("id, name, avatar_url, created_at, updated_at")
     .single();
 
   if (!insertError) {

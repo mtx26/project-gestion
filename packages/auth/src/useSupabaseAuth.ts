@@ -3,7 +3,7 @@ import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { resolveAuthRedirect, type AuthRedirects } from "./redirects";
 import { createAuthActionResult, createMissingClientResult } from "./results";
 import { runAuthAction } from "./runAuthAction";
-import type { AuthController } from "./types";
+import type { AuthController, AuthSignUpMetadata } from "./types";
 
 export interface UseSupabaseAuthOptions {
   redirects?: AuthRedirects;
@@ -86,7 +86,7 @@ export function useSupabaseAuth(
   );
 
   const signUpWithPassword = useCallback(
-    (email: string, password: string) =>
+    (email: string, password: string, metadata?: AuthSignUpMetadata) =>
       runAuthAction(setLoading, setMessage, async () => {
         if (!supabase) {
           return createMissingClientResult();
@@ -97,6 +97,7 @@ export function useSupabaseAuth(
           password,
           options: {
             emailRedirectTo: resolveAuthRedirect(redirects, "sign-up"),
+            data: metadata,
           },
         });
 

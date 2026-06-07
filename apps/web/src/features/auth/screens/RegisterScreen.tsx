@@ -34,6 +34,12 @@ export function RegisterScreen() {
     try {
       const trimmedName = name.trim();
       const trimmedAvatarUrl = avatarUrl.trim();
+
+      if (!trimmedName) {
+        setMessage("Name is required.");
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
