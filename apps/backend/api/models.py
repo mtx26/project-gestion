@@ -16,6 +16,10 @@ class Project(BaseModel):
                 name='unique_project_name_per_owner'
             )
         ]
+        
+    @property
+    def permission_project(self):
+        return self
 
 # Roles and Permissions
 class Role(BaseModel):
@@ -30,7 +34,11 @@ class Role(BaseModel):
                 name='unique_role_name_per_project'
             )
         ]
-
+        
+    @property
+    def permission_project(self):
+        return self.project
+    
 class Permission(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
