@@ -1,3 +1,5 @@
+from django.db import transaction
+
 from rest_framework import serializers
 
 from .models import (
@@ -34,12 +36,51 @@ class ProjectSerializer(serializers.ModelSerializer):
 
 
 class RoleSerializer(serializers.ModelSerializer):
+    permissions = serializers.PrimaryKeyRelatedField(
+        queryset=Permission.objects.all(),
+        many=True,
+        required=False,
+    )
+
     class Meta:
         model = Role
         fields = "__all__"
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
         ]
+
+    def create(self, validated_data):
+        permissions = validated_data.pop("permissions", [])
+
+        with transaction.atomic():
+            role = Role.objects.create(**validated_data)
+            self._set_permissions(role, permissions)
+
+        return role
+
+    def update(self, instance, validated_data):
+        permissions = validated_data.pop("permissions", None)
+
+        with transaction.atomic():
+            role = super().update(instance, validated_data)
+
+            if permissions is not None:
+                self._set_permissions(role, permissions)
+
+        return role
+
+    def _set_permissions(self, role, permissions):
+        RolePermission.objects.filter(role=role).delete()
+
+        unique_permissions = {
+            permission.id: permission
+            for permission in permissions
+        }.values()
+
+        RolePermission.objects.bulk_create([
+            RolePermission(role=role, permission=permission)
+            for permission in unique_permissions
+        ])
 
 
 class PermissionSerializer(serializers.ModelSerializer):
