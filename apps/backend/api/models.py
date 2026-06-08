@@ -64,7 +64,7 @@ class ProjectMember(BaseModel):
    
     def clean(self):
         if self.role.project_id != self.project_id:
-            raise ValidationError("Role must belong to the same project as the member.")
+            raise ValidationError("errors.project_member.role_project_mismatch")
     
     class Meta:
         constraints = [
@@ -85,7 +85,7 @@ class Folder(BaseModel):
 
     def clean(self):
         if self.parent_folder and self.parent_folder.project_id != self.project_id:
-            raise ValidationError("Parent folder must belong to the same project.")
+            raise ValidationError("errors.folder.parent_project_mismatch")
 
     class Meta:
         constraints = [
@@ -113,7 +113,7 @@ class Document(BaseModel):
 
     def clean(self):
         if self.folder and self.folder.project_id != self.project_id:
-            raise ValidationError("Folder must belong to the same project.")
+            raise ValidationError("errors.document.folder_project_mismatch")
 
     class Meta:
         constraints = [
@@ -141,7 +141,7 @@ class Task(BaseModel):
 
     def clean(self):
         if self.folder and self.folder.project_id != self.project_id:
-            raise ValidationError("Folder must belong to the same project.")
+            raise ValidationError("errors.task.folder_project_mismatch")
 
 class Invitation(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -154,7 +154,7 @@ class Invitation(BaseModel):
     
     def clean(self):
         if self.role.project_id != self.project_id:
-            raise ValidationError("Role must belong to the same project as the invitation.")
+            raise ValidationError("errors.invitation.role_project_mismatch")
 
 class Notification(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -175,23 +175,23 @@ class TimeEntry(BaseModel):
 
     def clean(self):
         if not self.folder and not self.task:
-            raise ValidationError("Time entry must be linked to a folder or a task.")
+            raise ValidationError("errors.time_entry.missing_target")
 
         if self.folder and self.task:
-            raise ValidationError("Time entry cannot be linked to both a folder and a task.")
+            raise ValidationError("errors.time_entry.multiple_targets")
 
         if self.folder and self.folder.project_id != self.project_id:
-            raise ValidationError("Folder must belong to the same project.")
+            raise ValidationError("errors.time_entry.folder_project_mismatch")
 
         if self.task and self.task.project_id != self.project_id:
-            raise ValidationError("Task must belong to the same project.")
+            raise ValidationError("errors.time_entry.task_project_mismatch")
 
 class FinancialEntry(BaseModel):
     class FinancialType(models.TextChoices):
-        EXPENSE = "expense", "Expense"
-        INVOICE = "invoice", "Invoice"
-        REFUND = "refund", "Refund"
-        PAYMENT = "payment", "Payment"
+        EXPENSE = "expense", "financial.types.expense"
+        INVOICE = "invoice", "financial.types.invoice"
+        REFUND = "refund", "financial.types.refund"
+        PAYMENT = "payment", "financial.types.payment"
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
@@ -203,4 +203,4 @@ class FinancialEntry(BaseModel):
     
     def clean(self):
         if self.folder and self.folder.project_id != self.project_id:
-            raise ValidationError("Folder must belong to the same project.")
+            raise ValidationError("errors.financial_entry.folder_project_mismatch")

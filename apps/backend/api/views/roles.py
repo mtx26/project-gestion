@@ -5,7 +5,8 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..permissions import CanManageRoles
-from ..serializers import RoleSerializer
+from ..models import Permission
+from ..serializers import RoleSerializer, PermissionSerializer
 from ..services.roles import get_deleted_project_roles, get_project_roles
 
 
@@ -107,3 +108,17 @@ class RoleTrashListView(generics.ListAPIView):
             self.request.user,
             self.kwargs["project_id"],
         )
+
+
+@extend_schema_view(
+    get=extend_schema(
+        summary="Lister les permissions",
+        description="Retourne toutes les permissions disponibles pour creer ou modifier un role.",
+    ),
+)
+class PermissionListView(generics.ListAPIView):
+    serializer_class = PermissionSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Permission.objects.all()
