@@ -1,3 +1,198 @@
+from django.contrib.auth.models import User
 from django.db import models
+from django.core.exceptions import ValidationError
+from core.models import BaseModel
+    
+## Projects
+class Project(BaseModel):
+    owner = models.ForeignKey(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
 
-# Create your models here.
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['owner', 'name'],
+                name='unique_project_name_per_owner'
+            )
+        ]
+
+# Roles and Permissions
+class Role(BaseModel):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'name'],
+                name='unique_role_name_per_project'
+            )
+        ]
+
+class Permission(models.Model):
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    code = models.CharField(max_length=100, unique=True)
+    
+class RolePermission(BaseModel):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    permission = models.ForeignKey('Permission', on_delete=models.CASCADE)
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['role', 'permission'],
+                name='unique_role_permission'
+            )
+        ]
+
+class ProjectMember(BaseModel):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+
+   
+    def clean(self):
+        if self.role.project_id != self.project_id:
+            raise ValidationError("Role must belong to the same project as the member.")
+    
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'user'],
+                name='unique_project_member'
+            )
+        ]
+        
+
+class Folder(BaseModel):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    parent_folder = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    color = models.CharField(max_length=7, null=True, blank=True)
+    icon = models.CharField(max_length=100, null=True, blank=True)
+
+    def clean(self):
+        if self.parent_folder and self.parent_folder.project_id != self.project_id:
+            raise ValidationError("Parent folder must belong to the same project.")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['project', 'parent_folder', 'name'],
+                name='unique_folder_name_per_parent'
+            )
+        ]
+    
+    @property
+    def is_root(self):
+        return self.parent_folder is None
+
+class Document(BaseModel):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    folder = models.ForeignKey(Folder, on_delete=models.CASCADE, null=True, blank=True)
+
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+
+    file_id = models.CharField(max_length=255, unique=True)
+    file_name = models.CharField(max_length=255)
+    file_size = models.PositiveIntegerField(null=True, blank=True)
+    mime_type = models.CharField(max_length=100, blank=True, null=True)
+
+    def clean(self):
+        if self.folder and self.folder.project_id != self.project_id:
+            raise ValidationError("Folder must belong to the same project.")
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "folder", "name"],
+                name="unique_document_name_per_folder"
+            )
+        ]
+
+class Task(BaseModel):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tasks_created")
+    assigned_to = models.ManyToManyField(
+        User,
+        blank=True,
+        related_name="tasks_assigned"
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    status = models.CharField(max_length=50, default="todo")
+    priority = models.CharField(max_length=50, default="normal")
+    due_date = models.DateField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+
+    def clean(self):
+        if self.folder and self.folder.project_id != self.project_id:
+            raise ValidationError("Folder must belong to the same project.")
+
+class Invitation(BaseModel):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    email = models.EmailField()
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="invitations_sent")
+    token = models.CharField(max_length=255, unique=True)
+    expires_at = models.DateTimeField()
+    accepted_at = models.DateTimeField(null=True, blank=True)
+    
+    def clean(self):
+        if self.role.project_id != self.project_id:
+            raise ValidationError("Role must belong to the same project as the invitation.")
+
+class Notification(BaseModel):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications_created")
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    type = models.CharField(max_length=100)
+    is_read = models.BooleanField(default=False)
+    
+class TimeEntry(BaseModel):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
+    task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    duration_minutes = models.PositiveIntegerField()
+    description = models.TextField(blank=True, null=True)
+
+    def clean(self):
+        if not self.folder and not self.task:
+            raise ValidationError("Time entry must be linked to a folder or a task.")
+
+        if self.folder and self.task:
+            raise ValidationError("Time entry cannot be linked to both a folder and a task.")
+
+        if self.folder and self.folder.project_id != self.project_id:
+            raise ValidationError("Folder must belong to the same project.")
+
+        if self.task and self.task.project_id != self.project_id:
+            raise ValidationError("Task must belong to the same project.")
+
+class FinancialEntry(BaseModel):
+    class FinancialType(models.TextChoices):
+        EXPENSE = "expense", "Expense"
+        INVOICE = "invoice", "Invoice"
+        REFUND = "refund", "Refund"
+        PAYMENT = "payment", "Payment"
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="financial_entries_created")
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    type = models.CharField(max_length=50, choices=FinancialType.choices)
+    category = models.CharField(max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    
+    def clean(self):
+        if self.folder and self.folder.project_id != self.project_id:
+            raise ValidationError("Folder must belong to the same project.")
