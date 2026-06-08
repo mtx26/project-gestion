@@ -133,4 +133,7 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "API avec authentification JWT utilisant DRF + Spectacular",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    "POSTPROCESSING_HOOKS": [
+        "api.schema.add_error_responses",
+    ],
 }
