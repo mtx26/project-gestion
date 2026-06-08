@@ -13,10 +13,8 @@ from .models import (
     Notification,
     TimeEntry,
     FinancialEntry,
-    Profile
 )
 
-admin.site.register(Profile)
 admin.site.register(Project)
 admin.site.register(Role)
 admin.site.register(Permission)

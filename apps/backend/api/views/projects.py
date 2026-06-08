@@ -2,34 +2,26 @@ from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from ...accounts.serializers import ProjectSerializer
-from ...accounts.models import Project
+from ..serializers import ProjectSerializer
+from ..serializers import Project
 
 
-class ProjectListView(generics.ListAPIView):
+class ProjectListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
 
     def get_queryset(self):
-        return Project.objects.filter(
-            owner=self.request.user
-        )
-    
-class ProjectCreateView(generics.CreateAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = ProjectSerializer
+        return Project.objects.filter(owner=self.request.user)
 
     def perform_create(self, serializer):
         serializer.save(owner=self.request.user)
         
-class ProjectDeleteView(generics.DestroyAPIView):
+class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
 
     def get_queryset(self):
-        return Project.objects.filter(
-            owner=self.request.user
-        )
+        return Project.objects.filter(owner=self.request.user)
 
     def perform_destroy(self, instance):
         instance.soft_delete(self.request.user)
