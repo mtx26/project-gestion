@@ -12,6 +12,9 @@ from .views.roles import (
     RoleRestoreView,
     RoleTrashListView
 )
+from .views.members import (
+    ProjectMemberListView
+)
     
 
 urlpatterns = [
@@ -26,4 +29,6 @@ urlpatterns = [
     path("projects/<int:project_id>/roles/trash/", RoleTrashListView.as_view(), name="project-role-trash-list"),
     path("projects/<int:project_id>/roles/<int:pk>/restore/", RoleRestoreView.as_view(), name="project-role-restore"),
     path("permissions/", PermissionListView.as_view(), name="permission-list"),
+    # Members
+    path("projects/<int:project_id>/members/", ProjectMemberListView.as_view(), name="project-members"),
 ]

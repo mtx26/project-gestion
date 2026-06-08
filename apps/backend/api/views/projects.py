@@ -12,7 +12,7 @@ from ..permissions import (
 )
 from ..services.projects import (
     get_accessible_projects,
-    get_accessible_deleted_projects,
+    get_accessible_deleted_projects
 )
 
 

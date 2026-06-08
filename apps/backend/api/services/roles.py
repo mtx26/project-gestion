@@ -1,16 +1,22 @@
 from ..models import Role
-from .projects import get_accessible_projects
+from .permissions import filter_allowed_project
+
+
+MANAGE_ROLES_PERMISSION = "project.manage_roles"
 
 
 def get_project_roles(user, project_id):
-    return Role.objects.filter(
-        project_id=project_id,
-        project__in=get_accessible_projects(user)
-    ).select_related("project")
+    return filter_allowed_project(
+        Role.objects.select_related("project"),
+        user,
+        project_id,
+        permission_code=MANAGE_ROLES_PERMISSION,
+    )
     
 def get_deleted_project_roles(user, project_id):
-    return Role.all_objects.filter(
-        project_id=project_id,
-        project__in=get_accessible_projects(user),
-        deleted_at__isnull=False
-    ).select_related("project")
+    return filter_allowed_project(
+        Role.deleted_objects.select_related("project"),
+        user,
+        project_id,
+        permission_code=MANAGE_ROLES_PERMISSION,
+    )

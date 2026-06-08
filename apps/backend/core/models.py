@@ -6,6 +6,12 @@ class ActiveManager(models.Manager):
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
 
+
+class DeletedManager(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(deleted_at__isnull=False)
+
+
 class BaseModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -19,6 +25,7 @@ class BaseModel(models.Model):
     )
 
     objects = ActiveManager()
+    deleted_objects = DeletedManager()
     all_objects = models.Manager()
 
     def soft_delete(self, user=None):

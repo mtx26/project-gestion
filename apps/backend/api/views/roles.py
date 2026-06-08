@@ -1,3 +1,5 @@
+from django.shortcuts import get_object_or_404
+
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -7,7 +9,12 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..permissions import CanManageRoles
 from ..models import Permission
 from ..serializers import RoleSerializer, PermissionSerializer
-from ..services.roles import get_deleted_project_roles, get_project_roles
+from ..services.permissions import get_allowed_project
+from ..services.roles import (
+    MANAGE_ROLES_PERMISSION,
+    get_deleted_project_roles,
+    get_project_roles,
+)
 
 
 @extend_schema_view(
@@ -32,7 +39,13 @@ class RoleListCreateView(generics.ListCreateAPIView):
 
     def perform_create(self, serializer):
         serializer.save(
-            project_id=self.kwargs["project_id"],
+            project=get_object_or_404(
+                get_allowed_project(
+                    self.request.user,
+                    self.kwargs["project_id"],
+                    permission_code=MANAGE_ROLES_PERMISSION,
+                ),
+            ),
         )
 
 

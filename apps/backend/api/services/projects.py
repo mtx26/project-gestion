@@ -1,17 +1,9 @@
-from django.db.models import Q
-
-from ..models import Project
+from .permissions import get_allowed_projects
 
 
 def get_accessible_projects(user):
-    return Project.objects.filter(
-        Q(owner=user) |
-        Q(projectmember__user=user)
-    ).distinct()
+    return get_allowed_projects(user)
+
 
 def get_accessible_deleted_projects(user):
-    return Project.all_objects.filter(
-        Q(owner=user) |
-        Q(projectmember__user=user),
-        deleted_at__isnull=False
-    ).distinct()
+    return get_allowed_projects(user, deleted=True)
