@@ -1,17 +1,17 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..permissions import CanManageRoles
-from ..models import Permission
+from ..permissions import HasProjectPermission
 from ..serializers import RoleSerializer, PermissionSerializer
-from ..services.permissions import get_allowed_project
+from ..services.permissions import get_permissions, has_project_permission
+from ..services.projects import get_accessible_projects
 from ..services.roles import (
-    MANAGE_ROLES_PERMISSION,
     get_deleted_project_roles,
     get_project_roles,
 )
@@ -29,7 +29,9 @@ from ..services.roles import (
 )
 class RoleListCreateView(generics.ListCreateAPIView):
     serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated, CanManageRoles]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "role.view"
+    create_permission_code = "role.create"
 
     def get_queryset(self):
         return get_project_roles(
@@ -38,15 +40,15 @@ class RoleListCreateView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
-        serializer.save(
-            project=get_object_or_404(
-                get_allowed_project(
-                    self.request.user,
-                    self.kwargs["project_id"],
-                    permission_code=MANAGE_ROLES_PERMISSION,
-                ),
-            ),
+        project = get_object_or_404(
+            get_accessible_projects(self.request.user),
+            pk=self.kwargs["project_id"],
         )
+
+        if not has_project_permission(self.request.user, project, self.create_permission_code):
+            raise PermissionDenied()
+
+        serializer.save(project=project)
 
 
 @extend_schema_view(
@@ -69,7 +71,8 @@ class RoleListCreateView(generics.ListCreateAPIView):
 )
 class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated, CanManageRoles]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "role.edit"
 
     def get_queryset(self):
         return get_project_roles(
@@ -89,7 +92,8 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
 )
 class RoleRestoreView(generics.GenericAPIView):
     serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated, CanManageRoles]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "role.edit"
 
     def get_queryset(self):
         return get_deleted_project_roles(
@@ -114,7 +118,8 @@ class RoleRestoreView(generics.GenericAPIView):
 )
 class RoleTrashListView(generics.ListAPIView):
     serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated, CanManageRoles]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "role.view"
 
     def get_queryset(self):
         return get_deleted_project_roles(
@@ -134,4 +139,4 @@ class PermissionListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Permission.objects.all()
+        return get_permissions()

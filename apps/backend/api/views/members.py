@@ -1,5 +1,6 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
+from ..permissions import HasProjectPermission
 from ..serializers import ProjectMemberSerializer
 from ..services.members import get_project_members
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -12,7 +13,8 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
     ),
 )
 class ProjectMemberListView(generics.ListAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "member.view"
     serializer_class = ProjectMemberSerializer
 
     def get_queryset(self):

@@ -19,6 +19,7 @@ from .models import (
 
 
 BASE_READ_ONLY_FIELDS = [
+    "id",
     "created_at",
     "updated_at",
     "deleted_at",
@@ -29,28 +30,50 @@ BASE_READ_ONLY_FIELDS = [
 class ProjectSerializer(serializers.ModelSerializer):
     class Meta:
         model = Project
-        fields = "__all__"
+        fields = [
+            "id",
+            "owner",
+            "name",
+            "description",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "owner",
         ]
 
 
 class RoleSerializer(serializers.ModelSerializer):
-    permissions = serializers.PrimaryKeyRelatedField(
+    permission_ids = serializers.PrimaryKeyRelatedField(
         queryset=Permission.objects.all(),
         many=True,
         required=False,
+        write_only=True,
     )
+    permissions = serializers.SerializerMethodField()
 
     class Meta:
         model = Role
-        fields = "__all__"
+        fields = [
+            "id",
+            "project",
+            "name",
+            "description",
+            "permissions",
+            "permission_ids",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
         ]
 
     def create(self, validated_data):
-        permissions = validated_data.pop("permissions", [])
+        permissions = validated_data.pop("permission_ids", [])
 
         with transaction.atomic():
             role = Role.objects.create(**validated_data)
@@ -59,7 +82,7 @@ class RoleSerializer(serializers.ModelSerializer):
         return role
 
     def update(self, instance, validated_data):
-        permissions = validated_data.pop("permissions", None)
+        permissions = validated_data.pop("permission_ids", None)
 
         with transaction.atomic():
             role = super().update(instance, validated_data)
@@ -82,11 +105,24 @@ class RoleSerializer(serializers.ModelSerializer):
             for permission in unique_permissions
         ])
 
+    def get_permissions(self, role):
+        return list(
+            Permission.objects.filter(
+                rolepermission__role=role,
+                rolepermission__deleted_at__isnull=True,
+            ).values("id", "code", "name", "description")
+        )
+
 
 class PermissionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Permission
-        fields = "__all__"
+        fields = [
+            "id",
+            "name",
+            "description",
+            "code",
+        ]
         read_only_fields = [
             "id",
             "name",
@@ -95,27 +131,45 @@ class PermissionSerializer(serializers.ModelSerializer):
         ]
 
 
-class RolePermissionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = RolePermission
-        fields = "__all__"
-        read_only_fields = BASE_READ_ONLY_FIELDS
-
-
 class ProjectMemberSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProjectMember
-        fields = "__all__"
-        read_only_fields = BASE_READ_ONLY_FIELDS
+        fields = [
+            "id",
+            "project",
+            "user",
+            "role",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
+        read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
+        ]
 
 
 class FolderSerializer(serializers.ModelSerializer):
-    is_root = serializers.BooleanField(read_only=True)
+    is_root = serializers.ReadOnlyField()
 
     class Meta:
         model = Folder
-        fields = "__all__"
+        fields = [
+            "id",
+            "project",
+            "parent_folder",
+            "name",
+            "description",
+            "color",
+            "icon",
+            "is_root",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
             "is_root",
         ]
 
@@ -123,15 +177,48 @@ class FolderSerializer(serializers.ModelSerializer):
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
-        fields = "__all__"
-        read_only_fields = BASE_READ_ONLY_FIELDS
+        fields = [
+            "id",
+            "project",
+            "folder",
+            "name",
+            "description",
+            "file_id",
+            "file_name",
+            "file_size",
+            "mime_type",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
+        read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
+        ]
 
 
 class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
-        fields = "__all__"
+        fields = [
+            "id",
+            "project",
+            "folder",
+            "created_by",
+            "assigned_to",
+            "title",
+            "description",
+            "status",
+            "priority",
+            "due_date",
+            "completed_at",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
             "created_by",
         ]
 
@@ -139,8 +226,22 @@ class TaskSerializer(serializers.ModelSerializer):
 class InvitationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Invitation
-        fields = "__all__"
+        fields = [
+            "id",
+            "project",
+            "email",
+            "role",
+            "invited_by",
+            "token",
+            "expires_at",
+            "accepted_at",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
             "invited_by",
             "token",
             "accepted_at",
@@ -150,8 +251,22 @@ class InvitationSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = "__all__"
+        fields = [
+            "id",
+            "user",
+            "project",
+            "created_by",
+            "title",
+            "message",
+            "type",
+            "is_read",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
             "created_by",
         ]
 
@@ -159,14 +274,42 @@ class NotificationSerializer(serializers.ModelSerializer):
 class TimeEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = TimeEntry
-        fields = "__all__"
-        read_only_fields = BASE_READ_ONLY_FIELDS
+        fields = [
+            "id",
+            "project",
+            "folder",
+            "task",
+            "user",
+            "duration_minutes",
+            "description",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
+        read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
+        ]
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):
     class Meta:
         model = FinancialEntry
-        fields = "__all__"
+        fields = [
+            "id",
+            "project",
+            "folder",
+            "created_by",
+            "amount",
+            "type",
+            "category",
+            "description",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
             "created_by",
         ]

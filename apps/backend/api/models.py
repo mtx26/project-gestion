@@ -13,46 +13,41 @@ class Project(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=['owner', 'name'],
-                name='unique_project_name_per_owner'
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_active_project_name_per_owner'
             )
         ]
-        
-    @property
-    def permission_project(self):
-        return self
 
 # Roles and Permissions
 class Role(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=['project', 'name'],
-                name='unique_role_name_per_project'
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_active_role_name_per_project'
             )
         ]
-        
-    @property
-    def permission_project(self):
-        return self.project
-    
+
 class Permission(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     code = models.CharField(max_length=100, unique=True)
-    
+
 class RolePermission(BaseModel):
     role = models.ForeignKey(Role, on_delete=models.CASCADE)
     permission = models.ForeignKey('Permission', on_delete=models.CASCADE)
-    
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=['role', 'permission'],
-                name='unique_role_permission'
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_active_role_permission'
             )
         ]
 
@@ -61,16 +56,18 @@ class ProjectMember(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     role = models.ForeignKey(Role, on_delete=models.CASCADE)
 
-   
     def clean(self):
+        super().clean()
+
         if self.role.project_id != self.project_id:
             raise ValidationError("errors.project_member.role_project_mismatch")
-    
+
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=['project', 'user'],
-                name='unique_project_member'
+                condition=models.Q(deleted_at__isnull=True),
+                name='unique_active_project_member'
             )
         ]
         
@@ -84,17 +81,53 @@ class Folder(BaseModel):
     icon = models.CharField(max_length=100, null=True, blank=True)
 
     def clean(self):
-        if self.parent_folder and self.parent_folder.project_id != self.project_id:
-            raise ValidationError("errors.folder.parent_project_mismatch")
+        super().clean()
+
+        if not self.parent_folder:
+            return
+
+        if self.pk and self.parent_folder_id == self.pk:
+            raise ValidationError({
+                "parent_folder": "errors.folder.parent_is_self"
+            })
+
+        if self.parent_folder.project_id != self.project_id:
+            raise ValidationError({
+                "parent_folder": "errors.folder.parent_project_mismatch"
+            })
+
+        parent = self.parent_folder
+        visited_ids = {self.pk} if self.pk else set()
+
+        while parent:
+            if parent.pk in visited_ids:
+                raise ValidationError({
+                    "parent_folder": "errors.folder.circular_parent"
+                })
+
+            visited_ids.add(parent.pk)
+            parent = parent.parent_folder
 
     class Meta:
         constraints = [
             models.UniqueConstraint(
                 fields=['project', 'parent_folder', 'name'],
-                name='unique_folder_name_per_parent'
+                condition=models.Q(
+                    deleted_at__isnull=True,
+                    parent_folder__isnull=False,
+                ),
+                name='unique_active_folder_name_per_parent'
+            ),
+            models.UniqueConstraint(
+                fields=['project', 'name'],
+                condition=models.Q(
+                    deleted_at__isnull=True,
+                    parent_folder__isnull=True,
+                ),
+                name='unique_active_root_folder_name'
             )
         ]
-    
+
     @property
     def is_root(self):
         return self.parent_folder is None
@@ -112,6 +145,8 @@ class Document(BaseModel):
     mime_type = models.CharField(max_length=100, blank=True, null=True)
 
     def clean(self):
+        super().clean()
+
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.document.folder_project_mismatch")
 
@@ -119,7 +154,19 @@ class Document(BaseModel):
         constraints = [
             models.UniqueConstraint(
                 fields=["project", "folder", "name"],
-                name="unique_document_name_per_folder"
+                condition=models.Q(
+                    deleted_at__isnull=True,
+                    folder__isnull=False,
+                ),
+                name="unique_active_document_name_per_folder"
+            ),
+            models.UniqueConstraint(
+                fields=["project", "name"],
+                condition=models.Q(
+                    deleted_at__isnull=True,
+                    folder__isnull=True,
+                ),
+                name="unique_active_root_document_name"
             )
         ]
 
@@ -140,6 +187,8 @@ class Task(BaseModel):
     completed_at = models.DateTimeField(null=True, blank=True)
 
     def clean(self):
+        super().clean()
+
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.task.folder_project_mismatch")
 
@@ -151,8 +200,10 @@ class Invitation(BaseModel):
     token = models.CharField(max_length=255, unique=True)
     expires_at = models.DateTimeField()
     accepted_at = models.DateTimeField(null=True, blank=True)
-    
+
     def clean(self):
+        super().clean()
+
         if self.role.project_id != self.project_id:
             raise ValidationError("errors.invitation.role_project_mismatch")
 
@@ -164,7 +215,7 @@ class Notification(BaseModel):
     message = models.TextField()
     type = models.CharField(max_length=100)
     is_read = models.BooleanField(default=False)
-    
+
 class TimeEntry(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
@@ -174,6 +225,8 @@ class TimeEntry(BaseModel):
     description = models.TextField(blank=True, null=True)
 
     def clean(self):
+        super().clean()
+
         if not self.folder and not self.task:
             raise ValidationError("errors.time_entry.missing_target")
 
@@ -202,5 +255,7 @@ class FinancialEntry(BaseModel):
     description = models.TextField(blank=True, null=True)
     
     def clean(self):
+        super().clean()
+
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.financial_entry.folder_project_mismatch")

@@ -4,15 +4,11 @@ from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from ..permissions import HasProjectPermission
 from ..serializers import ProjectSerializer
-from ..permissions import (
-    CanEditProject,
-    CanDeleteProject,
-    CanRestoreProject,
-)
 from ..services.projects import (
+    get_accessible_deleted_projects,
     get_accessible_projects,
-    get_accessible_deleted_projects
 )
 
 
@@ -57,18 +53,11 @@ class ProjectListCreateView(generics.ListCreateAPIView):
 )
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "project.edit"
 
     def get_queryset(self):
         return get_accessible_projects(self.request.user)
-
-    def get_permissions(self):
-        if self.request.method in ["PUT", "PATCH"]:
-            return [IsAuthenticated(), CanEditProject()]
-
-        if self.request.method == "DELETE":
-            return [IsAuthenticated(), CanDeleteProject()]
-
-        return [IsAuthenticated()]
 
     def perform_destroy(self, instance):
         instance.soft_delete(self.request.user)
@@ -82,7 +71,8 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 )
 class ProjectRestoreView(generics.GenericAPIView):
     serializer_class = ProjectSerializer
-    permission_classes = [IsAuthenticated, CanRestoreProject]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "project.edit"
 
     def get_queryset(self):
         return get_accessible_deleted_projects(self.request.user)
