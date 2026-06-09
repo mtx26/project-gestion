@@ -15,9 +15,11 @@ from .views.roles import (
 from .views.members import (
     ProjectMemberListView
 )
+from .views.users import UserListView
     
 
 urlpatterns = [
+    path("users/", UserListView.as_view(), name="user-list"),
     # Projects
     path("projects/", ProjectListCreateView.as_view(), name="project-list-create"),
     path("projects/<int:pk>/", ProjectDetailView.as_view(), name="project-detail"),
