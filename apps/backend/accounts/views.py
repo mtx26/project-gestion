@@ -29,7 +29,7 @@ class RegisterView(generics.CreateAPIView):
     ),
 )
 class LoginView(TokenObtainPairView):
-    pass
+    permission_classes = [AllowAny]
 
 
 @extend_schema_view(
@@ -39,7 +39,7 @@ class LoginView(TokenObtainPairView):
     ),
 )
 class RefreshTokenView(TokenRefreshView):
-    pass
+    permission_classes = [AllowAny]
 
 
 @extend_schema_view(

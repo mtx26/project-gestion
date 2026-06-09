@@ -1,9 +1,7 @@
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from ..serializers import ProjectMemberSerializer
-from ..services.members import (
-    get_project_members
-)
+from ..services.members import get_project_members
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 
