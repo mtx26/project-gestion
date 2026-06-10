@@ -315,6 +315,197 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         )
 
 
+class FolderDetailRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Target folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other project folder",
+        )
+        self.url = f"/api/projects/{self.project.id}/folders/{self.folder.id}"
+
+    # WHEN
+    def when_get_folder(self):
+        return self.api_get(self.url)
+
+    def when_patch_folder(self, payload):
+        return self.api_patch(self.url, payload)
+
+    def when_delete_folder(self):
+        return self.api_delete(self.url)
+
+    # ASSERT
+    def assert_folder_name(self, expected_name):
+        self.folder.refresh_from_db()
+        self.assertEqual(self.folder.name, expected_name)
+
+    def assert_folder_not_deleted(self):
+        self.folder.refresh_from_db()
+        self.assertIsNone(self.folder.deleted_at)
+
+    def assert_folder_deleted_by(self, user):
+        self.folder.refresh_from_db()
+        self.assertIsNotNone(self.folder.deleted_at)
+        self.assertEqual(self.folder.deleted_by_id, user.id)
+
+    # TESTS GET
+    def test_anonymous_cannot_get_folder(self):
+        response = self.when_get_folder()
+
+        self.assert_unauthorized(response)
+
+    def test_member_with_folder_view_can_get_folder(self):
+        self.given_member_authenticated(["folder.view"])
+
+        response = self.when_get_folder()
+
+        self.assert_ok(response)
+
+    def test_member_without_folder_view_cannot_get_folder(self):
+        self.given_member_authenticated([])
+
+        response = self.when_get_folder()
+
+        self.assert_forbidden(response)
+
+    # TESTS PATCH
+    def test_member_without_folder_edit_cannot_patch_folder(self):
+        self.given_member_authenticated(["folder.view"])
+
+        response = self.when_patch_folder({"name": "Blocked folder edit"})
+
+        self.assert_forbidden(response)
+        self.assert_folder_name("Target folder")
+        self.assert_folder_not_deleted()
+
+    def test_member_with_folder_edit_can_patch_folder(self):
+        self.given_member_authenticated(["folder.edit"])
+
+        response = self.when_patch_folder({"name": "Edited folder"})
+
+        self.assert_ok(response)
+        self.assert_folder_name("Edited folder")
+        self.assert_folder_not_deleted()
+
+    def test_patch_rejects_parent_folder_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_folder({
+            "parent_folder": self.other_project_folder.id,
+        })
+
+        self.assert_bad_request(response)
+        self.folder.refresh_from_db()
+        self.assertIsNone(self.folder.parent_folder_id)
+
+    # TESTS DELETE
+    def test_member_without_folder_delete_cannot_delete_folder(self):
+        self.given_member_authenticated(["folder.edit"])
+
+        response = self.when_delete_folder()
+
+        self.assert_forbidden(response)
+        self.assert_folder_not_deleted()
+
+    def test_member_with_folder_delete_can_soft_delete_folder(self):
+        self.given_member_authenticated(["folder.delete"])
+
+        response = self.when_delete_folder()
+
+        self.assert_no_content(response)
+        self.assert_folder_deleted_by(self.member)
+
+
+class FolderTrashRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.active_folder = Folder.objects.create(
+            project=self.project,
+            name="Active folder",
+        )
+        self.deleted_folder = Folder.objects.create(
+            project=self.project,
+            name="Deleted folder",
+        )
+        self.deleted_folder.soft_delete(self.owner)
+        self.url = f"/api/projects/{self.project.id}/folders/trash/"
+
+    # WHEN
+    def when_list_deleted_folders(self):
+        return self.api_get(self.url)
+
+    # ASSERT
+    def assert_visible_folder_names(self, response, expected_names):
+        folders = self.response_results(response)
+        folder_names = {folder["name"] for folder in folders}
+        self.assertEqual(folder_names, set(expected_names))
+
+    # TESTS GET
+    def test_member_without_folder_view_trash_cannot_list_deleted_folders(self):
+        self.given_member_authenticated(["folder.view"])
+
+        response = self.when_list_deleted_folders()
+
+        self.assert_forbidden(response)
+
+    def test_member_with_folder_view_trash_can_list_deleted_folders(self):
+        self.given_member_authenticated(["folder.view_trash"])
+
+        response = self.when_list_deleted_folders()
+
+        self.assert_ok(response)
+        self.assert_visible_folder_names(response, ["Deleted folder"])
+
+
+class FolderRestoreRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.deleted_folder = Folder.objects.create(
+            project=self.project,
+            name="Deleted folder",
+        )
+        self.deleted_folder.soft_delete(self.owner)
+        self.url = f"/api/projects/{self.project.id}/folders/{self.deleted_folder.id}/restore/"
+
+    # WHEN
+    def when_restore_folder(self):
+        return self.api_post(self.url, {})
+
+    # ASSERT
+    def assert_folder_still_deleted(self):
+        self.deleted_folder.refresh_from_db()
+        self.assertIsNotNone(self.deleted_folder.deleted_at)
+
+    def assert_folder_restored(self):
+        self.deleted_folder.refresh_from_db()
+        self.assertIsNone(self.deleted_folder.deleted_at)
+        self.assertIsNone(self.deleted_folder.deleted_by_id)
+
+    # TESTS POST
+    def test_member_without_folder_restore_cannot_restore_folder(self):
+        self.given_member_authenticated(["folder.view_trash"])
+
+        response = self.when_restore_folder()
+
+        self.assert_forbidden(response)
+        self.assert_folder_still_deleted()
+
+    def test_member_with_folder_restore_can_restore_folder(self):
+        self.given_member_authenticated(["folder.restore"])
+
+        response = self.when_restore_folder()
+
+        self.assert_ok(response)
+        self.assert_folder_restored()
+
+
 class ProjectDetailRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()
@@ -491,3 +682,50 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_no_content(response)
         self.assert_role_deleted_by(self.member)
+
+
+class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.target_role = Role.objects.create(
+            project=self.project,
+            name="Target member role",
+        )
+        self.target_member = ProjectMember.objects.create(
+            project=self.project,
+            user=self.other_user,
+            role=self.target_role,
+        )
+        self.url = f"/api/projects/{self.project.id}/members/{self.target_member.id}/"
+
+    # WHEN
+    def when_delete_member(self):
+        return self.api_delete(self.url)
+
+    # ASSERT
+    def assert_member_not_deleted(self):
+        self.target_member.refresh_from_db()
+        self.assertIsNone(self.target_member.deleted_at)
+
+    def assert_member_deleted_by(self, user):
+        self.target_member.refresh_from_db()
+        self.assertIsNotNone(self.target_member.deleted_at)
+        self.assertEqual(self.target_member.deleted_by_id, user.id)
+
+    # TESTS DELETE
+    def test_member_without_member_edit_cannot_delete_member(self):
+        self.given_member_authenticated(["member.view"])
+
+        response = self.when_delete_member()
+
+        self.assert_forbidden(response)
+        self.assert_member_not_deleted()
+
+    def test_member_with_member_edit_can_soft_delete_member(self):
+        self.given_member_authenticated(["member.edit"])
+
+        response = self.when_delete_member()
+
+        self.assert_no_content(response)
+        self.assert_member_deleted_by(self.member)

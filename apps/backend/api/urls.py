@@ -14,7 +14,7 @@ from .views.roles import (
 )
 from .views.members import (
     ProjectMemberListView,
-    ProjectMemberAddView
+    ProjectMemberDetailView
 )
 from .views.users import UserListView
 from .views.folders import (
@@ -40,7 +40,7 @@ urlpatterns = [
     path("permissions/", PermissionListView.as_view(), name="permission-list"),
     # Members
     path("projects/<int:project_id>/members/", ProjectMemberListView.as_view(), name="project-members"),
-    path("projects/<int:project_id>/members/add", ProjectMemberAddView.as_view(), name="project-members"),
+    path("projects/<int:project_id>/members/<int:pk>/", ProjectMemberDetailView.as_view(), name="project-member-detail"),
     # Folders
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/<int:pk>", FolderDetailView.as_view(), name="project-folders"),

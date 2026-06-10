@@ -92,6 +92,9 @@ class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
             project__in=get_accessible_projects(self.request.user)
         )
 
+    def perform_destroy(self, instance):
+        instance.soft_delete(self.request.user)
+
 @extend_schema(tags=["folders"])
 @extend_schema_view(
     get=extend_schema(
