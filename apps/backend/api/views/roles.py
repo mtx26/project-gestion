@@ -1,15 +1,15 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from ..models import Role
 from ..permissions import HasProjectPermission
 from ..serializers import RoleSerializer, PermissionSerializer
-from ..services.permissions import get_permissions, has_project_permission
+from ..services.permissions import get_permissions
 from ..services.projects import get_accessible_projects
 from ..services.roles import (
     get_deleted_project_roles,
@@ -17,23 +17,33 @@ from ..services.roles import (
 )
 
 
+@extend_schema(tags=["roles"])
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les roles d'un projet",
-        description="Retourne tous les roles accessibles pour un projet donne.",
+        description="Retourne tous les roles accessibles pour un projet donne.\nPermission requise : `role.view`.",
     ),
     post=extend_schema(
         summary="Creer un role",
-        description="Cree un nouveau role dans le projet indique.",
+        description="Cree un nouveau role dans le projet indique.\nPermission requise : `role.create`.",
     ),
 )
 class RoleListCreateView(generics.ListCreateAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "role.view"
-    create_permission_code = "role.create"
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            self.permission_code = "role.create"
+        else:
+            self.permission_code = "role.view"
+
+        return super().get_permissions()
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Role.objects.none()
+
         return get_project_roles(
             self.request.user,
             self.kwargs["project_id"],
@@ -45,36 +55,45 @@ class RoleListCreateView(generics.ListCreateAPIView):
             pk=self.kwargs["project_id"],
         )
 
-        if not has_project_permission(self.request.user, project, self.create_permission_code):
-            raise PermissionDenied()
-
         serializer.save(project=project)
 
-
+@extend_schema(tags=["roles"])
 @extend_schema_view(
     get=extend_schema(
         summary="Recuperer un role",
-        description="Retourne les details d'un role precis d'un projet.",
+        description="Retourne les details d'un role precis d'un projet.\nPermission requise : `role.view`.",
     ),
     put=extend_schema(
         summary="Remplacer un role",
-        description="Remplace entierement les donnees d'un role.",
+        description="Remplace entierement les donnees d'un role.\nPermission requise : `role.edit`.",
     ),
     patch=extend_schema(
         summary="Modifier un role",
-        description="Modifie partiellement les donnees d'un role.",
+        description="Modifie partiellement les donnees d'un role.\nPermission requise : `role.edit`.",
     ),
     delete=extend_schema(
         summary="Supprimer un role",
-        description="Supprime un role du projet.",
+        description="Supprime un role du projet.\nPermission requise : `role.delete`.",
     ),
 )
 class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "role.edit"
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            self.permission_code = "role.view"
+        elif self.request.method == "DELETE":
+            self.permission_code = "role.delete"
+        else:
+            self.permission_code = "role.edit"
+
+        return super().get_permissions()
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Role.objects.none()
+
         return get_project_roles(
             self.request.user,
             self.kwargs["project_id"],
@@ -84,10 +103,11 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.soft_delete(self.request.user)
 
 
+@extend_schema(tags=["roles"])
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un role",
-        description="Restaure un role supprime d'un projet.",
+        description="Restaure un role supprime d'un projet.\nPermission requise : `role.edit`.",
     ),
 )
 class RoleRestoreView(generics.GenericAPIView):
@@ -96,6 +116,9 @@ class RoleRestoreView(generics.GenericAPIView):
     permission_code = "role.edit"
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Role.deleted_objects.none()
+
         return get_deleted_project_roles(
             self.request.user,
             self.kwargs["project_id"],
@@ -110,10 +133,11 @@ class RoleRestoreView(generics.GenericAPIView):
         return Response(serializer.data)
 
 
+@extend_schema(tags=["roles"])
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les roles supprimes",
-        description="Retourne tous les roles supprimes pour un projet donne.",
+        description="Retourne tous les roles supprimes pour un projet donne.\nPermission requise : `role.view`.",
     ),
 )
 class RoleTrashListView(generics.ListAPIView):
@@ -122,16 +146,20 @@ class RoleTrashListView(generics.ListAPIView):
     permission_code = "role.view"
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Role.deleted_objects.none()
+
         return get_deleted_project_roles(
             self.request.user,
             self.kwargs["project_id"],
         )
 
 
+@extend_schema(tags=["permissions"])
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les permissions",
-        description="Retourne toutes les permissions disponibles pour creer ou modifier un role.",
+        description="Retourne toutes les permissions disponibles pour creer ou modifier un role.\nPermission requise : `role.view`.",
     ),
 )
 class PermissionListView(generics.ListAPIView):

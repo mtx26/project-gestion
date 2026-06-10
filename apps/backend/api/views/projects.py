@@ -12,6 +12,7 @@ from ..services.projects import (
 )
 
 
+@extend_schema(tags=["projects"])
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les projets",
@@ -19,7 +20,7 @@ from ..services.projects import (
     ),
     post=extend_schema(
         summary="Creer un projet",
-        description="Cree un nouveau projet pour l'utilisateur connecte.",
+        description="Cree un nouveau projet pour l'utilisateur connecte.\nPermission requise : `project.create`.",
     ),
 )
 class ProjectListCreateView(generics.ListCreateAPIView):
@@ -33,6 +34,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         serializer.save(owner=self.request.user)
 
 
+@extend_schema(tags=["projects"])
 @extend_schema_view(
     get=extend_schema(
         summary="Recuperer un projet",
@@ -40,21 +42,30 @@ class ProjectListCreateView(generics.ListCreateAPIView):
     ),
     put=extend_schema(
         summary="Remplacer un projet",
-        description="Remplace entierement les donnees d'un projet.",
+        description="Remplace entierement les donnees d'un projet.\nPermission requise : `project.edit`.",
     ),
     patch=extend_schema(
         summary="Modifier un projet",
-        description="Modifie partiellement les donnees d'un projet.",
+        description="Modifie partiellement les donnees d'un projet.\nPermission requise : `project.edit`.",
     ),
     delete=extend_schema(
         summary="Supprimer un projet",
-        description="Supprime un projet avec soft-delete.",
+        description="Supprime un projet avec soft-delete.\nPermission requise : `project.delete`.",
     ),
 )
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "project.edit"
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            self.permission_code = None
+        elif self.request.method == "DELETE":
+            self.permission_code = "project.delete"
+        else:
+            self.permission_code = "project.edit"
+
+        return super().get_permissions()
 
     def get_queryset(self):
         return get_accessible_projects(self.request.user)
@@ -63,16 +74,17 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.soft_delete(self.request.user)
 
 
+@extend_schema(tags=["projects"])
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un projet",
-        description="Restaure un projet supprime.",
+        description="Restaure un projet supprime.\nPermission requise : `project.restore`.",
     ),
 )
 class ProjectRestoreView(generics.GenericAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "project.edit"
+    permission_code = "project.restore"
 
     def get_queryset(self):
         return get_accessible_deleted_projects(self.request.user)
@@ -86,6 +98,7 @@ class ProjectRestoreView(generics.GenericAPIView):
         return Response(serializer.data)
 
 
+@extend_schema(tags=["projects"])
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les projets supprimes",

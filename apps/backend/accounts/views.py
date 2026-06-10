@@ -1,5 +1,4 @@
 from rest_framework import generics
-from rest_framework.views import APIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
@@ -10,6 +9,7 @@ from django.contrib.auth.models import User
 from .serializers import RegisterSerializer, UserSerializer
 
 
+@extend_schema(tags=["accounts"])
 @extend_schema_view(
     post=extend_schema(
         summary="Creer un compte",
@@ -22,6 +22,7 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
 
+@extend_schema(tags=["accounts"])
 @extend_schema_view(
     post=extend_schema(
         summary="Se connecter",
@@ -32,6 +33,7 @@ class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
 
 
+@extend_schema(tags=["accounts"])
 @extend_schema_view(
     post=extend_schema(
         summary="Rafraichir le token",
@@ -42,15 +44,17 @@ class RefreshTokenView(TokenRefreshView):
     permission_classes = [AllowAny]
 
 
+@extend_schema(tags=["accounts"])
 @extend_schema_view(
     get=extend_schema(
         summary="Recuperer l'utilisateur courant",
         description="Retourne les informations de l'utilisateur connecte.",
     ),
 )
-class CurrentUserView(APIView):
+class CurrentUserView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
 
     def get(self, request):
-        serializer = UserSerializer(request.user)
+        serializer = self.get_serializer(request.user)
         return Response(serializer.data)

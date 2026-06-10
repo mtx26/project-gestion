@@ -1,6 +1,8 @@
 from django.db import transaction
+from django.core.exceptions import ValidationError as DjangoValidationError
 
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 
 from .models import (
     Project,
@@ -42,6 +44,23 @@ class ProjectSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "owner",
+        ]
+
+
+class PermissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Permission
+        fields = [
+            "id",
+            "name",
+            "description",
+            "code",
+        ]
+        read_only_fields = [
+            "id",
+            "name",
+            "description",
+            "code",
         ]
 
 
@@ -105,6 +124,7 @@ class RoleSerializer(serializers.ModelSerializer):
             for permission in unique_permissions
         ])
 
+    @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, role):
         return list(
             Permission.objects.filter(
@@ -112,23 +132,6 @@ class RoleSerializer(serializers.ModelSerializer):
                 rolepermission__deleted_at__isnull=True,
             ).values("id", "code", "name", "description")
         )
-
-
-class PermissionSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Permission
-        fields = [
-            "id",
-            "name",
-            "description",
-            "code",
-        ]
-        read_only_fields = [
-            "id",
-            "name",
-            "description",
-            "code",
-        ]
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
@@ -150,7 +153,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
 
 
 class FolderSerializer(serializers.ModelSerializer):
-    is_root = serializers.ReadOnlyField()
+    is_root = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Folder
@@ -172,6 +175,26 @@ class FolderSerializer(serializers.ModelSerializer):
             "project",
             "is_root",
         ]
+        
+    def create(self, validated_data):
+        folder = Folder(**validated_data)
+        try:
+            folder.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        folder.save()
+        return folder
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        instance.save()
+        return instance
 
 
 class DocumentSerializer(serializers.ModelSerializer):

@@ -9,11 +9,7 @@ def get_accessible_projects(user):
 
     return Project.objects.filter(
         models.Q(owner=user)
-        | models.Q(
-            projectmember__user=user,
-            projectmember__role__rolepermission__permission__code="project.view",
-            projectmember__role__rolepermission__deleted_at__isnull=True,
-        ),
+        | models.Q(projectmember__user=user),
     ).distinct()
 
 
@@ -23,11 +19,7 @@ def get_accessible_deleted_projects(user):
 
     return Project.deleted_objects.filter(
         models.Q(owner=user)
-        | models.Q(
-            projectmember__user=user,
-            projectmember__role__rolepermission__permission__code="project.view",
-            projectmember__role__rolepermission__deleted_at__isnull=True,
-        ),
+        | models.Q(projectmember__user=user),
     ).distinct()
 
 

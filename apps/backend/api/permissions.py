@@ -17,6 +17,9 @@ class HasProjectPermission(BasePermission):
         if project is None:
             return False
 
+        if permission_code is None:
+            return True
+
         return has_project_permission(request.user, project, permission_code)
 
     def has_object_permission(self, request, view, obj):
@@ -28,5 +31,8 @@ class HasProjectPermission(BasePermission):
 
         if not get_accessible_projects(request.user).filter(pk=project.pk).exists():
             return False
+
+        if permission_code is None:
+            return True
 
         return has_project_permission(request.user, project, permission_code)

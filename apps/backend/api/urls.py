@@ -13,9 +13,16 @@ from .views.roles import (
     RoleTrashListView
 )
 from .views.members import (
-    ProjectMemberListView
+    ProjectMemberListView,
+    ProjectMemberAddView
 )
 from .views.users import UserListView
+from .views.folders import (
+    FolderListCreateView,
+    FolderDetailView,
+    FolderTrashListView,
+    FolderRestoreView
+)
     
 
 urlpatterns = [
@@ -33,4 +40,11 @@ urlpatterns = [
     path("permissions/", PermissionListView.as_view(), name="permission-list"),
     # Members
     path("projects/<int:project_id>/members/", ProjectMemberListView.as_view(), name="project-members"),
+    path("projects/<int:project_id>/members/add", ProjectMemberAddView.as_view(), name="project-members"),
+    # Folders
+    path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
+    path("projects/<int:project_id>/folders/<int:pk>", FolderDetailView.as_view(), name="project-folders"),
+    path("projects/<int:project_id>/folders/trash/", FolderTrashListView.as_view(), name="project-folders"),
+    path("projects/<int:project_id>/folders/<int:pk>/restore/", FolderRestoreView.as_view(), name="project-folders"),
+
 ]
