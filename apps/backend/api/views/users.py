@@ -13,7 +13,7 @@ from rest_framework.filters import SearchFilter
     ),
 )
 class UserListView(generics.ListAPIView):
-    queryset = User.objects.all()
+    queryset = User.objects.all().order_by("id")
     serializer_class = UserSerializer
 
     filter_backends = [SearchFilter]

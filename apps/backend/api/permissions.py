@@ -13,7 +13,10 @@ class HasProjectPermission(BasePermission):
         if project_id is None:
             return True
 
-        project = get_accessible_projects(request.user).filter(pk=project_id).first()
+        project = get_accessible_projects(
+            request.user,
+            include_deleted=True,
+        ).filter(pk=project_id).first()
         if project is None:
             return False
 
@@ -29,7 +32,10 @@ class HasProjectPermission(BasePermission):
         if project is None:
             return False
 
-        if not get_accessible_projects(request.user).filter(pk=project.pk).exists():
+        if not get_accessible_projects(
+            request.user,
+            include_deleted=True,
+        ).filter(pk=project.pk).exists():
             return False
 
         if permission_code is None:

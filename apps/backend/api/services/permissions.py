@@ -2,7 +2,7 @@ from ..models import Permission, ProjectMember
 
 
 def get_permissions():
-    return Permission.objects.all()
+    return Permission.objects.all().order_by("id")
 
 
 def has_project_permission(user, project, permission_code):
