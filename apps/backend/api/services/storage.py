@@ -44,10 +44,10 @@ def build_profile_picture_file_id(file_name, user_id):
     return f"users/{user_id}/profile-pictures/{uuid.uuid4()}-{safe_file_name}"
 
 
-def build_s3_object_url(file_id):
+def build_s3_object_url(file_id, bucket_name=None):
     endpoint_url = settings.S3_ENDPOINT_URL.rstrip("/")
     quoted_file_id = quote(file_id, safe="/")
-    return f"{endpoint_url}/{settings.S3_BUCKET_NAME}/{quoted_file_id}"
+    return f"{endpoint_url}/{bucket_name or settings.S3_BUCKET_NAME}/{quoted_file_id}"
 
 
 def validate_document_file(file):
@@ -124,10 +124,11 @@ def upload_profile_picture_file(file, user_id):
 
     file_id = build_profile_picture_file_id(file.name, user_id)
     content_type = getattr(file, "content_type", None) or "application/octet-stream"
+    bucket_name = settings.PROFILE_PICTURE_S3_BUCKET_NAME
 
     get_s3_client().upload_fileobj(
         file,
-        settings.S3_BUCKET_NAME,
+        bucket_name,
         file_id,
         ExtraArgs={
             "ContentType": content_type,
@@ -136,7 +137,7 @@ def upload_profile_picture_file(file, user_id):
 
     return {
         "file_id": file_id,
-        "url": build_s3_object_url(file_id),
+        "url": build_s3_object_url(file_id, bucket_name),
     }
 
 
