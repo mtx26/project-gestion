@@ -25,7 +25,7 @@ from ..services.roles import (
     ),
     post=extend_schema(
         summary="Creer un role",
-        description="Cree un nouveau role dans le projet indique.\nPermission requise : `role.create`.",
+        description="Cree un nouveau role dans le projet indique.\nPermission requise : `role.edit`.",
     ),
 )
 class RoleListCreateView(generics.ListCreateAPIView):
@@ -34,7 +34,7 @@ class RoleListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method == "POST":
-            self.permission_code = "role.create"
+            self.permission_code = "role.edit"
         else:
             self.permission_code = "role.view"
 
@@ -107,13 +107,13 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un role",
-        description="Restaure un role supprime d'un projet.\nPermission requise : `role.edit`.",
+        description="Restaure un role supprime d'un projet.\nPermission requise : `role.restore`.",
     ),
 )
 class RoleRestoreView(generics.GenericAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "role.edit"
+    permission_code = "role.restore"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

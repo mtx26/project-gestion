@@ -17,6 +17,24 @@ from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+REPO_DIR = BASE_DIR.parent.parent
+
+
+def load_env_file(path):
+    if not path.exists():
+        return
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
+
+
+load_env_file(REPO_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
@@ -134,6 +152,58 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
 STATIC_URL = 'static/'
+
+S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL")
+S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID")
+S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY")
+S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
+S3_REGION = os.environ.get("S3_REGION", "us-east-1")
+S3_PRESIGNED_URL_EXPIRES_SECONDS = int(
+    os.environ.get("S3_PRESIGNED_URL_EXPIRES_SECONDS", "300")
+)
+
+DOCUMENT_MAX_UPLOAD_SIZE_BYTES = int(
+    os.environ.get("DOCUMENT_MAX_UPLOAD_SIZE_BYTES", str(100 * 1024 * 1024))
+)
+DOCUMENT_ALLOWED_FILE_EXTENSIONS = {
+    extension.strip().lower()
+    for extension in os.environ.get(
+        "DOCUMENT_ALLOWED_FILE_EXTENSIONS",
+        ".pdf,.jpg,.jpeg,.png,.webp,.gif,.tif,.tiff,.bmp,.svg,.heic,.heif,"
+        ".dwg,.dxf,.ifc,.rvt,.skp,"
+        ".doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv",
+    ).split(",")
+    if extension.strip()
+}
+DOCUMENT_ALLOWED_MIME_TYPES = {
+    mime_type.strip().lower()
+    for mime_type in os.environ.get(
+        "DOCUMENT_ALLOWED_MIME_TYPES",
+        "application/pdf,"
+        "image/jpeg,image/png,image/webp,image/gif,image/tiff,image/bmp,"
+        "image/svg+xml,image/heic,image/heif,"
+        "application/acad,application/x-acad,application/autocad_dwg,"
+        "image/vnd.dwg,application/dwg,"
+        "application/dxf,image/vnd.dxf,"
+        "application/ifc,application/x-step,"
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
+        "application/msword,"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
+        "application/vnd.ms-excel,"
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation,"
+        "application/vnd.ms-powerpoint,"
+        "text/plain,text/csv",
+    ).split(",")
+    if mime_type.strip()
+}
+DOCUMENT_FALLBACK_MIME_TYPES = {
+    mime_type.strip().lower()
+    for mime_type in os.environ.get(
+        "DOCUMENT_FALLBACK_MIME_TYPES",
+        "application/octet-stream",
+    ).split(",")
+    if mime_type.strip()
+}
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

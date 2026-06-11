@@ -31,13 +31,13 @@ class ProjectMemberListView(generics.ListAPIView):
 @extend_schema_view(
     delete=extend_schema(
         summary="Supprimer un membre",
-        description="Supprime un membre du projet.\nPermission requise : `member.edit`.",
+        description="Supprime un membre du projet.\nPermission requise : `member.delete`.",
     ),
 )
 class ProjectMemberDetailView(generics.DestroyAPIView):
     serializer_class = ProjectMemberSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "member.edit"
+    permission_code = "member.delete"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

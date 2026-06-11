@@ -20,7 +20,7 @@ from ..services.projects import (
     ),
     post=extend_schema(
         summary="Creer un projet",
-        description="Cree un nouveau projet pour l'utilisateur connecte.\nPermission requise : `project.create`.",
+        description="Cree un nouveau projet pour l'utilisateur connecte.",
     ),
 )
 class ProjectListCreateView(generics.ListCreateAPIView):

@@ -6,8 +6,8 @@ from rest_framework.permissions import IsAuthenticated
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..models import Folder
-from ..serializers import FolderSerializer
+from ..models import Document, Folder
+from ..serializers import FolderSerializer, FolderTreeNodeSerializer, FolderTreeSerializer
 from ..services.projects import get_accessible_projects
 from ..permissions import HasProjectPermission
 
@@ -19,7 +19,7 @@ from ..permissions import HasProjectPermission
     ),
     post=extend_schema(
         summary="Créer un dossier",
-        description="Crée un nouveau dossier dans un projet.\nPermission requise : `folder.create`.",
+        description="Crée un nouveau dossier dans un projet.\nPermission requise : `folder.edit`.",
     ),
 )
 class FolderListCreateView(generics.ListCreateAPIView):
@@ -28,7 +28,7 @@ class FolderListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         self.permission_code = (
-            "folder.create"
+            "folder.edit"
             if self.request.method == "POST"
             else "folder.view"
         )
@@ -41,7 +41,7 @@ class FolderListCreateView(generics.ListCreateAPIView):
         return Folder.objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user)
-        ).order_by("id")
+        ).order_by("name", "id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
@@ -49,6 +49,38 @@ class FolderListCreateView(generics.ListCreateAPIView):
             pk=self.kwargs["project_id"],
         )
         serializer.save(project=project)
+
+
+@extend_schema(tags=["folders"])
+@extend_schema_view(
+    get=extend_schema(
+        summary="Arbre des dossiers d'un projet",
+        description="Retourne les dossiers et documents d'un projet sous forme d'arbre.\nPermission requise : `folder.view`.",
+        responses=FolderTreeNodeSerializer(many=True),
+    )
+)
+class FolderTreeView(generics.GenericAPIView):
+    serializer_class = FolderTreeSerializer
+    queryset = Folder.objects.none()
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "folder.view"
+
+    def get(self, request, project_id):
+        folders = Folder.objects.filter(
+            project_id=project_id,
+            project__in=get_accessible_projects(request.user),
+        ).order_by("name", "id")
+
+        documents = Document.objects.filter(
+            project_id=project_id,
+            project__in=get_accessible_projects(request.user),
+        ).order_by("name", "id")
+
+        serializer = self.get_serializer()
+        return Response(serializer.to_representation({
+            "folders": folders,
+            "documents": documents,
+        }))
         
 @extend_schema(tags=["folders"])
 @extend_schema_view(
@@ -99,7 +131,7 @@ class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les dossiers supprimés",
-        description="Retourne les dossiers supprimés d'un projet.\nPermission requise : `folder.view_trash`.",
+        description="Retourne les dossiers supprimés d'un projet.\nPermission requise : `folder.view`.",
     )
 )
 class FolderTrashListView(generics.ListAPIView):
@@ -107,7 +139,7 @@ class FolderTrashListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
     def get_permissions(self):
-        self.permission_code = "folder.view_trash"
+        self.permission_code = "folder.view"
         return super().get_permissions()
 
     def get_queryset(self):
@@ -117,7 +149,7 @@ class FolderTrashListView(generics.ListAPIView):
         return Folder.deleted_objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user)
-        ).order_by("id")
+        ).order_by("name", "id")
 
 
 @extend_schema(tags=["folders"])

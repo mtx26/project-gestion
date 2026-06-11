@@ -1,40 +1,44 @@
+from unittest.mock import patch
+
 from django.contrib.auth.models import User
-from django.test import TestCase
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import TestCase, override_settings
 from rest_framework import status
+from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
-from .models import Folder, Permission, Project, ProjectMember, Role, RolePermission
+from .models import Document, Folder, Permission, Project, ProjectMember, Role, RolePermission
+from .services.storage import validate_document_file
 
 
 class ProjectApiTestCase(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-
-        self.owner = User.objects.create_user(
+    @classmethod
+    def setUpTestData(cls):
+        cls.owner = User.objects.create_user(
             username="owner",
             email="owner@example.com",
-            password="password",
         )
-        self.member = User.objects.create_user(
+        cls.member = User.objects.create_user(
             username="member",
             email="member@example.com",
-            password="password",
         )
-        self.other_user = User.objects.create_user(
+        cls.other_user = User.objects.create_user(
             username="other",
             email="other@example.com",
-            password="password",
         )
 
-        self.project = Project.objects.create(
-            owner=self.owner,
+        cls.project = Project.objects.create(
+            owner=cls.owner,
             name="Main project",
             description="Main project description",
         )
-        self.other_project = Project.objects.create(
-            owner=self.other_user,
+        cls.other_project = Project.objects.create(
+            owner=cls.other_user,
             name="Other project",
         )
+
+    def setUp(self):
+        self.client = APIClient()
 
     # GIVEN
     def given_authenticated(self, user):
@@ -161,6 +165,62 @@ class UserRouteTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_visible_usernames(response, ["owner"])
+
+
+@override_settings(
+    DOCUMENT_MAX_UPLOAD_SIZE_BYTES=10,
+    DOCUMENT_ALLOWED_FILE_EXTENSIONS={".pdf", ".dwg"},
+    DOCUMENT_ALLOWED_MIME_TYPES={"application/pdf", "image/vnd.dwg"},
+    DOCUMENT_FALLBACK_MIME_TYPES={"application/octet-stream"},
+)
+class DocumentFileValidationTests(TestCase):
+    def test_accepts_allowed_pdf(self):
+        uploaded_file = SimpleUploadedFile(
+            "plan.pdf",
+            b"pdf",
+            content_type="application/pdf",
+        )
+
+        validate_document_file(uploaded_file)
+
+    def test_rejects_file_over_max_size(self):
+        uploaded_file = SimpleUploadedFile(
+            "plan.pdf",
+            b"too large content",
+            content_type="application/pdf",
+        )
+
+        with self.assertRaises(ValidationError):
+            validate_document_file(uploaded_file)
+
+    def test_rejects_disallowed_extension(self):
+        uploaded_file = SimpleUploadedFile(
+            "script.exe",
+            b"ok",
+            content_type="application/pdf",
+        )
+
+        with self.assertRaises(ValidationError):
+            validate_document_file(uploaded_file)
+
+    def test_rejects_disallowed_mime_type(self):
+        uploaded_file = SimpleUploadedFile(
+            "plan.pdf",
+            b"ok",
+            content_type="application/x-msdownload",
+        )
+
+        with self.assertRaises(ValidationError):
+            validate_document_file(uploaded_file)
+
+    def test_accepts_fallback_mime_type_for_allowed_extension(self):
+        uploaded_file = SimpleUploadedFile(
+            "plan.dwg",
+            b"ok",
+            content_type="application/octet-stream",
+        )
+
+        validate_document_file(uploaded_file)
 
 
 class PermissionRouteTests(ProjectApiTestCase):
@@ -474,7 +534,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_folder_names(response, ["Root folder"])
 
     def test_member_without_folder_view_cannot_list_folders(self):
-        self.given_member_authenticated(["folder.create"])
+        self.given_member_authenticated(["folder.edit"])
 
         response = self.when_list_folders()
 
@@ -488,7 +548,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
     def test_member_cannot_list_another_project_folders(self):
-        self.given_member_authenticated(["folder.view", "folder.create"])
+        self.given_member_authenticated(["folder.view", "folder.edit"])
 
         response = self.when_list_folders(self.other_project_url)
 
@@ -526,8 +586,8 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         folder = self.assert_folder_exists("Created by owner")
         self.assertEqual(folder.project_id, self.project.id)
 
-    def test_member_with_folder_create_can_create_folder(self):
-        self.given_member_authenticated(["folder.create"])
+    def test_member_with_folder_edit_can_create_folder(self):
+        self.given_member_authenticated(["folder.edit"])
 
         response = self.when_create_folder({
             "name": "Created by member",
@@ -536,7 +596,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assert_created(response)
         self.assert_folder_exists("Created by member")
 
-    def test_member_without_folder_create_cannot_create_folder(self):
+    def test_member_without_folder_edit_cannot_create_folder(self):
         self.given_member_authenticated(["folder.view"])
 
         response = self.when_create_folder({
@@ -628,6 +688,99 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
             "Shared child name",
             parent_folder=other_parent,
         )
+
+
+class FolderTreeRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"/api/projects/{self.project.id}/folders/tree/"
+        self.root_folder = Folder.objects.create(
+            project=self.project,
+            name="Root folder",
+        )
+        self.child_folder = Folder.objects.create(
+            project=self.project,
+            parent_folder=self.root_folder,
+            name="Child folder",
+        )
+        self.root_document = Document.objects.create(
+            project=self.project,
+            name="Root document",
+            file_id="projects/1/documents/root-document.pdf",
+            file_name="root-document.pdf",
+            file_size=120,
+            mime_type="application/pdf",
+        )
+        self.child_document = Document.objects.create(
+            project=self.project,
+            folder=self.root_folder,
+            name="Child document",
+            description="Document inside root folder",
+            file_id="projects/1/documents/child-document.pdf",
+            file_name="child-document.pdf",
+            file_size=240,
+            mime_type="application/pdf",
+        )
+
+    # WHEN
+    def when_get_folder_tree(self):
+        return self.api_get(self.url)
+
+    # ASSERT
+    def assert_tree_contains_folders_and_documents(self, response):
+        tree = self.response_data(response)
+
+        root_nodes_by_name = {node["name"]: node for node in tree}
+        self.assertEqual(set(root_nodes_by_name), {"Root document", "Root folder"})
+
+        root_document = root_nodes_by_name["Root document"]
+        self.assertEqual(root_document["type"], "document")
+        self.assertEqual(root_document["file_name"], "root-document.pdf")
+        self.assertEqual(root_document["file_size"], 120)
+        self.assertEqual(root_document["mime_type"], "application/pdf")
+
+        root_folder = root_nodes_by_name["Root folder"]
+        self.assertEqual(root_folder["type"], "folder")
+
+        child_nodes_by_name = {
+            node["name"]: node
+            for node in root_folder["children"]
+        }
+        self.assertEqual(set(child_nodes_by_name), {"Child document", "Child folder"})
+
+        child_document = child_nodes_by_name["Child document"]
+        self.assertEqual(child_document["type"], "document")
+        self.assertEqual(child_document["description"], "Document inside root folder")
+        self.assertEqual(child_document["file_name"], "child-document.pdf")
+
+        child_folder = child_nodes_by_name["Child folder"]
+        self.assertEqual(child_folder["type"], "folder")
+        self.assertEqual(child_folder["children"], [])
+
+    # TESTS GET
+    def test_owner_can_get_tree_with_documents(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_folder_tree()
+
+        self.assert_ok(response)
+        self.assert_tree_contains_folders_and_documents(response)
+
+    def test_member_with_folder_view_can_get_tree_with_documents(self):
+        self.given_member_authenticated(["folder.view"])
+
+        response = self.when_get_folder_tree()
+
+        self.assert_ok(response)
+        self.assert_tree_contains_folders_and_documents(response)
+
+    def test_member_without_folder_view_cannot_get_tree(self):
+        self.given_member_authenticated(["folder.edit"])
+
+        response = self.when_get_folder_tree()
+
+        self.assert_forbidden(response)
 
 
 class FolderDetailRoutePermissionTests(ProjectApiTestCase):
@@ -821,13 +974,6 @@ class FolderTrashRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(folder_names, set(expected_names))
 
     # TESTS GET
-    def test_member_without_folder_view_trash_cannot_list_deleted_folders(self):
-        self.given_member_authenticated(["folder.view"])
-
-        response = self.when_list_deleted_folders()
-
-        self.assert_forbidden(response)
-
     def test_owner_can_list_deleted_folders(self):
         self.given_authenticated(self.owner)
 
@@ -836,8 +982,8 @@ class FolderTrashRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_folder_names(response, ["Deleted folder"])
 
-    def test_member_with_folder_view_trash_can_list_deleted_folders(self):
-        self.given_member_authenticated(["folder.view_trash"])
+    def test_member_with_folder_view_can_list_deleted_folders(self):
+        self.given_member_authenticated(["folder.view"])
 
         response = self.when_list_deleted_folders()
 
@@ -872,7 +1018,7 @@ class FolderRestoreRoutePermissionTests(ProjectApiTestCase):
 
     # TESTS POST
     def test_member_without_folder_restore_cannot_restore_folder(self):
-        self.given_member_authenticated(["folder.view_trash"])
+        self.given_member_authenticated(["folder.view"])
 
         response = self.when_restore_folder()
 
@@ -894,6 +1040,548 @@ class FolderRestoreRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_folder_restored()
+
+
+class DocumentRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"/api/projects/{self.project.id}/documents/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/documents/"
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Document folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other project folder",
+        )
+        self.active_document = Document.objects.create(
+            project=self.project,
+            folder=self.folder,
+            name="Active document",
+            file_id="projects/1/documents/active.pdf",
+            file_name="active.pdf",
+            file_size=100,
+            mime_type="application/pdf",
+        )
+        self.deleted_document = Document.objects.create(
+            project=self.project,
+            name="Deleted document",
+            file_id="projects/1/documents/deleted.pdf",
+            file_name="deleted.pdf",
+            file_size=200,
+            mime_type="application/pdf",
+        )
+        self.deleted_document.soft_delete(self.owner)
+        self.other_project_document = Document.objects.create(
+            project=self.other_project,
+            name="Other project document",
+            file_id="projects/2/documents/other.pdf",
+            file_name="other.pdf",
+            file_size=300,
+            mime_type="application/pdf",
+        )
+
+    # GIVEN
+    def given_uploaded_pdf(self, name="created.pdf", content=b"pdf"):
+        return SimpleUploadedFile(
+            name,
+            content,
+            content_type="application/pdf",
+        )
+
+    def given_upload_metadata(self, name="created.pdf"):
+        return {
+            "file_id": f"projects/{self.project.id}/documents/{name}",
+            "file_name": name,
+            "file_size": 3,
+            "mime_type": "application/pdf",
+        }
+
+    # WHEN
+    def when_list_documents(self, url=None):
+        return self.api_get(url or self.url)
+
+    def when_create_document(self, payload, url=None):
+        return self.client.post(url or self.url, payload)
+
+    # ASSERT
+    def assert_visible_document_names(self, response, expected_names):
+        documents = self.response_results(response)
+        document_names = {document["name"] for document in documents}
+        self.assertEqual(document_names, set(expected_names))
+
+    def assert_document_exists(self, name, project=None, folder=None):
+        project = project or self.project
+        document = Document.objects.get(project=project, name=name)
+        if folder is not None:
+            self.assertEqual(document.folder_id, folder.id)
+        return document
+
+    def assert_document_does_not_exist(self, name):
+        self.assertFalse(Document.objects.filter(name=name).exists())
+
+    # TESTS GET
+    def test_anonymous_cannot_list_documents(self):
+        response = self.when_list_documents()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_list_active_documents(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_documents()
+
+        self.assert_ok(response)
+        self.assert_visible_document_names(response, ["Active document"])
+
+    def test_member_with_document_view_can_list_documents(self):
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_list_documents()
+
+        self.assert_ok(response)
+        self.assert_visible_document_names(response, ["Active document"])
+
+    def test_member_without_document_view_cannot_list_documents(self):
+        self.given_member_authenticated(["document.edit"])
+
+        response = self.when_list_documents()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_list_another_project_documents(self):
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_list_documents(self.other_project_url)
+
+        self.assert_forbidden(response)
+
+    # TESTS POST
+    def test_anonymous_cannot_create_document(self):
+        response = self.when_create_document({
+            "name": "Anonymous document",
+            "file": self.given_uploaded_pdf(),
+        })
+
+        self.assert_unauthorized(response)
+        self.assert_document_does_not_exist("Anonymous document")
+
+    @patch("api.views.documents.upload_document_file")
+    def test_owner_can_create_document(self, upload_document_file):
+        upload_document_file.return_value = self.given_upload_metadata()
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_document({
+            "name": "Created document",
+            "description": "Created description",
+            "folder": self.folder.id,
+            "file": self.given_uploaded_pdf(),
+        })
+
+        self.assert_created(response)
+        document = self.assert_document_exists(
+            "Created document",
+            folder=self.folder,
+        )
+        self.assertEqual(document.description, "Created description")
+        self.assertEqual(document.file_name, "created.pdf")
+        upload_document_file.assert_called_once()
+
+    @patch("api.views.documents.upload_document_file")
+    def test_create_document_uses_file_name_when_name_missing(self, upload_document_file):
+        upload_document_file.return_value = self.given_upload_metadata("fallback.pdf")
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_document({
+            "file": self.given_uploaded_pdf("fallback.pdf"),
+        })
+
+        self.assert_created(response)
+        self.assert_document_exists("fallback.pdf")
+
+    @patch("api.views.documents.upload_document_file")
+    def test_member_with_document_edit_can_create_document(self, upload_document_file):
+        upload_document_file.return_value = self.given_upload_metadata()
+        self.given_member_authenticated(["document.edit"])
+
+        response = self.when_create_document({
+            "name": "Created by member",
+            "file": self.given_uploaded_pdf(),
+        })
+
+        self.assert_created(response)
+        self.assert_document_exists("Created by member")
+
+    @patch("api.views.documents.upload_document_file")
+    def test_member_without_document_edit_cannot_create_document(self, upload_document_file):
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_create_document({
+            "name": "Blocked document",
+            "file": self.given_uploaded_pdf(),
+        })
+
+        self.assert_forbidden(response)
+        self.assert_document_does_not_exist("Blocked document")
+        upload_document_file.assert_not_called()
+
+    @patch("api.views.documents.upload_document_file")
+    def test_create_rejects_missing_file(self, upload_document_file):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_document({
+            "name": "Missing file",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_document_does_not_exist("Missing file")
+        upload_document_file.assert_not_called()
+
+    @patch("api.views.documents.upload_document_file")
+    def test_create_rejects_folder_from_another_project(self, upload_document_file):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_document({
+            "name": "Invalid folder document",
+            "folder": self.other_project_folder.id,
+            "file": self.given_uploaded_pdf(),
+        })
+
+        self.assert_bad_request(response)
+        self.assert_document_does_not_exist("Invalid folder document")
+        upload_document_file.assert_not_called()
+
+
+class DocumentDetailRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Document folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other project folder",
+        )
+        self.document = Document.objects.create(
+            project=self.project,
+            folder=self.folder,
+            name="Target document",
+            file_id="projects/1/documents/target.pdf",
+            file_name="target.pdf",
+            file_size=100,
+            mime_type="application/pdf",
+        )
+        self.other_project_document = Document.objects.create(
+            project=self.other_project,
+            name="Other project document",
+            file_id="projects/2/documents/other.pdf",
+            file_name="other.pdf",
+            file_size=200,
+            mime_type="application/pdf",
+        )
+        self.url = f"/api/projects/{self.project.id}/documents/{self.document.id}/"
+
+    # WHEN
+    def when_get_document(self):
+        return self.api_get(self.url)
+
+    def when_patch_document(self, payload):
+        return self.api_patch(self.url, payload)
+
+    def when_delete_document(self):
+        return self.api_delete(self.url)
+
+    # ASSERT
+    def assert_document_name(self, expected_name):
+        self.document.refresh_from_db()
+        self.assertEqual(self.document.name, expected_name)
+
+    def assert_document_not_deleted(self):
+        self.document.refresh_from_db()
+        self.assertIsNone(self.document.deleted_at)
+
+    def assert_document_deleted_by(self, user):
+        self.document.refresh_from_db()
+        self.assertIsNotNone(self.document.deleted_at)
+        self.assertEqual(self.document.deleted_by_id, user.id)
+
+    # TESTS GET
+    def test_anonymous_cannot_get_document(self):
+        response = self.when_get_document()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_get_document(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_document()
+
+        self.assert_ok(response)
+
+    def test_member_with_document_view_can_get_document(self):
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_get_document()
+
+        self.assert_ok(response)
+
+    def test_member_without_document_view_cannot_get_document(self):
+        self.given_member_authenticated([])
+
+        response = self.when_get_document()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_get_document_from_another_project(self):
+        self.given_member_authenticated(["document.view"])
+        self.url = f"/api/projects/{self.other_project.id}/documents/{self.other_project_document.id}/"
+
+        response = self.when_get_document()
+
+        self.assert_forbidden(response)
+
+    # TESTS PATCH
+    def test_member_without_document_edit_cannot_patch_document(self):
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_patch_document({"name": "Blocked edit"})
+
+        self.assert_forbidden(response)
+        self.assert_document_name("Target document")
+        self.assert_document_not_deleted()
+
+    def test_member_with_document_edit_can_patch_document(self):
+        self.given_member_authenticated(["document.edit"])
+
+        response = self.when_patch_document({"name": "Edited document"})
+
+        self.assert_ok(response)
+        self.assert_document_name("Edited document")
+        self.assert_document_not_deleted()
+
+    def test_owner_can_patch_document(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_document({"name": "Edited by owner"})
+
+        self.assert_ok(response)
+        self.assert_document_name("Edited by owner")
+        self.assert_document_not_deleted()
+
+    def test_patch_rejects_folder_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_document({
+            "folder": self.other_project_folder.id,
+        })
+
+        self.assert_bad_request(response)
+        self.document.refresh_from_db()
+        self.assertEqual(self.document.folder_id, self.folder.id)
+
+    # TESTS DELETE
+    def test_member_without_document_delete_cannot_delete_document(self):
+        self.given_member_authenticated(["document.edit"])
+
+        response = self.when_delete_document()
+
+        self.assert_forbidden(response)
+        self.assert_document_not_deleted()
+
+    def test_member_with_document_delete_can_soft_delete_document(self):
+        self.given_member_authenticated(["document.delete"])
+
+        response = self.when_delete_document()
+
+        self.assert_no_content(response)
+        self.assert_document_deleted_by(self.member)
+
+    def test_owner_can_soft_delete_document(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_delete_document()
+
+        self.assert_no_content(response)
+        self.assert_document_deleted_by(self.owner)
+
+
+class DocumentDownloadRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.document = Document.objects.create(
+            project=self.project,
+            name="Download document",
+            file_id="projects/1/documents/download.pdf",
+            file_name="download.pdf",
+            file_size=100,
+            mime_type="application/pdf",
+        )
+        self.url = f"/api/projects/{self.project.id}/documents/{self.document.id}/download/"
+
+    # WHEN
+    def when_download_document(self):
+        return self.api_get(self.url)
+
+    # TESTS GET
+    @patch("api.serializers.get_document_download_url")
+    def test_owner_can_get_document_download_url(self, get_document_download_url):
+        get_document_download_url.return_value = "https://storage.example/download.pdf"
+        self.given_authenticated(self.owner)
+
+        response = self.when_download_document()
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual(data["url"], "https://storage.example/download.pdf")
+        self.assertEqual(data["file_name"], "download.pdf")
+        self.assertEqual(data["mime_type"], "application/pdf")
+
+    @patch("api.serializers.get_document_download_url")
+    def test_member_with_document_view_can_get_document_download_url(self, get_document_download_url):
+        get_document_download_url.return_value = "https://storage.example/download.pdf"
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_download_document()
+
+        self.assert_ok(response)
+
+    @patch("api.serializers.get_document_download_url")
+    def test_member_without_document_view_cannot_get_document_download_url(self, get_document_download_url):
+        self.given_member_authenticated(["document.edit"])
+
+        response = self.when_download_document()
+
+        self.assert_forbidden(response)
+        get_document_download_url.assert_not_called()
+
+
+class DocumentTrashRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.active_document = Document.objects.create(
+            project=self.project,
+            name="Active document",
+            file_id="projects/1/documents/active-trash.pdf",
+            file_name="active-trash.pdf",
+            file_size=100,
+            mime_type="application/pdf",
+        )
+        self.deleted_document = Document.objects.create(
+            project=self.project,
+            name="Deleted document",
+            file_id="projects/1/documents/deleted-trash.pdf",
+            file_name="deleted-trash.pdf",
+            file_size=200,
+            mime_type="application/pdf",
+        )
+        self.deleted_document.soft_delete(self.owner)
+        self.url = f"/api/projects/{self.project.id}/documents/trash/"
+
+    # WHEN
+    def when_list_deleted_documents(self):
+        return self.api_get(self.url)
+
+    # ASSERT
+    def assert_visible_document_names(self, response, expected_names):
+        documents = self.response_results(response)
+        document_names = {document["name"] for document in documents}
+        self.assertEqual(document_names, set(expected_names))
+
+    # TESTS GET
+    def test_anonymous_cannot_list_deleted_documents(self):
+        response = self.when_list_deleted_documents()
+
+        self.assert_unauthorized(response)
+
+    def test_member_without_document_view_cannot_list_deleted_documents(self):
+        self.given_member_authenticated([])
+
+        response = self.when_list_deleted_documents()
+
+        self.assert_forbidden(response)
+
+    def test_owner_can_list_deleted_documents(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_deleted_documents()
+
+        self.assert_ok(response)
+        self.assert_visible_document_names(response, ["Deleted document"])
+
+    def test_member_with_document_view_can_list_deleted_documents(self):
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_list_deleted_documents()
+
+        self.assert_ok(response)
+        self.assert_visible_document_names(response, ["Deleted document"])
+
+
+class DocumentRestoreRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.deleted_document = Document.objects.create(
+            project=self.project,
+            name="Deleted document",
+            file_id="projects/1/documents/deleted-restore.pdf",
+            file_name="deleted-restore.pdf",
+            file_size=200,
+            mime_type="application/pdf",
+        )
+        self.deleted_document.soft_delete(self.owner)
+        self.url = f"/api/projects/{self.project.id}/documents/{self.deleted_document.id}/restore/"
+
+    # WHEN
+    def when_restore_document(self):
+        return self.api_post(self.url, {})
+
+    # ASSERT
+    def assert_document_still_deleted(self):
+        self.deleted_document.refresh_from_db()
+        self.assertIsNotNone(self.deleted_document.deleted_at)
+
+    def assert_document_restored(self):
+        self.deleted_document.refresh_from_db()
+        self.assertIsNone(self.deleted_document.deleted_at)
+        self.assertIsNone(self.deleted_document.deleted_by_id)
+
+    # TESTS POST
+    def test_anonymous_cannot_restore_document(self):
+        response = self.when_restore_document()
+
+        self.assert_unauthorized(response)
+        self.assert_document_still_deleted()
+
+    def test_member_without_document_restore_cannot_restore_document(self):
+        self.given_member_authenticated(["document.view"])
+
+        response = self.when_restore_document()
+
+        self.assert_forbidden(response)
+        self.assert_document_still_deleted()
+
+    def test_owner_can_restore_document(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_restore_document()
+
+        self.assert_ok(response)
+        self.assert_document_restored()
+
+    def test_member_with_document_restore_can_restore_document(self):
+        self.given_member_authenticated(["document.restore"])
+
+        response = self.when_restore_document()
+
+        self.assert_ok(response)
+        self.assert_document_restored()
 
 
 class ProjectDetailRoutePermissionTests(ProjectApiTestCase):
@@ -1078,7 +1766,7 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_role_names(response, ["Active role", "Role for member"])
 
     def test_member_without_role_view_cannot_list_roles(self):
-        self.given_member_authenticated(["role.create"])
+        self.given_member_authenticated(["role.edit"])
 
         response = self.when_list_roles()
 
@@ -1124,8 +1812,8 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         role = self.assert_role_exists("Payload project ignored")
         self.assertEqual(role.project_id, self.project.id)
 
-    def test_member_with_role_create_can_create_role(self):
-        self.given_member_authenticated(["role.create"])
+    def test_member_with_role_edit_can_create_role(self):
+        self.given_member_authenticated(["role.edit"])
 
         response = self.when_create_role({
             "name": "Created by member",
@@ -1134,7 +1822,7 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         self.assert_created(response)
         self.assert_role_exists("Created by member")
 
-    def test_member_without_role_create_cannot_create_role(self):
+    def test_member_without_role_edit_cannot_create_role(self):
         self.given_member_authenticated(["role.view"])
 
         response = self.when_create_role({
@@ -1167,9 +1855,9 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
             description="Folder view",
         )
         self.other_permission = self.given_permission(
-            code="folder.create",
-            name="Folder create",
-            description="Folder create",
+            code="folder.edit",
+            name="Folder edit",
+            description="Folder edit",
         )
         self.target_role = Role.objects.create(
             project=self.project,
@@ -1293,7 +1981,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["folder.create"])
+        self.assert_role_permission_codes(["folder.edit"])
 
     def test_patch_role_deduplicates_permission_ids(self):
         self.given_authenticated(self.owner)
@@ -1303,7 +1991,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["folder.create"])
+        self.assert_role_permission_codes(["folder.edit"])
 
     # TESTS DELETE
     def test_member_without_role_delete_cannot_delete_role(self):
@@ -1416,7 +2104,7 @@ class RoleRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_unauthorized(response)
         self.assert_role_still_deleted()
 
-    def test_member_without_role_edit_cannot_restore_role(self):
+    def test_member_without_role_restore_cannot_restore_role(self):
         self.given_member_authenticated(["role.view"])
 
         response = self.when_restore_role()
@@ -1432,8 +2120,8 @@ class RoleRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_role_restored()
 
-    def test_member_with_role_edit_can_restore_role(self):
-        self.given_member_authenticated(["role.edit"])
+    def test_member_with_role_restore_can_restore_role(self):
+        self.given_member_authenticated(["role.restore"])
 
         response = self.when_restore_role()
 
@@ -1542,7 +2230,7 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(self.target_member.deleted_by_id, user.id)
 
     # TESTS DELETE
-    def test_member_without_member_edit_cannot_delete_member(self):
+    def test_member_without_member_delete_cannot_delete_member(self):
         self.given_member_authenticated(["member.view"])
 
         response = self.when_delete_member()
@@ -1558,8 +2246,8 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_no_content(response)
         self.assert_member_deleted_by(self.owner)
 
-    def test_member_with_member_edit_can_soft_delete_member(self):
-        self.given_member_authenticated(["member.edit"])
+    def test_member_with_member_delete_can_soft_delete_member(self):
+        self.given_member_authenticated(["member.delete"])
 
         response = self.when_delete_member()
 
@@ -1567,7 +2255,7 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_member_deleted_by(self.member)
 
     def test_member_cannot_delete_member_from_another_project(self):
-        self.given_member_authenticated(["member.edit"])
+        self.given_member_authenticated(["member.delete"])
         self.url = f"/api/projects/{self.other_project.id}/members/{self.other_project_member.id}/"
 
         response = self.when_delete_member()

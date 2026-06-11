@@ -2,7 +2,9 @@ from django.db import transaction
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 from rest_framework import serializers
-from drf_spectacular.utils import extend_schema_field
+from drf_spectacular.utils import OpenApiTypes, extend_schema_field
+
+from .services.storage import get_document_download_url
 
 from .models import (
     Project,
@@ -197,6 +199,68 @@ class FolderSerializer(serializers.ModelSerializer):
         return instance
 
 
+class FolderTreeNodeSerializer(serializers.Serializer):
+    type = serializers.ChoiceField(choices=["folder", "document"])
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    description = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    color = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    icon = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    file_name = serializers.CharField(required=False)
+    file_size = serializers.IntegerField(required=False)
+    mime_type = serializers.CharField(required=False)
+    children = serializers.ListField(
+        child=serializers.DictField(),
+        required=False,
+    )
+
+
+class FolderTreeSerializer(serializers.Serializer):
+    def to_representation(self, instance):
+        folders = instance["folders"]
+        documents = instance["documents"]
+        folder_nodes = {}
+
+        for folder in folders:
+            folder_nodes[folder.id] = {
+                "type": "folder",
+                "id": folder.id,
+                "name": folder.name,
+                "description": folder.description,
+                "color": folder.color,
+                "icon": folder.icon,
+                "children": [],
+            }
+
+        roots = []
+
+        for folder in folders:
+            node = folder_nodes[folder.id]
+
+            if folder.parent_folder_id and folder.parent_folder_id in folder_nodes:
+                folder_nodes[folder.parent_folder_id]["children"].append(node)
+            else:
+                roots.append(node)
+
+        for document in documents:
+            node = {
+                "type": "document",
+                "id": document.id,
+                "name": document.name,
+                "description": document.description,
+                "file_name": document.file_name,
+                "file_size": document.file_size,
+                "mime_type": document.mime_type,
+            }
+
+            if document.folder_id and document.folder_id in folder_nodes:
+                folder_nodes[document.folder_id]["children"].append(node)
+            else:
+                roots.append(node)
+
+        return FolderTreeNodeSerializer(roots, many=True).data
+
+
 class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
@@ -217,7 +281,64 @@ class DocumentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
+            "file_id",
+            "file_name",
+            "file_size",
+            "mime_type",
         ]
+
+    def create(self, validated_data):
+        document = Document(**validated_data)
+        try:
+            document.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        document.save()
+        return document
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+        instance.save()
+        return instance
+
+
+@extend_schema_field(OpenApiTypes.BINARY)
+class DocumentUploadFileField(serializers.FileField):
+    pass
+
+
+class DocumentUploadSerializer(serializers.Serializer):
+    file = DocumentUploadFileField()
+    folder = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.all(),
+        required=False,
+        allow_null=True,
+    )
+    name = serializers.CharField(required=False)
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+
+
+class DocumentDownloadSerializer(serializers.Serializer):
+    url = serializers.URLField(read_only=True)
+    file_name = serializers.CharField(read_only=True)
+    mime_type = serializers.CharField(read_only=True)
+
+    def to_representation(self, document):
+        return {
+            "url": get_document_download_url(document.file_id),
+            "file_name": document.file_name,
+            "mime_type": document.mime_type,
+        }
 
 
 class TaskSerializer(serializers.ModelSerializer):
