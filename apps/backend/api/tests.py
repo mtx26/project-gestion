@@ -233,9 +233,9 @@ class PermissionRouteTests(ProjectApiTestCase):
             description="Project edit",
         )
         self.given_permission(
-            code="folder.view",
-            name="Folder view",
-            description="Folder view",
+            code="file.view",
+            name="File view",
+            description="File view",
         )
 
     # WHEN
@@ -260,7 +260,7 @@ class PermissionRouteTests(ProjectApiTestCase):
         response = self.when_list_permissions()
 
         self.assert_ok(response)
-        self.assert_visible_permission_codes(response, ["project.edit", "folder.view"])
+        self.assert_visible_permission_codes(response, ["project.edit", "file.view"])
 
 
 class ProjectRoutePermissionTests(ProjectApiTestCase):
@@ -526,7 +526,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_folder_names(response, ["Root folder"])
 
     def test_member_with_folder_view_can_list_folders(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_list_folders()
 
@@ -534,7 +534,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_folder_names(response, ["Root folder"])
 
     def test_member_without_folder_view_cannot_list_folders(self):
-        self.given_member_authenticated(["folder.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_list_folders()
 
@@ -548,7 +548,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
     def test_member_cannot_list_another_project_folders(self):
-        self.given_member_authenticated(["folder.view", "folder.edit"])
+        self.given_member_authenticated(["file.view", "file.edit"])
 
         response = self.when_list_folders(self.other_project_url)
 
@@ -587,7 +587,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(folder.project_id, self.project.id)
 
     def test_member_with_folder_edit_can_create_folder(self):
-        self.given_member_authenticated(["folder.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_create_folder({
             "name": "Created by member",
@@ -597,7 +597,7 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         self.assert_folder_exists("Created by member")
 
     def test_member_without_folder_edit_cannot_create_folder(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_create_folder({
             "name": "Blocked folder",
@@ -768,7 +768,7 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_tree_contains_folders_and_documents(response)
 
     def test_member_with_folder_view_can_get_tree_with_documents(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_get_folder_tree()
 
@@ -776,7 +776,7 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_tree_contains_folders_and_documents(response)
 
     def test_member_without_folder_view_cannot_get_tree(self):
-        self.given_member_authenticated(["folder.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_get_folder_tree()
 
@@ -828,7 +828,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_unauthorized(response)
 
     def test_member_with_folder_view_can_get_folder(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_get_folder()
 
@@ -849,7 +849,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
     def test_member_cannot_get_folder_from_another_project(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
         self.url = f"/api/projects/{self.other_project.id}/folders/{self.other_project_folder.id}"
 
         response = self.when_get_folder()
@@ -858,7 +858,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
 
     # TESTS PATCH
     def test_member_without_folder_edit_cannot_patch_folder(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_patch_folder({"name": "Blocked folder edit"})
 
@@ -867,7 +867,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_folder_not_deleted()
 
     def test_member_with_folder_edit_can_patch_folder(self):
-        self.given_member_authenticated(["folder.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_patch_folder({"name": "Edited folder"})
 
@@ -924,7 +924,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
 
     # TESTS DELETE
     def test_member_without_folder_delete_cannot_delete_folder(self):
-        self.given_member_authenticated(["folder.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_delete_folder()
 
@@ -932,7 +932,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_folder_not_deleted()
 
     def test_member_with_folder_delete_can_soft_delete_folder(self):
-        self.given_member_authenticated(["folder.delete"])
+        self.given_member_authenticated(["file.delete"])
 
         response = self.when_delete_folder()
 
@@ -983,7 +983,7 @@ class FolderTrashRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_folder_names(response, ["Deleted folder"])
 
     def test_member_with_folder_view_can_list_deleted_folders(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_list_deleted_folders()
 
@@ -1018,7 +1018,7 @@ class FolderRestoreRoutePermissionTests(ProjectApiTestCase):
 
     # TESTS POST
     def test_member_without_folder_restore_cannot_restore_folder(self):
-        self.given_member_authenticated(["folder.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_restore_folder()
 
@@ -1034,7 +1034,7 @@ class FolderRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_folder_restored()
 
     def test_member_with_folder_restore_can_restore_folder(self):
-        self.given_member_authenticated(["folder.restore"])
+        self.given_member_authenticated(["file.restore"])
 
         response = self.when_restore_folder()
 
@@ -1137,7 +1137,7 @@ class DocumentRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_document_names(response, ["Active document"])
 
     def test_member_with_document_view_can_list_documents(self):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_list_documents()
 
@@ -1145,14 +1145,14 @@ class DocumentRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_document_names(response, ["Active document"])
 
     def test_member_without_document_view_cannot_list_documents(self):
-        self.given_member_authenticated(["document.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_list_documents()
 
         self.assert_forbidden(response)
 
     def test_member_cannot_list_another_project_documents(self):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_list_documents(self.other_project_url)
 
@@ -1204,7 +1204,7 @@ class DocumentRoutePermissionTests(ProjectApiTestCase):
     @patch("api.views.documents.upload_document_file")
     def test_member_with_document_edit_can_create_document(self, upload_document_file):
         upload_document_file.return_value = self.given_upload_metadata()
-        self.given_member_authenticated(["document.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_create_document({
             "name": "Created by member",
@@ -1216,7 +1216,7 @@ class DocumentRoutePermissionTests(ProjectApiTestCase):
 
     @patch("api.views.documents.upload_document_file")
     def test_member_without_document_edit_cannot_create_document(self, upload_document_file):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_create_document({
             "name": "Blocked document",
@@ -1323,7 +1323,7 @@ class DocumentDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
 
     def test_member_with_document_view_can_get_document(self):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_get_document()
 
@@ -1337,7 +1337,7 @@ class DocumentDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
     def test_member_cannot_get_document_from_another_project(self):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
         self.url = f"/api/projects/{self.other_project.id}/documents/{self.other_project_document.id}/"
 
         response = self.when_get_document()
@@ -1346,7 +1346,7 @@ class DocumentDetailRoutePermissionTests(ProjectApiTestCase):
 
     # TESTS PATCH
     def test_member_without_document_edit_cannot_patch_document(self):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_patch_document({"name": "Blocked edit"})
 
@@ -1355,7 +1355,7 @@ class DocumentDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_document_not_deleted()
 
     def test_member_with_document_edit_can_patch_document(self):
-        self.given_member_authenticated(["document.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_patch_document({"name": "Edited document"})
 
@@ -1385,7 +1385,7 @@ class DocumentDetailRoutePermissionTests(ProjectApiTestCase):
 
     # TESTS DELETE
     def test_member_without_document_delete_cannot_delete_document(self):
-        self.given_member_authenticated(["document.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_delete_document()
 
@@ -1393,7 +1393,7 @@ class DocumentDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_document_not_deleted()
 
     def test_member_with_document_delete_can_soft_delete_document(self):
-        self.given_member_authenticated(["document.delete"])
+        self.given_member_authenticated(["file.delete"])
 
         response = self.when_delete_document()
 
@@ -1444,7 +1444,7 @@ class DocumentDownloadRoutePermissionTests(ProjectApiTestCase):
     @patch("api.serializers.get_document_download_url")
     def test_member_with_document_view_can_get_document_download_url(self, get_document_download_url):
         get_document_download_url.return_value = "https://storage.example/download.pdf"
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_download_document()
 
@@ -1452,7 +1452,7 @@ class DocumentDownloadRoutePermissionTests(ProjectApiTestCase):
 
     @patch("api.serializers.get_document_download_url")
     def test_member_without_document_view_cannot_get_document_download_url(self, get_document_download_url):
-        self.given_member_authenticated(["document.edit"])
+        self.given_member_authenticated(["file.edit"])
 
         response = self.when_download_document()
 
@@ -1515,7 +1515,7 @@ class DocumentTrashRoutePermissionTests(ProjectApiTestCase):
         self.assert_visible_document_names(response, ["Deleted document"])
 
     def test_member_with_document_view_can_list_deleted_documents(self):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_list_deleted_documents()
 
@@ -1560,7 +1560,7 @@ class DocumentRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_document_still_deleted()
 
     def test_member_without_document_restore_cannot_restore_document(self):
-        self.given_member_authenticated(["document.view"])
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_restore_document()
 
@@ -1576,7 +1576,7 @@ class DocumentRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_document_restored()
 
     def test_member_with_document_restore_can_restore_document(self):
-        self.given_member_authenticated(["document.restore"])
+        self.given_member_authenticated(["file.restore"])
 
         response = self.when_restore_document()
 
@@ -1700,9 +1700,9 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         self.url = f"/api/projects/{self.project.id}/roles/"
         self.other_project_url = f"/api/projects/{self.other_project.id}/roles/"
         self.permission = self.given_permission(
-            code="folder.view",
-            name="Folder view",
-            description="Folder view",
+            code="file.view",
+            name="File view",
+            description="File view",
         )
         self.active_role = Role.objects.create(
             project=self.project,
@@ -1798,7 +1798,7 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_created(response)
         role = self.assert_role_exists("Created by owner")
-        self.assert_role_permission_codes(role, ["folder.view"])
+        self.assert_role_permission_codes(role, ["file.view"])
 
     def test_create_role_uses_project_from_url_not_payload(self):
         self.given_authenticated(self.owner)
@@ -1842,7 +1842,7 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_created(response)
         role = self.assert_role_exists("Role with duplicate permissions")
-        self.assert_role_permission_codes(role, ["folder.view"])
+        self.assert_role_permission_codes(role, ["file.view"])
 
 
 class RoleDetailRoutePermissionTests(ProjectApiTestCase):
@@ -1850,14 +1850,14 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         super().setUp()
 
         self.permission = self.given_permission(
-            code="folder.view",
-            name="Folder view",
-            description="Folder view",
+            code="file.view",
+            name="File view",
+            description="File view",
         )
         self.other_permission = self.given_permission(
-            code="folder.edit",
-            name="Folder edit",
-            description="Folder edit",
+            code="file.edit",
+            name="File edit",
+            description="File edit",
         )
         self.target_role = Role.objects.create(
             project=self.project,
@@ -1981,7 +1981,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["folder.edit"])
+        self.assert_role_permission_codes(["file.edit"])
 
     def test_patch_role_deduplicates_permission_ids(self):
         self.given_authenticated(self.owner)
@@ -1991,7 +1991,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["folder.edit"])
+        self.assert_role_permission_codes(["file.edit"])
 
     # TESTS DELETE
     def test_member_without_role_delete_cannot_delete_role(self):

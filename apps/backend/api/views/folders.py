@@ -15,11 +15,11 @@ from ..permissions import HasProjectPermission
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les dossiers d'un projet",
-        description="Retourne tous les dossiers actifs d'un projet.\nPermission requise : `folder.view`.",
+        description="Retourne tous les dossiers actifs d'un projet.\nPermission requise : `file.view`.",
     ),
     post=extend_schema(
         summary="Créer un dossier",
-        description="Crée un nouveau dossier dans un projet.\nPermission requise : `folder.edit`.",
+        description="Crée un nouveau dossier dans un projet.\nPermission requise : `file.edit`.",
     ),
 )
 class FolderListCreateView(generics.ListCreateAPIView):
@@ -28,9 +28,9 @@ class FolderListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         self.permission_code = (
-            "folder.edit"
+            "file.edit"
             if self.request.method == "POST"
-            else "folder.view"
+            else "file.view"
         )
         return super().get_permissions()
 
@@ -55,7 +55,7 @@ class FolderListCreateView(generics.ListCreateAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Arbre des dossiers d'un projet",
-        description="Retourne les dossiers et documents d'un projet sous forme d'arbre.\nPermission requise : `folder.view`.",
+        description="Retourne les dossiers et documents d'un projet sous forme d'arbre.\nPermission requise : `file.view`.",
         responses=FolderTreeNodeSerializer(many=True),
     )
 )
@@ -63,7 +63,7 @@ class FolderTreeView(generics.GenericAPIView):
     serializer_class = FolderTreeSerializer
     queryset = Folder.objects.none()
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "folder.view"
+    permission_code = "file.view"
 
     def get(self, request, project_id):
         folders = Folder.objects.filter(
@@ -86,19 +86,19 @@ class FolderTreeView(generics.GenericAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Détail d'un dossier",
-        description="Retourne un dossier précis.\nPermission requise : `folder.view`.",
+        description="Retourne un dossier précis.\nPermission requise : `file.view`.",
     ),
     put=extend_schema(
         summary="Modifier un dossier",
-        description="Modifie complètement un dossier.\nPermission requise : `folder.edit`.",
+        description="Modifie complètement un dossier.\nPermission requise : `file.edit`.",
     ),
     patch=extend_schema(
         summary="Modifier partiellement un dossier",
-        description="Modifie partiellement un dossier.\nPermission requise : `folder.edit`.",
+        description="Modifie partiellement un dossier.\nPermission requise : `file.edit`.",
     ),
     delete=extend_schema(
         summary="Supprimer un dossier",
-        description="Supprime un dossier.\nPermission requise : `folder.delete`.",
+        description="Supprime un dossier.\nPermission requise : `file.delete`.",
     ),
 )
 class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -107,11 +107,11 @@ class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method == "GET":
-            self.permission_code = "folder.view"
+            self.permission_code = "file.view"
         elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "folder.edit"
+            self.permission_code = "file.edit"
         elif self.request.method == "DELETE":
-            self.permission_code = "folder.delete"
+            self.permission_code = "file.delete"
 
         return super().get_permissions()
 
@@ -131,7 +131,7 @@ class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les dossiers supprimés",
-        description="Retourne les dossiers supprimés d'un projet.\nPermission requise : `folder.view`.",
+        description="Retourne les dossiers supprimés d'un projet.\nPermission requise : `file.view`.",
     )
 )
 class FolderTrashListView(generics.ListAPIView):
@@ -139,7 +139,7 @@ class FolderTrashListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
     def get_permissions(self):
-        self.permission_code = "folder.view"
+        self.permission_code = "file.view"
         return super().get_permissions()
 
     def get_queryset(self):
@@ -156,7 +156,7 @@ class FolderTrashListView(generics.ListAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un dossier",
-        description="Restaure un dossier supprimé.\nPermission requise : `folder.restore`.",
+        description="Restaure un dossier supprimé.\nPermission requise : `file.restore`.",
     )
 )
 class FolderRestoreView(generics.GenericAPIView):
@@ -164,7 +164,7 @@ class FolderRestoreView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
     def get_permissions(self):
-        self.permission_code = "folder.restore"
+        self.permission_code = "file.restore"
         return super().get_permissions()
 
     def get_queryset(self):

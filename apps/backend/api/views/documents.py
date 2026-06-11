@@ -22,11 +22,11 @@ from ..services.storage import upload_document_file
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les documents d'un projet",
-        description="Retourne tous les documents actifs d'un projet.\nPermission requise : `document.view`.",
+        description="Retourne tous les documents actifs d'un projet.\nPermission requise : `file.view`.",
     ),
     post=extend_schema(
         summary="Créer un document",
-        description="Upload un fichier dans MinIO et crée le document associé.\nPermission requise : `document.edit`.",
+        description="Upload un fichier dans MinIO et crée le document associé.\nPermission requise : `file.edit`.",
         request=DocumentUploadSerializer,
         responses={status.HTTP_201_CREATED: DocumentSerializer},
     ),
@@ -38,9 +38,9 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         self.permission_code = (
-            "document.edit"
+            "file.edit"
             if self.request.method == "POST"
-            else "document.view"
+            else "file.view"
         )
         return super().get_permissions()
 
@@ -108,19 +108,19 @@ class DocumentListCreateView(generics.ListCreateAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Détail d'un document",
-        description="Retourne un document précis.\nPermission requise : `document.view`.",
+        description="Retourne un document précis.\nPermission requise : `file.view`.",
     ),
     put=extend_schema(
         summary="Modifier un document",
-        description="Modifie les métadonnées d'un document.\nPermission requise : `document.edit`.",
+        description="Modifie les métadonnées d'un document.\nPermission requise : `file.edit`.",
     ),
     patch=extend_schema(
         summary="Modifier partiellement un document",
-        description="Modifie partiellement les métadonnées d'un document.\nPermission requise : `document.edit`.",
+        description="Modifie partiellement les métadonnées d'un document.\nPermission requise : `file.edit`.",
     ),
     delete=extend_schema(
         summary="Supprimer un document",
-        description="Supprime un document via soft delete.\nPermission requise : `document.delete`.",
+        description="Supprime un document via soft delete.\nPermission requise : `file.delete`.",
     ),
 )
 class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -129,11 +129,11 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_permissions(self):
         if self.request.method == "GET":
-            self.permission_code = "document.view"
+            self.permission_code = "file.view"
         elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "document.edit"
+            self.permission_code = "file.edit"
         elif self.request.method == "DELETE":
-            self.permission_code = "document.delete"
+            self.permission_code = "file.delete"
 
         return super().get_permissions()
 
@@ -154,13 +154,13 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="URL de téléchargement d'un document",
-        description="Retourne une URL temporaire permettant de télécharger le fichier.\nPermission requise : `document.view`.",
+        description="Retourne une URL temporaire permettant de télécharger le fichier.\nPermission requise : `file.view`.",
     )
 )
 class DocumentDownloadView(generics.GenericAPIView):
     serializer_class = DocumentDownloadSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "document.view"
+    permission_code = "file.view"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -182,7 +182,7 @@ class DocumentDownloadView(generics.GenericAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les documents supprimés",
-        description="Retourne les documents supprimés d'un projet.\nPermission requise : `document.view`.",
+        description="Retourne les documents supprimés d'un projet.\nPermission requise : `file.view`.",
     )
 )
 class DocumentTrashListView(generics.ListAPIView):
@@ -190,7 +190,7 @@ class DocumentTrashListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
     def get_permissions(self):
-        self.permission_code = "document.view"
+        self.permission_code = "file.view"
         return super().get_permissions()
 
     def get_queryset(self):
@@ -207,7 +207,7 @@ class DocumentTrashListView(generics.ListAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un document",
-        description="Restaure un document supprimé.\nPermission requise : `document.restore`.",
+        description="Restaure un document supprimé.\nPermission requise : `file.restore`.",
     )
 )
 class DocumentRestoreView(generics.GenericAPIView):
@@ -215,7 +215,7 @@ class DocumentRestoreView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
     def get_permissions(self):
-        self.permission_code = "document.restore"
+        self.permission_code = "file.restore"
         return super().get_permissions()
 
     def get_queryset(self):
