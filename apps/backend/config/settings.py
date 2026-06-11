@@ -205,6 +205,26 @@ DOCUMENT_FALLBACK_MIME_TYPES = {
     if mime_type.strip()
 }
 
+PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES = int(
+    os.environ.get("PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES", str(5 * 1024 * 1024))
+)
+PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS = {
+    extension.strip().lower()
+    for extension in os.environ.get(
+        "PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS",
+        ".jpg,.jpeg,.png,.webp,.gif",
+    ).split(",")
+    if extension.strip()
+}
+PROFILE_PICTURE_ALLOWED_MIME_TYPES = {
+    mime_type.strip().lower()
+    for mime_type in os.environ.get(
+        "PROFILE_PICTURE_ALLOWED_MIME_TYPES",
+        "image/jpeg,image/png,image/webp,image/gif",
+    ).split(",")
+    if mime_type.strip()
+}
+
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
