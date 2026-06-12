@@ -1,10 +1,12 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics, status
+from rest_framework.filters import SearchFilter
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Document, Folder
@@ -22,7 +24,13 @@ from ..services.storage import upload_document_file
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les documents d'un projet",
-        description="Retourne tous les documents actifs d'un projet.\nPermission requise : `file.view`.",
+        description=(
+            "Retourne tous les documents actifs d'un projet.\n\n"
+            "- Filtres disponibles : `folder`, `mime_type`.\n\n"
+            "- Recherche disponible : `search` sur `name`, `description`, `file_name` et `mime_type`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `file.view`."
+        ),
     ),
     post=extend_schema(
         summary="Créer un document",
@@ -35,6 +43,9 @@ class DocumentListCreateView(generics.ListCreateAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     parser_classes = [MultiPartParser]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["folder", "mime_type"]
+    search_fields = ["name", "description", "file_name", "mime_type"]
 
     def get_permissions(self):
         self.permission_code = (
@@ -182,12 +193,21 @@ class DocumentDownloadView(generics.GenericAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les documents supprimés",
-        description="Retourne les documents supprimés d'un projet.\nPermission requise : `file.view`.",
+        description=(
+            "Retourne les documents supprimés d'un projet.\n\n"
+            "- Filtres disponibles : `folder`, `mime_type`.\n\n"
+            "- Recherche disponible : `search` sur `name`, `description`, `file_name` et `mime_type`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `file.view`."
+        ),
     )
 )
 class DocumentTrashListView(generics.ListAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["folder", "mime_type"]
+    search_fields = ["name", "description", "file_name", "mime_type"]
 
     def get_permissions(self):
         self.permission_code = "file.view"

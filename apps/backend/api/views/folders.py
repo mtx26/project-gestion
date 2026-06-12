@@ -1,9 +1,11 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
+from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Document, Folder
@@ -15,7 +17,13 @@ from ..permissions import HasProjectPermission
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les dossiers d'un projet",
-        description="Retourne tous les dossiers actifs d'un projet.\nPermission requise : `file.view`.",
+        description=(
+            "Retourne tous les dossiers actifs d'un projet.\n\n"
+            "- Filtres disponibles : `parent_folder`.\n\n"
+            "- Recherche disponible : `search` sur `name` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `file.view`."
+        ),
     ),
     post=extend_schema(
         summary="Créer un dossier",
@@ -25,6 +33,9 @@ from ..permissions import HasProjectPermission
 class FolderListCreateView(generics.ListCreateAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["parent_folder"]
+    search_fields = ["name", "description"]
 
     def get_permissions(self):
         self.permission_code = (
@@ -131,12 +142,21 @@ class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les dossiers supprimés",
-        description="Retourne les dossiers supprimés d'un projet.\nPermission requise : `file.view`.",
+        description=(
+            "Retourne les dossiers supprimés d'un projet.\n\n"
+            "- Filtres disponibles : `parent_folder`.\n\n"
+            "- Recherche disponible : `search` sur `name` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `file.view`."
+        ),
     )
 )
 class FolderTrashListView(generics.ListAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["parent_folder"]
+    search_fields = ["name", "description"]
 
     def get_permissions(self):
         self.permission_code = "file.view"

@@ -1,5 +1,7 @@
 from rest_framework import generics
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
+from django_filters.rest_framework import DjangoFilterBackend
 from ..permissions import HasProjectPermission
 from ..serializers import ProjectMemberSerializer
 from ..services.members import get_project_members
@@ -10,13 +12,29 @@ from ..models import ProjectMember
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les membres d'un projet",
-        description="Retourne tous les membres accessibles pour un projet donne.\nPermission requise : `member.view`.",
+        description=(
+            "Retourne tous les membres accessibles pour un projet donne.\n\n"
+            "- Filtres disponibles : `user`, `role`.\n\n"
+            "- Recherche disponible : `search` sur `user__email`, `user__first_name`, "
+            "`user__last_name`, `user__username` et `role__name`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `member.view`."
+        ),
     ),
 )
 class ProjectMemberListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "member.view"
     serializer_class = ProjectMemberSerializer
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["user", "role"]
+    search_fields = [
+        "user__email",
+        "user__first_name",
+        "user__last_name",
+        "user__username",
+        "role__name",
+    ]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

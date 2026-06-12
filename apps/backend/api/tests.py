@@ -251,8 +251,8 @@ class PermissionRouteTests(ProjectApiTestCase):
         )
 
     # WHEN
-    def when_list_permissions(self):
-        return self.api_get(self.url)
+    def when_list_permissions(self, query=""):
+        return self.api_get(f"{self.url}{query}")
 
     # ASSERT
     def assert_visible_permission_codes(self, response, expected_codes):
@@ -274,6 +274,16 @@ class PermissionRouteTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_permission_codes(response, ["project.edit", "file.view"])
 
+    def test_list_can_filter_permissions_by_code(self):
+        self.given_authenticated(self.member)
+
+        response = self.when_list_permissions("?code=file.view")
+
+        self.assert_ok(response)
+        permissions = self.response_results(response)
+        permission_codes = {permission["code"] for permission in permissions}
+        self.assertEqual(permission_codes, {"file.view"})
+
 
 class ProjectRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
@@ -286,8 +296,8 @@ class ProjectRoutePermissionTests(ProjectApiTestCase):
         self.deleted_project.soft_delete(self.owner)
 
     # WHEN
-    def when_list_projects(self):
-        return self.api_get(self.url)
+    def when_list_projects(self, query=""):
+        return self.api_get(f"{self.url}{query}")
 
     def when_create_project(self, payload):
         return self.api_post(self.url, payload)
@@ -333,6 +343,19 @@ class ProjectRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_visible_project_names(response, ["Other project"])
+
+    def test_list_can_search_projects(self):
+        Project.objects.create(
+            owner=self.owner,
+            name="Search target",
+            description="Needle description",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_projects("?search=Needle")
+
+        self.assert_ok(response)
+        self.assert_visible_project_names(response, ["Search target"])
 
     # TESTS POST
     def test_anonymous_cannot_create_project(self):
@@ -498,8 +521,8 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         )
 
     # WHEN
-    def when_list_folders(self, url=None):
-        return self.api_get(url or self.url)
+    def when_list_folders(self, url=None, query=""):
+        return self.api_get(f"{url or self.url}{query}")
 
     def when_create_folder(self, payload, url=None):
         return self.api_post(url or self.url, payload)
@@ -575,6 +598,32 @@ class FolderRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_folders(self.other_project_url)
 
         self.assert_forbidden(response)
+
+    def test_list_can_filter_folders_by_parent_folder(self):
+        child_folder = Folder.objects.create(
+            project=self.project,
+            parent_folder=self.root_folder,
+            name="Child folder",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_folders(query=f"?parent_folder={self.root_folder.id}")
+
+        self.assert_ok(response)
+        self.assert_visible_folder_names(response, [child_folder.name])
+
+    def test_list_can_search_folders(self):
+        Folder.objects.create(
+            project=self.project,
+            name="Searchable folder",
+            description="Needle folder",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_folders(query="?search=Needle")
+
+        self.assert_ok(response)
+        self.assert_visible_folder_names(response, ["Searchable folder"])
 
     # TESTS POST
     def test_anonymous_cannot_create_folder(self):
@@ -1284,8 +1333,8 @@ class DocumentRoutePermissionTests(ProjectApiTestCase):
         }
 
     # WHEN
-    def when_list_documents(self, url=None):
-        return self.api_get(url or self.url)
+    def when_list_documents(self, url=None, query=""):
+        return self.api_get(f"{url or self.url}{query}")
 
     def when_create_document(self, payload, url=None):
         return self.client.post(url or self.url, payload)
@@ -1348,6 +1397,22 @@ class DocumentRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_documents(self.other_project_url)
 
         self.assert_forbidden(response)
+
+    def test_list_can_filter_documents_by_folder(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_documents(query=f"?folder={self.folder.id}")
+
+        self.assert_ok(response)
+        self.assert_visible_document_names(response, ["Active document"])
+
+    def test_list_can_search_documents_by_file_name(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_documents(query="?search=active.pdf")
+
+        self.assert_ok(response)
+        self.assert_visible_document_names(response, ["Active document"])
 
     # TESTS POST
     def test_anonymous_cannot_create_document(self):
@@ -2025,6 +2090,20 @@ class TaskRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_task_titles(response, ["Root task"])
 
+    def test_list_can_filter_by_priority(self):
+        Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="High priority task",
+            priority="high",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_tasks("?priority=high")
+
+        self.assert_ok(response)
+        self.assert_visible_task_titles(response, ["High priority task"])
+
     def test_list_can_filter_by_assigned_to(self):
         self.given_authenticated(self.owner)
 
@@ -2651,8 +2730,8 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         self.deleted_role.soft_delete(self.owner)
 
     # WHEN
-    def when_list_roles(self, url=None):
-        return self.api_get(url or self.url)
+    def when_list_roles(self, url=None, query=""):
+        return self.api_get(f"{url or self.url}{query}")
 
     def when_create_role(self, payload, url=None):
         return self.api_post(url or self.url, payload)
@@ -2721,6 +2800,19 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_roles(self.other_project_url)
 
         self.assert_forbidden(response)
+
+    def test_list_can_search_roles(self):
+        Role.objects.create(
+            project=self.project,
+            name="Searchable role",
+            description="Needle role",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_roles(query="?search=Needle")
+
+        self.assert_ok(response)
+        self.assert_visible_role_names(response, ["Searchable role"])
 
     # TESTS POST
     def test_anonymous_cannot_create_role(self):
@@ -3164,8 +3256,8 @@ class ProjectMemberRoutePermissionTests(ProjectApiTestCase):
         self.other_project_url = f"/api/projects/{self.other_project.id}/members/"
 
     # WHEN
-    def when_list_members(self, url=None):
-        return self.api_get(url or self.url)
+    def when_list_members(self, url=None, query=""):
+        return self.api_get(f"{url or self.url}{query}")
 
     # ASSERT
     def assert_visible_member_user_ids(self, response, expected_user_ids):
@@ -3215,6 +3307,22 @@ class ProjectMemberRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_members(self.other_project_url)
 
         self.assert_forbidden(response)
+
+    def test_list_can_filter_members_by_role(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_members(query=f"?role={self.target_role.id}")
+
+        self.assert_ok(response)
+        self.assert_visible_member_user_ids(response, [self.other_user.id])
+
+    def test_list_can_search_members_by_username(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_members(query="?search=other")
+
+        self.assert_ok(response)
+        self.assert_visible_member_user_ids(response, [self.other_user.id])
 
 
 class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):

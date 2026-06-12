@@ -9,7 +9,12 @@ from rest_framework.filters import SearchFilter
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les utilisateurs",
-        description="Retourne tous les utilisateurs.",
+        description=(
+            "Retourne tous les utilisateurs.\n\n"
+            "- Recherche disponible : `search` sur `email`, `first_name`, "
+            "`last_name` et `username`.\n\n"
+            "- Pagination disponible : `page`."
+        ),
     ),
 )
 class UserListView(generics.ListAPIView):

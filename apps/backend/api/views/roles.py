@@ -1,12 +1,14 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..models import Role
+from ..models import Permission, Role
 from ..permissions import HasProjectPermission
 from ..serializers import RoleSerializer, PermissionSerializer
 from ..services.permissions import get_permissions
@@ -21,7 +23,12 @@ from ..services.roles import (
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les roles d'un projet",
-        description="Retourne tous les roles accessibles pour un projet donne.\nPermission requise : `role.view`.",
+        description=(
+            "Retourne tous les roles accessibles pour un projet donne.\n\n"
+            "- Recherche disponible : `search` sur `name` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `role.view`."
+        ),
     ),
     post=extend_schema(
         summary="Creer un role",
@@ -31,6 +38,8 @@ from ..services.roles import (
 class RoleListCreateView(generics.ListCreateAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [SearchFilter]
+    search_fields = ["name", "description"]
 
     def get_permissions(self):
         if self.request.method == "POST":
@@ -137,13 +146,20 @@ class RoleRestoreView(generics.GenericAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les roles supprimes",
-        description="Retourne tous les roles supprimes pour un projet donne.\nPermission requise : `role.view`.",
+        description=(
+            "Retourne tous les roles supprimes pour un projet donne.\n\n"
+            "- Recherche disponible : `search` sur `name` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `role.view`."
+        ),
     ),
 )
 class RoleTrashListView(generics.ListAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "role.view"
+    filter_backends = [SearchFilter]
+    search_fields = ["name", "description"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -159,12 +175,24 @@ class RoleTrashListView(generics.ListAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les permissions",
-        description="Retourne toutes les permissions disponibles pour creer ou modifier un role.\nPermission requise : `role.view`.",
+        description=(
+            "Retourne toutes les permissions disponibles pour creer ou modifier un role.\n\n"
+            "- Filtres disponibles : `code`.\n\n"
+            "- Recherche disponible : `search` sur `code`, `name` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `role.view`."
+        ),
     ),
 )
 class PermissionListView(generics.ListAPIView):
     serializer_class = PermissionSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["code"]
+    search_fields = ["code", "name", "description"]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Permission.objects.none()
+
         return get_permissions()

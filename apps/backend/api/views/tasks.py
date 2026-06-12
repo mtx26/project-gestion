@@ -19,10 +19,12 @@ from ..services.projects import get_accessible_projects
     get=extend_schema(
         summary="Lister les taches d'un projet",
         description=(
-            "Retourne toutes les taches actives d'un projet.\n"
-            "Filtres disponibles : `folder`, `status`, `assigned_to`.\n"
-            "Recherche disponible : `search` sur `title` et `description`.\n"
-            "Permission requise : `task.view`."
+            "Retourne toutes les taches actives d'un projet.\n\n"
+            "- Filtres disponibles : `folder`, `status`, `priority`, "
+            "`due_date`, `created_by`, `assigned_to`.\n\n"
+            "- Recherche disponible : `search` sur `title` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `task.view`."
         ),
     ),
     post=extend_schema(
@@ -34,7 +36,14 @@ class TaskListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["folder", "status", "assigned_to"]
+    filterset_fields = [
+        "folder",
+        "status",
+        "priority",
+        "due_date",
+        "created_by",
+        "assigned_to",
+    ]
     search_fields = ["title", "description"]
 
     def get_permissions(self):
@@ -139,12 +148,29 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les taches supprimees",
-        description="Retourne les taches supprimees d'un projet.\nPermission requise : `task.view`.",
+        description=(
+            "Retourne les taches supprimees d'un projet.\n\n"
+            "- Filtres disponibles : `folder`, `status`, `priority`, "
+            "`due_date`, `created_by`, `assigned_to`.\n\n"
+            "- Recherche disponible : `search` sur `title` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `task.view`."
+        ),
     )
 )
 class TaskTrashListView(generics.ListAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = [
+        "folder",
+        "status",
+        "priority",
+        "due_date",
+        "created_by",
+        "assigned_to",
+    ]
+    search_fields = ["title", "description"]
 
     def get_permissions(self):
         self.permission_code = "task.view"

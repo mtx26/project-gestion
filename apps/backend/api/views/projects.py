@@ -1,4 +1,5 @@
 from rest_framework import generics
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
@@ -16,7 +17,11 @@ from ..services.projects import (
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les projets",
-        description="Retourne tous les projets accessibles pour l'utilisateur connecte.",
+        description=(
+            "Retourne tous les projets accessibles pour l'utilisateur connecte.\n\n"
+            "- Recherche disponible : `search` sur `name` et `description`.\n\n"
+            "- Pagination disponible : `page`."
+        ),
     ),
     post=extend_schema(
         summary="Creer un projet",
@@ -26,6 +31,8 @@ from ..services.projects import (
 class ProjectListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
+    filter_backends = [SearchFilter]
+    search_fields = ["name", "description"]
 
     def get_queryset(self):
         return get_accessible_projects(self.request.user)
@@ -102,12 +109,18 @@ class ProjectRestoreView(generics.GenericAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les projets supprimes",
-        description="Retourne tous les projets supprimes accessibles pour l'utilisateur connecte.",
+        description=(
+            "Retourne tous les projets supprimes accessibles pour l'utilisateur connecte.\n\n"
+            "- Recherche disponible : `search` sur `name` et `description`.\n\n"
+            "- Pagination disponible : `page`."
+        ),
     ),
 )
 class ProjectTrashListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
+    filter_backends = [SearchFilter]
+    search_fields = ["name", "description"]
 
     def get_queryset(self):
         return get_accessible_deleted_projects(self.request.user)
