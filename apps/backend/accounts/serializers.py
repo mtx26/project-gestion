@@ -10,7 +10,7 @@ from .models import Profile
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ["picture_url"]
+        fields = ["picture_url", "default_hourly_rate"]
         read_only_fields = ["picture_url"]
 
 class UserSerializer(serializers.ModelSerializer):
@@ -19,6 +19,39 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ["id", "username", "email", "first_name", "last_name", "profile"]
+
+
+class CurrentUserUpdateProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Profile
+        fields = ["default_hourly_rate"]
+
+
+class CurrentUserUpdateSerializer(serializers.ModelSerializer):
+    profile = CurrentUserUpdateProfileSerializer(required=False)
+
+    class Meta:
+        model = User
+        fields = ["username", "first_name", "last_name", "profile"]
+
+    def update(self, instance, validated_data):
+        profile_data = validated_data.pop("profile", None)
+
+        with transaction.atomic():
+            instance = super().update(instance, validated_data)
+
+            if profile_data is not None:
+                profile, _ = Profile.objects.get_or_create(user=instance)
+                for field, value in profile_data.items():
+                    setattr(profile, field, value)
+                profile.save()
+                instance.profile = profile
+
+        return instance
+
+    def to_representation(self, instance):
+        return UserSerializer(instance).data
+
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

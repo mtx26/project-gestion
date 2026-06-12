@@ -504,6 +504,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "task",
             "user",
             "duration_minutes",
+            "hourly_rate",
             "description",
             "created_at",
             "updated_at",

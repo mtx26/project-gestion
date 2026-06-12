@@ -34,7 +34,7 @@ from ..services.projects import get_accessible_projects
             "Permission requise : `member.edit`."
         ),
         request=InvitationCreateSerializer,
-        responses={201: InvitationSerializer},
+        responses={status.HTTP_201_CREATED: InvitationSerializer},
     ),
 )
 class InvitationListCreateView(generics.ListCreateAPIView):
@@ -122,7 +122,7 @@ class InvitationDetailView(generics.DestroyAPIView):
             "L'utilisateur connecte doit avoir le meme email que l'invitation."
         ),
         request=InvitationAcceptSerializer,
-        responses={200: InvitationAcceptSerializer},
+        responses={status.HTTP_200_OK: InvitationAcceptSerializer},
     ),
 )
 class InvitationAcceptView(generics.GenericAPIView):

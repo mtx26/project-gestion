@@ -1,4 +1,5 @@
 from unittest.mock import patch
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -19,6 +20,12 @@ class AccountsApiTestCase(TestCase):
     def api_post(self, url, payload, format="json"):
         return self.client.post(url, payload, format=format)
 
+    def api_put(self, url, payload, format="json"):
+        return self.client.put(url, payload, format=format)
+
+    def api_patch(self, url, payload, format="json"):
+        return self.client.patch(url, payload, format=format)
+
 
 class RegisterViewTests(AccountsApiTestCase):
     def test_register_ignores_direct_picture_url(self):
@@ -37,6 +44,80 @@ class RegisterViewTests(AccountsApiTestCase):
         self.assertEqual(response.status_code, 201)
         user = User.objects.get(username="new-user")
         self.assertEqual(user.profile.picture_url, "")
+
+
+class CurrentUserDetailViewTests(AccountsApiTestCase):
+    def setUp(self):
+        super().setUp()
+        self.user = User.objects.create_user(
+            username="current-user",
+            email="current@example.com",
+            password="password",
+            first_name="Current",
+            last_name="User",
+        )
+        Profile.objects.create(
+            user=self.user,
+            picture_url="https://storage.example/current.png",
+            default_hourly_rate=25,
+        )
+        self.authenticate(self.user)
+        self.url = "/api/accounts/me/"
+
+    def test_user_can_patch_editable_fields(self):
+        response = self.api_patch(
+            self.url,
+            {
+                "first_name": "Updated",
+                "profile": {
+                    "default_hourly_rate": "42.50",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.user.refresh_from_db()
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.first_name, "Updated")
+        self.assertEqual(self.user.profile.default_hourly_rate, Decimal("42.50"))
+        self.assertEqual(response.data["profile"]["default_hourly_rate"], "42.50")
+
+    def test_user_can_put_editable_fields_only(self):
+        response = self.api_put(
+            self.url,
+            {
+                "id": 999,
+                "username": "updated-user",
+                "email": "changed@example.com",
+                "first_name": "Updated",
+                "last_name": "Name",
+                "profile": {
+                    "picture_url": "https://storage.example/changed.png",
+                    "default_hourly_rate": "55.00",
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        self.user.refresh_from_db()
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.id, response.data["id"])
+        self.assertEqual(self.user.username, "updated-user")
+        self.assertEqual(self.user.email, "current@example.com")
+        self.assertEqual(self.user.first_name, "Updated")
+        self.assertEqual(self.user.last_name, "Name")
+        self.assertEqual(
+            self.user.profile.picture_url,
+            "https://storage.example/current.png",
+        )
+        self.assertEqual(self.user.profile.default_hourly_rate, Decimal("55.00"))
+        self.assertEqual(response.data["email"], "current@example.com")
+        self.assertEqual(
+            response.data["profile"]["picture_url"],
+            "https://storage.example/current.png",
+        )
 
 
 @override_settings(

@@ -12,6 +12,7 @@ from api.services.storage import upload_profile_picture_file
 
 from .models import Profile
 from .serializers import (
+    CurrentUserUpdateSerializer,
     ProfilePictureUploadSerializer,
     RegisterSerializer,
     UserSerializer,
@@ -59,14 +60,31 @@ class RefreshTokenView(TokenRefreshView):
         summary="Recuperer l'utilisateur courant",
         description="Retourne les informations de l'utilisateur connecte.",
     ),
+    put=extend_schema(
+        summary="Modifier l'utilisateur courant",
+        description="Met a jour les informations modifiables de l'utilisateur connecte.",
+        request=CurrentUserUpdateSerializer,
+        responses={status.HTTP_200_OK: UserSerializer},
+    ),
+    patch=extend_schema(
+        summary="Modifier partiellement l'utilisateur courant",
+        description="Met a jour partiellement les informations modifiables de l'utilisateur connecte.",
+        request=CurrentUserUpdateSerializer,
+        responses={status.HTTP_200_OK: UserSerializer},
+    ),
 )
-class CurrentUserView(generics.GenericAPIView):
+class CurrentUserDetailView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserSerializer
 
-    def get(self, request):
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+    def get_object(self):
+        return self.request.user
+
+    def get_serializer_class(self):
+        if self.request.method in ["PUT", "PATCH"]:
+            return CurrentUserUpdateSerializer
+
+        return UserSerializer
 
 
 @extend_schema(tags=["user"])

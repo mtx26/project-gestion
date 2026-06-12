@@ -7,3 +7,5 @@
   - Requires a BIMI-compatible SVG logo hosted over HTTPS.
   - Gmail generally requires a CMC or VMC certificate.
   - Not needed for the current Resend setup; keep current priority on SPF/DKIM/DMARC basics and stable sending reputation.
+
+  rajoute materiaux a achter

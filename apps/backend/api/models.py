@@ -285,6 +285,7 @@ class TimeEntry(BaseModel):
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     duration_minutes = models.PositiveIntegerField()
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     description = models.TextField(blank=True, null=True)
 
     def clean(self):
