@@ -11,6 +11,7 @@ from .models import (
     Task,
     Invitation,
     Notification,
+    EmailDelivery,
     TimeEntry,
     FinancialEntry,
 )
@@ -25,5 +26,6 @@ admin.site.register(Document)
 admin.site.register(Task)
 admin.site.register(Invitation)
 admin.site.register(Notification)
+admin.site.register(EmailDelivery)
 admin.site.register(TimeEntry)
 admin.site.register(FinancialEntry)

@@ -44,3 +44,6 @@ cache/
 pycache/
 __pycache__/
 *.pyc
+
+# Local databases
+*.sqlite3

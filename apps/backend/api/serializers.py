@@ -1,10 +1,17 @@
+from django.contrib.auth.models import User
 from django.db import transaction
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.utils import timezone
 
 from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
 from .services.folders import build_folder_tree
+from .services.invitations import (
+    accept_project_invitation,
+    create_project_invitation,
+    normalize_invitation_email,
+)
 from .services.storage import get_document_download_url
 
 from .models import (
@@ -376,6 +383,9 @@ class TaskSerializer(serializers.ModelSerializer):
 
 
 class InvitationSerializer(serializers.ModelSerializer):
+    status = serializers.SerializerMethodField()
+    user_exists = serializers.SerializerMethodField()
+
     class Meta:
         model = Invitation
         fields = [
@@ -387,6 +397,8 @@ class InvitationSerializer(serializers.ModelSerializer):
             "token",
             "expires_at",
             "accepted_at",
+            "status",
+            "user_exists",
             "created_at",
             "updated_at",
             "deleted_at",
@@ -398,6 +410,64 @@ class InvitationSerializer(serializers.ModelSerializer):
             "token",
             "accepted_at",
         ]
+
+    def get_status(self, invitation):
+        if invitation.deleted_at:
+            return "cancelled"
+
+        if invitation.accepted_at:
+            return "accepted"
+
+        if invitation.expires_at <= timezone.now():
+            return "expired"
+
+        return "pending"
+
+    def get_user_exists(self, invitation):
+        return User.objects.filter(email__iexact=invitation.email).exists()
+
+
+class InvitationCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Invitation
+        fields = [
+            "email",
+            "role",
+        ]
+
+    def validate_email(self, email):
+        return normalize_invitation_email(email)
+
+    def create(self, validated_data):
+        try:
+            return create_project_invitation(
+                project=self.context["project"],
+                email=validated_data["email"],
+                role=validated_data["role"],
+                invited_by=self.context["request"].user,
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+
+class InvitationAcceptSerializer(serializers.Serializer):
+    token = serializers.CharField(write_only=True)
+    invitation = InvitationSerializer(read_only=True)
+    member = ProjectMemberSerializer(read_only=True)
+
+    def create(self, validated_data):
+        try:
+            invitation, member = accept_project_invitation(
+                token=validated_data["token"],
+                user=self.context["request"].user,
+            )
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        return {
+            "invitation": invitation,
+            "member": member,
+        }
 
 
 class NotificationSerializer(serializers.ModelSerializer):
@@ -411,6 +481,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             "title",
             "message",
             "type",
+            "data",
             "is_read",
             "created_at",
             "updated_at",

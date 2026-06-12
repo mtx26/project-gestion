@@ -10,9 +10,9 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-import os
 from pathlib import Path
 
+import environ
 from django.core.exceptions import ImproperlyConfigured
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,43 +20,23 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 REPO_DIR = BASE_DIR.parent.parent
 
 
-def load_env_file(path):
-    if not path.exists():
-        return
-
-    for raw_line in path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        key, value = line.split("=", 1)
-        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
-
-
-load_env_file(REPO_DIR / ".env")
+env = environ.Env()
+env.read_env(REPO_DIR / ".env")
 
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get("DJANGO_DEBUG", "true").lower() in {"1", "true", "yes", "on"}
+DEBUG = env.bool("DJANGO_DEBUG", default=True)
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY")
+if DEBUG:
+    SECRET_KEY = env("DJANGO_SECRET_KEY", default="django-insecure-dev-only-change-me")
+else:
+    SECRET_KEY = env("DJANGO_SECRET_KEY")
 
-if not SECRET_KEY:
-    if DEBUG:
-        SECRET_KEY = "django-insecure-dev-only-change-me"
-    else:
-        raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false.")
-
-ALLOWED_HOSTS = [
-    host.strip()
-    for host in os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
-    if host.strip()
-]
+ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
 
 # Application definition
@@ -70,8 +50,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     "rest_framework",
     "drf_spectacular",
+    "anymail",
     "accounts",
-    "api",
+    "api.apps.ApiConfig",
     "core",
     "django_filters",
 ]
@@ -153,81 +134,115 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
-S3_ENDPOINT_URL = os.environ.get("S3_ENDPOINT_URL")
-S3_ACCESS_KEY_ID = os.environ.get("S3_ACCESS_KEY_ID")
-S3_SECRET_ACCESS_KEY = os.environ.get("S3_SECRET_ACCESS_KEY")
-S3_BUCKET_NAME = os.environ.get("S3_BUCKET_NAME")
-PROFILE_PICTURE_S3_BUCKET_NAME = os.environ.get(
-    "PROFILE_PICTURE_S3_BUCKET_NAME",
-    S3_BUCKET_NAME,
+S3_ENDPOINT_URL = env("S3_ENDPOINT_URL", default=None)
+S3_ACCESS_KEY_ID = env("S3_ACCESS_KEY_ID", default=None)
+S3_SECRET_ACCESS_KEY = env("S3_SECRET_ACCESS_KEY", default=None)
+S3_BUCKET_NAME = env("S3_BUCKET_NAME", default=None)
+PROFILE_PICTURE_S3_BUCKET_NAME = (
+    env("PROFILE_PICTURE_S3_BUCKET_NAME", default=None) or S3_BUCKET_NAME
 )
-S3_REGION = os.environ.get("S3_REGION", "us-east-1")
-S3_PRESIGNED_URL_EXPIRES_SECONDS = int(
-    os.environ.get("S3_PRESIGNED_URL_EXPIRES_SECONDS", "300")
+S3_REGION = env("S3_REGION", default="us-east-1")
+S3_PRESIGNED_URL_EXPIRES_SECONDS = env.int(
+    "S3_PRESIGNED_URL_EXPIRES_SECONDS",
+    default=300,
 )
 
-DOCUMENT_MAX_UPLOAD_SIZE_BYTES = int(
-    os.environ.get("DOCUMENT_MAX_UPLOAD_SIZE_BYTES", str(100 * 1024 * 1024))
+DOCUMENT_MAX_UPLOAD_SIZE_BYTES = env.int(
+    "DOCUMENT_MAX_UPLOAD_SIZE_BYTES",
+    default=100 * 1024 * 1024,
 )
-DOCUMENT_ALLOWED_FILE_EXTENSIONS = {
-    extension.strip().lower()
-    for extension in os.environ.get(
-        "DOCUMENT_ALLOWED_FILE_EXTENSIONS",
-        ".pdf,.jpg,.jpeg,.png,.webp,.gif,.tif,.tiff,.bmp,.svg,.heic,.heif,"
-        ".dwg,.dxf,.ifc,.rvt,.skp,"
-        ".doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv",
-    ).split(",")
-    if extension.strip()
-}
-DOCUMENT_ALLOWED_MIME_TYPES = {
-    mime_type.strip().lower()
-    for mime_type in os.environ.get(
-        "DOCUMENT_ALLOWED_MIME_TYPES",
-        "application/pdf,"
-        "image/jpeg,image/png,image/webp,image/gif,image/tiff,image/bmp,"
-        "image/svg+xml,image/heic,image/heif,"
-        "application/acad,application/x-acad,application/autocad_dwg,"
-        "image/vnd.dwg,application/dwg,"
-        "application/dxf,image/vnd.dxf,"
-        "application/ifc,application/x-step,"
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document,"
-        "application/msword,"
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
-        "application/vnd.ms-excel,"
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation,"
-        "application/vnd.ms-powerpoint,"
-        "text/plain,text/csv",
-    ).split(",")
-    if mime_type.strip()
-}
-DOCUMENT_FALLBACK_MIME_TYPES = {
-    mime_type.strip().lower()
-    for mime_type in os.environ.get(
-        "DOCUMENT_FALLBACK_MIME_TYPES",
-        "application/octet-stream",
-    ).split(",")
-    if mime_type.strip()
-}
+DOCUMENT_ALLOWED_FILE_EXTENSIONS = set(env.list(
+    "DOCUMENT_ALLOWED_FILE_EXTENSIONS",
+    default={
+        ".pdf", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".tif", ".tiff",
+        ".bmp", ".svg", ".heic", ".heif", ".dwg", ".dxf", ".ifc", ".rvt",
+        ".skp", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt",
+        ".csv",
+    },
+))
+DOCUMENT_ALLOWED_MIME_TYPES = set(env.list(
+    "DOCUMENT_ALLOWED_MIME_TYPES",
+    default={
+        "application/pdf",
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/gif",
+        "image/tiff",
+        "image/bmp",
+        "image/svg+xml",
+        "image/heic",
+        "image/heif",
+        "application/acad",
+        "application/x-acad",
+        "application/autocad_dwg",
+        "image/vnd.dwg",
+        "application/dwg",
+        "application/dxf",
+        "image/vnd.dxf",
+        "application/ifc",
+        "application/x-step",
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        "application/msword",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        "application/vnd.ms-powerpoint",
+        "text/plain",
+        "text/csv",
+    },
+))
+DOCUMENT_FALLBACK_MIME_TYPES = set(env.list(
+    "DOCUMENT_FALLBACK_MIME_TYPES",
+    default={"application/octet-stream"},
+))
 
-PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES = int(
-    os.environ.get("PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES", str(5 * 1024 * 1024))
+PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES = env.int(
+    "PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES",
+    default=5 * 1024 * 1024,
 )
-PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS = {
-    extension.strip().lower()
-    for extension in os.environ.get(
-        "PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS",
-        ".jpg,.jpeg,.png,.webp,.gif",
-    ).split(",")
-    if extension.strip()
-}
-PROFILE_PICTURE_ALLOWED_MIME_TYPES = {
-    mime_type.strip().lower()
-    for mime_type in os.environ.get(
-        "PROFILE_PICTURE_ALLOWED_MIME_TYPES",
-        "image/jpeg,image/png,image/webp,image/gif",
-    ).split(",")
-    if mime_type.strip()
-}
+PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS = set(env.list(
+    "PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS",
+    default={".jpg", ".jpeg", ".png", ".webp", ".gif"},
+))
+PROFILE_PICTURE_ALLOWED_MIME_TYPES = set(env.list(
+    "PROFILE_PICTURE_ALLOWED_MIME_TYPES",
+    default={"image/jpeg", "image/png", "image/webp", "image/gif"},
+))
+
+DEFAULT_FROM_EMAIL = env(
+    "DEFAULT_FROM_EMAIL",
+    default="Project Gestion <no-reply@project-gestion.local>",
+)
+SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
+DEFAULT_REPLY_TO_EMAIL = env("DEFAULT_REPLY_TO_EMAIL", default=None) or None
+
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
+RESEND_INVITATION_TEMPLATE_ID = env("RESEND_INVITATION_TEMPLATE_ID", default="")
+RESEND_SIGNING_SECRET = env("RESEND_SIGNING_SECRET", default=None)
+
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="") or (
+    "anymail.backends.resend.EmailBackend"
+    if RESEND_API_KEY
+    else "django.core.mail.backends.console.EmailBackend"
+)
+
+if EMAIL_BACKEND == "anymail.backends.resend.EmailBackend" and not RESEND_API_KEY:
+    raise ImproperlyConfigured(
+        "RESEND_API_KEY must be set when EMAIL_BACKEND uses Resend."
+    )
+
+ANYMAIL = {}
+if RESEND_API_KEY:
+    ANYMAIL["RESEND_API_KEY"] = RESEND_API_KEY
+if RESEND_SIGNING_SECRET:
+    ANYMAIL["RESEND_SIGNING_SECRET"] = RESEND_SIGNING_SECRET
+
+FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="") or env(
+    "NEXT_PUBLIC_APP_URL",
+    default="http://localhost:3000",
+)
+INVITATION_EXPIRES_DAYS = env.int("INVITATION_EXPIRES_DAYS", default=7)
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",

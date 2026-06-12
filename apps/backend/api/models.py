@@ -220,6 +220,18 @@ class Invitation(BaseModel):
         if self.role.project_id != self.project_id:
             raise ValidationError("errors.invitation.role_project_mismatch")
 
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "email"],
+                condition=models.Q(
+                    accepted_at__isnull=True,
+                    deleted_at__isnull=True,
+                ),
+                name="unique_active_pending_invitation",
+            )
+        ]
+
 class Notification(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=True)
@@ -227,7 +239,45 @@ class Notification(BaseModel):
     title = models.CharField(max_length=255)
     message = models.TextField()
     type = models.CharField(max_length=100)
+    data = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False)
+
+class EmailDelivery(BaseModel):
+    class Status(models.TextChoices):
+        PENDING = "pending", "email_delivery.status.pending"
+        SENT = "sent", "email_delivery.status.sent"
+        DELIVERED = "delivered", "email_delivery.status.delivered"
+        FAILED = "failed", "email_delivery.status.failed"
+        BOUNCED = "bounced", "email_delivery.status.bounced"
+        DEFERRED = "deferred", "email_delivery.status.deferred"
+        COMPLAINED = "complained", "email_delivery.status.complained"
+        OPENED = "opened", "email_delivery.status.opened"
+        CLICKED = "clicked", "email_delivery.status.clicked"
+
+    to_email = models.EmailField()
+    type = models.CharField(max_length=100)
+    subject = models.CharField(max_length=255)
+    provider = models.CharField(max_length=50, default="resend")
+    provider_message_id = models.CharField(max_length=255, null=True, blank=True)
+    status = models.CharField(
+        max_length=50,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    error_message = models.TextField(null=True, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    invitation = models.ForeignKey(
+        Invitation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    sent_at = models.DateTimeField(null=True, blank=True)
+    delivered_at = models.DateTimeField(null=True, blank=True)
+    bounced_at = models.DateTimeField(null=True, blank=True)
+    complained_at = models.DateTimeField(null=True, blank=True)
+    opened_at = models.DateTimeField(null=True, blank=True)
+    clicked_at = models.DateTimeField(null=True, blank=True)
 
 class TimeEntry(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)

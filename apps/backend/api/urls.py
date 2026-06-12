@@ -16,6 +16,11 @@ from .views.members import (
     ProjectMemberListView,
     ProjectMemberDetailView
 )
+from .views.invitations import (
+    InvitationAcceptView,
+    InvitationDetailView,
+    InvitationListCreateView,
+)
 from .views.users import UserListView
 from .views.folders import (
     FolderListCreateView,
@@ -55,6 +60,9 @@ urlpatterns = [
     # Members
     path("projects/<int:project_id>/members/", ProjectMemberListView.as_view(), name="project-members"),
     path("projects/<int:project_id>/members/<int:pk>/", ProjectMemberDetailView.as_view(), name="project-member-detail"),
+    path("projects/<int:project_id>/invitations/", InvitationListCreateView.as_view(), name="project-invitations"),
+    path("projects/<int:project_id>/invitations/<int:pk>/", InvitationDetailView.as_view(), name="project-invitation-detail"),
+    path("invitations/accept/", InvitationAcceptView.as_view(), name="invitation-accept"),
     # Folders
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/tree/", FolderTreeView.as_view(), name="project-folder-tree"),

@@ -1,13 +1,27 @@
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
 
-from .models import Document, Folder, Permission, Project, ProjectMember, Role, RolePermission, Task
+from .models import (
+    Document,
+    EmailDelivery,
+    Folder,
+    Invitation,
+    Notification,
+    Permission,
+    Project,
+    ProjectMember,
+    Role,
+    RolePermission,
+    Task,
+)
+from .services.mail import send_email
 from .services.storage import validate_document_file
 
 
@@ -140,6 +154,246 @@ class ProjectApiTestCase(TestCase):
         self.assert_status(response, status.HTTP_403_FORBIDDEN)
 
 
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    DEFAULT_FROM_EMAIL="Project Gestion <no-reply@example.com>",
+)
+class EmailDeliveryServiceTests(TestCase):
+    def test_send_email_creates_delivery_and_sends_message(self):
+        delivery = send_email(
+            to_email="recipient@example.com",
+            subject="Invitation",
+            type="project_invitation",
+            text_body="Vous avez ete invite.",
+            metadata={"invitation_id": "123"},
+        )
+
+        self.assertEqual(delivery.status, EmailDelivery.Status.SENT)
+        self.assertIsNotNone(delivery.sent_at)
+        self.assertEqual(delivery.to_email, "recipient@example.com")
+        self.assertEqual(delivery.type, "project_invitation")
+        self.assertEqual(delivery.metadata, {"invitation_id": "123"})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["recipient@example.com"])
+
+    def test_send_email_can_use_resend_template_through_anymail(self):
+        delivery = send_email(
+            to_email="recipient@example.com",
+            subject="Invitation",
+            type="project_invitation",
+            text_body="Fallback invitation text.",
+            resend_template_id="project-invitation",
+            resend_template_variables={
+                "PROJECT_NAME": "Main project",
+                "INVITER_NAME": "Owner",
+                "INVITATION_URL": "https://example.com/invitations/accept?token=abc",
+                "EXPIRES_AT": "2026-06-19 12:00",
+            },
+            metadata={"invitation_id": "123"},
+            reply_to="contact@example.com",
+        )
+
+        self.assertEqual(delivery.status, EmailDelivery.Status.SENT)
+        self.assertEqual(delivery.metadata, {"invitation_id": "123"})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].body, "Fallback invitation text.")
+        self.assertEqual(mail.outbox[0].reply_to, ["contact@example.com"])
+        self.assertEqual(
+            mail.outbox[0].esp_extra["template"]["id"],
+            "project-invitation",
+        )
+        self.assertEqual(
+            mail.outbox[0].esp_extra["template"]["variables"]["PROJECT_NAME"],
+            "Main project",
+        )
+
+
+@override_settings(
+    EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
+    DEFAULT_FROM_EMAIL="Project Gestion <notifications@mail.meditime-app.com>",
+    FRONTEND_APP_URL="https://app.example.com",
+    INVITATION_EXPIRES_DAYS=7,
+)
+class InvitationWorkflowTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+        self.role = Role.objects.create(
+            project=self.project,
+            name="Invited role",
+        )
+        self.url = f"/api/projects/{self.project.id}/invitations/"
+
+    def invite(self, email, role=None):
+        return self.api_post(self.url, {
+            "email": email,
+            "role": role or self.role.id,
+        })
+
+    def test_anonymous_cannot_invite(self):
+        response = self.invite("new@example.com")
+
+        self.assert_unauthorized(response)
+        self.assertFalse(Invitation.objects.filter(email="new@example.com").exists())
+        self.assertFalse(EmailDelivery.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_owner_invites_existing_user_with_notification_only(self):
+        self.given_authenticated(self.owner)
+
+        response = self.invite(self.other_user.email)
+
+        self.assert_created(response)
+        invitation = Invitation.objects.get(email=self.other_user.email)
+        self.assertIsNone(invitation.accepted_at)
+        notification = Notification.objects.get(
+            user=self.other_user,
+            project=self.project,
+            type="project_invitation",
+        )
+        self.assertEqual(notification.data, {"invitation_id": invitation.id})
+        self.assertFalse(EmailDelivery.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_owner_invites_unknown_email_with_external_email(self):
+        self.given_authenticated(self.owner)
+
+        response = self.invite("new@example.com")
+
+        self.assert_created(response)
+        invitation = Invitation.objects.get(email="new@example.com")
+        delivery = EmailDelivery.objects.get(invitation=invitation)
+        self.assertEqual(delivery.status, EmailDelivery.Status.SENT)
+        self.assertEqual(delivery.type, "project_invitation")
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["new@example.com"])
+        self.assertEqual(mail.outbox[0].from_email, "Project Gestion <notifications@mail.meditime-app.com>")
+        self.assertEqual(mail.outbox[0].reply_to, [])
+        self.assertIn("Invitation au projet Main project", mail.outbox[0].subject)
+        self.assertIn(invitation.token, mail.outbox[0].body)
+        self.assertIn("https://app.example.com/invitations/accept?token=", mail.outbox[0].body)
+        self.assertEqual(mail.outbox[0].tags, ["project_invitation"])
+        self.assertEqual(mail.outbox[0].metadata["email_delivery_id"], str(delivery.id))
+        self.assertEqual(mail.outbox[0].metadata["type"], "project_invitation")
+        self.assertEqual(mail.outbox[0].metadata["invitation_id"], str(invitation.id))
+        self.assertEqual(mail.outbox[0].metadata["project_id"], str(self.project.id))
+        self.assertEqual(delivery.to_email, "new@example.com")
+        self.assertEqual(delivery.subject, "Invitation au projet Main project")
+        self.assertEqual(delivery.metadata, {
+            "invitation_id": str(invitation.id),
+            "project_id": str(self.project.id),
+        })
+        self.assertFalse(getattr(mail.outbox[0], "alternatives", []))
+
+    def test_member_with_member_edit_can_invite_unknown_email(self):
+        self.given_member_authenticated(["member.edit"])
+
+        response = self.invite("new@example.com")
+
+        self.assert_created(response)
+        self.assertTrue(Invitation.objects.filter(email="new@example.com").exists())
+
+    def test_member_without_member_edit_cannot_invite(self):
+        self.given_member_authenticated(["member.view"])
+
+        response = self.invite("new@example.com")
+
+        self.assert_forbidden(response)
+        self.assertFalse(Invitation.objects.filter(email="new@example.com").exists())
+
+    def test_non_member_cannot_invite(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.invite("new@example.com")
+
+        self.assert_forbidden(response)
+        self.assertFalse(Invitation.objects.filter(email="new@example.com").exists())
+        self.assertFalse(EmailDelivery.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_cannot_invite_with_role_from_another_project(self):
+        other_role = Role.objects.create(
+            project=self.other_project,
+            name="Other project invited role",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.invite("new@example.com", role=other_role.id)
+
+        self.assert_bad_request(response)
+        self.assertFalse(Invitation.objects.filter(email="new@example.com").exists())
+        self.assertFalse(EmailDelivery.objects.exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_cannot_invite_same_email_twice_while_pending(self):
+        self.given_authenticated(self.owner)
+        first_response = self.invite("new@example.com")
+
+        second_response = self.invite("new@example.com")
+
+        self.assert_created(first_response)
+        self.assert_bad_request(second_response)
+        self.assertEqual(Invitation.objects.filter(email="new@example.com").count(), 1)
+        self.assertEqual(EmailDelivery.objects.count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+
+    @override_settings(DEFAULT_REPLY_TO_EMAIL="contact@example.com")
+    def test_owner_invites_unknown_email_with_reply_to(self):
+        self.given_authenticated(self.owner)
+
+        response = self.invite("new@example.com")
+
+        self.assert_created(response)
+        invitation = Invitation.objects.get(email="new@example.com")
+        delivery = EmailDelivery.objects.get(invitation=invitation)
+        self.assertEqual(delivery.status, EmailDelivery.Status.SENT)
+        self.assertEqual(delivery.metadata["invitation_id"], str(invitation.id))
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].reply_to, ["contact@example.com"])
+
+    def test_invited_user_can_accept_invitation(self):
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+        invited_user = User.objects.create_user(
+            username="new-user",
+            email="new@example.com",
+        )
+        self.given_authenticated(invited_user)
+
+        response = self.api_post("/api/invitations/accept/", {
+            "token": invitation.token,
+        })
+
+        self.assert_ok(response)
+        invitation.refresh_from_db()
+        self.assertIsNotNone(invitation.accepted_at)
+        self.assertTrue(
+            ProjectMember.objects.filter(
+                project=self.project,
+                user=invited_user,
+                role=self.role,
+            ).exists()
+        )
+
+    def test_invitation_email_must_match_authenticated_user(self):
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+        self.given_authenticated(self.member)
+
+        response = self.api_post("/api/invitations/accept/", {
+            "token": invitation.token,
+        })
+
+        self.assert_bad_request(response)
+        self.assertFalse(
+            ProjectMember.objects.filter(
+                project=self.project,
+                user=self.member,
+            ).exists()
+        )
+
+
 class UserRouteTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()
@@ -249,6 +503,11 @@ class PermissionRouteTests(ProjectApiTestCase):
             name="File view",
             description="File view",
         )
+        self.given_permission(
+            code="member.edit",
+            name="Member edit",
+            description="Member edit",
+        )
 
     # WHEN
     def when_list_permissions(self, query=""):
@@ -272,7 +531,10 @@ class PermissionRouteTests(ProjectApiTestCase):
         response = self.when_list_permissions()
 
         self.assert_ok(response)
-        self.assert_visible_permission_codes(response, ["project.edit", "file.view"])
+        self.assert_visible_permission_codes(
+            response,
+            ["project.edit", "file.view", "member.edit"],
+        )
 
     def test_list_can_filter_permissions_by_code(self):
         self.given_authenticated(self.member)
@@ -3378,15 +3640,15 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_no_content(response)
         self.assert_member_deleted_by(self.owner)
 
-    def test_member_with_member_delete_can_soft_delete_member(self):
-        self.given_member_authenticated(["member.delete"])
+    def test_member_with_member_edit_can_soft_delete_member(self):
+        self.given_member_authenticated(["member.edit"])
 
         response = self.when_delete_member()
 
         self.assert_no_content(response)
         self.assert_member_deleted_by(self.member)
 
-    def test_member_without_member_delete_cannot_delete_member(self):
+    def test_member_without_member_edit_cannot_delete_member(self):
         self.given_member_authenticated(["member.view"])
 
         response = self.when_delete_member()
@@ -3403,7 +3665,7 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_member_not_deleted()
 
     def test_member_cannot_delete_member_from_another_project(self):
-        self.given_member_authenticated(["member.delete"])
+        self.given_member_authenticated(["member.edit"])
         self.url = f"/api/projects/{self.other_project.id}/members/{self.other_project_member.id}/"
 
         response = self.when_delete_member()

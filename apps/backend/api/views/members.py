@@ -8,7 +8,8 @@ from ..services.members import get_project_members
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models import ProjectMember
 
-@extend_schema(tags=["members"])
+
+@extend_schema(tags=["member"])
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les membres d'un projet",
@@ -45,17 +46,17 @@ class ProjectMemberListView(generics.ListAPIView):
             self.kwargs["project_id"],
         )
 
-@extend_schema(tags=["members"])
+@extend_schema(tags=["member"])
 @extend_schema_view(
     delete=extend_schema(
         summary="Supprimer un membre",
-        description="Supprime un membre du projet.\nPermission requise : `member.delete`.",
+        description="Supprime un membre du projet.\nPermission requise : `member.edit`.",
     ),
 )
 class ProjectMemberDetailView(generics.DestroyAPIView):
     serializer_class = ProjectMemberSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "member.delete"
+    permission_code = "member.edit"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

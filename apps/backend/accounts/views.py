@@ -18,7 +18,7 @@ from .serializers import (
 )
 
 
-@extend_schema(tags=["accounts"])
+@extend_schema(tags=["user"])
 @extend_schema_view(
     post=extend_schema(
         summary="Creer un compte",
@@ -31,7 +31,7 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegisterSerializer
 
 
-@extend_schema(tags=["accounts"])
+@extend_schema(tags=["user"])
 @extend_schema_view(
     post=extend_schema(
         summary="Se connecter",
@@ -42,7 +42,7 @@ class LoginView(TokenObtainPairView):
     permission_classes = [AllowAny]
 
 
-@extend_schema(tags=["accounts"])
+@extend_schema(tags=["user"])
 @extend_schema_view(
     post=extend_schema(
         summary="Rafraichir le token",
@@ -53,7 +53,7 @@ class RefreshTokenView(TokenRefreshView):
     permission_classes = [AllowAny]
 
 
-@extend_schema(tags=["accounts"])
+@extend_schema(tags=["user"])
 @extend_schema_view(
     get=extend_schema(
         summary="Recuperer l'utilisateur courant",
@@ -69,7 +69,7 @@ class CurrentUserView(generics.GenericAPIView):
         return Response(serializer.data)
 
 
-@extend_schema(tags=["accounts"])
+@extend_schema(tags=["user"])
 @extend_schema_view(
     post=extend_schema(
         summary="Modifier la photo de profil",

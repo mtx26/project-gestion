@@ -5,7 +5,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.filters import SearchFilter
 
 
-@extend_schema(tags=["users"])
+@extend_schema(tags=["user"])
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les utilisateurs",
