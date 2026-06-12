@@ -31,6 +31,12 @@ from .views.documents import (
     DocumentTrashListView,
     DocumentRestoreView,
 )
+from .views.tasks import (
+    TaskListCreateView,
+    TaskDetailView,
+    TaskTrashListView,
+    TaskRestoreView,
+)
     
 
 urlpatterns = [
@@ -61,5 +67,10 @@ urlpatterns = [
     path("projects/<int:project_id>/documents/<int:pk>/", DocumentDetailView.as_view(), name="project-document-detail"),
     path("projects/<int:project_id>/documents/<int:pk>/download/", DocumentDownloadView.as_view(), name="project-document-download"),
     path("projects/<int:project_id>/documents/<int:pk>/restore/", DocumentRestoreView.as_view(), name="project-document-restore"),
+    # Tasks
+    path("projects/<int:project_id>/tasks/", TaskListCreateView.as_view(), name="project-tasks"),
+    path("projects/<int:project_id>/tasks/trash/", TaskTrashListView.as_view(), name="project-tasks-trash"),
+    path("projects/<int:project_id>/tasks/<int:pk>/", TaskDetailView.as_view(), name="project-task-detail"),
+    path("projects/<int:project_id>/tasks/<int:pk>/restore/", TaskRestoreView.as_view(), name="project-task-restore"),
 
 ]

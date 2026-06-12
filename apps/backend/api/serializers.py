@@ -366,6 +366,51 @@ class TaskSerializer(serializers.ModelSerializer):
             "created_by",
         ]
 
+    def create(self, validated_data):
+        assigned_to = validated_data.pop("assigned_to", [])
+
+        with transaction.atomic():
+            task = Task(**validated_data)
+
+            try:
+                task.full_clean()
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+
+            task.save()
+            task.assigned_to.set(assigned_to)
+
+            try:
+                task.full_clean()
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+
+        return task
+
+    def update(self, instance, validated_data):
+        assigned_to = validated_data.pop("assigned_to", None)
+
+        with transaction.atomic():
+            for field, value in validated_data.items():
+                setattr(instance, field, value)
+
+            try:
+                instance.full_clean()
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+
+            instance.save()
+
+            if assigned_to is not None:
+                instance.assigned_to.set(assigned_to)
+
+            try:
+                instance.full_clean()
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError(exc.message_dict) from exc
+
+        return instance
+
 
 class InvitationSerializer(serializers.ModelSerializer):
     class Meta:

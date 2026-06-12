@@ -192,6 +192,19 @@ class Task(BaseModel):
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.task.folder_project_mismatch")
 
+        if not self.pk:
+            return
+
+        from .services.members import get_project_assignable_users
+
+        has_invalid_assignee = self.assigned_to.exclude(
+            pk__in=get_project_assignable_users(self.project)
+        ).exists()
+        if has_invalid_assignee:
+            raise ValidationError({
+                "assigned_to": "errors.task.assigned_user_not_project_member"
+            })
+
 class Invitation(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     email = models.EmailField()
