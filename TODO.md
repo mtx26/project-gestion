@@ -9,3 +9,10 @@
   - Not needed for the current Resend setup; keep current priority on SPF/DKIM/DMARC basics and stable sending reputation.
 
   rajoute materiaux a achter
+
+## Product Ideas
+
+- [ ] Analyze uploaded invoices/receipts with AI to prefill financial entries.
+  - Extract amount, date, supplier, document type, suggested category, and project/folder suggestion.
+  - Let the user review and confirm before creating or updating a `FinancialEntry`.
+  - Keep the original document linked as the archive/proof.

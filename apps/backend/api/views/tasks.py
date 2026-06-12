@@ -47,11 +47,11 @@ class TaskListCreateView(generics.ListCreateAPIView):
     search_fields = ["title", "description"]
 
     def get_permissions(self):
-        self.permission_code = (
-            "task.edit"
-            if self.request.method == "POST"
-            else "task.view"
-        )
+        if self.request.method == "GET":
+            self.permission_code = "task.view"
+        elif self.request.method == "POST":
+            self.permission_code = "task.edit"
+
         return super().get_permissions()
 
     def get_queryset(self):
@@ -197,6 +197,7 @@ class TaskTrashListView(generics.ListAPIView):
     post=extend_schema(
         summary="Restaurer une tache",
         description="Restaure une tache supprimee.\nPermission requise : `task.restore`.",
+        request=None,
     )
 )
 class TaskRestoreView(generics.GenericAPIView):

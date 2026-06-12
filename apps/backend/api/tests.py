@@ -20,6 +20,8 @@ from .models import (
     Role,
     RolePermission,
     Task,
+    TimeEntry,
+    FinancialEntry,
 )
 from .services.mail import send_email
 from .services.storage import validate_document_file
@@ -2831,6 +2833,1337 @@ class TaskRestoreRoutePermissionTests(ProjectApiTestCase):
         self.other_project_deleted_task.refresh_from_db()
         self.assertIsNotNone(self.other_project_deleted_task.deleted_at)
 
+
+class TimeEntryRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Time folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other time folder",
+        )
+        self.task = Task.objects.create(
+            project=self.project,
+            folder=self.folder,
+            created_by=self.owner,
+            title="Time task",
+        )
+        self.worker = User.objects.create_user(
+            username="time-worker",
+            email="time-worker@example.com",
+        )
+        self.given_member_with_permissions([], user=self.worker)
+        self.folder_entry = TimeEntry.objects.create(
+            project=self.project,
+            folder=self.folder,
+            user=self.worker,
+            duration_minutes=90,
+            hourly_rate="45.00",
+            description="Folder work",
+        )
+        self.root_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="0.00",
+            description="Root work",
+        )
+        self.deleted_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=15,
+            hourly_rate="0.00",
+            description="Deleted work",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_entry = TimeEntry.objects.create(
+            project=self.other_project,
+            user=self.other_user,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Other project work",
+        )
+        self.url = f"/api/projects/{self.project.id}/time-entries/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/time-entries/"
+
+    # WHEN
+    def when_list_time_entries(self, query=""):
+        return self.api_get(f"{self.url}{query}")
+
+    def when_create_time_entry(self, payload):
+        return self.api_post(self.url, payload)
+
+    # ASSERT
+    def assert_visible_time_descriptions(self, response, expected_descriptions):
+        entries = self.response_results(response)
+        descriptions = {entry["description"] for entry in entries}
+        self.assertEqual(descriptions, set(expected_descriptions))
+
+    def assert_time_entry_exists(self, description):
+        return TimeEntry.objects.get(project=self.project, description=description)
+
+    def assert_time_entry_does_not_exist(self, description):
+        self.assertFalse(TimeEntry.objects.filter(project=self.project, description=description).exists())
+
+    # TESTS GET
+    def test_anonymous_cannot_list_time_entries(self):
+        response = self.when_list_time_entries()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_list_active_project_time_entries_only(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+
+    def test_member_with_time_entry_view_can_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_list_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+
+    def test_member_without_time_entry_view_cannot_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_list_time_entries()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_list_time_entries(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_list_time_entries()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_list_another_project_time_entries(self):
+        self.given_member_authenticated(["time_entry.view"])
+        self.url = self.other_project_url
+
+        response = self.when_list_time_entries()
+
+        self.assert_forbidden(response)
+
+    def test_list_can_filter_by_folder(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries(f"?folder={self.folder.id}")
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work"])
+
+    def test_list_can_search_by_description(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries("?search=Root")
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Root work"])
+
+    def test_list_includes_payment_status_fields(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.folder_entry,
+            created_by=self.owner,
+            amount="45.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Partial payment",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries(f"?folder={self.folder.id}")
+
+        self.assert_ok(response)
+        entry = self.response_results(response)[0]
+        self.assertEqual(entry["cost_amount"], "67.50")
+        self.assertEqual(entry["paid_amount"], "45.00")
+        self.assertEqual(entry["remaining_amount"], "22.50")
+        self.assertFalse(entry["is_paid"])
+
+    def test_list_marks_time_entry_as_paid_when_expenses_cover_cost(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.folder_entry,
+            created_by=self.owner,
+            amount="67.50",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Full payment",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries(f"?folder={self.folder.id}")
+
+        self.assert_ok(response)
+        entry = self.response_results(response)[0]
+        self.assertEqual(entry["cost_amount"], "67.50")
+        self.assertEqual(entry["paid_amount"], "67.50")
+        self.assertEqual(entry["remaining_amount"], "0.00")
+        self.assertTrue(entry["is_paid"])
+
+    def test_list_subtracts_time_entry_refunds_from_paid_amount(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.folder_entry,
+            created_by=self.owner,
+            amount="67.50",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Full payment before refund",
+        )
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.folder_entry,
+            created_by=self.owner,
+            amount="20.00",
+            type=FinancialEntry.FinancialType.REFUND,
+            category="labor",
+            description="Labor refund",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries(f"?folder={self.folder.id}")
+
+        self.assert_ok(response)
+        entry = self.response_results(response)[0]
+        self.assertEqual(entry["cost_amount"], "67.50")
+        self.assertEqual(entry["paid_amount"], "47.50")
+        self.assertEqual(entry["remaining_amount"], "20.00")
+        self.assertFalse(entry["is_paid"])
+
+    # TESTS POST
+    def test_anonymous_cannot_create_time_entry(self):
+        response = self.when_create_time_entry({
+            "user": self.owner.id,
+            "duration_minutes": 60,
+            "description": "Anonymous time",
+        })
+
+        self.assert_unauthorized(response)
+        self.assert_time_entry_does_not_exist("Anonymous time")
+
+    def test_owner_can_create_root_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "user": self.owner.id,
+            "duration_minutes": 60,
+            "description": "Created root time",
+        })
+
+        self.assert_created(response)
+        entry = self.assert_time_entry_exists("Created root time")
+        self.assertIsNone(entry.folder_id)
+        self.assertIsNone(entry.task_id)
+
+    def test_member_with_time_entry_edit_can_create_time_entry(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_create_time_entry({
+            "folder": self.folder.id,
+            "user": self.member.id,
+            "duration_minutes": 45,
+            "hourly_rate": "35.00",
+            "description": "Member time",
+        })
+
+        self.assert_created(response)
+        entry = self.assert_time_entry_exists("Member time")
+        self.assertEqual(entry.user_id, self.member.id)
+
+    def test_member_without_time_entry_edit_cannot_create_time_entry(self):
+        self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_create_time_entry({
+            "user": self.member.id,
+            "duration_minutes": 45,
+            "description": "Blocked time",
+        })
+
+        self.assert_forbidden(response)
+        self.assert_time_entry_does_not_exist("Blocked time")
+
+    def test_create_rejects_folder_and_task_together(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "folder": self.folder.id,
+            "task": self.task.id,
+            "user": self.owner.id,
+            "duration_minutes": 60,
+            "description": "Invalid target time",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_time_entry_does_not_exist("Invalid target time")
+
+    def test_create_rejects_user_outside_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "user": self.other_user.id,
+            "duration_minutes": 60,
+            "description": "Invalid user time",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_time_entry_does_not_exist("Invalid user time")
+
+    def test_create_rejects_folder_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "folder": self.other_project_folder.id,
+            "user": self.owner.id,
+            "duration_minutes": 60,
+            "description": "Invalid folder time",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_time_entry_does_not_exist("Invalid folder time")
+
+
+class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Target time",
+        )
+        self.other_project_entry = TimeEntry.objects.create(
+            project=self.other_project,
+            user=self.other_user,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Other time",
+        )
+        self.url = f"/api/projects/{self.project.id}/time-entries/{self.entry.id}/"
+
+    # WHEN
+    def when_get_time_entry(self):
+        return self.api_get(self.url)
+
+    def when_patch_time_entry(self, payload):
+        return self.api_patch(self.url, payload)
+
+    def when_delete_time_entry(self):
+        return self.api_delete(self.url)
+
+    # ASSERT
+    def assert_time_description(self, expected_description):
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.description, expected_description)
+
+    def assert_time_entry_not_deleted(self):
+        self.entry.refresh_from_db()
+        self.assertIsNone(self.entry.deleted_at)
+
+    def assert_time_entry_deleted_by(self, user):
+        self.entry.refresh_from_db()
+        self.assertIsNotNone(self.entry.deleted_at)
+        self.assertEqual(self.entry.deleted_by_id, user.id)
+
+    # TESTS GET
+    def test_anonymous_cannot_get_time_entry(self):
+        response = self.when_get_time_entry()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_get_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_time_entry()
+
+        self.assert_ok(response)
+
+    def test_member_with_time_entry_view_can_get_time_entry(self):
+        self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_get_time_entry()
+
+        self.assert_ok(response)
+
+    def test_member_without_time_entry_view_cannot_get_time_entry(self):
+        self.given_member_authenticated([])
+
+        response = self.when_get_time_entry()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_get_time_entry(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_get_time_entry()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_get_time_entry_from_another_project(self):
+        self.given_member_authenticated(["time_entry.view"])
+        self.url = f"/api/projects/{self.other_project.id}/time-entries/{self.other_project_entry.id}/"
+
+        response = self.when_get_time_entry()
+
+        self.assert_forbidden(response)
+
+    # TESTS PATCH
+    def test_owner_can_patch_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_time_entry({"description": "Owner edited time"})
+
+        self.assert_ok(response)
+        self.assert_time_description("Owner edited time")
+
+    def test_member_with_time_entry_edit_can_patch_time_entry(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_patch_time_entry({"description": "Member edited time"})
+
+        self.assert_ok(response)
+        self.assert_time_description("Member edited time")
+
+    def test_member_without_time_entry_edit_cannot_patch_time_entry(self):
+        self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_patch_time_entry({"description": "Blocked edit"})
+
+        self.assert_forbidden(response)
+        self.assert_time_description("Target time")
+
+    # TESTS DELETE
+    def test_owner_can_soft_delete_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_delete_time_entry()
+
+        self.assert_no_content(response)
+        self.assert_time_entry_deleted_by(self.owner)
+
+    def test_member_with_time_entry_delete_can_soft_delete_time_entry(self):
+        self.given_member_authenticated(["time_entry.delete"])
+
+        response = self.when_delete_time_entry()
+
+        self.assert_no_content(response)
+        self.assert_time_entry_deleted_by(self.member)
+
+    def test_member_without_time_entry_delete_cannot_delete_time_entry(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_delete_time_entry()
+
+        self.assert_forbidden(response)
+        self.assert_time_entry_not_deleted()
+
+
+class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.deleted_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="0.00",
+            description="Deleted time",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_deleted_entry = TimeEntry.objects.create(
+            project=self.other_project,
+            user=self.other_user,
+            duration_minutes=30,
+            hourly_rate="0.00",
+            description="Other deleted time",
+        )
+        self.other_project_deleted_entry.soft_delete(self.other_user)
+        self.url = f"/api/projects/{self.project.id}/time-entries/trash/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/time-entries/trash/"
+
+    def when_list_deleted_time_entries(self):
+        return self.api_get(self.url)
+
+    def assert_visible_time_descriptions(self, response, expected_descriptions):
+        entries = self.response_results(response)
+        descriptions = {entry["description"] for entry in entries}
+        self.assertEqual(descriptions, set(expected_descriptions))
+
+    def test_owner_can_list_deleted_time_entries(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_deleted_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Deleted time"])
+
+    def test_anonymous_cannot_list_deleted_time_entries(self):
+        response = self.when_list_deleted_time_entries()
+
+        self.assert_unauthorized(response)
+
+    def test_member_with_time_entry_view_can_list_deleted_time_entries(self):
+        self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_list_deleted_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Deleted time"])
+
+    def test_member_without_time_entry_view_cannot_list_deleted_time_entries(self):
+        self.given_member_authenticated([])
+
+        response = self.when_list_deleted_time_entries()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_list_deleted_time_entries(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_list_deleted_time_entries()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_list_another_project_deleted_time_entries(self):
+        self.given_member_authenticated(["time_entry.view"])
+        self.url = self.other_project_url
+
+        response = self.when_list_deleted_time_entries()
+
+        self.assert_forbidden(response)
+
+
+class TimeEntryRestoreRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.deleted_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="0.00",
+            description="Deleted time",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_deleted_entry = TimeEntry.objects.create(
+            project=self.other_project,
+            user=self.other_user,
+            duration_minutes=30,
+            hourly_rate="0.00",
+            description="Other deleted time",
+        )
+        self.other_project_deleted_entry.soft_delete(self.other_user)
+        self.url = f"/api/projects/{self.project.id}/time-entries/{self.deleted_entry.id}/restore/"
+
+    def when_restore_time_entry(self):
+        return self.api_post(self.url, {})
+
+    def assert_time_entry_still_deleted(self):
+        self.deleted_entry.refresh_from_db()
+        self.assertIsNotNone(self.deleted_entry.deleted_at)
+
+    def assert_time_entry_restored(self):
+        self.deleted_entry.refresh_from_db()
+        self.assertIsNone(self.deleted_entry.deleted_at)
+        self.assertIsNone(self.deleted_entry.deleted_by_id)
+
+    def test_owner_can_restore_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_restore_time_entry()
+
+        self.assert_ok(response)
+        self.assert_time_entry_restored()
+
+    def test_anonymous_cannot_restore_time_entry(self):
+        response = self.when_restore_time_entry()
+
+        self.assert_unauthorized(response)
+        self.assert_time_entry_still_deleted()
+
+    def test_member_with_time_entry_restore_can_restore_time_entry(self):
+        self.given_member_authenticated(["time_entry.restore"])
+
+        response = self.when_restore_time_entry()
+
+        self.assert_ok(response)
+        self.assert_time_entry_restored()
+
+    def test_member_without_time_entry_restore_cannot_restore_time_entry(self):
+        self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_restore_time_entry()
+
+        self.assert_forbidden(response)
+        self.assert_time_entry_still_deleted()
+
+    def test_non_member_cannot_restore_time_entry(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_restore_time_entry()
+
+        self.assert_forbidden(response)
+        self.assert_time_entry_still_deleted()
+
+    def test_member_cannot_restore_time_entry_from_another_project(self):
+        self.given_member_authenticated(["time_entry.restore"])
+        self.url = (
+            f"/api/projects/{self.other_project.id}/time-entries/"
+            f"{self.other_project_deleted_entry.id}/restore/"
+        )
+
+        response = self.when_restore_time_entry()
+
+        self.assert_forbidden(response)
+        self.other_project_deleted_entry.refresh_from_db()
+        self.assertIsNotNone(self.other_project_deleted_entry.deleted_at)
+
+
+class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Finance folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other finance folder",
+        )
+        self.document = Document.objects.create(
+            project=self.project,
+            folder=self.folder,
+            name="Receipt",
+            file_id="receipt-file",
+            file_name="receipt.pdf",
+        )
+        self.other_project_document = Document.objects.create(
+            project=self.other_project,
+            name="Other receipt",
+            file_id="other-receipt-file",
+            file_name="other-receipt.pdf",
+        )
+        self.time_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Finance time",
+        )
+        self.other_project_time_entry = TimeEntry.objects.create(
+            project=self.other_project,
+            user=self.other_user,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Other finance time",
+        )
+        self.expense = FinancialEntry.objects.create(
+            project=self.project,
+            folder=self.folder,
+            document=self.document,
+            created_by=self.owner,
+            amount="120.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="material",
+            description="Paint purchase",
+        )
+        self.refund = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="30.00",
+            type=FinancialEntry.FinancialType.REFUND,
+            category="material",
+            description="Paint refund",
+        )
+        self.deleted_entry = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="10.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="other",
+            description="Deleted finance",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_entry = FinancialEntry.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            amount="80.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="other",
+            description="Other project finance",
+        )
+        self.url = f"/api/projects/{self.project.id}/financial-entries/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/financial-entries/"
+
+    # WHEN
+    def when_list_financial_entries(self, query=""):
+        return self.api_get(f"{self.url}{query}")
+
+    def when_create_financial_entry(self, payload):
+        return self.api_post(self.url, payload)
+
+    # ASSERT
+    def assert_visible_financial_descriptions(self, response, expected_descriptions):
+        entries = self.response_results(response)
+        descriptions = {entry["description"] for entry in entries}
+        self.assertEqual(descriptions, set(expected_descriptions))
+
+    def assert_financial_entry_exists(self, description):
+        return FinancialEntry.objects.get(project=self.project, description=description)
+
+    def assert_financial_entry_does_not_exist(self, description):
+        self.assertFalse(FinancialEntry.objects.filter(project=self.project, description=description).exists())
+
+    # TESTS GET
+    def test_anonymous_cannot_list_financial_entries(self):
+        response = self.when_list_financial_entries()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_list_active_project_financial_entries_only(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_financial_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_financial_descriptions(response, ["Paint purchase", "Paint refund"])
+
+    def test_member_with_finance_view_can_list_financial_entries(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_list_financial_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_financial_descriptions(response, ["Paint purchase", "Paint refund"])
+
+    def test_member_without_finance_view_cannot_list_financial_entries(self):
+        self.given_member_authenticated(["finance.edit"])
+
+        response = self.when_list_financial_entries()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_list_financial_entries(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_list_financial_entries()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_list_another_project_financial_entries(self):
+        self.given_member_authenticated(["finance.view"])
+        self.url = self.other_project_url
+
+        response = self.when_list_financial_entries()
+
+        self.assert_forbidden(response)
+
+    def test_list_can_filter_by_type(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_financial_entries("?type=refund")
+
+        self.assert_ok(response)
+        self.assert_visible_financial_descriptions(response, ["Paint refund"])
+
+    def test_list_can_filter_by_category(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_financial_entries("?category=material")
+
+        self.assert_ok(response)
+        self.assert_visible_financial_descriptions(response, ["Paint purchase", "Paint refund"])
+
+    def test_list_can_search_by_description(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_financial_entries("?search=refund")
+
+        self.assert_ok(response)
+        self.assert_visible_financial_descriptions(response, ["Paint refund"])
+
+    # TESTS POST
+    def test_anonymous_cannot_create_financial_entry(self):
+        response = self.when_create_financial_entry({
+            "amount": "15.00",
+            "type": "expense",
+            "description": "Anonymous finance",
+        })
+
+        self.assert_unauthorized(response)
+        self.assert_financial_entry_does_not_exist("Anonymous finance")
+
+    def test_owner_can_create_financial_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "folder": self.folder.id,
+            "document": self.document.id,
+            "amount": "15.00",
+            "type": "expense",
+            "category": "material",
+            "description": "Created finance",
+        })
+
+        self.assert_created(response)
+        entry = self.assert_financial_entry_exists("Created finance")
+        self.assertEqual(entry.created_by_id, self.owner.id)
+        self.assertEqual(entry.document_id, self.document.id)
+
+    def test_owner_can_create_financial_entry_linked_to_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "amount": "25.00",
+            "type": "expense",
+            "category": "labor",
+            "description": "Partial time payment",
+            "time_entry": self.time_entry.id,
+        })
+
+        self.assert_created(response)
+        entry = self.assert_financial_entry_exists("Partial time payment")
+        self.assertEqual(entry.time_entry_id, self.time_entry.id)
+
+        time_response = self.api_get(
+            f"/api/projects/{self.project.id}/time-entries/{self.time_entry.id}/"
+        )
+        self.assert_ok(time_response)
+        time_entry_data = self.response_data(time_response)
+        self.assertEqual(time_entry_data["cost_amount"], "50.00")
+        self.assertEqual(time_entry_data["paid_amount"], "25.00")
+        self.assertEqual(time_entry_data["remaining_amount"], "25.00")
+        self.assertFalse(time_entry_data["is_paid"])
+
+    def test_create_rejects_time_entry_overpayment(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.time_entry,
+            created_by=self.owner,
+            amount="25.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Existing time payment",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "amount": "30.00",
+            "type": "expense",
+            "category": "labor",
+            "description": "Too much time payment",
+            "time_entry": self.time_entry.id,
+        })
+
+        self.assert_bad_request(response)
+        self.assert_financial_entry_does_not_exist("Too much time payment")
+
+    def test_create_allows_time_entry_exact_remaining_amount(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.time_entry,
+            created_by=self.owner,
+            amount="25.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Existing partial time payment",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "amount": "25.00",
+            "type": "expense",
+            "category": "labor",
+            "description": "Exact remaining time payment",
+            "time_entry": self.time_entry.id,
+        })
+
+        self.assert_created(response)
+        entry = self.assert_financial_entry_exists("Exact remaining time payment")
+        self.assertEqual(entry.time_entry_id, self.time_entry.id)
+
+    def test_member_with_finance_edit_can_create_financial_entry(self):
+        self.given_member_authenticated(["finance.edit"])
+
+        response = self.when_create_financial_entry({
+            "amount": "15.00",
+            "type": "refund",
+            "category": "material",
+            "description": "Member finance",
+        })
+
+        self.assert_created(response)
+        entry = self.assert_financial_entry_exists("Member finance")
+        self.assertEqual(entry.created_by_id, self.member.id)
+
+    def test_member_without_finance_edit_cannot_create_financial_entry(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_create_financial_entry({
+            "amount": "15.00",
+            "type": "expense",
+            "description": "Blocked finance",
+        })
+
+        self.assert_forbidden(response)
+        self.assert_financial_entry_does_not_exist("Blocked finance")
+
+    def test_create_rejects_document_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "document": self.other_project_document.id,
+            "amount": "15.00",
+            "type": "expense",
+            "description": "Invalid document finance",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_financial_entry_does_not_exist("Invalid document finance")
+
+    def test_create_rejects_folder_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "folder": self.other_project_folder.id,
+            "amount": "15.00",
+            "type": "expense",
+            "description": "Invalid folder finance",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_financial_entry_does_not_exist("Invalid folder finance")
+
+    def test_create_rejects_time_entry_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "time_entry": self.other_project_time_entry.id,
+            "amount": "25.00",
+            "type": "expense",
+            "description": "Invalid time finance",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_financial_entry_does_not_exist("Invalid time finance")
+
+    def test_create_rejects_removed_payment_type(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "amount": "15.00",
+            "type": "payment",
+            "description": "Invalid payment finance",
+        })
+
+        self.assert_bad_request(response)
+        self.assert_financial_entry_does_not_exist("Invalid payment finance")
+
+
+class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.time_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Finance detail time",
+        )
+        self.entry = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="120.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="material",
+            description="Target finance",
+        )
+        self.other_project_entry = FinancialEntry.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            amount="120.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="material",
+            description="Other finance",
+        )
+        self.url = f"/api/projects/{self.project.id}/financial-entries/{self.entry.id}/"
+
+    # WHEN
+    def when_get_financial_entry(self):
+        return self.api_get(self.url)
+
+    def when_patch_financial_entry(self, payload):
+        return self.api_patch(self.url, payload)
+
+    def when_delete_financial_entry(self):
+        return self.api_delete(self.url)
+
+    # ASSERT
+    def assert_financial_description(self, expected_description):
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.description, expected_description)
+
+    def assert_financial_entry_not_deleted(self):
+        self.entry.refresh_from_db()
+        self.assertIsNone(self.entry.deleted_at)
+
+    def assert_financial_amount(self, expected_amount):
+        self.entry.refresh_from_db()
+        self.assertEqual(str(self.entry.amount), expected_amount)
+
+    def assert_financial_entry_deleted_by(self, user):
+        self.entry.refresh_from_db()
+        self.assertIsNotNone(self.entry.deleted_at)
+        self.assertEqual(self.entry.deleted_by_id, user.id)
+
+    # TESTS GET
+    def test_anonymous_cannot_get_financial_entry(self):
+        response = self.when_get_financial_entry()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_get_financial_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_entry()
+
+        self.assert_ok(response)
+
+    def test_member_with_finance_view_can_get_financial_entry(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_get_financial_entry()
+
+        self.assert_ok(response)
+
+    def test_member_without_finance_view_cannot_get_financial_entry(self):
+        self.given_member_authenticated([])
+
+        response = self.when_get_financial_entry()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_get_financial_entry(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_get_financial_entry()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_get_financial_entry_from_another_project(self):
+        self.given_member_authenticated(["finance.view"])
+        self.url = f"/api/projects/{self.other_project.id}/financial-entries/{self.other_project_entry.id}/"
+
+        response = self.when_get_financial_entry()
+
+        self.assert_forbidden(response)
+
+    # TESTS PATCH
+    def test_owner_can_patch_financial_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_financial_entry({"description": "Owner edited finance"})
+
+        self.assert_ok(response)
+        self.assert_financial_description("Owner edited finance")
+
+    def test_member_with_finance_edit_can_patch_financial_entry(self):
+        self.given_member_authenticated(["finance.edit"])
+
+        response = self.when_patch_financial_entry({"description": "Member edited finance"})
+
+        self.assert_ok(response)
+        self.assert_financial_description("Member edited finance")
+
+    def test_member_without_finance_edit_cannot_patch_financial_entry(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_patch_financial_entry({"description": "Blocked edit"})
+
+        self.assert_forbidden(response)
+        self.assert_financial_description("Target finance")
+
+    def test_patch_rejects_time_entry_overpayment(self):
+        self.entry.time_entry = self.time_entry
+        self.entry.amount = "25.00"
+        self.entry.save()
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.time_entry,
+            created_by=self.owner,
+            amount="25.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Other detail time payment",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_financial_entry({"amount": "30.00"})
+
+        self.assert_bad_request(response)
+        self.assert_financial_amount("25.00")
+
+    def test_patch_allows_valid_time_entry_payment_amount_change(self):
+        self.entry.time_entry = self.time_entry
+        self.entry.amount = "25.00"
+        self.entry.save()
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_financial_entry({"amount": "40.00"})
+
+        self.assert_ok(response)
+        self.assert_financial_amount("40.00")
+
+        time_response = self.api_get(
+            f"/api/projects/{self.project.id}/time-entries/{self.time_entry.id}/"
+        )
+        self.assert_ok(time_response)
+        time_entry_data = self.response_data(time_response)
+        self.assertEqual(time_entry_data["paid_amount"], "40.00")
+        self.assertEqual(time_entry_data["remaining_amount"], "10.00")
+        self.assertFalse(time_entry_data["is_paid"])
+
+    # TESTS DELETE
+    def test_owner_can_soft_delete_financial_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_delete_financial_entry()
+
+        self.assert_no_content(response)
+        self.assert_financial_entry_deleted_by(self.owner)
+
+    def test_member_with_finance_delete_can_soft_delete_financial_entry(self):
+        self.given_member_authenticated(["finance.delete"])
+
+        response = self.when_delete_financial_entry()
+
+        self.assert_no_content(response)
+        self.assert_financial_entry_deleted_by(self.member)
+
+    def test_member_without_finance_delete_cannot_delete_financial_entry(self):
+        self.given_member_authenticated(["finance.edit"])
+
+        response = self.when_delete_financial_entry()
+
+        self.assert_forbidden(response)
+        self.assert_financial_entry_not_deleted()
+
+    def test_soft_delete_and_restore_updates_time_entry_payment_status(self):
+        linked_entry = FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.time_entry,
+            created_by=self.owner,
+            amount="50.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Linked full payment",
+        )
+        finance_url = f"/api/projects/{self.project.id}/financial-entries/{linked_entry.id}/"
+        restore_url = f"/api/projects/{self.project.id}/financial-entries/{linked_entry.id}/restore/"
+        time_url = f"/api/projects/{self.project.id}/time-entries/{self.time_entry.id}/"
+        self.given_authenticated(self.owner)
+
+        paid_response = self.api_get(time_url)
+        self.assert_ok(paid_response)
+        paid_data = self.response_data(paid_response)
+        self.assertEqual(paid_data["paid_amount"], "50.00")
+        self.assertEqual(paid_data["remaining_amount"], "0.00")
+        self.assertTrue(paid_data["is_paid"])
+
+        delete_response = self.api_delete(finance_url)
+        self.assert_no_content(delete_response)
+
+        unpaid_response = self.api_get(time_url)
+        self.assert_ok(unpaid_response)
+        unpaid_data = self.response_data(unpaid_response)
+        self.assertEqual(unpaid_data["paid_amount"], "0.00")
+        self.assertEqual(unpaid_data["remaining_amount"], "50.00")
+        self.assertFalse(unpaid_data["is_paid"])
+
+        restore_response = self.api_post(restore_url, {})
+        self.assert_ok(restore_response)
+
+        restored_response = self.api_get(time_url)
+        self.assert_ok(restored_response)
+        restored_data = self.response_data(restored_response)
+        self.assertEqual(restored_data["paid_amount"], "50.00")
+        self.assertEqual(restored_data["remaining_amount"], "0.00")
+        self.assertTrue(restored_data["is_paid"])
+
+
+class FinancialEntryTrashRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.deleted_entry = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="10.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            description="Deleted finance",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_deleted_entry = FinancialEntry.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            amount="10.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            description="Other deleted finance",
+        )
+        self.other_project_deleted_entry.soft_delete(self.other_user)
+        self.url = f"/api/projects/{self.project.id}/financial-entries/trash/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/financial-entries/trash/"
+
+    def when_list_deleted_financial_entries(self):
+        return self.api_get(self.url)
+
+    def assert_visible_financial_descriptions(self, response, expected_descriptions):
+        entries = self.response_results(response)
+        descriptions = {entry["description"] for entry in entries}
+        self.assertEqual(descriptions, set(expected_descriptions))
+
+    def test_owner_can_list_deleted_financial_entries(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_deleted_financial_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_financial_descriptions(response, ["Deleted finance"])
+
+    def test_anonymous_cannot_list_deleted_financial_entries(self):
+        response = self.when_list_deleted_financial_entries()
+
+        self.assert_unauthorized(response)
+
+    def test_member_with_finance_view_can_list_deleted_financial_entries(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_list_deleted_financial_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_financial_descriptions(response, ["Deleted finance"])
+
+    def test_member_without_finance_view_cannot_list_deleted_financial_entries(self):
+        self.given_member_authenticated([])
+
+        response = self.when_list_deleted_financial_entries()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_list_deleted_financial_entries(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_list_deleted_financial_entries()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_list_another_project_deleted_financial_entries(self):
+        self.given_member_authenticated(["finance.view"])
+        self.url = self.other_project_url
+
+        response = self.when_list_deleted_financial_entries()
+
+        self.assert_forbidden(response)
+
+
+class FinancialEntryRestoreRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.deleted_entry = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="10.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            description="Deleted finance",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_deleted_entry = FinancialEntry.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            amount="10.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            description="Other deleted finance",
+        )
+        self.other_project_deleted_entry.soft_delete(self.other_user)
+        self.url = f"/api/projects/{self.project.id}/financial-entries/{self.deleted_entry.id}/restore/"
+
+    def when_restore_financial_entry(self):
+        return self.api_post(self.url, {})
+
+    def assert_financial_entry_still_deleted(self):
+        self.deleted_entry.refresh_from_db()
+        self.assertIsNotNone(self.deleted_entry.deleted_at)
+
+    def assert_financial_entry_restored(self):
+        self.deleted_entry.refresh_from_db()
+        self.assertIsNone(self.deleted_entry.deleted_at)
+        self.assertIsNone(self.deleted_entry.deleted_by_id)
+
+    def test_owner_can_restore_financial_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_restore_financial_entry()
+
+        self.assert_ok(response)
+        self.assert_financial_entry_restored()
+
+    def test_anonymous_cannot_restore_financial_entry(self):
+        response = self.when_restore_financial_entry()
+
+        self.assert_unauthorized(response)
+        self.assert_financial_entry_still_deleted()
+
+    def test_member_with_finance_restore_can_restore_financial_entry(self):
+        self.given_member_authenticated(["finance.restore"])
+
+        response = self.when_restore_financial_entry()
+
+        self.assert_ok(response)
+        self.assert_financial_entry_restored()
+
+    def test_member_without_finance_restore_cannot_restore_financial_entry(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_restore_financial_entry()
+
+        self.assert_forbidden(response)
+        self.assert_financial_entry_still_deleted()
+
+    def test_non_member_cannot_restore_financial_entry(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_restore_financial_entry()
+
+        self.assert_forbidden(response)
+        self.assert_financial_entry_still_deleted()
+
+    def test_member_cannot_restore_financial_entry_from_another_project(self):
+        self.given_member_authenticated(["finance.restore"])
+        self.url = (
+            f"/api/projects/{self.other_project.id}/financial-entries/"
+            f"{self.other_project_deleted_entry.id}/restore/"
+        )
+
+        response = self.when_restore_financial_entry()
+
+        self.assert_forbidden(response)
+        self.other_project_deleted_entry.refresh_from_db()
+        self.assertIsNotNone(self.other_project_deleted_entry.deleted_at)
 
 class ProjectDetailRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):

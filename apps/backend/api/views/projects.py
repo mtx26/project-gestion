@@ -67,10 +67,10 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method == "GET":
             self.permission_code = None
+        elif self.request.method in ["PUT", "PATCH"]:
+            self.permission_code = "project.edit"
         elif self.request.method == "DELETE":
             self.permission_code = "project.delete"
-        else:
-            self.permission_code = "project.edit"
 
         return super().get_permissions()
 
@@ -86,6 +86,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
     post=extend_schema(
         summary="Restaurer un projet",
         description="Restaure un projet supprime.\nPermission requise : `project.restore`.",
+        request=None,
     ),
 )
 class ProjectRestoreView(generics.GenericAPIView):

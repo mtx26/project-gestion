@@ -42,6 +42,18 @@ from .views.tasks import (
     TaskTrashListView,
     TaskRestoreView,
 )
+from .views.time_entries import (
+    TimeEntryListCreateView,
+    TimeEntryDetailView,
+    TimeEntryTrashListView,
+    TimeEntryRestoreView,
+)
+from .views.financial_entries import (
+    FinancialEntryListCreateView,
+    FinancialEntryDetailView,
+    FinancialEntryTrashListView,
+    FinancialEntryRestoreView,
+)
     
 
 urlpatterns = [
@@ -80,5 +92,15 @@ urlpatterns = [
     path("projects/<int:project_id>/tasks/trash/", TaskTrashListView.as_view(), name="project-tasks-trash"),
     path("projects/<int:project_id>/tasks/<int:pk>/", TaskDetailView.as_view(), name="project-task-detail"),
     path("projects/<int:project_id>/tasks/<int:pk>/restore/", TaskRestoreView.as_view(), name="project-task-restore"),
+    # Time Entries
+    path("projects/<int:project_id>/time-entries/", TimeEntryListCreateView.as_view(), name="project-time-entries"),
+    path("projects/<int:project_id>/time-entries/trash/", TimeEntryTrashListView.as_view(), name="project-time-entries-trash"),
+    path("projects/<int:project_id>/time-entries/<int:pk>/", TimeEntryDetailView.as_view(), name="project-time-entry-detail"),
+    path("projects/<int:project_id>/time-entries/<int:pk>/restore/", TimeEntryRestoreView.as_view(), name="project-time-entry-restore"),
+    # Financial Entries
+    path("projects/<int:project_id>/financial-entries/", FinancialEntryListCreateView.as_view(), name="project-financial-entries"),
+    path("projects/<int:project_id>/financial-entries/trash/", FinancialEntryTrashListView.as_view(), name="project-financial-entries-trash"),
+    path("projects/<int:project_id>/financial-entries/<int:pk>/", FinancialEntryDetailView.as_view(), name="project-financial-entry-detail"),
+    path("projects/<int:project_id>/financial-entries/<int:pk>/restore/", FinancialEntryRestoreView.as_view(), name="project-financial-entry-restore"),
 
 ]

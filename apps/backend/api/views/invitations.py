@@ -41,11 +41,11 @@ class InvitationListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
     def get_permissions(self):
-        self.permission_code = (
-            "member.edit"
-            if self.request.method == "POST"
-            else "member.view"
-        )
+        if self.request.method == "GET":
+            self.permission_code = "member.view"
+        elif self.request.method == "POST":
+            self.permission_code = "member.edit"
+
         return super().get_permissions()
 
     def get_serializer_class(self):

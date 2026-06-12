@@ -38,11 +38,11 @@ class FolderListCreateView(generics.ListCreateAPIView):
     search_fields = ["name", "description"]
 
     def get_permissions(self):
-        self.permission_code = (
-            "file.edit"
-            if self.request.method == "POST"
-            else "file.view"
-        )
+        if self.request.method == "GET":
+            self.permission_code = "file.view"
+        elif self.request.method == "POST":
+            self.permission_code = "file.edit"
+
         return super().get_permissions()
 
     def get_queryset(self):
@@ -176,6 +176,7 @@ class FolderTrashListView(generics.ListAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un dossier",
+        request=None,
         description="Restaure un dossier supprimé.\nPermission requise : `file.restore`.",
     )
 )

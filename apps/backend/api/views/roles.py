@@ -42,10 +42,10 @@ class RoleListCreateView(generics.ListCreateAPIView):
     search_fields = ["name", "description"]
 
     def get_permissions(self):
-        if self.request.method == "POST":
-            self.permission_code = "role.edit"
-        else:
+        if self.request.method == "GET":
             self.permission_code = "role.view"
+        elif self.request.method == "POST":
+            self.permission_code = "role.edit"
 
         return super().get_permissions()
 
@@ -92,10 +92,10 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     def get_permissions(self):
         if self.request.method == "GET":
             self.permission_code = "role.view"
+        elif self.request.method in ["PUT", "PATCH"]:
+            self.permission_code = "role.edit"
         elif self.request.method == "DELETE":
             self.permission_code = "role.delete"
-        else:
-            self.permission_code = "role.edit"
 
         return super().get_permissions()
 
@@ -117,6 +117,7 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     post=extend_schema(
         summary="Restaurer un role",
         description="Restaure un role supprime d'un projet.\nPermission requise : `role.restore`.",
+        request=None,
     ),
 )
 class RoleRestoreView(generics.GenericAPIView):

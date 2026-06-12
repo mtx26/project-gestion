@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import User
 from django.db import models
 from django.core.exceptions import ValidationError
@@ -291,9 +293,6 @@ class TimeEntry(BaseModel):
     def clean(self):
         super().clean()
 
-        if not self.folder and not self.task:
-            raise ValidationError("errors.time_entry.missing_target")
-
         if self.folder and self.task:
             raise ValidationError("errors.time_entry.multiple_targets")
 
@@ -303,15 +302,31 @@ class TimeEntry(BaseModel):
         if self.task and self.task.project_id != self.project_id:
             raise ValidationError("errors.time_entry.task_project_mismatch")
 
+        from .services.members import get_project_assignable_users
+
+        user_is_assignable = get_project_assignable_users(self.project).filter(
+            pk=self.user_id,
+        ).exists()
+        if self.user_id and not user_is_assignable:
+            raise ValidationError({
+                "user": "errors.time_entry.user_not_project_member"
+            })
+
 class FinancialEntry(BaseModel):
     class FinancialType(models.TextChoices):
         EXPENSE = "expense", "financial.types.expense"
-        INVOICE = "invoice", "financial.types.invoice"
         REFUND = "refund", "financial.types.refund"
-        PAYMENT = "payment", "financial.types.payment"
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
+    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True)
+    time_entry = models.ForeignKey(
+        TimeEntry,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="financial_entries",
+    )
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="financial_entries_created")
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=FinancialType.choices)
@@ -323,3 +338,36 @@ class FinancialEntry(BaseModel):
 
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.financial_entry.folder_project_mismatch")
+
+        if self.document and self.document.project_id != self.project_id:
+            raise ValidationError("errors.financial_entry.document_project_mismatch")
+
+        if self.time_entry and self.time_entry.project_id != self.project_id:
+            raise ValidationError("errors.financial_entry.time_entry_project_mismatch")
+
+        if self.time_entry and self.amount is not None and self.type == self.FinancialType.EXPENSE:
+            paid_amount = self._get_time_entry_paid_amount_excluding_self()
+            cost_amount = self._get_time_entry_cost_amount()
+
+            if paid_amount + self.amount > cost_amount:
+                raise ValidationError({
+                    "amount": "errors.financial_entry.amount_exceeds_time_entry_remaining"
+                })
+
+    def _get_time_entry_cost_amount(self):
+        return Decimal(self.time_entry.duration_minutes) * self.time_entry.hourly_rate / Decimal("60")
+
+    def _get_time_entry_paid_amount_excluding_self(self):
+        entries = FinancialEntry.objects.filter(time_entry=self.time_entry)
+
+        if self.pk:
+            entries = entries.exclude(pk=self.pk)
+
+        paid_amount = Decimal("0.00")
+        for entry in entries:
+            if entry.type == self.FinancialType.EXPENSE:
+                paid_amount += entry.amount
+            elif entry.type == self.FinancialType.REFUND:
+                paid_amount -= entry.amount
+
+        return max(paid_amount, Decimal("0.00"))

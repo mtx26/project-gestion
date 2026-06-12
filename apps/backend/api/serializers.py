@@ -1,6 +1,8 @@
+from decimal import Decimal
+
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.exceptions import ObjectDoesNotExist, ValidationError as DjangoValidationError
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -411,6 +413,7 @@ class InvitationSerializer(serializers.ModelSerializer):
             "accepted_at",
         ]
 
+    @extend_schema_field(OpenApiTypes.STR)
     def get_status(self, invitation):
         if invitation.deleted_at:
             return "cancelled"
@@ -423,6 +426,7 @@ class InvitationSerializer(serializers.ModelSerializer):
 
         return "pending"
 
+    @extend_schema_field(OpenApiTypes.BOOL)
     def get_user_exists(self, invitation):
         return User.objects.filter(email__iexact=invitation.email).exists()
 
@@ -495,6 +499,11 @@ class NotificationSerializer(serializers.ModelSerializer):
 
 
 class TimeEntrySerializer(serializers.ModelSerializer):
+    cost_amount = serializers.SerializerMethodField()
+    paid_amount = serializers.SerializerMethodField()
+    remaining_amount = serializers.SerializerMethodField()
+    is_paid = serializers.SerializerMethodField()
+
     class Meta:
         model = TimeEntry
         fields = [
@@ -505,6 +514,10 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "user",
             "duration_minutes",
             "hourly_rate",
+            "cost_amount",
+            "paid_amount",
+            "remaining_amount",
+            "is_paid",
             "description",
             "created_at",
             "updated_at",
@@ -513,7 +526,79 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
+            "cost_amount",
+            "paid_amount",
+            "remaining_amount",
+            "is_paid",
         ]
+
+    def create(self, validated_data):
+        time_entry = TimeEntry(**validated_data)
+
+        if "hourly_rate" not in validated_data:
+            try:
+                profile = time_entry.user.profile
+            except ObjectDoesNotExist:
+                profile = None
+
+            if profile is not None:
+                time_entry.hourly_rate = profile.default_hourly_rate
+
+        try:
+            time_entry.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        time_entry.save()
+        return time_entry
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        instance.save()
+        return instance
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_cost_amount(self, time_entry):
+        return self._money(self._get_cost_amount(time_entry))
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_paid_amount(self, time_entry):
+        return self._money(self._get_paid_amount(time_entry))
+
+    @extend_schema_field(OpenApiTypes.STR)
+    def get_remaining_amount(self, time_entry):
+        remaining_amount = self._get_cost_amount(time_entry) - self._get_paid_amount(time_entry)
+        return self._money(max(remaining_amount, Decimal("0.00")))
+
+    @extend_schema_field(OpenApiTypes.BOOL)
+    def get_is_paid(self, time_entry):
+        return self._get_paid_amount(time_entry) >= self._get_cost_amount(time_entry)
+
+    def _get_cost_amount(self, time_entry):
+        return Decimal(time_entry.duration_minutes) * time_entry.hourly_rate / Decimal("60")
+
+    def _get_paid_amount(self, time_entry):
+        financial_entries = getattr(time_entry, "financial_entries", None)
+        if financial_entries is None:
+            return Decimal("0.00")
+
+        total = Decimal("0.00")
+        for financial_entry in financial_entries.all():
+            if financial_entry.type == FinancialEntry.FinancialType.EXPENSE:
+                total += financial_entry.amount
+            elif financial_entry.type == FinancialEntry.FinancialType.REFUND:
+                total -= financial_entry.amount
+        return max(total, Decimal("0.00"))
+
+    def _money(self, value):
+        return str(value.quantize(Decimal("0.01")))
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):
@@ -523,6 +608,8 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "id",
             "project",
             "folder",
+            "document",
+            "time_entry",
             "created_by",
             "amount",
             "type",
@@ -537,3 +624,26 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "project",
             "created_by",
         ]
+
+    def create(self, validated_data):
+        financial_entry = FinancialEntry(**validated_data)
+
+        try:
+            financial_entry.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        financial_entry.save()
+        return financial_entry
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        instance.save()
+        return instance
