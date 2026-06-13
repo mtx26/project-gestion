@@ -46,12 +46,20 @@ INSTALLED_APPS = [
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
+    'django.contrib.sites',
     'django.contrib.messages',
     'django.contrib.staticfiles',
     "rest_framework",
+    "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "anymail",
-    "accounts",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
+    "dj_rest_auth",
+    "dj_rest_auth.registration",
+    "accounts.apps.AccountsConfig",
     "api.apps.ApiConfig",
     "core",
     "django_filters",
@@ -63,6 +71,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    "allauth.account.middleware.AccountMiddleware",
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -85,6 +94,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'config.wsgi.application'
+
+SITE_ID = 1
+
+AUTHENTICATION_BACKENDS = [
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
 
 
 # Database
@@ -219,6 +235,11 @@ DEFAULT_REPLY_TO_EMAIL = env("DEFAULT_REPLY_TO_EMAIL", default=None) or None
 
 RESEND_API_KEY = env("RESEND_API_KEY", default="")
 RESEND_INVITATION_TEMPLATE_ID = env("RESEND_INVITATION_TEMPLATE_ID", default="")
+RESEND_PASSWORD_RESET_TEMPLATE_ID = env("RESEND_PASSWORD_RESET_TEMPLATE_ID", default="")
+RESEND_EMAIL_VERIFICATION_TEMPLATE_ID = env(
+    "RESEND_EMAIL_VERIFICATION_TEMPLATE_ID",
+    default="",
+)
 RESEND_SIGNING_SECRET = env("RESEND_SIGNING_SECRET", default=None)
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="") or (
@@ -242,6 +263,18 @@ FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="") or env(
     "NEXT_PUBLIC_APP_URL",
     default="http://localhost:3000",
 )
+PASSWORD_RESET_CONFIRM_URL = env(
+    "PASSWORD_RESET_CONFIRM_URL",
+    default=f"{FRONTEND_APP_URL}/auth/password-reset/confirm",
+)
+EMAIL_VERIFICATION_URL = env(
+    "EMAIL_VERIFICATION_URL",
+    default=f"{FRONTEND_APP_URL}/auth/verify-email",
+)
+GOOGLE_OAUTH_CALLBACK_URL = env(
+    "GOOGLE_OAUTH_CALLBACK_URL",
+    default=f"{FRONTEND_APP_URL}/auth/google/callback",
+)
 INVITATION_EXPIRES_DAYS = env.int("INVITATION_EXPIRES_DAYS", default=7)
 
 REST_FRAMEWORK = {
@@ -256,7 +289,40 @@ REST_FRAMEWORK = {
     "PAGE_SIZE": 50,
     "DEFAULT_FILTER_BACKENDS": [
         "django_filters.rest_framework.DjangoFilterBackend"
-    ]
+    ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.ScopedRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "login": env("THROTTLE_LOGIN_RATE", default="5/min"),
+        "register": env("THROTTLE_REGISTER_RATE", default="5/hour"),
+        "password_reset": env("THROTTLE_PASSWORD_RESET_RATE", default="3/hour"),
+    },
+}
+
+REST_AUTH = {
+    "USE_JWT": True,
+    "JWT_AUTH_HTTPONLY": False,
+    "TOKEN_MODEL": None,
+    "USER_DETAILS_SERIALIZER": "accounts.serializers.UserSerializer",
+}
+
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+ACCOUNT_ADAPTER = "accounts.adapters.AccountAdapter"
+ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
+ACCOUNT_EMAIL_VERIFICATION = "optional"
+ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+
+SOCIALACCOUNT_PROVIDERS = {
+    "google": {
+        "SCOPE": ["profile", "email"],
+        "AUTH_PARAMS": {
+            "access_type": "online",
+        },
+        "EMAIL_AUTHENTICATION": True,
+        "VERIFIED_EMAIL": True,
+        "OAUTH_PKCE_ENABLED": True,
+    }
 }
 
 SPECTACULAR_SETTINGS = {
