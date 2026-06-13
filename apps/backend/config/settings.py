@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -297,7 +298,27 @@ REST_FRAMEWORK = {
         "login": env("THROTTLE_LOGIN_RATE", default="5/min"),
         "register": env("THROTTLE_REGISTER_RATE", default="5/hour"),
         "password_reset": env("THROTTLE_PASSWORD_RESET_RATE", default="3/hour"),
+        "password_reset_confirm": env(
+            "THROTTLE_PASSWORD_RESET_CONFIRM_RATE",
+            default="10/hour",
+        ),
+        "password_change": env("THROTTLE_PASSWORD_CHANGE_RATE", default="10/hour"),
+        "email_verify": env("THROTTLE_EMAIL_VERIFY_RATE", default="10/hour"),
+        "email_resend": env("THROTTLE_EMAIL_RESEND_RATE", default="3/hour"),
+        "google_login": env("THROTTLE_GOOGLE_LOGIN_RATE", default="10/min"),
+        "profile_picture": env("THROTTLE_PROFILE_PICTURE_RATE", default="10/hour"),
     },
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=env.int("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=15),
+    ),
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7),
+    ),
+    "ROTATE_REFRESH_TOKENS": env.bool("JWT_ROTATE_REFRESH_TOKENS", default=False),
+    "BLACKLIST_AFTER_ROTATION": env.bool("JWT_BLACKLIST_AFTER_ROTATION", default=True),
 }
 
 REST_AUTH = {
@@ -310,7 +331,7 @@ REST_AUTH = {
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 ACCOUNT_ADAPTER = "accounts.adapters.AccountAdapter"
 ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
-ACCOUNT_EMAIL_VERIFICATION = "optional"
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
 ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
 
 SOCIALACCOUNT_PROVIDERS = {

@@ -1,6 +1,9 @@
+import re
+
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.tokens import default_token_generator
+from django.conf import settings
 from django.db import transaction
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -8,6 +11,10 @@ from django.utils.http import urlsafe_base64_decode
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework_simplejwt.token_blacklist.models import (
+    BlacklistedToken,
+    OutstandingToken,
+)
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 from allauth.account.models import EmailAddress, get_emailconfirmation_model
 
@@ -38,16 +45,40 @@ class UserSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.BOOL)
     def get_email_verified(self, user):
-        return EmailAddress.objects.filter(
-            user=user,
-            email__iexact=user.email,
-            verified=True,
-        ).exists()
+        return is_user_email_verified(user)
 
 
 class LoginSerializer(TokenObtainPairSerializer):
+    identifier = serializers.CharField(required=False, write_only=True)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields[self.username_field].required = False
+
     def validate(self, attrs):
+        identifier = attrs.pop("identifier", None) or attrs.get(self.username_field)
+        if not identifier:
+            raise serializers.ValidationError(
+                {self.username_field: ["errors.auth.identifier_required"]}
+            )
+
+        if "@" in identifier:
+            user = User.objects.filter(email__iexact=identifier).only("username").first()
+            if user:
+                attrs[self.username_field] = getattr(user, self.username_field)
+            else:
+                attrs[self.username_field] = identifier
+        else:
+            attrs[self.username_field] = identifier
+
         data = super().validate(attrs)
+        if (
+            settings.ACCOUNT_EMAIL_VERIFICATION == "mandatory"
+            and not is_user_email_verified(self.user)
+        ):
+            raise serializers.ValidationError(
+                {"email": ["errors.email_verification.required"]}
+            )
         data["user"] = UserSerializer(self.user).data
         return data
 
@@ -84,8 +115,22 @@ class CurrentUserUpdateSerializer(serializers.ModelSerializer):
         return UserSerializer(instance).data
 
 
+def is_user_email_verified(user):
+    return EmailAddress.objects.filter(
+        user=user,
+        email__iexact=user.email,
+        verified=True,
+    ).exists()
+
+
+def blacklist_user_refresh_tokens(user):
+    for outstanding_token in OutstandingToken.objects.filter(user=user):
+        BlacklistedToken.objects.get_or_create(token=outstanding_token)
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
+    username = serializers.CharField(required=False, allow_blank=True)
 
     class Meta:
         model = User
@@ -96,16 +141,41 @@ class RegisterSerializer(serializers.ModelSerializer):
         return password
 
     def validate_email(self, email):
+        email = User.objects.normalize_email(email)
         if email and User.objects.filter(email__iexact=email).exists():
             raise serializers.ValidationError("errors.user.email_already_exists")
 
         return email
 
+    def validate_username(self, username):
+        if username and User.objects.filter(username__iexact=username).exists():
+            raise serializers.ValidationError("errors.user.username_already_exists")
+
+        return username
+
+    def get_username(self, email, username=None):
+        if username:
+            return username
+
+        base_username = email.split("@", 1)[0]
+        base_username = re.sub(r"[^a-zA-Z0-9_@+.-]+", "-", base_username).strip("-")
+        base_username = base_username[:140] or "user"
+
+        username_candidate = base_username
+        suffix = 2
+        while User.objects.filter(username__iexact=username_candidate).exists():
+            max_base_length = 140 - len(str(suffix)) - 1
+            username_candidate = f"{base_username[:max_base_length]}-{suffix}"
+            suffix += 1
+
+        return username_candidate
+
     def create(self, validated_data):
         with transaction.atomic():
+            email = validated_data["email"]
             user = User.objects.create_user(
-                username=validated_data["username"],
-                email=validated_data["email"],
+                username=self.get_username(email, validated_data.get("username")),
+                email=email,
                 password=validated_data["password"],
                 first_name=validated_data.get("first_name", ""),
                 last_name=validated_data.get("last_name", ""),
@@ -123,6 +193,13 @@ class RegisterSerializer(serializers.ModelSerializer):
                 email_address.send_confirmation(request, signup=True)
 
         return user
+
+    def to_representation(self, instance):
+        return {
+            "detail": "messages.registration.created_verify_email",
+            "email": instance.email,
+            "email_verified": is_user_email_verified(instance),
+        }
 
 
 class LogoutSerializer(serializers.Serializer):
@@ -173,6 +250,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     def save(self, **kwargs):
         self.user.set_password(self.validated_data["new_password"])
         self.user.save(update_fields=["password"])
+        blacklist_user_refresh_tokens(self.user)
 
 
 class PasswordChangeSerializer(serializers.Serializer):
@@ -193,6 +271,7 @@ class PasswordChangeSerializer(serializers.Serializer):
         user = self.context["request"].user
         user.set_password(self.validated_data["new_password"])
         user.save(update_fields=["password"])
+        blacklist_user_refresh_tokens(user)
 
 
 class EmailVerificationConfirmSerializer(serializers.Serializer):
@@ -207,6 +286,29 @@ class EmailVerificationConfirmSerializer(serializers.Serializer):
 
     def save(self, **kwargs):
         return self.confirmation.confirm(self.context["request"])
+
+
+class ResendEmailVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def save(self, **kwargs):
+        email = self.validated_data["email"]
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if not user:
+            return
+
+        email_address, _ = EmailAddress.objects.get_or_create(
+            user=user,
+            email=user.email,
+            defaults={"primary": True, "verified": False},
+        )
+        if not email_address.primary:
+            email_address.set_as_primary()
+        if email_address.verified:
+            return
+
+        request = self.context.get("request")
+        email_address.send_confirmation(request, signup=False)
 
 
 @extend_schema_field(OpenApiTypes.BINARY)

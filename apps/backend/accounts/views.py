@@ -27,6 +27,7 @@ from .serializers import (
     PasswordResetSerializer,
     ProfilePictureUploadSerializer,
     RegisterSerializer,
+    ResendEmailVerificationSerializer,
     UserSerializer,
 )
 
@@ -89,7 +90,7 @@ class RefreshTokenView(TokenRefreshView):
     ),
 )
 class LogoutView(generics.GenericAPIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
     serializer_class = LogoutSerializer
 
     def post(self, request):
@@ -142,6 +143,7 @@ class PasswordResetView(generics.GenericAPIView):
 class PasswordResetConfirmView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = PasswordResetConfirmSerializer
+    throttle_scope = "password_reset_confirm"
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -167,6 +169,7 @@ class PasswordResetConfirmView(generics.GenericAPIView):
 class PasswordChangeView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = PasswordChangeSerializer
+    throttle_scope = "password_change"
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -192,6 +195,7 @@ class PasswordChangeView(generics.GenericAPIView):
 class EmailVerificationConfirmView(generics.GenericAPIView):
     permission_classes = [AllowAny]
     serializer_class = EmailVerificationConfirmSerializer
+    throttle_scope = "email_verify"
 
     def post(self, request):
         serializer = self.get_serializer(data=request.data)
@@ -209,7 +213,8 @@ class EmailVerificationConfirmView(generics.GenericAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Renvoyer l'email de verification",
-        description="Renvoie un email de verification pour l'utilisateur connecte.",
+        description="Renvoie un email de verification si le compte existe et n'est pas verifie.",
+        request=ResendEmailVerificationSerializer,
         responses={
             status.HTTP_200_OK: inline_serializer(
                 name="ResendEmailVerificationResponse",
@@ -219,19 +224,18 @@ class EmailVerificationConfirmView(generics.GenericAPIView):
     ),
 )
 class ResendEmailVerificationView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
+    serializer_class = ResendEmailVerificationSerializer
+    throttle_scope = "email_resend"
 
     def post(self, request):
-        email_address, _ = EmailAddress.objects.get_or_create(
-            user=request.user,
-            email=request.user.email,
-            defaults={"primary": True, "verified": False},
+        serializer = self.serializer_class(
+            data=request.data,
+            context={"request": request},
         )
-        if email_address.verified:
-            return Response({"detail": "messages.email.already_verified"})
-
-        email_address.send_confirmation(request, signup=False)
-        return Response({"detail": "messages.email.verification_sent"})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({"detail": "messages.email.verification_sent_if_account_exists"})
 
 
 @extend_schema(tags=["user"])
@@ -263,9 +267,24 @@ class GoogleLoginView(SocialLoginView):
     adapter_class = GoogleOAuth2Adapter
     callback_url = settings.GOOGLE_OAUTH_CALLBACK_URL
     client_class = OAuth2Client
+    throttle_scope = "google_login"
 
     def process_login(self):
         Profile.objects.get_or_create(user=self.user, defaults={"picture_url": ""})
+        email_address, _ = EmailAddress.objects.get_or_create(
+            user=self.user,
+            email=self.user.email,
+            defaults={"primary": True, "verified": True},
+        )
+        changed_fields = []
+        if not email_address.primary:
+            email_address.primary = True
+            changed_fields.append("primary")
+        if not email_address.verified:
+            email_address.verified = True
+            changed_fields.append("verified")
+        if changed_fields:
+            email_address.save(update_fields=changed_fields)
         return super().process_login()
 
 
@@ -315,6 +334,7 @@ class CurrentUserProfilePictureView(generics.GenericAPIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser]
     serializer_class = ProfilePictureUploadSerializer
+    throttle_scope = "profile_picture"
 
     def post(self, request):
         uploaded_file = request.FILES.get("file")

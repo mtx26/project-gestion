@@ -62,11 +62,72 @@ class RegisterViewTests(AccountsApiTestCase):
         )
 
         self.assertEqual(response.status_code, 201)
+        self.assertEqual(
+            response.data["detail"],
+            "messages.registration.created_verify_email",
+        )
+        self.assertEqual(response.data["email"], "verify@example.com")
+        self.assertFalse(response.data["email_verified"])
         user = User.objects.get(username="verify-user")
         email_address = EmailAddress.objects.get(user=user, email="verify@example.com")
         self.assertFalse(email_address.verified)
         self.assertTrue(email_address.primary)
         self.assertEqual(len(mail.outbox), 1)
+
+    def test_register_can_generate_username_from_email(self):
+        response = self.api_post(
+            "/api/accounts/register/",
+            {
+                "email": "Generated.User@example.com",
+                "password": "StrongPassword123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        user = User.objects.get(email="Generated.User@example.com")
+        self.assertEqual(user.username, "Generated.User")
+        self.assertEqual(response.data["email"], "Generated.User@example.com")
+
+    def test_register_generated_username_avoids_collisions(self):
+        User.objects.create_user(
+            username="taken",
+            email="taken-old@example.com",
+            password="StrongPassword123!",
+        )
+
+        response = self.api_post(
+            "/api/accounts/register/",
+            {
+                "email": "taken@example.com",
+                "password": "StrongPassword123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 201)
+        user = User.objects.get(email="taken@example.com")
+        self.assertEqual(user.username, "taken-2")
+
+    def test_register_rejects_duplicate_explicit_username(self):
+        User.objects.create_user(
+            username="taken",
+            email="taken-old@example.com",
+            password="StrongPassword123!",
+        )
+
+        response = self.api_post(
+            "/api/accounts/register/",
+            {
+                "username": "taken",
+                "email": "new-taken@example.com",
+                "password": "StrongPassword123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["username"],
+            ["errors.user.username_already_exists"],
+        )
 
 
 class CurrentUserDetailViewTests(AccountsApiTestCase):
@@ -172,6 +233,7 @@ class AuthFlowTests(AccountsApiTestCase):
         Profile.objects.create(user=self.user, picture_url="")
 
     def test_password_reset_confirm_changes_password(self):
+        refresh = RefreshToken.for_user(self.user)
         response = self.api_post(
             "/api/accounts/password/reset/",
             {"email": "auth@example.com"},
@@ -194,6 +256,9 @@ class AuthFlowTests(AccountsApiTestCase):
         self.assertEqual(response.status_code, 200)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("NewPassword123!"))
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__jti=refresh["jti"]).exists()
+        )
 
     def test_password_reset_does_not_enumerate_unknown_email(self):
         response = self.api_post(
@@ -203,6 +268,62 @@ class AuthFlowTests(AccountsApiTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 0)
+
+    def test_login_requires_verified_email_when_mandatory(self):
+        response = self.api_post(
+            "/api/accounts/login/",
+            {
+                "username": "auth-user",
+                "password": "OldPassword123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.data["email"],
+            ["errors.email_verification.required"],
+        )
+
+    def test_login_succeeds_when_email_is_verified(self):
+        EmailAddress.objects.create(
+            user=self.user,
+            email=self.user.email,
+            primary=True,
+            verified=True,
+        )
+
+        response = self.api_post(
+            "/api/accounts/login/",
+            {
+                "username": "auth-user",
+                "password": "OldPassword123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertTrue(response.data["user"]["email_verified"])
+
+    def test_login_accepts_email_identifier(self):
+        EmailAddress.objects.create(
+            user=self.user,
+            email=self.user.email,
+            primary=True,
+            verified=True,
+        )
+
+        response = self.api_post(
+            "/api/accounts/login/",
+            {
+                "identifier": "auth@example.com",
+                "password": "OldPassword123!",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("access", response.data)
+        self.assertEqual(response.data["user"]["username"], "auth-user")
 
     def test_password_change_requires_current_password(self):
         self.authenticate(self.user)
@@ -223,6 +344,7 @@ class AuthFlowTests(AccountsApiTestCase):
 
     def test_password_change_updates_password(self):
         self.authenticate(self.user)
+        refresh = RefreshToken.for_user(self.user)
 
         response = self.api_post(
             "/api/accounts/password/change/",
@@ -235,6 +357,9 @@ class AuthFlowTests(AccountsApiTestCase):
         self.assertEqual(response.status_code, 200)
         self.user.refresh_from_db()
         self.assertTrue(self.user.check_password("NewPassword123!"))
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__jti=refresh["jti"]).exists()
+        )
 
     def test_email_verify_confirms_email(self):
         email_address = EmailAddress.objects.create(
@@ -258,19 +383,67 @@ class AuthFlowTests(AccountsApiTestCase):
             primary=True,
             verified=False,
         )
-        self.authenticate(self.user)
 
-        response = self.api_post("/api/accounts/email/resend/", {})
+        response = self.api_post(
+            "/api/accounts/email/resend/",
+            {"email": "auth@example.com"},
+        )
 
         self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["detail"],
+            "messages.email.verification_sent_if_account_exists",
+        )
         self.assertEqual(len(mail.outbox), 1)
         self.assertIn(
             "https://app.example.com/auth/verify-email?key=",
             mail.outbox[0].body,
         )
 
+    def test_resend_verification_email_does_not_enumerate_unknown_email(self):
+        response = self.api_post(
+            "/api/accounts/email/resend/",
+            {"email": "missing@example.com"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["detail"],
+            "messages.email.verification_sent_if_account_exists",
+        )
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_resend_verification_email_does_not_send_when_already_verified(self):
+        EmailAddress.objects.create(
+            user=self.user,
+            email=self.user.email,
+            primary=True,
+            verified=True,
+        )
+
+        response = self.api_post(
+            "/api/accounts/email/resend/",
+            {"email": "auth@example.com"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 0)
+
     def test_logout_blacklists_refresh_token(self):
         self.authenticate(self.user)
+        refresh = RefreshToken.for_user(self.user)
+
+        response = self.api_post(
+            "/api/accounts/logout/",
+            {"refresh": str(refresh)},
+        )
+
+        self.assertEqual(response.status_code, 204)
+        self.assertTrue(
+            BlacklistedToken.objects.filter(token__jti=refresh["jti"]).exists()
+        )
+
+    def test_logout_blacklists_refresh_token_without_access_token(self):
         refresh = RefreshToken.for_user(self.user)
 
         response = self.api_post(
