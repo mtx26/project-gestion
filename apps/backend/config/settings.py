@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "anymail",
+    "corsheaders",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -68,6 +69,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -264,9 +266,17 @@ FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="") or env(
     "NEXT_PUBLIC_APP_URL",
     default="http://localhost:3000",
 )
+CORS_ALLOWED_ORIGINS = env.list(
+    "CORS_ALLOWED_ORIGINS",
+    default=[
+        FRONTEND_APP_URL,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+)
 PASSWORD_RESET_CONFIRM_URL = env(
     "PASSWORD_RESET_CONFIRM_URL",
-    default=f"{FRONTEND_APP_URL}/auth/password-reset/confirm",
+    default=f"{FRONTEND_APP_URL}/auth/reset-password",
 )
 EMAIL_VERIFICATION_URL = env(
     "EMAIL_VERIFICATION_URL",

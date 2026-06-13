@@ -43,6 +43,10 @@ def send_email(
         "type": type,
     }
     if resend_template_id:
+        if settings.EMAIL_BACKEND == "anymail.backends.resend.EmailBackend":
+            # Resend rejects requests that include `text` with a template.
+            # Anymail treats body=None as "do not serialize a text body".
+            message.body = None
         message.esp_extra = {
             "template": {
                 "id": resend_template_id,

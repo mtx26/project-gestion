@@ -1,0 +1,89 @@
+"use client";
+
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  resetPasswordConfirmSchema,
+  type ResetPasswordConfirmFormValues,
+} from "@project-gestion/validation";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { AuthShell } from "@/components/auth-shell";
+import { FormError } from "@/components/form-error";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { api, webTokenStore } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
+
+function ResetPasswordContent() {
+  const router = useRouter();
+  const params = useSearchParams();
+  const [serverError, setServerError] = useState<string | null>(null);
+  const form = useForm<ResetPasswordConfirmFormValues>({
+    resolver: zodResolver(resetPasswordConfirmSchema),
+    defaultValues: {
+      uid: params.get("uid") ?? "",
+      token: params.get("token") ?? "",
+      new_password: "",
+    },
+  });
+
+  async function onSubmit(values: ResetPasswordConfirmFormValues) {
+    setServerError(null);
+    try {
+      await api.auth.resetPasswordConfirm(values);
+      await webTokenStore.clearTokens();
+      router.replace("/auth/login?password_reset=1");
+    } catch (error) {
+      setServerError(getErrorMessage(error));
+    }
+  }
+
+  return (
+    <AuthShell title="Nouveau mot de passe" description="Definis un nouveau mot de passe.">
+      <Card>
+        <CardContent className="pt-6">
+          <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
+            <input type="hidden" {...form.register("uid")} />
+            <input type="hidden" {...form.register("token")} />
+            <div className="space-y-2">
+              <Label htmlFor="new_password">Nouveau mot de passe</Label>
+              <Input
+                id="new_password"
+                type="password"
+                autoComplete="new-password"
+                {...form.register("new_password")}
+              />
+              <FormError message={form.formState.errors.new_password?.message} />
+            </div>
+            <FormError
+              message={
+                form.formState.errors.uid?.message ??
+                form.formState.errors.token?.message ??
+                serverError
+              }
+            />
+            <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
+              Mettre a jour
+            </Button>
+          </form>
+          <Button asChild variant="link" className="mt-4 w-full">
+            <Link href="/auth/login">Retour a la connexion</Link>
+          </Button>
+        </CardContent>
+      </Card>
+    </AuthShell>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense>
+      <ResetPasswordContent />
+    </Suspense>
+  );
+}

@@ -3,7 +3,9 @@ from unittest.mock import patch
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.mail import EmailMessage
 from django.test import TestCase, override_settings
+from anymail.backends.resend import EmailBackend as ResendEmailBackend
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
@@ -208,6 +210,34 @@ class EmailDeliveryServiceTests(TestCase):
             mail.outbox[0].esp_extra["template"]["variables"]["PROJECT_NAME"],
             "Main project",
         )
+
+    @override_settings(EMAIL_BACKEND="anymail.backends.resend.EmailBackend")
+    def test_send_email_omits_body_when_resend_template_is_used(self):
+        sent_messages = []
+
+        def capture_send(message):
+            sent_messages.append(message)
+            return 1
+
+        with patch.object(EmailMessage, "send", autospec=True, side_effect=capture_send):
+            delivery = send_email(
+                to_email="recipient@example.com",
+                subject="Invitation",
+                type="project_invitation",
+                text_body="Fallback invitation text.",
+                resend_template_id="project-invitation",
+                resend_template_variables={"PROJECT_NAME": "Main project"},
+            )
+
+        self.assertEqual(delivery.status, EmailDelivery.Status.SENT)
+        self.assertEqual(len(sent_messages), 1)
+        self.assertIsNone(sent_messages[0].body)
+        payload = ResendEmailBackend(api_key="test-key").build_message_payload(
+            sent_messages[0],
+            {},
+        )
+        self.assertNotIn("text", payload.data)
+        self.assertEqual(payload.data["template"]["id"], "project-invitation")
 
 
 @override_settings(
