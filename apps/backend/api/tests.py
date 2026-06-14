@@ -1,3 +1,4 @@
+from datetime import datetime
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -5,6 +6,7 @@ from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.core.mail import EmailMessage
 from django.test import TestCase, override_settings
+from django.utils import timezone
 from anymail.backends.resend import EmailBackend as ResendEmailBackend
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
@@ -1233,7 +1235,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
             project=self.other_project,
             name="Other project folder",
         )
-        self.url = f"/api/projects/{self.project.id}/folders/{self.folder.id}"
+        self.url = f"/api/projects/{self.project.id}/folders/{self.folder.id}/"
 
     # WHEN
     def when_get_folder(self):
@@ -1295,7 +1297,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
 
     def test_member_cannot_get_folder_from_another_project(self):
         self.given_member_authenticated(["file.view"])
-        self.url = f"/api/projects/{self.other_project.id}/folders/{self.other_project_folder.id}"
+        self.url = f"/api/projects/{self.other_project.id}/folders/{self.other_project_folder.id}/"
 
         response = self.when_get_folder()
 
@@ -2973,12 +2975,20 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
-    def test_member_without_time_entry_view_cannot_list_time_entries(self):
+    def test_member_without_time_entry_view_can_list_own_time_entries_only(self):
         self.given_member_authenticated(["time_entry.edit"])
+        TimeEntry.objects.create(
+            project=self.project,
+            user=self.member,
+            duration_minutes=45,
+            hourly_rate="30.00",
+            description="Own member work",
+        )
 
         response = self.when_list_time_entries()
 
-        self.assert_forbidden(response)
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Own member work"])
 
     def test_non_member_cannot_list_time_entries(self):
         self.given_authenticated(self.other_user)
@@ -3815,6 +3825,186 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_financial_entry_does_not_exist("Invalid payment finance")
 
 
+class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.january_expense = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="100.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="January labor",
+        )
+        self.january_refund = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="25.00",
+            type=FinancialEntry.FinancialType.REFUND,
+            category="labor",
+            description="January refund",
+        )
+        self.february_expense = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="50.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="material",
+            description="February material",
+        )
+        self.deleted_entry = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="900.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="deleted",
+            description="Deleted chart entry",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_entry = FinancialEntry.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            amount="800.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="other",
+            description="Other project chart entry",
+        )
+
+        self.set_created_at(self.january_expense, datetime(2026, 1, 5, 12, 0))
+        self.set_created_at(self.january_refund, datetime(2026, 1, 20, 12, 0))
+        self.set_created_at(self.february_expense, datetime(2026, 2, 3, 12, 0))
+        self.set_created_at(self.deleted_entry, datetime(2026, 2, 4, 12, 0))
+        self.set_created_at(self.other_project_entry, datetime(2026, 1, 5, 12, 0))
+
+        self.url = f"/api/projects/{self.project.id}/financial-entries/chart/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/financial-entries/chart/"
+
+    # GIVEN
+    def set_created_at(self, entry, value):
+        FinancialEntry.all_objects.filter(pk=entry.pk).update(
+            created_at=timezone.make_aware(value),
+        )
+
+    # WHEN
+    def when_get_financial_chart(self, query=""):
+        return self.api_get(f"{self.url}{query}")
+
+    # TESTS GET
+    def test_anonymous_cannot_get_financial_chart(self):
+        response = self.when_get_financial_chart()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_get_financial_chart_data(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_chart()
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual(data["group_by"], "month")
+        self.assertIsNone(data["start_date"])
+        self.assertIsNone(data["end_date"])
+        self.assertEqual(data["totals"], {
+            "count": 3,
+            "expenses": "150.00",
+            "refunds": "25.00",
+            "balance": "125.00",
+        })
+        self.assertEqual(data["series"], [
+            {
+                "period": "2026-01",
+                "count": 2,
+                "expenses": "100.00",
+                "refunds": "25.00",
+                "balance": "75.00",
+            },
+            {
+                "period": "2026-02",
+                "count": 1,
+                "expenses": "50.00",
+                "refunds": "0.00",
+                "balance": "50.00",
+            },
+        ])
+        self.assertEqual(data["categories"], [
+            {
+                "category": "labor",
+                "count": 2,
+                "expenses": "100.00",
+                "refunds": "25.00",
+                "balance": "75.00",
+            },
+            {
+                "category": "material",
+                "count": 1,
+                "expenses": "50.00",
+                "refunds": "0.00",
+                "balance": "50.00",
+            },
+        ])
+
+    def test_member_with_finance_view_can_get_financial_chart(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_get_financial_chart()
+
+        self.assert_ok(response)
+
+    def test_member_without_finance_view_cannot_get_financial_chart(self):
+        self.given_member_authenticated(["finance.edit"])
+
+        response = self.when_get_financial_chart()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_get_another_project_financial_chart(self):
+        self.given_member_authenticated(["finance.view"])
+        self.url = self.other_project_url
+
+        response = self.when_get_financial_chart()
+
+        self.assert_forbidden(response)
+
+    def test_chart_can_group_by_day_and_filter_date_range(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_chart(
+            "?group_by=day&start_date=2026-02-01&end_date=2026-02-28"
+        )
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual(data["group_by"], "day")
+        self.assertEqual(data["start_date"], "2026-02-01")
+        self.assertEqual(data["end_date"], "2026-02-28")
+        self.assertEqual(data["totals"], {
+            "count": 1,
+            "expenses": "50.00",
+            "refunds": "0.00",
+            "balance": "50.00",
+        })
+        self.assertEqual(data["series"], [
+            {
+                "period": "2026-02-03",
+                "count": 1,
+                "expenses": "50.00",
+                "refunds": "0.00",
+                "balance": "50.00",
+            },
+        ])
+
+    def test_chart_rejects_end_date_before_start_date(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_chart(
+            "?start_date=2026-02-28&end_date=2026-02-01"
+        )
+
+        self.assert_bad_request(response)
+
+
 class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()
@@ -4322,15 +4512,15 @@ class ProjectDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_no_content(response)
         self.assert_project_deleted_by(self.owner)
 
-    def test_member_with_project_delete_cannot_delete_project(self):
-        self.given_member_authenticated(["project.delete"])
+    def test_member_with_project_permissions_cannot_delete_project(self):
+        self.given_member_authenticated(["project.edit", "project.restore"])
 
         response = self.when_delete_project()
 
         self.assert_forbidden(response)
         self.assert_project_not_deleted()
 
-    def test_member_without_project_delete_cannot_delete_project(self):
+    def test_member_without_project_permissions_cannot_delete_project(self):
         self.given_member_authenticated(["project.edit"])
 
         response = self.when_delete_project()

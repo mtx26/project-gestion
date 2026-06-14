@@ -4,6 +4,7 @@ import type { Project } from "@project-gestion/types";
 import { projectSchema, type ProjectFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
+import { normalizeApiList } from "@project-gestion/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -17,7 +18,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/auth-store";
 
 type ProjectWorkspaceShellProps = {
-  activeItem: "dashboard" | "settings";
+  activeItem: "dashboard" | "settings" | "files" | "time";
   selectedProjectIdFromUrl?: string;
   maxWidthClassName?: string;
   onProjectSelected?: (id: number) => void;
@@ -34,14 +35,6 @@ export type ProjectWorkspaceState = {
   openCreateProject: () => void;
   queryClient: ReturnType<typeof useQueryClient>;
 };
-
-function normalizeProjects(data: Project[] | { results: Project[] } | undefined) {
-  if (!data) {
-    return [];
-  }
-
-  return Array.isArray(data) ? data : data.results;
-}
 
 export function ProjectWorkspaceShell({
   activeItem,
@@ -66,7 +59,7 @@ export function ProjectWorkspaceShell({
     queryFn: api.projects.list,
   });
 
-  const projects = normalizeProjects(projectsQuery.data);
+  const projects = normalizeApiList(projectsQuery.data);
   const preferredProjectId = manualSelectedProjectId || selectedProjectIdFromUrl;
   const selectedProjectId = projects.some((project) => String(project.id) === preferredProjectId)
     ? preferredProjectId

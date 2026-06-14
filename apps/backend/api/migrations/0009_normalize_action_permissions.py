@@ -8,11 +8,6 @@ ACTIVE_PERMISSIONS = [
         "description": "permissions.project.edit.description",
     },
     {
-        "code": "project.delete",
-        "name": "permissions.project.delete.name",
-        "description": "permissions.project.delete.description",
-    },
-    {
         "code": "project.restore",
         "name": "permissions.project.restore.name",
         "description": "permissions.project.restore.description",

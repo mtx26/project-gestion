@@ -49,6 +49,7 @@ from .views.time_entries import (
     TimeEntryRestoreView,
 )
 from .views.financial_entries import (
+    FinancialEntryChartView,
     FinancialEntryListCreateView,
     FinancialEntryDetailView,
     FinancialEntryTrashListView,
@@ -78,7 +79,7 @@ urlpatterns = [
     # Folders
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/tree/", FolderTreeView.as_view(), name="project-folder-tree"),
-    path("projects/<int:project_id>/folders/<int:pk>", FolderDetailView.as_view(), name="project-folders"),
+    path("projects/<int:project_id>/folders/<int:pk>/", FolderDetailView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/trash/", FolderTrashListView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/<int:pk>/restore/", FolderRestoreView.as_view(), name="project-folders"),
     # Documents
@@ -99,6 +100,7 @@ urlpatterns = [
     path("projects/<int:project_id>/time-entries/<int:pk>/restore/", TimeEntryRestoreView.as_view(), name="project-time-entry-restore"),
     # Financial Entries
     path("projects/<int:project_id>/financial-entries/", FinancialEntryListCreateView.as_view(), name="project-financial-entries"),
+    path("projects/<int:project_id>/financial-entries/chart/", FinancialEntryChartView.as_view(), name="project-financial-entries-chart"),
     path("projects/<int:project_id>/financial-entries/trash/", FinancialEntryTrashListView.as_view(), name="project-financial-entries-trash"),
     path("projects/<int:project_id>/financial-entries/<int:pk>/", FinancialEntryDetailView.as_view(), name="project-financial-entry-detail"),
     path("projects/<int:project_id>/financial-entries/<int:pk>/restore/", FinancialEntryRestoreView.as_view(), name="project-financial-entry-restore"),

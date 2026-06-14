@@ -6,9 +6,10 @@ import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-
 export default function DashboardPage() {
   return (
     <ProjectWorkspaceShell activeItem="dashboard">
-      {({ selectedProject, projectsQuery, openCreateProject }) => (
+      {({ user, selectedProject, projectsQuery, openCreateProject }) => (
         <ActiveProjectDashboard
           project={selectedProject}
+          userId={user?.id ?? null}
           isLoading={projectsQuery.isLoading}
           onCreateProject={openCreateProject}
         />

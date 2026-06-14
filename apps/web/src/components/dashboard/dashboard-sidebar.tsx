@@ -1,5 +1,5 @@
 import type { Project } from "@project-gestion/types";
-import { FolderKanban, LayoutDashboard, Plus, Settings } from "lucide-react";
+import { Clock3, FolderKanban, LayoutDashboard, Plus, Settings, SquareLibrary } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ type DashboardSidebarProps = {
   projects: Project[];
   selectedProjectId: string;
   userId: number | null;
-  activeItem: "dashboard" | "settings";
+  activeItem: "dashboard" | "settings" | "files" | "time";
   isLoading: boolean;
   onSelectProject: (id: number) => void;
   onCreateProject: () => void;
@@ -26,8 +26,12 @@ export function DashboardSidebar({
   onCreateProject,
 }: DashboardSidebarProps) {
   const settingsHref = selectedProjectId ? `/settings?project=${selectedProjectId}` : "/settings";
+  const filesHref = selectedProjectId ? `/files?project=${selectedProjectId}` : "/files";
+  const timeHref = selectedProjectId ? `/time?project=${selectedProjectId}` : "/time";
   const navigation = [
     { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { key: "files", href: filesHref, label: "Projet", icon: SquareLibrary },
+    { key: "time", href: timeHref, label: "Temps", icon: Clock3 },
     { key: "settings", href: settingsHref, label: "Parametres projet", icon: Settings },
   ] as const;
 

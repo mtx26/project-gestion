@@ -165,13 +165,20 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
+    user_display_name = serializers.SerializerMethodField()
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    role_name = serializers.CharField(source="role.name", read_only=True)
+
     class Meta:
         model = ProjectMember
         fields = [
             "id",
             "project",
             "user",
+            "user_display_name",
+            "user_email",
             "role",
+            "role_name",
             "created_at",
             "updated_at",
             "deleted_at",
@@ -179,7 +186,14 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
+            "user_display_name",
+            "user_email",
+            "role_name",
         ]
+
+    def get_user_display_name(self, member):
+        full_name = member.user.get_full_name().strip()
+        return full_name or member.user.username or member.user.email
 
 
 class FolderSerializer(serializers.ModelSerializer):
@@ -665,3 +679,48 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
+
+class FinancialEntryChartQuerySerializer(serializers.Serializer):
+    group_by = serializers.ChoiceField(
+        choices=["day", "month"],
+        required=False,
+        default="month",
+    )
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        start_date = attrs.get("start_date")
+        end_date = attrs.get("end_date")
+
+        if start_date and end_date and start_date > end_date:
+            raise serializers.ValidationError({
+                "end_date": "errors.financial_chart.end_date_before_start_date"
+            })
+
+        return attrs
+
+
+class FinancialEntryChartTotalsSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    expenses = serializers.CharField()
+    refunds = serializers.CharField()
+    balance = serializers.CharField()
+
+
+class FinancialEntryChartSeriesPointSerializer(FinancialEntryChartTotalsSerializer):
+    period = serializers.CharField()
+
+
+class FinancialEntryChartCategorySerializer(FinancialEntryChartTotalsSerializer):
+    category = serializers.CharField(allow_null=True)
+
+
+class FinancialEntryChartSerializer(serializers.Serializer):
+    group_by = serializers.ChoiceField(choices=["day", "month"])
+    start_date = serializers.DateField(allow_null=True)
+    end_date = serializers.DateField(allow_null=True)
+    totals = FinancialEntryChartTotalsSerializer()
+    series = FinancialEntryChartSeriesPointSerializer(many=True)
+    categories = FinancialEntryChartCategorySerializer(many=True)

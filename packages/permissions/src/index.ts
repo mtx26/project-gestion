@@ -1,6 +1,5 @@
 export const permissionCodes = {
   projectEdit: "project.edit",
-  projectDelete: "project.delete",
   projectRestore: "project.restore",
   roleView: "role.view",
   roleEdit: "role.edit",
@@ -30,9 +29,26 @@ export type PermissionCode = (typeof permissionCodes)[keyof typeof permissionCod
 
 export const allProjectPermissionCodes = Object.values(permissionCodes);
 
+export const permissionScopeLabels = {
+  project: "Projet",
+  role: "Roles",
+  member: "Membres",
+  file: "Fichiers",
+  task: "Taches",
+  time_entry: "Temps",
+  finance: "Finance",
+  other: "Autres",
+} as const;
+
+export type PermissionScope = keyof typeof permissionScopeLabels;
+
 export type ProjectPermissionState = {
   owner: number;
   current_user_permission_codes?: string[];
+};
+
+export type PermissionLike = {
+  code: string;
 };
 
 export function isProjectOwner(
@@ -70,4 +86,46 @@ export function canDeleteProject(
   userId: number | null | undefined,
 ) {
   return isProjectOwner(project, userId);
+}
+
+export function getPermissionScope(code: string): PermissionScope {
+  const scope = code.split(".")[0] || "other";
+
+  return scope in permissionScopeLabels ? (scope as PermissionScope) : "other";
+}
+
+export function getPermissionAction(code: string) {
+  const [, ...actionParts] = code.split(".");
+
+  return actionParts.join(".") || code;
+}
+
+export function formatPermissionScope(scope: string) {
+  return permissionScopeLabels[scope as PermissionScope] ?? permissionScopeLabels.other;
+}
+
+export function groupPermissionsByScope<TPermission extends PermissionLike>(permissions: TPermission[]) {
+  const groups = new Map<PermissionScope, TPermission[]>();
+
+  for (const permission of permissions) {
+    const scope = getPermissionScope(permission.code);
+    groups.set(scope, [...(groups.get(scope) ?? []), permission]);
+  }
+
+  return Array.from(groups.entries()).map(([scope, items]) => ({
+    scope,
+    label: formatPermissionScope(scope),
+    permissions: items,
+  }));
+}
+
+export function canCreateRoleDraft(name: string, permissionIds: number[]) {
+  return name.trim().length > 0 && permissionIds.length > 0;
+}
+
+export function buildRolePayload(name: string, permissionIds: number[]) {
+  return {
+    name: name.trim(),
+    permission_ids: permissionIds,
+  };
 }

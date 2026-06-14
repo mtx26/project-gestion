@@ -1,13 +1,27 @@
 import type {
   ApiFieldErrors,
   AuthTokens,
+  FinancialEntryChart,
+  FinancialEntry,
+  FolderTreeNode,
+  Invitation,
   LoginPayload,
   LoginResponse,
   PaginatedResponse,
+  Permission,
   Project,
+  ProjectMember,
   ProjectPayload,
   RegisterPayload,
+  Role,
+  RolePayload,
+  TimeEntry,
+  TimeEntryPayload,
   User,
+  Folder,
+  FolderPayload,
+  File,
+  DocumentUploadPayload,
 } from "@project-gestion/types";
 
 export type TokenStore = {
@@ -22,6 +36,35 @@ export type ApiClientOptions = {
   tokenStore?: TokenStore;
   onSessionInvalid?: () => void;
 };
+
+export function normalizeApiList<T>(data: T[] | PaginatedResponse<T> | undefined) {
+  if (!data) {
+    return [];
+  }
+
+  return Array.isArray(data) ? data : data.results;
+}
+
+export function summarizeFinancialEntries(entries: Pick<FinancialEntry, "amount" | "type">[]) {
+  const expenses = sumFinancialEntries(entries, "expense");
+  const refunds = sumFinancialEntries(entries, "refund");
+
+  return {
+    count: entries.length,
+    expenses,
+    refunds,
+    balance: expenses - refunds,
+  };
+}
+
+export function sumFinancialEntries(
+  entries: Pick<FinancialEntry, "amount" | "type">[],
+  type: FinancialEntry["type"],
+) {
+  return entries
+    .filter((entry) => entry.type === type)
+    .reduce((total, entry) => total + Number(entry.amount), 0);
+}
 
 export class ApiError extends Error {
   status: number;
@@ -61,7 +104,7 @@ export function createApiClient({
     const response = await fetch(buildUrl(baseUrl, path), {
       ...options,
       headers: await buildHeaders(options, tokenStore),
-      body: options.body == null ? undefined : JSON.stringify(options.body),
+      body: serializeBody(options.body),
     });
 
     if (response.status === 401 && tokenStore && canRetry) {
@@ -154,12 +197,132 @@ export function createApiClient({
       remove: (id: number) =>
         request<void>(`/api/projects/${id}/`, { method: "DELETE" }),
     },
+    members: {
+      list: (projectId: number) =>
+        request<ProjectMember[] | PaginatedResponse<ProjectMember>>(
+          `/api/projects/${projectId}/members/`,
+        ),
+    },
+    roles: {
+      list: (projectId: number) =>
+        request<Role[] | PaginatedResponse<Role>>(`/api/projects/${projectId}/roles/`),
+      create: (projectId: number, payload: RolePayload) =>
+        request<Role>(`/api/projects/${projectId}/roles/`, {
+          method: "POST",
+          body: payload,
+        }),
+      update: (projectId: number, roleId: number, payload: RolePayload) =>
+        request<Role>(`/api/projects/${projectId}/roles/${roleId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+    },
+    permissions: {
+      list: () => request<Permission[] | PaginatedResponse<Permission>>("/api/permissions/"),
+    },
+    invitations: {
+      list: (projectId: number) =>
+        request<Invitation[] | PaginatedResponse<Invitation>>(
+          `/api/projects/${projectId}/invitations/`,
+        ),
+      create: (projectId: number, payload: { email: string; role: number }) =>
+        request<Invitation>(`/api/projects/${projectId}/invitations/`, {
+          method: "POST",
+          body: payload,
+        }),
+      remove: (projectId: number, invitationId: number) =>
+        request<void>(`/api/projects/${projectId}/invitations/${invitationId}/`, {
+          method: "DELETE",
+        }),
+    },
+    financialEntries: {
+      list: (projectId: number) =>
+        request<FinancialEntry[] | PaginatedResponse<FinancialEntry>>(
+          `/api/projects/${projectId}/financial-entries/`,
+        ),
+      chart: (
+        projectId: number,
+        query: { group_by?: "day" | "month"; start_date?: string; end_date?: string } = {},
+      ) =>
+        request<FinancialEntryChart>(
+          `/api/projects/${projectId}/financial-entries/chart/${buildQueryString(query)}`,
+        ),
+    },
+    timeEntries: {
+      list: (projectId: number) =>
+        request<TimeEntry[] | PaginatedResponse<TimeEntry>>(
+          `/api/projects/${projectId}/time-entries/`,
+        ),
+      create: (projectId: number, payload: TimeEntryPayload) =>
+        request<TimeEntry>(`/api/projects/${projectId}/time-entries/`, {
+          method: "POST",
+          body: payload,
+        }),
+      update: (projectId: number, timeEntryId: number, payload: Partial<TimeEntryPayload>) =>
+        request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      remove: (projectId: number, timeEntryId: number) =>
+        request<void>(`/api/projects/${projectId}/time-entries/${timeEntryId}/`, {
+          method: "DELETE",
+        }),
+    },
+    folders: {
+      tree: (projectId: number) =>
+        request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/tree/`),
+      create: (projectId: number, payload: FolderPayload) =>
+        request<Folder>(`/api/projects/${projectId}/folders/`, {
+          method: "POST",
+          body: payload,
+        }),
+      update: (projectId: number, folderId: number, payload: Partial<FolderPayload>) =>
+        request<Folder>(`/api/projects/${projectId}/folders/${folderId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      remove: (projectId: number, folderId: number) =>
+        request<void>(`/api/projects/${projectId}/folders/${folderId}/`, {
+          method: "DELETE",
+        }),
+    },
+    documents: {
+      download: (projectId: number, documentId: number) =>
+        request<{ url: string; file_name: string; mime_type: string | null }>(
+          `/api/projects/${projectId}/documents/${documentId}/download/`,
+        ),
+      update: (
+        projectId: number,
+        documentId: number,
+        payload: Partial<{ folder: number | null; name: string; description: string | null }>,
+      ) =>
+        request<File>(`/api/projects/${projectId}/documents/${documentId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      remove: (projectId: number, documentId: number) =>
+        request<void>(`/api/projects/${projectId}/documents/${documentId}/`, {
+          method: "DELETE",
+        }),
+      upload: (projectId: number, payload: DocumentUploadPayload) => {
+        const formData = new FormData();
+        formData.set("file", payload.file);
+        appendFormDataValue(formData, "folder", payload.folder);
+        appendFormDataValue(formData, "name", payload.name);
+        appendFormDataValue(formData, "description", payload.description);
+
+        return request<File>(`/api/projects/${projectId}/documents/`, {
+          method: "POST",
+          body: formData,
+        });
+      },
+    },
   };
 }
 
 async function buildHeaders(options: RequestOptions, tokenStore?: TokenStore) {
   const headers = new Headers(options.headers);
-  if (!headers.has("Content-Type") && options.body != null) {
+  if (!headers.has("Content-Type") && options.body != null && !isFormData(options.body)) {
     headers.set("Content-Type", "application/json");
   }
   if (!headers.has("Accept")) {
@@ -172,6 +335,24 @@ async function buildHeaders(options: RequestOptions, tokenStore?: TokenStore) {
   }
 
   return headers;
+}
+
+function serializeBody(body: unknown) {
+  if (body == null) {
+    return undefined;
+  }
+
+  return isFormData(body) ? body : JSON.stringify(body);
+}
+
+function isFormData(value: unknown): value is FormData {
+  return typeof FormData !== "undefined" && value instanceof FormData;
+}
+
+function appendFormDataValue(formData: FormData, key: string, value: string | number | null | undefined) {
+  if (value != null && value !== "") {
+    formData.set(key, String(value));
+  }
 }
 
 async function refreshAccessToken(baseUrl: string, tokenStore: TokenStore) {
@@ -206,6 +387,19 @@ function buildUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
+function buildQueryString(query: Record<string, string | undefined>) {
+  const params = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(query)) {
+    if (value) {
+      params.set(key, value);
+    }
+  }
+
+  const queryString = params.toString();
+  return queryString ? `?${queryString}` : "";
+}
+
 async function readJson(response: Response) {
   const text = await response.text();
   if (!text) {
@@ -227,11 +421,26 @@ function getErrorMessage(status: number, data: unknown) {
   if (isRecord(data) && typeof data.detail === "string") {
     return data.detail;
   }
+  if (typeof data === "string" && data.trim()) {
+    return data;
+  }
   if (status === 429) {
     return "Trop de tentatives. Reessaie plus tard.";
   }
   if (status === 401) {
     return "Session expiree. Connecte-toi a nouveau.";
+  }
+  if (status === 403) {
+    return "Action non autorisee.";
+  }
+  if (status === 404) {
+    return "Ressource introuvable.";
+  }
+  if (status >= 500) {
+    return `Erreur serveur (${status}).`;
+  }
+  if (status >= 400) {
+    return `Erreur API (${status}).`;
   }
   return "Une erreur est survenue.";
 }

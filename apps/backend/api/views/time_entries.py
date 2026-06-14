@@ -11,6 +11,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models import TimeEntry
 from ..permissions import HasProjectPermission
 from ..serializers import TimeEntrySerializer
+from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 
 
@@ -40,7 +41,7 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
 
     def get_permissions(self):
         if self.request.method == "GET":
-            self.permission_code = "time_entry.view"
+            self.permission_code = None
         elif self.request.method == "POST":
             self.permission_code = "time_entry.edit"
 
@@ -50,9 +51,12 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.objects.none()
 
-        return TimeEntry.objects.filter(
+        project = get_object_or_404(
+            get_accessible_projects(self.request.user),
+            pk=self.kwargs["project_id"],
+        )
+        queryset = TimeEntry.objects.filter(
             project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
         ).select_related(
             "project",
             "folder",
@@ -61,6 +65,11 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
         ).prefetch_related(
             "financial_entries",
         ).order_by("-created_at", "-id")
+
+        if not has_project_permission(self.request.user, project, "time_entry.view"):
+            queryset = queryset.filter(user=self.request.user)
+
+        return queryset
 
     def perform_create(self, serializer):
         project = get_object_or_404(
