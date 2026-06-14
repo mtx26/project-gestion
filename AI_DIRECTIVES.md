@@ -36,7 +36,6 @@ apps/
   <application>/
 packages/
   <shared-library>/
-supabase/
 ```
 
 Rules:

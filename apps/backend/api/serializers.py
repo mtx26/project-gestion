@@ -9,6 +9,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
 from .services.folders import build_folder_tree
+from .services.permissions import get_project_permission_codes
 from .services.invitations import (
     accept_project_invitation,
     create_project_invitation,
@@ -42,11 +43,16 @@ BASE_READ_ONLY_FIELDS = [
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    owner_display_name = serializers.SerializerMethodField()
+    current_user_permission_codes = serializers.SerializerMethodField()
+
     class Meta:
         model = Project
         fields = [
             "id",
             "owner",
+            "owner_display_name",
+            "current_user_permission_codes",
             "name",
             "description",
             "created_at",
@@ -56,7 +62,19 @@ class ProjectSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "owner",
+            "owner_display_name",
+            "current_user_permission_codes",
         ]
+
+    def get_owner_display_name(self, project):
+        owner = project.owner
+        full_name = owner.get_full_name().strip()
+        return full_name or owner.username or owner.email
+
+    def get_current_user_permission_codes(self, project):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return get_project_permission_codes(user, project)
 
 
 class PermissionSerializer(serializers.ModelSerializer):

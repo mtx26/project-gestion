@@ -59,6 +59,8 @@ export type Role = {
 export type Project = {
   id: ID;
   owner: ID;
+  owner_display_name: string;
+  current_user_permission_codes: string[];
   name: string;
   description: string | null;
   created_at: string;
@@ -111,4 +113,3 @@ export type PaginatedResponse<T> = {
 };
 
 export type ApiFieldErrors = Record<string, string[] | string>;
-

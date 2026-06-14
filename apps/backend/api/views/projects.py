@@ -1,4 +1,5 @@
 from rest_framework import generics
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -57,7 +58,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
     ),
     delete=extend_schema(
         summary="Supprimer un projet",
-        description="Supprime un projet avec soft-delete.\nPermission requise : `project.delete`.",
+        description="Supprime un projet avec soft-delete. Reserve au proprietaire du projet.",
     ),
 )
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -70,7 +71,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         elif self.request.method in ["PUT", "PATCH"]:
             self.permission_code = "project.edit"
         elif self.request.method == "DELETE":
-            self.permission_code = "project.delete"
+            self.permission_code = None
 
         return super().get_permissions()
 
@@ -78,6 +79,9 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         return get_accessible_projects(self.request.user)
 
     def perform_destroy(self, instance):
+        if instance.owner_id != self.request.user.id:
+            raise PermissionDenied("Seul le proprietaire du projet peut le supprimer.")
+
         instance.soft_delete(self.request.user)
 
 

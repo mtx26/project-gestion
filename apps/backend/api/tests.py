@@ -629,6 +629,18 @@ class ProjectRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_visible_project_names(response, ["Main project"])
+        project = self.response_results(response)[0]
+        self.assertEqual(project["owner_display_name"], self.owner.username)
+        self.assertEqual(project["current_user_permission_codes"], [])
+
+    def test_member_project_list_includes_effective_permission_codes(self):
+        self.given_member_authenticated(["project.edit", "task.view"])
+
+        response = self.when_list_projects()
+
+        self.assert_ok(response)
+        project = self.response_results(response)[0]
+        self.assertEqual(project["current_user_permission_codes"], ["project.edit", "task.view"])
 
     def test_user_can_list_owned_projects_only_when_not_a_member_elsewhere(self):
         self.given_authenticated(self.other_user)
@@ -4310,13 +4322,13 @@ class ProjectDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_no_content(response)
         self.assert_project_deleted_by(self.owner)
 
-    def test_member_with_project_delete_can_soft_delete_project(self):
+    def test_member_with_project_delete_cannot_delete_project(self):
         self.given_member_authenticated(["project.delete"])
 
         response = self.when_delete_project()
 
-        self.assert_no_content(response)
-        self.assert_project_deleted_by(self.member)
+        self.assert_forbidden(response)
+        self.assert_project_not_deleted()
 
     def test_member_without_project_delete_cannot_delete_project(self):
         self.given_member_authenticated(["project.edit"])
