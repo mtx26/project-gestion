@@ -2,13 +2,14 @@
 
 import { changePasswordSchema, type ChangePasswordFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import type { User } from "@project-gestion/types";
+import { useMutation } from "@tanstack/react-query";
 import { Save } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { AccountProfileForm } from "@/components/account/account-profile-form";
+import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { FormError } from "@/components/form-error";
-import { AppHeader } from "@/components/app-header";
-import { ProtectedRoute } from "@/components/protected-route";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,12 +18,16 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { useAuthStore } from "@/stores/auth-store";
 
 export default function AccountPage() {
-  const queryClient = useQueryClient();
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
+  return (
+    <ProjectWorkspaceShell activeItem="account" maxWidthClassName="max-w-4xl">
+      {({ user }) => <AccountContent user={user} />}
+    </ProjectWorkspaceShell>
+  );
+}
+
+function AccountContent({ user }: { user: User | null }) {
   const [notice, setNotice] = useState<string | null>(null);
   const passwordForm = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
@@ -37,21 +42,12 @@ export default function AccountPage() {
     },
   });
 
-  async function onLogout() {
-    await logout();
-    queryClient.clear();
-    window.location.assign("/auth/login");
-  }
-
   function onChangePassword(values: ChangePasswordFormValues) {
     changePassword.mutate(values);
   }
 
   return (
-    <ProtectedRoute>
-      <main className="min-h-dvh bg-background text-foreground">
-        <AppHeader user={user} onLogout={onLogout} backHref="/dashboard" />
-        <div className="mx-auto w-full max-w-4xl space-y-5 px-4 py-6 sm:px-6 lg:px-8">
+        <div className="space-y-5">
           <div>
             <p className="text-xs font-medium uppercase text-muted-foreground">Compte</p>
             <h1 className="mt-1 text-2xl font-semibold">Parametres du compte</h1>
@@ -78,11 +74,14 @@ export default function AccountPage() {
             <TabsContent value="profile">
               <Card className="rounded-lg">
                 <CardHeader>
-                  <CardTitle>Profil</CardTitle>
+                  <CardTitle>Informations generales</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
-                  <InfoBlock label="Email" value={user?.email || "-"} />
-                  <InfoBlock label="Nom" value={[user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.username || "-"} />
+                <CardContent>
+                  <AccountProfileForm
+                    user={user}
+                    onProfileSaved={() => setNotice("Profil mis a jour.")}
+                    onPictureSaved={() => setNotice("Photo de profil mise a jour.")}
+                  />
                 </CardContent>
               </Card>
             </TabsContent>
@@ -115,16 +114,5 @@ export default function AccountPage() {
             </TabsContent>
           </Tabs>
         </div>
-      </main>
-    </ProtectedRoute>
-  );
-}
-
-function InfoBlock({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border bg-muted/30 p-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 font-medium">{value}</p>
-    </div>
   );
 }

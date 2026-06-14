@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
-from .services.folders import build_folder_tree
+from .services.folders import build_folder_tree, build_task_tree_nodes
 from .services.permissions import get_project_permission_codes
 from .services.invitations import (
     accept_project_invitation,
@@ -242,12 +242,16 @@ class FolderSerializer(serializers.ModelSerializer):
 
 
 class FolderTreeNodeSerializer(serializers.Serializer):
-    type = serializers.ChoiceField(choices=["folder", "document"])
+    type = serializers.ChoiceField(choices=["folder", "document", "task"])
     id = serializers.IntegerField()
     name = serializers.CharField()
     description = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     color = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     icon = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    folder = serializers.IntegerField(allow_null=True, required=False)
+    status = serializers.CharField(required=False)
+    priority = serializers.CharField(required=False)
+    due_date = serializers.CharField(allow_null=True, required=False)
     file_name = serializers.CharField(required=False)
     file_size = serializers.IntegerField(required=False)
     mime_type = serializers.CharField(required=False)
@@ -262,6 +266,17 @@ class FolderTreeSerializer(serializers.Serializer):
         folders = instance["folders"]
         documents = instance["documents"]
         roots = build_folder_tree(folders, documents)
+        return FolderTreeNodeSerializer(roots, many=True).data
+
+
+class FolderTargetTreeSerializer(serializers.Serializer):
+    def to_representation(self, instance):
+        task_nodes_by_folder, root_task_nodes = build_task_tree_nodes(instance.get("tasks", []))
+        roots = build_folder_tree(
+            instance["folders"],
+            children_by_folder=task_nodes_by_folder,
+            root_children=root_task_nodes,
+        )
         return FolderTreeNodeSerializer(roots, many=True).data
 
 
@@ -631,6 +646,86 @@ class TimeEntrySerializer(serializers.ModelSerializer):
 
     def _money(self, value):
         return str(value.quantize(Decimal("0.01")))
+
+
+class TimeEntryPaymentSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+    )
+    pay_full = serializers.BooleanField(required=False, default=False)
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    financial_entry = serializers.SerializerMethodField(read_only=True)
+    time_entry = TimeEntrySerializer(read_only=True)
+
+    def validate(self, attrs):
+        time_entry = self.context["time_entry"]
+        remaining_amount = self._get_remaining_amount(time_entry)
+
+        if remaining_amount <= Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.already_paid"
+            })
+
+        amount = remaining_amount if attrs.get("pay_full") else attrs.get("amount")
+        if amount is None:
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_required"
+            })
+
+        if amount <= Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_must_be_positive"
+            })
+
+        if amount > remaining_amount:
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_exceeds_remaining"
+            })
+
+        attrs["amount"] = amount
+        return attrs
+
+    def create(self, validated_data):
+        time_entry = self.context["time_entry"]
+        request = self.context["request"]
+        description = validated_data.get("description") or f"Paiement temps #{time_entry.id}"
+
+        financial_entry = FinancialEntry.objects.create(
+            project=time_entry.project,
+            time_entry=time_entry,
+            created_by=request.user,
+            amount=validated_data["amount"],
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="Main d'oeuvre",
+            description=description,
+        )
+
+        return {
+            "financial_entry": financial_entry,
+            "time_entry": time_entry,
+        }
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_financial_entry(self, payment):
+        return FinancialEntrySerializer(payment["financial_entry"]).data
+
+    def _get_remaining_amount(self, time_entry):
+        cost_amount = Decimal(time_entry.duration_minutes) * time_entry.hourly_rate / Decimal("60")
+        paid_amount = Decimal("0.00")
+
+        for financial_entry in time_entry.financial_entries.all():
+            if financial_entry.type == FinancialEntry.FinancialType.EXPENSE:
+                paid_amount += financial_entry.amount
+            elif financial_entry.type == FinancialEntry.FinancialType.REFUND:
+                paid_amount -= financial_entry.amount
+
+        return max(cost_amount - max(paid_amount, Decimal("0.00")), Decimal("0.00"))
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):

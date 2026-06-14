@@ -9,16 +9,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AppHeader } from "@/components/app-header";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProtectedRoute } from "@/components/protected-route";
+import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/auth-store";
 
 type ProjectWorkspaceShellProps = {
-  activeItem: "dashboard" | "settings" | "files" | "time";
+  activeItem: "dashboard" | "settings" | "files" | "time" | "account";
   selectedProjectIdFromUrl?: string;
   maxWidthClassName?: string;
   onProjectSelected?: (id: number) => void;
@@ -99,22 +99,26 @@ export function ProjectWorkspaceShell({
 
   return (
     <ProtectedRoute>
-      <main className="min-h-dvh bg-background text-foreground">
-        <div className="grid min-h-dvh lg:grid-cols-[280px_1fr]">
+      <SidebarProvider>
+        <div className="flex min-h-dvh w-full flex-col bg-background text-foreground lg:flex-row">
           <DashboardSidebar
             projects={projects}
             selectedProjectId={selectedProjectId}
             userId={user?.id ?? null}
+            user={user}
             activeItem={activeItem}
             isLoading={projectsQuery.isLoading}
             onSelectProject={onSelectProject}
             onCreateProject={() => setCreateDialogOpen(true)}
+            onLogout={onLogout}
           />
 
-          <section className="min-w-0">
-            <AppHeader user={user} onLogout={onLogout} />
-
+          <SidebarInset>
             <div className={`mx-auto w-full px-4 py-6 sm:px-6 lg:px-8 ${maxWidthClassName}`}>
+              <div className="mb-4">
+                <SidebarTrigger />
+              </div>
+
               {projectsQuery.error ? (
                 <Alert variant="destructive" className="mb-6">
                   <AlertDescription>{getErrorMessage(projectsQuery.error)}</AlertDescription>
@@ -131,18 +135,18 @@ export function ProjectWorkspaceShell({
                 queryClient,
               })}
             </div>
-          </section>
-        </div>
+          </SidebarInset>
 
-        <CreateProjectDialog
-          open={createDialogOpen}
-          onOpenChange={setCreateDialogOpen}
-          form={form}
-          onSubmit={onCreateProject}
-          error={createProject.error ? getErrorMessage(createProject.error) : null}
-          isPending={createProject.isPending}
-        />
-      </main>
+          <CreateProjectDialog
+            open={createDialogOpen}
+            onOpenChange={setCreateDialogOpen}
+            form={form}
+            onSubmit={onCreateProject}
+            error={createProject.error ? getErrorMessage(createProject.error) : null}
+            isPending={createProject.isPending}
+          />
+        </div>
+      </SidebarProvider>
     </ProtectedRoute>
   );
 }

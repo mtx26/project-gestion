@@ -667,6 +667,7 @@ function TreeNode({
   onRequestDelete: (target: FileActionTarget) => void;
 }): ReactNode {
   const isFolder = node.type === "folder";
+  const actionType: FileActionTarget["type"] = isFolder ? "folder" : "document";
   const children = node.children ?? [];
   const hasChildren = children.length > 0 || draftFolder?.parentFolder === node.id;
   const isExpanded = isFolder && expandedFolderIds.has(node.id);
@@ -697,7 +698,7 @@ function TreeNode({
         style={{ paddingLeft: `${rowPaddingLeft}px` }}
         onContextMenu={() => {
           if (canEdit) {
-            onOpenContextMenu({ type: node.type, id: node.id, name: node.name });
+            onOpenContextMenu({ type: actionType, id: node.id, name: node.name });
           }
         }}
       >
@@ -767,7 +768,7 @@ function TreeNode({
                 aria-label={`Renommer ${node.name}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onRequestRename({ type: node.type, id: node.id, name: node.name });
+                  onRequestRename({ type: actionType, id: node.id, name: node.name });
                 }}
               >
                 <Pencil className="size-3" />
@@ -781,7 +782,7 @@ function TreeNode({
                 aria-label={`Supprimer ${node.name}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onRequestDelete({ type: node.type, id: node.id, name: node.name });
+                  onRequestDelete({ type: actionType, id: node.id, name: node.name });
                 }}
               >
                 <Trash2 className="size-3" />

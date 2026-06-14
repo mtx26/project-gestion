@@ -32,7 +32,8 @@ export default function LoginPage() {
     setUnverifiedEmail(null);
     try {
       await login(values);
-      router.replace("/dashboard");
+      const setupAfterLogin = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("setup") === "1";
+      router.replace(setupAfterLogin ? "/account/setup" : "/dashboard");
     } catch (error) {
       if (isEmailVerificationRequired(error)) {
         setUnverifiedEmail(values.identifier);

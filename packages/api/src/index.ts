@@ -15,9 +15,13 @@ import type {
   RegisterPayload,
   Role,
   RolePayload,
+  Task,
   TimeEntry,
+  TimeEntryPayment,
+  TimeEntryPaymentPayload,
   TimeEntryPayload,
   User,
+  UserUpdatePayload,
   Folder,
   FolderPayload,
   File,
@@ -143,6 +147,20 @@ export function createApiClient({
           skipAuth: true,
         }),
       me: () => request<User>("/api/accounts/me/"),
+      updateMe: (payload: UserUpdatePayload) =>
+        request<User>("/api/accounts/me/", {
+          method: "PATCH",
+          body: payload,
+        }),
+      uploadProfilePicture: (file: globalThis.File | Blob) => {
+        const formData = new FormData();
+        formData.set("file", file);
+
+        return request<User>("/api/accounts/me/picture/", {
+          method: "POST",
+          body: formData,
+        });
+      },
       refresh: (refresh: string) =>
         request<{ access: string }>("/api/accounts/refresh/", {
           method: "POST",
@@ -249,9 +267,17 @@ export function createApiClient({
         ),
     },
     timeEntries: {
-      list: (projectId: number) =>
+      list: (
+        projectId: number,
+        query: { user?: number; start_date?: string; end_date?: string; include_unpaid?: boolean } = {},
+      ) =>
         request<TimeEntry[] | PaginatedResponse<TimeEntry>>(
-          `/api/projects/${projectId}/time-entries/`,
+          `/api/projects/${projectId}/time-entries/${buildQueryString({
+            user: query.user ? String(query.user) : undefined,
+            start_date: query.start_date,
+            end_date: query.end_date,
+            include_unpaid: query.include_unpaid ? "true" : undefined,
+          })}`,
         ),
       create: (projectId: number, payload: TimeEntryPayload) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/`, {
@@ -267,10 +293,21 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/time-entries/${timeEntryId}/`, {
           method: "DELETE",
         }),
+      pay: (projectId: number, timeEntryId: number, payload: TimeEntryPaymentPayload) =>
+        request<TimeEntryPayment>(`/api/projects/${projectId}/time-entries/${timeEntryId}/pay/`, {
+          method: "POST",
+          body: payload,
+        }),
+    },
+    tasks: {
+      list: (projectId: number) =>
+        request<Task[] | PaginatedResponse<Task>>(`/api/projects/${projectId}/tasks/`),
     },
     folders: {
       tree: (projectId: number) =>
         request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/tree/`),
+      targetTree: (projectId: number) =>
+        request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/target-tree/`),
       create: (projectId: number, payload: FolderPayload) =>
         request<Folder>(`/api/projects/${projectId}/folders/`, {
           method: "POST",

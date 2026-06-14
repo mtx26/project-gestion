@@ -8,8 +8,14 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..models import Document, Folder
-from ..serializers import FolderSerializer, FolderTreeNodeSerializer, FolderTreeSerializer
+from ..models import Document, Folder, Task
+from ..serializers import (
+    FolderSerializer,
+    FolderTargetTreeSerializer,
+    FolderTreeNodeSerializer,
+    FolderTreeSerializer,
+)
+from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..permissions import HasProjectPermission
 
@@ -91,6 +97,47 @@ class FolderTreeView(generics.GenericAPIView):
         return Response(serializer.to_representation({
             "folders": folders,
             "documents": documents,
+        }))
+
+
+@extend_schema(tags=["folders"])
+@extend_schema_view(
+    get=extend_schema(
+        summary="Arbre des cibles de temps d'un projet",
+        description=(
+            "Retourne les dossiers et, si autorise, les taches d'un projet sous forme d'arbre.\n"
+            "Permission requise : `time_entry.edit`. Les taches requierent aussi `task.view`."
+        ),
+        responses=FolderTreeNodeSerializer(many=True),
+    )
+)
+class FolderTargetTreeView(generics.GenericAPIView):
+    serializer_class = FolderTargetTreeSerializer
+    queryset = Folder.objects.none()
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "time_entry.edit"
+
+    def get(self, request, project_id):
+        project = get_object_or_404(
+            get_accessible_projects(request.user),
+            pk=project_id,
+        )
+
+        folders = Folder.objects.filter(
+            project=project,
+        ).order_by("name", "id")
+
+        if has_project_permission(request.user, project, "task.view"):
+            tasks = Task.objects.filter(
+                project=project,
+            ).order_by("title", "id")
+        else:
+            tasks = Task.objects.none()
+
+        serializer = self.get_serializer()
+        return Response(serializer.to_representation({
+            "folders": folders,
+            "tasks": tasks,
         }))
         
 @extend_schema(tags=["folders"])

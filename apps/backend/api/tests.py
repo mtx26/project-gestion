@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
@@ -1219,6 +1220,133 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.given_authenticated(self.other_user)
 
         response = self.when_get_folder_tree()
+
+        self.assert_forbidden(response)
+
+
+class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"/api/projects/{self.project.id}/folders/target-tree/"
+        self.root_folder = Folder.objects.create(
+            project=self.project,
+            name="Root folder",
+        )
+        self.child_folder = Folder.objects.create(
+            project=self.project,
+            parent_folder=self.root_folder,
+            name="Child folder",
+        )
+        self.root_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Root task",
+            status="todo",
+        )
+        self.child_task = Task.objects.create(
+            project=self.project,
+            folder=self.child_folder,
+            created_by=self.owner,
+            title="Child task",
+            status="in_progress",
+            priority="high",
+        )
+        self.deleted_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Deleted task",
+            status="todo",
+        )
+        self.deleted_task.soft_delete(self.owner)
+        self.other_project_task = Task.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            title="Other project task",
+            status="todo",
+        )
+
+    # WHEN
+    def when_get_target_tree(self):
+        return self.api_get(self.url)
+
+    # ASSERT
+    def flatten_tree(self, nodes):
+        flattened = []
+
+        for node in nodes:
+            flattened.append(node)
+            flattened.extend(self.flatten_tree(node.get("children", [])))
+
+        return flattened
+
+    def assert_target_tree_contains_tasks(self, response):
+        tree = self.response_data(response)
+        nodes_by_name = {node["name"]: node for node in self.flatten_tree(tree)}
+
+        self.assertEqual(nodes_by_name["Root task"]["type"], "task")
+        self.assertEqual(nodes_by_name["Root task"]["status"], "todo")
+        self.assertEqual(nodes_by_name["Child task"]["type"], "task")
+        self.assertEqual(nodes_by_name["Child task"]["priority"], "high")
+
+        child_folder = nodes_by_name["Child folder"]
+        self.assertEqual(
+            {node["name"] for node in child_folder["children"]},
+            {"Child task"},
+        )
+
+    def assert_target_tree_excludes_tasks(self, response):
+        tree = self.response_data(response)
+        node_names = {node["name"] for node in self.flatten_tree(tree)}
+
+        self.assertIn("Root folder", node_names)
+        self.assertIn("Child folder", node_names)
+        self.assertNotIn("Root task", node_names)
+        self.assertNotIn("Child task", node_names)
+        self.assertNotIn("Deleted task", node_names)
+        self.assertNotIn("Other project task", node_names)
+
+    # TESTS GET
+    def test_anonymous_cannot_get_target_tree(self):
+        response = self.when_get_target_tree()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_get_target_tree_with_tasks(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        self.assert_target_tree_contains_tasks(response)
+
+    def test_member_with_time_edit_and_task_view_can_get_target_tree_with_tasks(self):
+        self.given_member_authenticated(["time_entry.edit", "task.view"])
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        self.assert_target_tree_contains_tasks(response)
+
+    def test_member_with_time_edit_without_task_view_gets_folders_only(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        self.assert_target_tree_excludes_tasks(response)
+
+    def test_member_without_time_edit_cannot_get_target_tree(self):
+        self.given_member_authenticated(["task.view"])
+
+        response = self.when_get_target_tree()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_get_target_tree(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_get_target_tree()
 
         self.assert_forbidden(response)
 
@@ -2967,16 +3095,8 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
-    def test_member_with_time_entry_view_can_list_time_entries(self):
+    def test_member_with_time_entry_view_can_list_own_time_entries_only(self):
         self.given_member_authenticated(["time_entry.view"])
-
-        response = self.when_list_time_entries()
-
-        self.assert_ok(response)
-        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
-
-    def test_member_without_time_entry_view_can_list_own_time_entries_only(self):
-        self.given_member_authenticated(["time_entry.edit"])
         TimeEntry.objects.create(
             project=self.project,
             user=self.member,
@@ -2989,6 +3109,21 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Own member work"])
+
+    def test_member_with_time_entry_view_all_can_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+
+        response = self.when_list_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+
+    def test_member_without_time_entry_view_cannot_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_list_time_entries()
+
+        self.assert_forbidden(response)
 
     def test_non_member_cannot_list_time_entries(self):
         self.given_authenticated(self.other_user)
@@ -3012,6 +3147,65 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
+
+    def test_list_can_filter_by_created_date_range(self):
+        TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
+        )
+        TimeEntry.objects.filter(pk=self.root_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 7, 1, 12, 0)),
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries("?start_date=2025-06-01&end_date=2025-06-30")
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work"])
+
+    def test_list_can_include_unpaid_entries_outside_date_range(self):
+        TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
+        )
+        TimeEntry.objects.filter(pk=self.root_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 7, 1, 12, 0)),
+        )
+        old_unpaid_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Old unpaid work",
+        )
+        TimeEntry.objects.filter(pk=old_unpaid_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 5, 1, 12, 0)),
+        )
+        old_paid_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="20.00",
+            description="Old paid work",
+        )
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=old_paid_entry,
+            created_by=self.owner,
+            amount="20.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Full payment",
+        )
+        TimeEntry.objects.filter(pk=old_paid_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 5, 2, 12, 0)),
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries(
+            "?start_date=2025-06-01&end_date=2025-06-30&include_unpaid=true"
+        )
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work", "Old unpaid work"])
 
     def test_list_can_search_by_description(self):
         self.given_authenticated(self.owner)
@@ -3242,8 +3436,15 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
 
-    def test_member_with_time_entry_view_can_get_time_entry(self):
+    def test_member_with_time_entry_view_cannot_get_other_member_time_entry(self):
         self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_get_time_entry()
+
+        self.assert_not_found(response)
+
+    def test_member_with_time_entry_view_all_can_get_time_entry(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
 
         response = self.when_get_time_entry()
 
@@ -3320,6 +3521,63 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_forbidden(response)
         self.assert_time_entry_not_deleted()
+
+
+class TimeEntryPaymentRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Payable time",
+        )
+        self.url = f"/api/projects/{self.project.id}/time-entries/{self.entry.id}/pay/"
+
+    def when_pay_time_entry(self, payload):
+        return self.api_post(self.url, payload)
+
+    def assert_time_payment_exists(self, amount):
+        self.assertTrue(
+            FinancialEntry.objects.filter(
+                project=self.project,
+                time_entry=self.entry,
+                amount=amount,
+                type=FinancialEntry.FinancialType.EXPENSE,
+            ).exists()
+        )
+
+    def test_owner_can_pay_full_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_pay_time_entry({"pay_full": True})
+
+        self.assert_created(response)
+        self.assert_time_payment_exists(Decimal("40.00"))
+
+    def test_member_with_time_entry_pay_can_pay_partial_amount(self):
+        self.given_member_authenticated(["time_entry.pay"])
+
+        response = self.when_pay_time_entry({"amount": "15.50"})
+
+        self.assert_created(response)
+        self.assert_time_payment_exists(Decimal("15.50"))
+
+    def test_member_without_time_entry_pay_cannot_pay_time_entry(self):
+        self.given_member_authenticated(["time_entry.view_all"])
+
+        response = self.when_pay_time_entry({"pay_full": True})
+
+        self.assert_forbidden(response)
+
+    def test_payment_rejects_amount_above_remaining_amount(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_pay_time_entry({"amount": "40.01"})
+
+        self.assert_bad_request(response)
 
 
 class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):

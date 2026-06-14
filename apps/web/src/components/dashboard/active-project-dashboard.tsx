@@ -30,6 +30,7 @@ export function ActiveProjectDashboard({
 }: ActiveProjectDashboardProps) {
   const canViewMembers = hasProjectPermission(project, userId, permissionCodes.memberView);
   const canViewFinance = hasProjectPermission(project, userId, permissionCodes.financeView);
+  const canViewTime = hasProjectPermission(project, userId, permissionCodes.timeEntryView);
   const membersQuery = useQuery({
     queryKey: project ? queryKeys.members.list(project.id) : ["members", "disabled"],
     queryFn: () => api.members.list(project!.id),
@@ -45,10 +46,15 @@ export function ActiveProjectDashboard({
     queryFn: () => api.financialEntries.chart(project!.id, { group_by: "month" }),
     enabled: Boolean(project && canViewFinance),
   });
+  const timeEntriesQuery = useQuery({
+    queryKey: project ? queryKeys.timeEntries.list(project.id) : ["time-entries", "disabled"],
+    queryFn: () => api.timeEntries.list(project!.id),
+    enabled: Boolean(project && canViewTime),
+  });
   const members = normalizeApiList(membersQuery.data);
   const invitations = normalizeApiList(invitationsQuery.data);
-  const visibleMembers = members.slice(0, 4);
-  const visibleInvitations = invitations.slice(0, Math.max(0, 4 - visibleMembers.length));
+  const visibleMembers = members;
+  const visibleInvitations = invitations;
   const financeChart = financeQuery.data;
   const financeTotals = financeChart?.totals ?? {
     count: 0,
@@ -57,6 +63,10 @@ export function ActiveProjectDashboard({
     balance: "0",
   };
   const financePoints = financeChart?.series ?? [];
+  const timeEntries = normalizeApiList(timeEntriesQuery.data);
+  const unpaidTimeEntries = timeEntries.filter((entry) => Number(entry.remaining_amount) > 0);
+  const unpaidMinutes = unpaidTimeEntries.reduce((total, entry) => total + entry.duration_minutes, 0);
+  const unpaidAmount = unpaidTimeEntries.reduce((total, entry) => total + Number(entry.remaining_amount), 0);
   const isFinanceLoading = financeQuery.isLoading;
   const financeError = financeQuery.error
     ? getErrorMessage(financeQuery.error)
@@ -95,13 +105,13 @@ export function ActiveProjectDashboard({
         <SummaryTile
           icon={Clock3}
           label="Heures impayees"
-          value="0h"
-          detail="A valider quand le suivi temps sera connecte."
+          value={!canViewTime ? "-" : timeEntriesQuery.isLoading ? "..." : formatDuration(unpaidMinutes)}
+          detail={!canViewTime ? "Permission time_entry.view requise." : `${formatMoney(unpaidAmount)} restant a payer.`}
         />
       </div>
 
       {canViewMembers || canViewFinance ? (
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+      <div className={canViewMembers && canViewFinance ? "grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]" : "grid gap-4"}>
         {canViewMembers ? (
         <Card className="rounded-lg">
           <CardContent className="p-4">
@@ -117,7 +127,7 @@ export function ActiveProjectDashboard({
             <p className="mt-3 text-sm text-muted-foreground">
               {members.length} membre(s), {invitations.length} invitation(s).
             </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2">
               {visibleMembers.map((member) => (
                 <div key={member.id} className="rounded-md border bg-muted/30 p-3 text-sm">
                   <div className="flex items-start justify-between gap-2">
@@ -167,7 +177,7 @@ export function ActiveProjectDashboard({
               ) : (
                 <>
                   <FinanceTimelineChart points={financePoints} />
-                  <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                  <div className="grid gap-2 sm:grid-cols-2">
                     <FinanceLine label="Depenses" value={formatMoney(financeTotals.expenses)} />
                     <FinanceLine label="Remboursements" value={formatMoney(financeTotals.refunds)} />
                     <FinanceLine label="Solde actuel" value={formatMoney(financeTotals.balance)} />
@@ -189,7 +199,7 @@ function FinanceLoadingState() {
   return (
     <>
       <Skeleton className="h-40 rounded-md" />
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+      <div className="grid gap-2 sm:grid-cols-2">
         <Skeleton className="h-10 rounded-md" />
         <Skeleton className="h-10 rounded-md" />
         <Skeleton className="h-10 rounded-md" />
@@ -321,6 +331,18 @@ function formatMoney(value: number | string) {
     style: "currency",
     currency: "EUR",
   }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function formatDuration(totalMinutes: number) {
+  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${minutes}m`;
 }
 
 function formatCompactMoney(value: number | string) {

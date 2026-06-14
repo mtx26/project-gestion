@@ -15,6 +15,15 @@ export type User = {
   profile?: Profile | null;
 };
 
+export type UserUpdatePayload = {
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  profile?: {
+    default_hourly_rate?: string;
+  };
+};
+
 export type AuthTokens = {
   access: string;
   refresh: string;
@@ -158,16 +167,38 @@ export type DocumentUploadPayload = {
 };
 
 export type FolderTreeNode = {
-  type: "folder" | "document";
+  type: "folder" | "document" | "task";
   id: ID;
   name: string;
   description?: string | null;
   color?: string | null;
   icon?: string | null;
+  folder?: ID | null;
+  status?: "todo" | "in_progress" | "done";
+  priority?: "low" | "normal" | "high";
+  due_date?: string | null;
   file_name?: string;
   file_size?: number | null;
   mime_type?: string | null;
   children?: FolderTreeNode[];
+};
+
+export type Task = {
+  id: ID;
+  project: ID;
+  folder: ID | null;
+  created_by: ID;
+  assigned_to: ID[];
+  title: string;
+  description: string | null;
+  status: "todo" | "in_progress" | "done";
+  priority: "low" | "normal" | "high";
+  due_date: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  deleted_by: ID | null;
 };
 
 export type TimeEntry = {
@@ -196,6 +227,17 @@ export type TimeEntryPayload = {
   duration_minutes: number;
   hourly_rate?: string;
   description?: string | null;
+};
+
+export type TimeEntryPaymentPayload = {
+  amount?: string;
+  pay_full?: boolean;
+  description?: string | null;
+};
+
+export type TimeEntryPayment = {
+  financial_entry: FinancialEntry;
+  time_entry: TimeEntry;
 };
 
 export type FinancialEntry = {

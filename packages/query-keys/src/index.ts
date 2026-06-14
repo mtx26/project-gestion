@@ -26,9 +26,27 @@ export const queryKeys = {
       ["projects", projectId, "financial-entries", "chart", groupBy] as const,
   },
   timeEntries: {
-    list: (projectId: number) => ["projects", projectId, "time-entries"] as const,
+    list: (
+      projectId: number,
+      query: {
+        userId?: number | "all";
+        startDate?: string;
+        endDate?: string;
+        includeUnpaid?: boolean;
+      } = {},
+    ) =>
+      ["projects", projectId, "time-entries", {
+        user: query.userId ?? "mine",
+        startDate: query.startDate ?? "",
+        endDate: query.endDate ?? "",
+        includeUnpaid: query.includeUnpaid ?? false,
+      }] as const,
+  },
+  tasks: {
+    list: (projectId: number) => ["projects", projectId, "tasks"] as const,
   },
   folders: {
     tree: (projectId: number) => ["projects", projectId, "folders", "tree"] as const,
+    targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
   },
 } as const;

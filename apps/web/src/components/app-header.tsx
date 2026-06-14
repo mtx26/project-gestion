@@ -1,6 +1,7 @@
 "use client";
 
 import type { User } from "@project-gestion/types";
+import type { ReactNode } from "react";
 import { ArrowLeft, Bell, LogOut, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -11,9 +12,10 @@ type AppHeaderProps = {
   onLogout: () => void;
   backHref?: string;
   backLabel?: string;
+  leading?: ReactNode;
 };
 
-export function AppHeader({ user, onLogout, backHref, backLabel = "Retour" }: AppHeaderProps) {
+export function AppHeader({ user, onLogout, backHref, backLabel = "Retour", leading }: AppHeaderProps) {
   return (
     <header className="sticky top-0 z-10 border-b bg-background/95 backdrop-blur">
       <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
@@ -25,7 +27,7 @@ export function AppHeader({ user, onLogout, backHref, backLabel = "Retour" }: Ap
                 {backLabel}
               </Link>
             </Button>
-          ) : null}
+          ) : leading}
         </div>
 
         <div className="flex items-center gap-2">
