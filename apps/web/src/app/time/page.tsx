@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, ChevronRight, Clock3, CreditCard, Folder, ListTodo, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, ChevronDown, ChevronRight, Clock3, CreditCard, Folder, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -54,8 +54,8 @@ export default function TimePage() {
     <ProjectWorkspaceShell
       activeItem="time"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(`/time?project=${id}`)}
-      onProjectCreated={(project) => router.push(`/time?project=${project.id}`)}
+      onProjectSelected={(id) => router.push(buildTimeHref(id, searchParams))}
+      onProjectCreated={(project) => router.push(buildTimeHref(project.id, searchParams))}
     >
       {(state) => <ProjectTimeContent {...state} />}
     </ProjectWorkspaceShell>
@@ -69,15 +69,13 @@ function ProjectTimeContent({
   openCreateProject,
   queryClient,
 }: ProjectWorkspaceState) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const canViewTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryView);
   const canViewAllTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryViewAll);
   const canRecordTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryEdit);
   const canPayTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryPay);
   const canDeleteTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryDelete);
-  const [userFilter, setUserFilter] = useState<UserFilter>("mine");
-  const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>("all");
-  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>("this-month");
-  const [includeUnpaidOutsideMonth, setIncludeUnpaidOutsideMonth] = useState(false);
   const [targetValue, setTargetValue] = useState("project");
   const [hours, setHours] = useState("1");
   const [minutes, setMinutes] = useState("0");
@@ -88,6 +86,17 @@ function ProjectTimeContent({
   const [paymentTarget, setPaymentTarget] = useState<TimeEntry | null>(null);
   const [paymentMode, setPaymentMode] = useState<"full" | "partial">("full");
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
+  const [editHours, setEditHours] = useState("1");
+  const [editMinutes, setEditMinutes] = useState("0");
+  const [editHourlyRate, setEditHourlyRate] = useState("0");
+  const [editDescription, setEditDescription] = useState("");
+  const [editTargetValue, setEditTargetValue] = useState("project");
+  const defaultUserFilter: UserFilter = canViewAllTime && canPayTime ? "all" : "mine";
+  const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
+  const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
+  const periodPreset = parsePeriodPreset(searchParams.get("period"));
+  const includeUnpaidOutsideMonth = parseBooleanParam(searchParams.get("include_unpaid"));
 
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
   const periodRange = useMemo(() => getPeriodRange(periodPreset), [periodPreset]);
@@ -186,6 +195,20 @@ function ProjectTimeContent({
       ]);
     },
   });
+  const updateTimeEntry = useMutation({
+    mutationFn: () =>
+      api.timeEntries.update(selectedProject!.id, editingEntry!.id, {
+        duration_minutes: Number(editHours) * 60 + Number(editMinutes),
+        hourly_rate: editHourlyRate === "" ? undefined : editHourlyRate,
+        description: editDescription.trim() || null,
+        folder: getTargetPayload(editTargetValue).folder,
+        task: getTargetPayload(editTargetValue).task,
+      }),
+    onSuccess: async () => {
+      setEditingEntry(null);
+      await invalidateTimeQueries(queryClient, selectedProject!.id);
+    },
+  });
 
   function onSubmitTimeEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -201,6 +224,64 @@ function ProjectTimeContent({
     setPaymentTarget(entry);
     setPaymentMode("full");
     setPaymentAmount(entry.remaining_amount);
+  }
+
+  function openEditDialog(entry: TimeEntry) {
+    setEditingEntry(entry);
+    setEditHours(String(Math.floor(entry.duration_minutes / 60)));
+    setEditMinutes(String(entry.duration_minutes % 60));
+    setEditHourlyRate(entry.hourly_rate);
+    setEditDescription(entry.description ?? "");
+    setEditTargetValue(getTargetValueFromEntry(entry));
+  }
+
+  function updateUrlFilter(changes: Partial<{
+    user: UserFilter;
+    payment: PaymentStatusFilter;
+    period: PeriodPreset;
+    includeUnpaid: boolean;
+  }>) {
+    if (!selectedProject) {
+      return;
+    }
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("project", String(selectedProject.id));
+
+    if (changes.user) {
+      params.set("user", changes.user);
+    }
+    if (changes.payment) {
+      params.set("payment", changes.payment);
+    }
+    if (changes.period) {
+      params.set("period", changes.period);
+    }
+    if (changes.includeUnpaid !== undefined) {
+      if (changes.includeUnpaid) {
+        params.set("include_unpaid", "1");
+      } else {
+        params.delete("include_unpaid");
+      }
+    }
+
+    router.replace(`/time?${params.toString()}`, { scroll: false });
+  }
+
+  function onUserFilterChange(value: UserFilter) {
+    updateUrlFilter({ user: value });
+  }
+
+  function onPaymentStatusFilterChange(value: PaymentStatusFilter) {
+    updateUrlFilter({ payment: value });
+  }
+
+  function onPeriodPresetChange(value: PeriodPreset) {
+    updateUrlFilter({ period: value });
+  }
+
+  function onIncludeUnpaidOutsideMonthChange(value: boolean) {
+    updateUrlFilter({ includeUnpaid: value });
   }
 
   if (projectsQuery.isLoading) {
@@ -221,33 +302,45 @@ function ProjectTimeContent({
     );
   }
 
+  if (!canViewTime && !canRecordTime) {
+    return (
+      <div className="space-y-5">
+        <TimePageTitle />
+        <PermissionNotice
+          title="Suivi du temps indisponible"
+          description="Ton role ne permet pas de consulter ni d'enregistrer des heures sur ce projet."
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-xs font-medium uppercase text-muted-foreground">Temps</p>
-        <h1 className="mt-1 text-2xl font-semibold">Suivi du travail</h1>
-      </div>
+      <TimePageTitle />
 
-      {!canViewTime ? (
-        <Alert>
-          <AlertDescription>Permission time_entry.view requise pour voir les heures.</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {timeEntriesQuery.error ? (
+      {canViewTime && timeEntriesQuery.error ? (
         <Alert variant="destructive">
           <AlertDescription>{getErrorMessage(timeEntriesQuery.error)}</AlertDescription>
         </Alert>
       ) : null}
 
-      <TimePeriodToolbar
+      {canViewTime ? (
+        <TimePeriodToolbar
+        canViewAllTime={canViewAllTime}
+        members={members}
         periodPreset={periodPreset}
+        paymentStatusFilter={paymentStatusFilter}
+        userFilter={userFilter}
         includeUnpaidOutsideMonth={includeUnpaidOutsideMonth}
-        onPeriodPresetChange={setPeriodPreset}
-        onIncludeUnpaidOutsideMonthChange={setIncludeUnpaidOutsideMonth}
+        onPeriodPresetChange={onPeriodPresetChange}
+        onPaymentStatusFilterChange={onPaymentStatusFilterChange}
+        onUserFilterChange={onUserFilterChange}
+        onIncludeUnpaidOutsideMonthChange={onIncludeUnpaidOutsideMonthChange}
       />
+      ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[380px_1fr]">
+      <div className={canRecordTime && canViewTime ? "grid gap-4 lg:grid-cols-[380px_1fr]" : "grid gap-4"}>
+        {canRecordTime ? (
         <div className="space-y-4">
           <TimeEntryForm
             canRecordTime={canRecordTime}
@@ -268,6 +361,7 @@ function ProjectTimeContent({
             onSubmit={onSubmitTimeEntry}
           />
 
+          {canViewTime ? (
           <div>
             <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
             <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
@@ -276,42 +370,19 @@ function ProjectTimeContent({
               <TimeSummary label="Reste a payer" value={formatMoney(totals.remainingAmount)} />
             </div>
           </div>
+          ) : (
+            <PermissionNotice
+              title="Liste non visible"
+              description="Tu peux enregistrer du temps, mais ton role ne permet pas de consulter les heures."
+            />
+          )}
         </div>
+        ) : null}
 
+        {canViewTime ? (
         <Card className="rounded-lg">
           <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <CardTitle>Entrees de temps</CardTitle>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Select value={paymentStatusFilter} onValueChange={(value) => setPaymentStatusFilter(value as PaymentStatusFilter)}>
-                  <SelectTrigger className="w-full bg-background sm:w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Tous statuts</SelectItem>
-                    <SelectItem value="unpaid">Non paye</SelectItem>
-                    <SelectItem value="partial">Partiel</SelectItem>
-                    <SelectItem value="paid">Paye</SelectItem>
-                  </SelectContent>
-                </Select>
-                {canViewAllTime ? (
-                  <Select value={userFilter} onValueChange={(value) => setUserFilter(value as UserFilter)}>
-                    <SelectTrigger className="w-full bg-background sm:w-56">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mine">Mes heures</SelectItem>
-                      <SelectItem value="all">Toute l&apos;equipe</SelectItem>
-                      {members.map((member) => (
-                        <SelectItem key={member.id} value={`member-${member.user}`}>
-                          {member.user_display_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                ) : null}
-              </div>
-            </div>
+            <CardTitle>Entrees de temps</CardTitle>
           </CardHeader>
           <CardContent>
             {!canViewAllTime && canViewTime ? (
@@ -328,9 +399,11 @@ function ProjectTimeContent({
               folderNameById={folderNameById}
               taskTitleById={taskTitleById}
               canPay={canPayTime}
+              canEdit={canRecordTime}
               canDelete={canDeleteTime}
               deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
               onPay={openPaymentDialog}
+              onEdit={openEditDialog}
               onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
             />
 
@@ -341,6 +414,18 @@ function ProjectTimeContent({
             ) : null}
           </CardContent>
         </Card>
+        ) : null}
+
+        {!canRecordTime && canViewTime ? (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <TimeSummary label="Temps total" value={formatDuration(totals.durationMinutes)} />
+              <TimeSummary label="Montant total" value={formatMoney(totals.costAmount)} />
+              <TimeSummary label="Reste a payer" value={formatMoney(totals.remainingAmount)} />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <PaymentDialog
@@ -358,7 +443,50 @@ function ProjectTimeContent({
         }}
         onSubmit={() => payTimeEntry.mutate()}
       />
+      <EditTimeEntryDialog
+        entry={editingEntry}
+        hours={editHours}
+        minutes={editMinutes}
+        hourlyRate={editHourlyRate}
+        description={editDescription}
+        targetTree={targetTree}
+        targetValue={editTargetValue}
+        selectedTargetLabel={findTargetLabel(targetTree, editTargetValue) ?? "Projet"}
+        isPending={updateTimeEntry.isPending}
+        error={updateTimeEntry.error ? getErrorMessage(updateTimeEntry.error) : null}
+        onHoursChange={setEditHours}
+        onMinutesChange={setEditMinutes}
+        onHourlyRateChange={setEditHourlyRate}
+        onDescriptionChange={setEditDescription}
+        onTargetValueChange={setEditTargetValue}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingEntry(null);
+          }
+        }}
+        onSubmit={() => updateTimeEntry.mutate()}
+      />
     </div>
+  );
+}
+
+function TimePageTitle() {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase text-muted-foreground">Temps</p>
+      <h1 className="mt-1 text-2xl font-semibold">Suivi du travail</h1>
+    </div>
+  );
+}
+
+function PermissionNotice({ title, description }: { title: string; description: string }) {
+  return (
+    <Card className="rounded-lg">
+      <CardContent className="p-5">
+        <p className="font-medium">{title}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -463,18 +591,57 @@ function TimeEntryForm({
 }
 
 function TimePeriodToolbar({
+  canViewAllTime,
+  members,
   periodPreset,
+  paymentStatusFilter,
+  userFilter,
   includeUnpaidOutsideMonth,
   onPeriodPresetChange,
+  onPaymentStatusFilterChange,
+  onUserFilterChange,
   onIncludeUnpaidOutsideMonthChange,
 }: {
+  canViewAllTime: boolean;
+  members: Array<{ id: number; user: number; user_display_name: string }>;
   periodPreset: PeriodPreset;
+  paymentStatusFilter: PaymentStatusFilter;
+  userFilter: UserFilter;
   includeUnpaidOutsideMonth: boolean;
   onPeriodPresetChange: (value: PeriodPreset) => void;
+  onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
+  onUserFilterChange: (value: UserFilter) => void;
   onIncludeUnpaidOutsideMonthChange: (value: boolean) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+      {canViewAllTime ? (
+        <Select value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
+          <SelectTrigger className="w-full bg-background sm:w-56">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="mine">Mes heures</SelectItem>
+            <SelectItem value="all">Toute l&apos;equipe</SelectItem>
+            {members.map((member) => (
+              <SelectItem key={member.id} value={`member-${member.user}`}>
+                {member.user_display_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      ) : null}
+      <Select value={paymentStatusFilter} onValueChange={(value) => onPaymentStatusFilterChange(value as PaymentStatusFilter)}>
+        <SelectTrigger className="w-full bg-background sm:w-48">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Tous statuts</SelectItem>
+          <SelectItem value="unpaid">Non paye</SelectItem>
+          <SelectItem value="partial">Partiel</SelectItem>
+          <SelectItem value="paid">Paye</SelectItem>
+        </SelectContent>
+      </Select>
       <Select value={periodPreset} onValueChange={(value) => onPeriodPresetChange(value as PeriodPreset)}>
         <SelectTrigger className="w-full bg-background sm:w-48">
           <SelectValue />
@@ -508,9 +675,11 @@ function TimeEntryList({
   folderNameById,
   taskTitleById,
   canPay,
+  canEdit,
   canDelete,
   deletingId,
   onPay,
+  onEdit,
   onDelete,
 }: {
   entries: TimeEntry[];
@@ -520,9 +689,11 @@ function TimeEntryList({
   folderNameById: Map<number, string>;
   taskTitleById: Map<number, string>;
   canPay: boolean;
+  canEdit: boolean;
   canDelete: boolean;
   deletingId: number | null | undefined;
   onPay: (entry: TimeEntry) => void;
+  onEdit: (entry: TimeEntry) => void;
   onDelete: (entry: TimeEntry) => void;
 }) {
   if (isLoading) {
@@ -555,9 +726,11 @@ function TimeEntryList({
           displayName={userNameById.get(entry.user) ?? (entry.user === currentUserId ? "Toi" : `Utilisateur ${entry.user}`)}
           targetLabel={getEntryTargetLabel(entry, folderNameById, taskTitleById)}
           canPay={canPay}
+          canEdit={canEdit}
           canDelete={canDelete}
           isDeleting={deletingId === entry.id}
           onPay={() => onPay(entry)}
+          onEdit={() => onEdit(entry)}
           onDelete={() => onDelete(entry)}
         />
       ))}
@@ -724,18 +897,22 @@ function TimeEntryRow({
   displayName,
   targetLabel,
   canPay,
+  canEdit,
   canDelete,
   isDeleting,
   onPay,
+  onEdit,
   onDelete,
 }: {
   entry: TimeEntry;
   displayName: string;
   targetLabel: string;
   canPay: boolean;
+  canEdit: boolean;
   canDelete: boolean;
   isDeleting: boolean;
   onPay: () => void;
+  onEdit: () => void;
   onDelete: () => void;
 }) {
   const paymentStatus = getPaymentStatus(entry);
@@ -788,6 +965,11 @@ function TimeEntryRow({
               Payer
             </Button>
           ) : null}
+          {canEdit ? (
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="Modifier cette entree" onClick={onEdit}>
+              <Pencil className="size-4" />
+            </Button>
+          ) : null}
           {canDelete ? (
             <Button type="button" variant="ghost" size="icon-sm" aria-label="Supprimer cette entree" disabled={isDeleting} onClick={onDelete}>
               <Trash2 className="size-4" />
@@ -796,6 +978,110 @@ function TimeEntryRow({
         </div>
       </div>
     </div>
+  );
+}
+
+function EditTimeEntryDialog({
+  entry,
+  hours,
+  minutes,
+  hourlyRate,
+  description,
+  targetTree,
+  targetValue,
+  selectedTargetLabel,
+  isPending,
+  error,
+  onHoursChange,
+  onMinutesChange,
+  onHourlyRateChange,
+  onDescriptionChange,
+  onTargetValueChange,
+  onOpenChange,
+  onSubmit,
+}: {
+  entry: TimeEntry | null;
+  hours: string;
+  minutes: string;
+  hourlyRate: string;
+  description: string;
+  targetTree: TargetTreeNode;
+  targetValue: string;
+  selectedTargetLabel: string;
+  isPending: boolean;
+  error: string | null;
+  onHoursChange: (value: string) => void;
+  onMinutesChange: (value: string) => void;
+  onHourlyRateChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onTargetValueChange: (value: string) => void;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: () => void;
+}) {
+  const durationMinutes = Number(hours) * 60 + Number(minutes);
+
+  return (
+    <Dialog open={entry != null} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Modifier l&apos;entree</DialogTitle>
+          <DialogDescription>
+            Ajuste la duree, le taux, la cible ou la description.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="edit-time-hours">Heures</Label>
+              <Input id="edit-time-hours" type="number" min="0" value={hours} onChange={(event) => onHoursChange(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-time-minutes">Minutes</Label>
+              <Input id="edit-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(event) => onMinutesChange(event.target.value)} />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-time-rate">Taux horaire</Label>
+            <Input id="edit-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <Label>Cible</Label>
+            <TargetPickerDialog
+              targetTree={targetTree}
+              selectedValue={targetValue}
+              selectedLabel={selectedTargetLabel}
+              onSelect={onTargetValueChange}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="edit-time-description">Description</Label>
+            <Textarea id="edit-time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
+          </div>
+
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Annuler
+            </Button>
+          </DialogClose>
+          <Button type="button" disabled={durationMinutes <= 0 || isPending} onClick={onSubmit}>
+            <Pencil className="size-4" />
+            {isPending ? "Modification..." : "Enregistrer"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -904,6 +1190,51 @@ function TimeEntryMetric({ value, tone = "default" }: { value: string; tone?: "d
   return (
     <span className={`font-medium ${toneClassName}`}>{value}</span>
   );
+}
+
+function buildTimeHref(projectId: number, searchParams: URLSearchParams) {
+  const params = new URLSearchParams(searchParams.toString());
+  params.set("project", String(projectId));
+  return `/time?${params.toString()}`;
+}
+
+function parseUserFilter(value: string | null, fallback: UserFilter, canViewAllTime: boolean): UserFilter {
+  if (value === "all" && canViewAllTime) {
+    return "all";
+  }
+  if (value?.startsWith("member-") && canViewAllTime) {
+    const userId = Number(value.replace("member-", ""));
+    return Number.isFinite(userId) && userId > 0 ? `member-${userId}` : fallback;
+  }
+  if (value === "mine") {
+    return "mine";
+  }
+  return fallback;
+}
+
+function parsePaymentStatusFilter(value: string | null): PaymentStatusFilter {
+  if (value === "unpaid" || value === "partial" || value === "paid") {
+    return value;
+  }
+  return "all";
+}
+
+function parsePeriodPreset(value: string | null): PeriodPreset {
+  if (
+    value === "this-month" ||
+    value === "last-month" ||
+    value === "this-week" ||
+    value === "last-30-days" ||
+    value === "this-year" ||
+    value === "all"
+  ) {
+    return value;
+  }
+  return "this-month";
+}
+
+function parseBooleanParam(value: string | null) {
+  return value === "1" || value === "true";
 }
 
 function getPeriodRange(period: PeriodPreset): { startDate?: string; endDate?: string } {
@@ -1053,6 +1384,16 @@ function getTargetPayload(value: string) {
     return { folder: null, task: Number(value.replace("task-", "")) };
   }
   return { folder: null, task: null };
+}
+
+function getTargetValueFromEntry(entry: Pick<TimeEntry, "folder" | "task">) {
+  if (entry.task != null) {
+    return `task-${entry.task}`;
+  }
+  if (entry.folder != null) {
+    return `folder-${entry.folder}`;
+  }
+  return "project";
 }
 
 function buildTargetTree(nodes: FolderTreeNode[]): TargetTreeNode {

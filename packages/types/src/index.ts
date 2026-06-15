@@ -72,7 +72,8 @@ export type ProjectMember = {
   user_display_name: string;
   user_email: string;
   role: ID;
-  role_name: string;
+  role_name: string | null;
+  role_deleted: boolean;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -90,6 +91,27 @@ export type Invitation = {
   accepted_at: string | null;
   status: string;
   user_exists: boolean;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  deleted_by: ID | null;
+};
+
+export type InvitationAcceptResponse = {
+  invitation: Invitation;
+  member: ProjectMember;
+};
+
+export type Notification = {
+  id: ID;
+  user: ID;
+  project: ID | null;
+  created_by: ID;
+  title: string;
+  message: string;
+  type: string;
+  data: Record<string, unknown>;
+  is_read: boolean;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

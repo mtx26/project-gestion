@@ -45,8 +45,11 @@ export function translateError(code: string) {
     "errors.email_verification.invalid_key": "Lien de verification invalide ou expire.",
     "errors.user.email_already_exists": "Un compte existe deja avec cet email.",
     "errors.user.username_already_exists": "Ce nom d'utilisateur est deja utilise.",
+    "errors.invitation.invalid_token": "Lien d'invitation invalide.",
+    "errors.invitation.already_accepted": "Cette invitation a deja ete acceptee.",
+    "errors.invitation.expired": "Cette invitation a expire.",
+    "errors.invitation.email_mismatch": "Cette invitation ne correspond pas a ton compte.",
   };
 
   return messages[code] ?? code;
 }
-

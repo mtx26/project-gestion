@@ -264,6 +264,12 @@ class InvitationWorkflowTests(ProjectApiTestCase):
             "role": role or self.role.id,
         })
 
+    def patch_invitation(self, invitation, payload):
+        return self.api_patch(
+            f"/api/projects/{self.project.id}/invitations/{invitation.id}/",
+            payload,
+        )
+
     def test_anonymous_cannot_invite(self):
         response = self.invite("new@example.com")
 
@@ -285,7 +291,8 @@ class InvitationWorkflowTests(ProjectApiTestCase):
             project=self.project,
             type="project_invitation",
         )
-        self.assertEqual(notification.data, {"invitation_id": invitation.id})
+        self.assertEqual(notification.data["invitation_id"], invitation.id)
+        self.assertEqual(notification.data["token"], invitation.token)
         self.assertFalse(EmailDelivery.objects.exists())
         self.assertEqual(len(mail.outbox), 0)
 
@@ -370,6 +377,56 @@ class InvitationWorkflowTests(ProjectApiTestCase):
         self.assertEqual(Invitation.objects.filter(email="new@example.com").count(), 1)
         self.assertEqual(EmailDelivery.objects.count(), 1)
         self.assertEqual(len(mail.outbox), 1)
+
+    def test_owner_can_patch_invitation_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+
+        response = self.patch_invitation(invitation, {"role": next_role.id})
+
+        self.assert_ok(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, next_role.id)
+
+    def test_member_with_member_edit_can_patch_invitation_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+        self.given_member_authenticated(["member.edit"])
+
+        response = self.patch_invitation(invitation, {"role": next_role.id})
+
+        self.assert_ok(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, next_role.id)
+
+    def test_member_without_member_edit_cannot_patch_invitation_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+        self.given_member_authenticated(["member.view"])
+
+        response = self.patch_invitation(invitation, {"role": next_role.id})
+
+        self.assert_forbidden(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, self.role.id)
+
+    def test_patch_invitation_rejects_role_from_another_project(self):
+        other_role = Role.objects.create(project=self.other_project, name="Other invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+
+        response = self.patch_invitation(invitation, {"role": other_role.id})
+
+        self.assert_bad_request(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, self.role.id)
 
     @override_settings(DEFAULT_REPLY_TO_EMAIL="contact@example.com")
     def test_owner_invites_unknown_email_with_reply_to(self):
@@ -786,16 +843,16 @@ class ProjectRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_project_restored()
 
 
-    def test_member_with_project_restore_can_restore_project(self):
-        self.given_member_with_permissions(["project.restore"], project=self.deleted_project)
+    def test_member_with_project_edit_cannot_restore_project(self):
+        self.given_member_with_permissions(["project.edit"], project=self.deleted_project)
         self.given_authenticated(self.member)
 
         response = self.when_restore_project()
 
-        self.assert_ok(response)
-        self.assert_project_restored()
+        self.assert_forbidden(response)
+        self.assert_project_still_deleted()
 
-    def test_member_without_project_restore_cannot_restore_project(self):
+    def test_member_without_project_permission_cannot_restore_project(self):
         self.given_member_with_permissions([], project=self.deleted_project)
         self.given_authenticated(self.member)
 
@@ -3118,6 +3175,13 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
+    def test_member_with_time_entry_pay_only_cannot_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.pay"])
+
+        response = self.when_list_time_entries()
+
+        self.assert_forbidden(response)
+
     def test_member_without_time_entry_view_cannot_list_time_entries(self):
         self.given_member_authenticated(["time_entry.edit"])
 
@@ -4770,15 +4834,7 @@ class ProjectDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_no_content(response)
         self.assert_project_deleted_by(self.owner)
 
-    def test_member_with_project_permissions_cannot_delete_project(self):
-        self.given_member_authenticated(["project.edit", "project.restore"])
-
-        response = self.when_delete_project()
-
-        self.assert_forbidden(response)
-        self.assert_project_not_deleted()
-
-    def test_member_without_project_permissions_cannot_delete_project(self):
+    def test_member_with_project_edit_cannot_delete_project(self):
         self.given_member_authenticated(["project.edit"])
 
         response = self.when_delete_project()
@@ -4962,6 +5018,23 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         role = self.assert_role_exists("Role with duplicate permissions")
         self.assert_role_permission_codes(role, ["file.view"])
 
+    def test_create_role_adds_permission_dependencies(self):
+        time_pay_permission = self.given_permission("time_entry.pay")
+        self.given_permission("time_entry.view")
+        self.given_permission("time_entry.view_all")
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_role({
+            "name": "Payroll role",
+            "permission_ids": [time_pay_permission.id],
+        })
+
+        self.assert_created(response)
+        role = self.assert_role_exists("Payroll role")
+        self.assert_role_permission_codes(
+            role,
+            ["time_entry.pay", "time_entry.view", "time_entry.view_all"],
+        )
 
     def test_create_role_uses_project_from_url_not_payload(self):
         self.given_authenticated(self.owner)
@@ -5124,7 +5197,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["file.edit"])
+        self.assert_role_permission_codes(["file.edit", "file.view"])
 
     def test_patch_role_replaces_permissions(self):
         self.given_authenticated(self.owner)
@@ -5134,7 +5207,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["file.edit"])
+        self.assert_role_permission_codes(["file.edit", "file.view"])
 
     # TESTS DELETE
     def test_anonymous_cannot_delete_role(self):
@@ -5435,10 +5508,20 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.url = f"/api/projects/{self.project.id}/members/{self.target_member.id}/"
 
     # WHEN
+    def when_get_member(self):
+        return self.api_get(self.url)
+
+    def when_patch_member(self, payload):
+        return self.api_patch(self.url, payload)
+
     def when_delete_member(self):
         return self.api_delete(self.url)
 
     # ASSERT
+    def assert_member_role(self, role):
+        self.target_member.refresh_from_db()
+        self.assertEqual(self.target_member.role_id, role.id)
+
     def assert_member_not_deleted(self):
         self.target_member.refresh_from_db()
         self.assertIsNone(self.target_member.deleted_at)
@@ -5447,6 +5530,54 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.target_member.refresh_from_db()
         self.assertIsNotNone(self.target_member.deleted_at)
         self.assertEqual(self.target_member.deleted_by_id, user.id)
+
+    # TESTS GET
+    def test_get_member_marks_deleted_role(self):
+        self.target_role.soft_delete(self.owner)
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_member()
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertTrue(data["role_deleted"])
+        self.assertIsNone(data["role_name"])
+
+    # TESTS PATCH
+    def test_owner_can_patch_member_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next role")
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_member({"role": next_role.id})
+
+        self.assert_ok(response)
+        self.assert_member_role(next_role)
+
+    def test_member_with_member_edit_can_patch_member_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next role")
+        self.given_member_authenticated(["member.edit"])
+
+        response = self.when_patch_member({"role": next_role.id})
+
+        self.assert_ok(response)
+        self.assert_member_role(next_role)
+
+    def test_member_without_member_edit_cannot_patch_member_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next role")
+        self.given_member_authenticated(["member.view"])
+
+        response = self.when_patch_member({"role": next_role.id})
+
+        self.assert_forbidden(response)
+        self.assert_member_role(self.target_role)
+
+    def test_patch_rejects_role_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_member({"role": self.other_project_role.id})
+
+        self.assert_bad_request(response)
+        self.assert_member_role(self.target_role)
 
     # TESTS DELETE
     def test_anonymous_cannot_delete_member(self):

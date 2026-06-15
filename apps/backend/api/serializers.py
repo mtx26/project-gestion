@@ -9,7 +9,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
 from .services.folders import build_folder_tree, build_task_tree_nodes
-from .services.permissions import get_project_permission_codes
+from .services.permissions import expand_permissions, get_project_permission_codes
 from .services.invitations import (
     accept_project_invitation,
     create_project_invitation,
@@ -146,7 +146,7 @@ class RoleSerializer(serializers.ModelSerializer):
 
         unique_permissions = {
             permission.id: permission
-            for permission in permissions
+            for permission in expand_permissions(permissions)
         }.values()
 
         RolePermission.objects.bulk_create([
@@ -167,7 +167,8 @@ class RoleSerializer(serializers.ModelSerializer):
 class ProjectMemberSerializer(serializers.ModelSerializer):
     user_display_name = serializers.SerializerMethodField()
     user_email = serializers.EmailField(source="user.email", read_only=True)
-    role_name = serializers.CharField(source="role.name", read_only=True)
+    role_name = serializers.SerializerMethodField()
+    role_deleted = serializers.SerializerMethodField()
 
     class Meta:
         model = ProjectMember
@@ -179,6 +180,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
             "user_email",
             "role",
             "role_name",
+            "role_deleted",
             "created_at",
             "updated_at",
             "deleted_at",
@@ -189,11 +191,31 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
             "user_display_name",
             "user_email",
             "role_name",
+            "role_deleted",
         ]
 
     def get_user_display_name(self, member):
         full_name = member.user.get_full_name().strip()
         return full_name or member.user.username or member.user.email
+
+    def get_role_name(self, member):
+        if member.role.deleted_at is not None:
+            return None
+
+        return member.role.name
+
+    def get_role_deleted(self, member):
+        return member.role.deleted_at is not None
+
+    def validate_role(self, role):
+        project_id = self.context.get("project_id")
+        if project_id is None and self.instance is not None:
+            project_id = self.instance.project_id
+
+        if project_id is not None and role.project_id != project_id:
+            raise serializers.ValidationError("errors.project_member.role_project_mismatch")
+
+        return role
 
 
 class FolderSerializer(serializers.ModelSerializer):
@@ -459,6 +481,16 @@ class InvitationSerializer(serializers.ModelSerializer):
             "token",
             "accepted_at",
         ]
+
+    def validate_role(self, role):
+        project_id = self.context.get("project_id")
+        if project_id is None and self.instance is not None:
+            project_id = self.instance.project_id
+
+        if project_id is not None and role.project_id != project_id:
+            raise serializers.ValidationError("errors.invitation.role_project_mismatch")
+
+        return role
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_status(self, invitation):

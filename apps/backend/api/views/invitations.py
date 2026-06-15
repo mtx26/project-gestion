@@ -90,15 +90,26 @@ class InvitationListCreateView(generics.ListCreateAPIView):
 
 @extend_schema(tags=["member"])
 @extend_schema_view(
+    patch=extend_schema(
+        summary="Modifier une invitation",
+        description="Modifie le role d'une invitation en attente.\nPermission requise : `member.edit`.",
+    ),
     delete=extend_schema(
         summary="Annuler une invitation",
         description="Annule une invitation via soft delete.\nPermission requise : `member.edit`.",
     ),
 )
-class InvitationDetailView(generics.DestroyAPIView):
+class InvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = InvitationSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "member.edit"
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            self.permission_code = "member.view"
+        elif self.request.method in ["PUT", "PATCH", "DELETE"]:
+            self.permission_code = "member.edit"
+
+        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -108,6 +119,11 @@ class InvitationDetailView(generics.DestroyAPIView):
             self.request.user,
             self.kwargs["project_id"],
         )
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["project_id"] = self.kwargs["project_id"]
+        return context
 
     def perform_destroy(self, instance):
         instance.soft_delete(self.request.user)

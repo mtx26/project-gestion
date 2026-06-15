@@ -30,7 +30,11 @@ export function ActiveProjectDashboard({
 }: ActiveProjectDashboardProps) {
   const canViewMembers = hasProjectPermission(project, userId, permissionCodes.memberView);
   const canViewFinance = hasProjectPermission(project, userId, permissionCodes.financeView);
+  const canViewTasks = hasProjectPermission(project, userId, permissionCodes.taskView);
   const canViewTime = hasProjectPermission(project, userId, permissionCodes.timeEntryView);
+  const canViewAllTime = hasProjectPermission(project, userId, permissionCodes.timeEntryViewAll);
+  const canPayTime = hasProjectPermission(project, userId, permissionCodes.timeEntryPay);
+  const defaultTimeUserFilter = canViewAllTime && canPayTime ? "all" : "mine";
   const membersQuery = useQuery({
     queryKey: project ? queryKeys.members.list(project.id) : ["members", "disabled"],
     queryFn: () => api.members.list(project!.id),
@@ -47,8 +51,16 @@ export function ActiveProjectDashboard({
     enabled: Boolean(project && canViewFinance),
   });
   const timeEntriesQuery = useQuery({
-    queryKey: project ? queryKeys.timeEntries.list(project.id) : ["time-entries", "disabled"],
-    queryFn: () => api.timeEntries.list(project!.id),
+    queryKey: project
+      ? queryKeys.timeEntries.list(project.id, {
+          userId: defaultTimeUserFilter === "all" ? "all" : userId ?? undefined,
+          includeUnpaid: true,
+        })
+      : ["time-entries", "disabled"],
+    queryFn: () => api.timeEntries.list(project!.id, {
+      ...(defaultTimeUserFilter === "all" || userId == null ? {} : { user: userId }),
+      include_unpaid: true,
+    }),
     enabled: Boolean(project && canViewTime),
   });
   const members = normalizeApiList(membersQuery.data);
@@ -95,20 +107,27 @@ export function ActiveProjectDashboard({
         </div>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <SummaryTile
-          icon={CheckCircle2}
-          label="Taches urgentes"
-          value="0"
-          detail="Aucune urgence pour le moment."
-        />
-        <SummaryTile
-          icon={Clock3}
-          label="Heures impayees"
-          value={!canViewTime ? "-" : timeEntriesQuery.isLoading ? "..." : formatDuration(unpaidMinutes)}
-          detail={!canViewTime ? "Permission time_entry.view requise." : `${formatMoney(unpaidAmount)} restant a payer.`}
-        />
-      </div>
+      {canViewTasks || canViewTime ? (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {canViewTasks ? (
+            <SummaryTile
+              icon={CheckCircle2}
+              label="Taches urgentes"
+              value="0"
+              detail="Aucune urgence pour le moment."
+            />
+          ) : null}
+          {canViewTime ? (
+            <SummaryTile
+              icon={Clock3}
+              label="Heures impayees"
+              value={timeEntriesQuery.isLoading ? "..." : formatDuration(unpaidMinutes)}
+              detail={`${formatMoney(unpaidAmount)} restant a payer.`}
+              href={buildUnpaidTimeHref(project.id, defaultTimeUserFilter)}
+            />
+          ) : null}
+        </div>
+      ) : null}
 
       {canViewMembers || canViewFinance ? (
       <div className={canViewMembers && canViewFinance ? "grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]" : "grid gap-4"}>
@@ -133,9 +152,13 @@ export function ActiveProjectDashboard({
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{member.user_display_name}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">{member.role_name}</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">
+                        {member.role_deleted ? "Aucun role actif" : member.role_name}
+                      </p>
                     </div>
-                    <Badge variant="secondary">Membre</Badge>
+                    <Badge variant={member.role_deleted ? "destructive" : "secondary"}>
+                      {member.role_deleted ? "Sans role" : "Membre"}
+                    </Badge>
                   </div>
                 </div>
               ))}
@@ -371,28 +394,54 @@ function formatFinancePeriod(period: string) {
 }
 
 function SummaryTile({
+  href,
   icon: Icon,
   label,
   value,
   detail,
 }: {
+  href?: string;
   icon: ComponentType<{ className?: string }>;
   label: string;
   value: string;
   detail: string;
 }) {
+  const content = (
+    <CardContent className="p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">{label}</p>
+        <Icon className="size-4 shrink-0 text-primary" />
+      </div>
+      <p className="mt-3 text-xl font-semibold">{value}</p>
+      <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
+    </CardContent>
+  );
+
+  if (href) {
+    return (
+      <Card className="rounded-lg transition-colors hover:bg-muted/35">
+        <Link href={href} className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {content}
+        </Link>
+      </Card>
+    );
+  }
+
   return (
     <Card className="rounded-lg">
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between gap-3">
-          <p className="min-w-0 truncate text-sm font-medium text-muted-foreground">{label}</p>
-          <Icon className="size-4 shrink-0 text-primary" />
-        </div>
-        <p className="mt-3 text-xl font-semibold">{value}</p>
-        <p className="mt-2 text-xs leading-5 text-muted-foreground">{detail}</p>
-      </CardContent>
+      {content}
     </Card>
   );
+}
+
+function buildUnpaidTimeHref(projectId: number, userFilter: "mine" | "all") {
+  const params = new URLSearchParams({
+    project: String(projectId),
+    payment: "unpaid",
+    include_unpaid: "1",
+    user: userFilter,
+  });
+  return `/time?${params.toString()}`;
 }
 
 function EmptyProjectState({ onCreateProject }: { onCreateProject: () => void }) {

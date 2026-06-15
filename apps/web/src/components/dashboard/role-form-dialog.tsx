@@ -5,6 +5,8 @@ import {
   canCreateRoleDraft,
   getPermissionAction,
   groupPermissionsByScope,
+  normalizePermissionIds,
+  removePermissionIdWithDependents,
 } from "@project-gestion/permissions";
 import { Plus, Save } from "lucide-react";
 import { FormError } from "@/components/form-error";
@@ -59,16 +61,19 @@ export function RoleFormDialog({
   function togglePermission(permissionId: number, checked: boolean) {
     onRolePermissionIdsChange(
       checked
-        ? [...rolePermissionIds, permissionId]
-        : rolePermissionIds.filter((id) => id !== permissionId),
+        ? normalizePermissionIds(permissions, [...rolePermissionIds, permissionId])
+        : removePermissionIdWithDependents(permissions, rolePermissionIds, permissionId),
     );
   }
 
   function toggleGroup(groupIds: number[], checked: boolean) {
     onRolePermissionIdsChange(
       checked
-        ? [...new Set([...rolePermissionIds, ...groupIds])]
-        : rolePermissionIds.filter((id) => !groupIds.includes(id)),
+        ? normalizePermissionIds(permissions, [...new Set([...rolePermissionIds, ...groupIds])])
+        : groupIds.reduce(
+            (nextIds, groupId) => removePermissionIdWithDependents(permissions, nextIds, groupId),
+            rolePermissionIds,
+          ),
     );
   }
 
@@ -124,6 +129,9 @@ export function RoleFormDialog({
               </div>
             ) : null}
           </div>
+          <p className="text-xs text-muted-foreground">
+            Les actions dependent de la lecture: cocher une action ajoute automatiquement les droits necessaires.
+          </p>
 
           <div className="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
             {permissionGroups.map((group) => {

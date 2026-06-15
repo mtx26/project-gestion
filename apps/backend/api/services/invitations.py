@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Invitation, ProjectMember
+from ..models import Invitation, Notification, ProjectMember
 from .mail import send_email
 from .notifications import notify
 from .projects import get_accessible_projects
@@ -79,7 +79,7 @@ def create_project_invitation(*, project, email, role, invited_by):
                 type="project_invitation",
                 title="Invitation a un projet",
                 message=f"Vous avez ete invite au projet {project.name}.",
-                data={"invitation_id": invitation.id},
+                data={"invitation_id": invitation.id, "token": invitation.token},
             )
         else:
             send_invitation_email(invitation)
@@ -133,18 +133,31 @@ def accept_project_invitation(*, token, user):
         if invitation is None:
             raise ValidationError({"token": "errors.invitation.invalid_token"})
 
-        if invitation.accepted_at is not None:
-            raise ValidationError({"token": "errors.invitation.already_accepted"})
-
         if invitation.expires_at <= now:
             raise ValidationError({"token": "errors.invitation.expired"})
 
         if normalize_invitation_email(user.email) != invitation.email:
             raise ValidationError({"token": "errors.invitation.email_mismatch"})
 
+        if invitation.accepted_at is not None:
+            member = ProjectMember.objects.filter(
+                project=invitation.project,
+                user=user,
+                deleted_at__isnull=True,
+            ).first()
+            if member:
+                return invitation, member
+            raise ValidationError({"token": "errors.invitation.already_accepted"})
+
         member = _get_or_create_project_member(invitation, user)
         invitation.accepted_at = now
         invitation.save(update_fields=["accepted_at", "updated_at"])
+        Notification.objects.filter(
+            user=user,
+            type="project_invitation",
+            data__invitation_id=invitation.id,
+            is_read=False,
+        ).update(is_read=True, updated_at=now)
 
         notify(
             user=invitation.invited_by,

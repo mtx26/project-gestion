@@ -5,8 +5,10 @@ import type {
   FinancialEntry,
   FolderTreeNode,
   Invitation,
+  InvitationAcceptResponse,
   LoginPayload,
   LoginResponse,
+  Notification,
   PaginatedResponse,
   Permission,
   Project,
@@ -220,6 +222,15 @@ export function createApiClient({
         request<ProjectMember[] | PaginatedResponse<ProjectMember>>(
           `/api/projects/${projectId}/members/`,
         ),
+      update: (projectId: number, memberId: number, payload: { role: number }) =>
+        request<ProjectMember>(`/api/projects/${projectId}/members/${memberId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      remove: (projectId: number, memberId: number) =>
+        request<void>(`/api/projects/${projectId}/members/${memberId}/`, {
+          method: "DELETE",
+        }),
     },
     roles: {
       list: (projectId: number) =>
@@ -233,6 +244,10 @@ export function createApiClient({
         request<Role>(`/api/projects/${projectId}/roles/${roleId}/`, {
           method: "PATCH",
           body: payload,
+        }),
+      remove: (projectId: number, roleId: number) =>
+        request<void>(`/api/projects/${projectId}/roles/${roleId}/`, {
+          method: "DELETE",
         }),
     },
     permissions: {
@@ -248,9 +263,36 @@ export function createApiClient({
           method: "POST",
           body: payload,
         }),
+      update: (projectId: number, invitationId: number, payload: { role: number }) =>
+        request<Invitation>(`/api/projects/${projectId}/invitations/${invitationId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
       remove: (projectId: number, invitationId: number) =>
         request<void>(`/api/projects/${projectId}/invitations/${invitationId}/`, {
           method: "DELETE",
+        }),
+      accept: (token: string) =>
+        request<InvitationAcceptResponse>("/api/invitations/accept/", {
+          method: "POST",
+          body: { token },
+        }),
+    },
+    notifications: {
+      list: (query: { unread?: boolean } = {}) =>
+        request<Notification[] | PaginatedResponse<Notification>>(
+          `/api/notifications/${buildQueryString({
+            unread: query.unread ? "true" : undefined,
+          })}`,
+        ),
+      unreadCount: () => request<{ count: number }>("/api/notifications/unread-count/"),
+      markRead: (id: number) =>
+        request<Notification>(`/api/notifications/${id}/mark-read/`, {
+          method: "POST",
+        }),
+      markAllRead: () =>
+        request<void>("/api/notifications/mark-all-read/", {
+          method: "POST",
         }),
     },
     financialEntries: {

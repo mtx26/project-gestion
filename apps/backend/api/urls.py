@@ -21,6 +21,12 @@ from .views.invitations import (
     InvitationDetailView,
     InvitationListCreateView,
 )
+from .views.notifications import (
+    NotificationListView,
+    NotificationMarkAllReadView,
+    NotificationMarkReadView,
+    NotificationUnreadCountView,
+)
 from .views.users import UserListView
 from .views.folders import (
     FolderListCreateView,
@@ -78,6 +84,10 @@ urlpatterns = [
     path("projects/<int:project_id>/invitations/", InvitationListCreateView.as_view(), name="project-invitations"),
     path("projects/<int:project_id>/invitations/<int:pk>/", InvitationDetailView.as_view(), name="project-invitation-detail"),
     path("invitations/accept/", InvitationAcceptView.as_view(), name="invitation-accept"),
+    path("notifications/", NotificationListView.as_view(), name="notification-list"),
+    path("notifications/unread-count/", NotificationUnreadCountView.as_view(), name="notification-unread-count"),
+    path("notifications/mark-all-read/", NotificationMarkAllReadView.as_view(), name="notification-mark-all-read"),
+    path("notifications/<int:pk>/mark-read/", NotificationMarkReadView.as_view(), name="notification-mark-read"),
     # Folders
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/tree/", FolderTreeView.as_view(), name="project-folder-tree"),

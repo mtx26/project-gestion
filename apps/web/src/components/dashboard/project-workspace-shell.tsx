@@ -18,7 +18,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/auth-store";
 
 type ProjectWorkspaceShellProps = {
-  activeItem: "dashboard" | "settings" | "files" | "time" | "account";
+  activeItem: "dashboard" | "settings" | "files" | "time" | "account" | "notifications";
   selectedProjectIdFromUrl?: string;
   maxWidthClassName?: string;
   onProjectSelected?: (id: number) => void;

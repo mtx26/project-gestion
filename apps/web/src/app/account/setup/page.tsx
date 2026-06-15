@@ -15,20 +15,22 @@ export default function AccountSetupPage() {
         <div className="space-y-5">
           <div>
             <p className="text-xs font-medium uppercase text-muted-foreground">Bienvenue</p>
-            <h1 className="mt-1 text-2xl font-semibold">Complete ton profil</h1>
+            <h1 className="mt-1 text-2xl font-semibold">Complete les infos utiles</h1>
             <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-              Ajoute ta photo, ton identifiant et ton taux horaire par defaut avant de commencer.
+              Ajoute seulement les informations qui ne sont pas demandees pendant l&apos;inscription.
             </p>
           </div>
 
           <Card className="rounded-lg">
             <CardHeader>
-              <CardTitle>Informations du compte</CardTitle>
+              <CardTitle>Profil de travail</CardTitle>
             </CardHeader>
             <CardContent>
               <AccountProfileForm
                 user={user}
                 submitLabel="Terminer"
+                showEmail={false}
+                showNameFields={false}
                 onProfileSaved={() => router.replace("/dashboard")}
               />
               <div className="mt-4">

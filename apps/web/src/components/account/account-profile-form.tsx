@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Camera, Save } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
+import { ProfilePictureEditorDialog } from "@/components/account/profile-picture-editor-dialog";
 import { FormError } from "@/components/form-error";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -17,6 +18,8 @@ import { useAuthStore } from "@/stores/auth-store";
 type AccountProfileFormProps = {
   user: User | null;
   submitLabel?: string;
+  showEmail?: boolean;
+  showNameFields?: boolean;
   onProfileSaved?: () => void;
   onPictureSaved?: () => void;
 };
@@ -24,12 +27,16 @@ type AccountProfileFormProps = {
 export function AccountProfileForm({
   user,
   submitLabel = "Enregistrer",
+  showEmail = true,
+  showNameFields = true,
   onProfileSaved,
   onPictureSaved,
 }: AccountProfileFormProps) {
   const [profileDraft, setProfileDraft] = useState<AccountProfileValues | null>(null);
   const profileValues = profileDraft ?? getAccountProfileValues(user);
   const [pictureError, setPictureError] = useState<string | null>(null);
+  const [pictureFile, setPictureFile] = useState<File | null>(null);
+  const [pictureEditorOpen, setPictureEditorOpen] = useState(false);
   const displayName = [profileValues.first_name, profileValues.last_name].filter(Boolean).join(" ") || profileValues.username || "Compte";
 
   const updateProfile = useMutation({
@@ -68,7 +75,19 @@ export function AccountProfileForm({
     if (!file) {
       return;
     }
-    uploadPicture.mutate(file);
+
+    setPictureError(null);
+    setPictureFile(file);
+    setPictureEditorOpen(true);
+  }
+
+  function onEditedPictureReady(file: File) {
+    uploadPicture.mutate(file, {
+      onSuccess: () => {
+        setPictureEditorOpen(false);
+        setPictureFile(null);
+      },
+    });
   }
 
   return (
@@ -92,14 +111,17 @@ export function AccountProfileForm({
               type="file"
               accept="image/jpeg,image/png,image/webp,image/gif"
               className="sr-only"
-              onChange={(event) => onPictureChange(event.target.files?.[0])}
+              onChange={(event) => {
+                onPictureChange(event.target.files?.[0]);
+                event.currentTarget.value = "";
+              }}
             />
             <FormError message={pictureError} />
           </div>
         </div>
       </div>
 
-      <InfoBlock label="Email" value={user?.email || "-"} />
+      {showEmail ? <InfoBlock label="Email" value={user?.email || "-"} /> : null}
       <div className="space-y-2">
         <Label htmlFor="account-username">Identifiant</Label>
         <Input
@@ -108,22 +130,26 @@ export function AccountProfileForm({
           onChange={(event) => setProfileDraft({ ...profileValues, username: event.target.value })}
         />
       </div>
-      <div className="space-y-2">
-        <Label htmlFor="account-first-name">Prenom</Label>
-        <Input
-          id="account-first-name"
-          value={profileValues.first_name}
-          onChange={(event) => setProfileDraft({ ...profileValues, first_name: event.target.value })}
-        />
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="account-last-name">Nom</Label>
-        <Input
-          id="account-last-name"
-          value={profileValues.last_name}
-          onChange={(event) => setProfileDraft({ ...profileValues, last_name: event.target.value })}
-        />
-      </div>
+      {showNameFields ? (
+        <>
+          <div className="space-y-2">
+            <Label htmlFor="account-first-name">Prenom</Label>
+            <Input
+              id="account-first-name"
+              value={profileValues.first_name}
+              onChange={(event) => setProfileDraft({ ...profileValues, first_name: event.target.value })}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="account-last-name">Nom</Label>
+            <Input
+              id="account-last-name"
+              value={profileValues.last_name}
+              onChange={(event) => setProfileDraft({ ...profileValues, last_name: event.target.value })}
+            />
+          </div>
+        </>
+      ) : null}
       <div className="space-y-2 sm:col-span-2">
         <Label htmlFor="account-default-rate">Taux horaire par defaut</Label>
         <Input
@@ -142,6 +168,19 @@ export function AccountProfileForm({
           {updateProfile.isPending ? "Enregistrement..." : submitLabel}
         </Button>
       </div>
+      <ProfilePictureEditorDialog
+        key={pictureFile ? `${pictureFile.name}-${pictureFile.size}-${pictureFile.lastModified}` : "profile-picture-editor"}
+        file={pictureFile}
+        isPending={uploadPicture.isPending}
+        open={pictureEditorOpen}
+        onConfirm={onEditedPictureReady}
+        onOpenChange={(open) => {
+          setPictureEditorOpen(open);
+          if (!open) {
+            setPictureFile(null);
+          }
+        }}
+      />
     </form>
   );
 }

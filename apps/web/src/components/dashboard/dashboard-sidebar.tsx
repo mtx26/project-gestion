@@ -1,5 +1,7 @@
 import type { Project, User } from "@project-gestion/types";
-import { ChevronsUpDown, Clock3, FolderKanban, LayoutDashboard, LogOut, Plus, Settings, SquareLibrary, UserRound } from "lucide-react";
+import { queryKeys } from "@project-gestion/query-keys";
+import { useQuery } from "@tanstack/react-query";
+import { Bell, ChevronsUpDown, Clock3, FolderKanban, LayoutDashboard, LogOut, Plus, Settings, SquareLibrary, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,13 +23,14 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { api } from "@/lib/api";
 
 type DashboardSidebarProps = {
   projects: Project[];
   selectedProjectId: string;
   userId: number | null;
   user: User | null | undefined;
-  activeItem: "dashboard" | "settings" | "files" | "time" | "account";
+  activeItem: "dashboard" | "settings" | "files" | "time" | "account" | "notifications";
   isLoading: boolean;
   onSelectProject: (id: number) => void;
   onCreateProject: () => void;
@@ -46,6 +49,12 @@ export function DashboardSidebar({
   onLogout,
 }: DashboardSidebarProps) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const unreadNotificationsQuery = useQuery({
+    queryKey: queryKeys.notifications.unreadCount,
+    queryFn: api.notifications.unreadCount,
+    refetchInterval: 60_000,
+  });
+  const unreadNotifications = unreadNotificationsQuery.data?.count ?? 0;
   const settingsHref = selectedProjectId ? `/settings?project=${selectedProjectId}` : "/settings";
   const filesHref = selectedProjectId ? `/files?project=${selectedProjectId}` : "/files";
   const timeHref = selectedProjectId ? `/time?project=${selectedProjectId}` : "/time";
@@ -59,12 +68,29 @@ export function DashboardSidebar({
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <Link href="/dashboard" className="flex h-10 items-center gap-2 rounded-md px-2 text-base font-semibold group-data-[state=collapsed]/sidebar:lg:justify-center">
-          <span className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
-            <FolderKanban className="size-5" />
-          </span>
-          <span className="group-data-[state=collapsed]/sidebar:lg:hidden">Project Gestion</span>
-        </Link>
+        <div className="flex h-10 items-center gap-2 px-2">
+          <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-base font-semibold group-data-[state=collapsed]/sidebar:lg:justify-center">
+            <span className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <FolderKanban className="size-5" />
+            </span>
+            <span className="truncate group-data-[state=collapsed]/sidebar:lg:hidden">Project Gestion</span>
+          </Link>
+          <Button
+            asChild
+            variant={activeItem === "notifications" ? "secondary" : "ghost"}
+            size="icon-sm"
+            className="relative group-data-[state=collapsed]/sidebar:lg:hidden"
+          >
+            <Link href="/notifications" aria-label="Notifications">
+              <Bell className="size-4" />
+              {unreadNotifications > 0 ? (
+                <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-medium text-primary-foreground">
+                  {unreadNotifications > 9 ? "9+" : unreadNotifications}
+                </span>
+              ) : null}
+            </Link>
+          </Button>
+        </div>
       </SidebarHeader>
 
       <SidebarContent>

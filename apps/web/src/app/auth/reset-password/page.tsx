@@ -12,9 +12,9 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AuthShell } from "@/components/auth-shell";
 import { FormError } from "@/components/form-error";
+import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api, webTokenStore } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -52,9 +52,8 @@ function ResetPasswordContent() {
             <input type="hidden" {...form.register("token")} />
             <div className="space-y-2">
               <Label htmlFor="new_password">Nouveau mot de passe</Label>
-              <Input
+              <PasswordInput
                 id="new_password"
-                type="password"
                 autoComplete="new-password"
                 {...form.register("new_password")}
               />

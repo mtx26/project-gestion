@@ -1,6 +1,5 @@
 export const permissionCodes = {
   projectEdit: "project.edit",
-  projectRestore: "project.restore",
   roleView: "role.view",
   roleEdit: "role.edit",
   roleDelete: "role.delete",
@@ -41,6 +40,43 @@ export const permissionScopeLabels = {
   finance: "Finance",
   other: "Autres",
 } as const;
+
+const permissionActionLabels: Record<string, string> = {
+  view: "Voir",
+  view_all: "Voir toute l'equipe",
+  edit: "Creer / modifier",
+  delete: "Supprimer",
+  restore: "Restaurer",
+  pay: "Voir equipe et payer",
+};
+
+const exactPermissionLabels: Record<string, string> = {
+  [permissionCodes.projectEdit]: "Modifier le projet",
+};
+
+export const permissionDependencyCodes: Partial<Record<PermissionCode, PermissionCode[]>> = {
+  [permissionCodes.roleEdit]: [permissionCodes.roleView],
+  [permissionCodes.roleDelete]: [permissionCodes.roleView],
+  [permissionCodes.roleRestore]: [permissionCodes.roleView],
+  [permissionCodes.memberEdit]: [permissionCodes.memberView],
+  [permissionCodes.fileEdit]: [permissionCodes.fileView],
+  [permissionCodes.fileDelete]: [permissionCodes.fileView],
+  [permissionCodes.fileRestore]: [permissionCodes.fileView],
+  [permissionCodes.taskEdit]: [permissionCodes.taskView],
+  [permissionCodes.taskDelete]: [permissionCodes.taskView],
+  [permissionCodes.taskRestore]: [permissionCodes.taskView],
+  [permissionCodes.timeEntryViewAll]: [permissionCodes.timeEntryView],
+  [permissionCodes.timeEntryEdit]: [permissionCodes.timeEntryView],
+  [permissionCodes.timeEntryDelete]: [permissionCodes.timeEntryView],
+  [permissionCodes.timeEntryRestore]: [permissionCodes.timeEntryView],
+  [permissionCodes.timeEntryPay]: [
+    permissionCodes.timeEntryView,
+    permissionCodes.timeEntryViewAll,
+  ],
+  [permissionCodes.financeEdit]: [permissionCodes.financeView],
+  [permissionCodes.financeDelete]: [permissionCodes.financeView],
+  [permissionCodes.financeRestore]: [permissionCodes.financeView],
+};
 
 export type PermissionScope = keyof typeof permissionScopeLabels;
 
@@ -97,9 +133,18 @@ export function getPermissionScope(code: string): PermissionScope {
 }
 
 export function getPermissionAction(code: string) {
-  const [, ...actionParts] = code.split(".");
+  if (exactPermissionLabels[code]) {
+    return exactPermissionLabels[code];
+  }
 
-  return actionParts.join(".") || code;
+  const [, ...actionParts] = code.split(".");
+  const action = actionParts.join(".") || code;
+
+  return permissionActionLabels[action] ?? action;
+}
+
+export function formatPermissionCode(code: string) {
+  return `${formatPermissionScope(getPermissionScope(code))}: ${getPermissionAction(code)}`;
 }
 
 export function formatPermissionScope(scope: string) {
@@ -119,6 +164,78 @@ export function groupPermissionsByScope<TPermission extends PermissionLike>(perm
     label: formatPermissionScope(scope),
     permissions: items,
   }));
+}
+
+export function normalizePermissionCodes(codes: string[]) {
+  const normalizedCodes = new Set(codes);
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const code of Array.from(normalizedCodes)) {
+      const dependencies = permissionDependencyCodes[code as PermissionCode] ?? [];
+      for (const dependency of dependencies) {
+        if (!normalizedCodes.has(dependency)) {
+          normalizedCodes.add(dependency);
+          changed = true;
+        }
+      }
+    }
+  }
+
+  return Array.from(normalizedCodes);
+}
+
+export function normalizePermissionIds<TPermission extends PermissionLike & { id: number }>(
+  permissions: TPermission[],
+  ids: number[],
+) {
+  const permissionById = new Map(permissions.map((permission) => [permission.id, permission]));
+  const idByCode = new Map(permissions.map((permission) => [permission.code, permission.id]));
+  const selectedCodes = ids
+    .map((id) => permissionById.get(id)?.code)
+    .filter((code): code is string => Boolean(code));
+
+  return normalizePermissionCodes(selectedCodes)
+    .map((code) => idByCode.get(code))
+    .filter((id): id is number => id != null);
+}
+
+export function removePermissionIdWithDependents<TPermission extends PermissionLike & { id: number }>(
+  permissions: TPermission[],
+  ids: number[],
+  removedId: number,
+) {
+  const permissionById = new Map(permissions.map((permission) => [permission.id, permission]));
+  const removedPermission = permissionById.get(removedId);
+  if (!removedPermission) {
+    return ids.filter((id) => id !== removedId);
+  }
+
+  const selectedCodes = new Set(
+    ids
+      .filter((id) => id !== removedId)
+      .map((id) => permissionById.get(id)?.code)
+      .filter((code): code is string => Boolean(code)),
+  );
+  let changed = true;
+
+  while (changed) {
+    changed = false;
+
+    for (const code of Array.from(selectedCodes)) {
+      const dependencies = permissionDependencyCodes[code as PermissionCode] ?? [];
+      if (dependencies.some((dependency) => !selectedCodes.has(dependency))) {
+        selectedCodes.delete(code);
+        changed = true;
+      }
+    }
+  }
+
+  return permissions
+    .filter((permission) => selectedCodes.has(permission.code))
+    .map((permission) => permission.id);
 }
 
 export function canCreateRoleDraft(name: string, permissionIds: number[]) {

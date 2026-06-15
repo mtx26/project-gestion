@@ -9,8 +9,10 @@ import {
   canCreateRoleDraft,
   canDeleteProject,
   canEditProject,
+  formatPermissionCode,
   getPermissionAction,
   hasProjectPermission,
+  normalizePermissionIds,
   permissionCodes,
 } from "@project-gestion/permissions";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -62,7 +64,7 @@ export function ProjectSettingsPage() {
     <ProjectWorkspaceShell
       activeItem="settings"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      maxWidthClassName="max-w-5xl"
+      maxWidthClassName="max-w-none"
       onProjectSelected={(id) => router.push(buildSettingsHref(id))}
       onProjectCreated={(project) => router.push(buildSettingsHref(project.id))}
     >
@@ -100,6 +102,7 @@ function ProjectSettingsContent({
   const canManageMembers = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.memberEdit);
   const canViewRoles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.roleView);
   const canManageRoles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.roleEdit);
+  const canDeleteRoles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.roleDelete);
 
   const membersQuery = useQuery({
     queryKey: selectedProject ? queryKeys.members.list(selectedProject.id) : ["members", "disabled"],
@@ -180,10 +183,33 @@ function ProjectSettingsContent({
       await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject!.id) });
     },
   });
+  const updateInvitationRole = useMutation({
+    mutationFn: ({ invitationId, roleId }: { invitationId: number; roleId: number }) =>
+      api.invitations.update(selectedProject!.id, invitationId, { role: roleId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject!.id) });
+    },
+  });
+  const removeMember = useMutation({
+    mutationFn: (memberId: number) => api.members.remove(selectedProject!.id, memberId),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject!.id) });
+    },
+  });
+  const updateMemberRole = useMutation({
+    mutationFn: ({ memberId, roleId }: { memberId: number; roleId: number }) =>
+      api.members.update(selectedProject!.id, memberId, { role: roleId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject!.id) });
+    },
+  });
 
   const createRole = useMutation({
     mutationFn: () =>
-      api.roles.create(selectedProject!.id, buildRolePayload(roleName, rolePermissionIds)),
+      api.roles.create(
+        selectedProject!.id,
+        buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)),
+      ),
     onSuccess: async () => {
       resetRoleDialog();
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject!.id) });
@@ -195,11 +221,20 @@ function ProjectSettingsContent({
       api.roles.update(
         selectedProject!.id,
         editingRole!.id,
-        buildRolePayload(roleName, rolePermissionIds),
+        buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)),
       ),
     onSuccess: async () => {
       resetRoleDialog();
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject!.id) });
+    },
+  });
+  const deleteRole = useMutation({
+    mutationFn: (roleId: number) => api.roles.remove(selectedProject!.id, roleId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject!.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject!.id) }),
+      ]);
     },
   });
 
@@ -220,7 +255,12 @@ function ProjectSettingsContent({
   function openEditRoleDialog(role: Role) {
     setEditingRole(role);
     setRoleName(role.name);
-    setRolePermissionIds(role.permissions.map((permission) => permission.id));
+    setRolePermissionIds(
+      normalizePermissionIds(
+        permissions,
+        role.permissions.map((permission) => permission.id),
+      ),
+    );
     setRoleDialogOpen(true);
   }
 
@@ -363,14 +403,69 @@ function ProjectSettingsContent({
                       {members.length} membre(s) direct(s), {invitations.length} invitation(s).
                     </p>
                     <div className="grid gap-2 sm:grid-cols-2">
-                      {members.slice(0, 6).map((member) => (
-                        <div key={member.id} className="rounded-md border bg-muted/30 p-3 text-sm">
+                      {members.map((member) => (
+                        <div
+                          key={member.id}
+                          className={`rounded-md border p-3 text-sm ${
+                            member.role_deleted
+                              ? "border-red-200 bg-red-50/70"
+                              : "bg-muted/30"
+                          }`}
+                        >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
                               <p className="truncate font-medium">{member.user_display_name}</p>
-                              <p className="mt-1 truncate text-xs text-muted-foreground">{member.role_name}</p>
+                              {canManageMembers ? (
+                                <Select
+                                  value={member.role_deleted ? undefined : String(member.role)}
+                                  onValueChange={(value) =>
+                                    updateMemberRole.mutate({
+                                      memberId: member.id,
+                                      roleId: Number(value),
+                                    })
+                                  }
+                                >
+                                  <SelectTrigger className="mt-2 h-8 w-full bg-background sm:w-48">
+                                    <SelectValue placeholder={member.role_deleted ? "Aucun role actif" : "Role"} />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {roles.map((role) => (
+                                      <SelectItem key={role.id} value={String(role.id)}>
+                                        {role.name}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              ) : (
+                                <p className={`mt-1 truncate text-xs ${member.role_deleted ? "text-red-700" : "text-muted-foreground"}`}>
+                                  {member.role_deleted ? "Aucun role actif" : member.role_name}
+                                </p>
+                              )}
+                              {member.role_deleted ? (
+                                <p className="mt-2 text-xs font-medium text-red-700">
+                                  Probleme: ce membre n&apos;a plus de role actif.
+                                </p>
+                              ) : null}
                             </div>
-                            <Badge variant="secondary">Membre</Badge>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <Badge
+                                variant={member.role_deleted ? "destructive" : "secondary"}
+                              >
+                                {member.role_deleted ? "Sans role" : "Membre"}
+                              </Badge>
+                              {canManageMembers && member.user !== selectedProject.owner ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`Supprimer ${member.user_display_name}`}
+                                  disabled={removeMember.isPending}
+                                  onClick={() => removeMember.mutate(member.id)}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -382,7 +477,30 @@ function ProjectSettingsContent({
                             <div className="flex items-start justify-between gap-3">
                               <div className="min-w-0">
                                 <p className="truncate font-medium">{invitation.email}</p>
-                                <p className="mt-1 truncate text-xs text-muted-foreground">{roleName}</p>
+                                {canManageMembers ? (
+                                  <Select
+                                    value={String(invitation.role)}
+                                    onValueChange={(value) =>
+                                      updateInvitationRole.mutate({
+                                        invitationId: invitation.id,
+                                        roleId: Number(value),
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="mt-2 h-8 w-full bg-background sm:w-48">
+                                      <SelectValue placeholder="Role" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {roles.map((role) => (
+                                        <SelectItem key={role.id} value={String(role.id)}>
+                                          {role.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <p className="mt-1 truncate text-xs text-muted-foreground">{roleName}</p>
+                                )}
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
                                 <Badge
@@ -413,6 +531,9 @@ function ProjectSettingsContent({
                         );
                       })}
                     </div>
+                    <FormError message={removeMember.error ? getErrorMessage(removeMember.error) : null} />
+                    <FormError message={updateMemberRole.error ? getErrorMessage(updateMemberRole.error) : null} />
+                    <FormError message={updateInvitationRole.error ? getErrorMessage(updateInvitationRole.error) : null} />
                     <FormError message={removeInvitation.error ? getErrorMessage(removeInvitation.error) : null} />
                   </>
                 )}
@@ -475,6 +596,18 @@ function ProjectSettingsContent({
                                   <Pencil className="size-4" />
                                 </Button>
                               ) : null}
+                              {canDeleteRoles ? (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  aria-label={`Supprimer ${role.name}`}
+                                  disabled={deleteRole.isPending}
+                                  onClick={() => deleteRole.mutate(role.id)}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              ) : null}
                             </div>
                           </div>
                           {role.permissions.length > 0 ? (
@@ -530,6 +663,7 @@ function ProjectSettingsContent({
                 isPending={editingRole ? updateRole.isPending : createRole.isPending}
               />
             ) : null}
+            <FormError message={deleteRole.error ? getErrorMessage(deleteRole.error) : null} />
           </TabsContent>
           ) : null}
 
@@ -688,7 +822,7 @@ function AccessSettingsCard({
             ) : project.current_user_permission_codes.length > 0 ? (
               project.current_user_permission_codes.map((code) => (
                 <Badge key={code} variant="secondary">
-                  {code}
+                  {formatPermissionCode(code)}
                 </Badge>
               ))
             ) : (

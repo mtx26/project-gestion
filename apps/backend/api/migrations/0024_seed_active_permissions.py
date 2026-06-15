@@ -3,7 +3,6 @@ from django.db import migrations
 
 ACTIVE_PERMISSIONS = [
     "project.edit",
-    "project.restore",
     "role.view",
     "role.edit",
     "role.delete",

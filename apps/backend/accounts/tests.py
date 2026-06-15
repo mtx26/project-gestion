@@ -523,6 +523,26 @@ class CurrentUserProfilePictureViewTests(AccountsApiTestCase):
             "https://storage.example/bucket/users/1/profile-pictures/avatar.png",
         )
 
+    @patch("accounts.views.delete_profile_picture_file")
+    @patch("accounts.views.upload_profile_picture_file")
+    def test_upload_deletes_previous_profile_picture(self, upload_profile_picture_file, delete_profile_picture_file):
+        previous_file_id = f"users/{self.user.id}/profile-pictures/old.png"
+        self.user.profile.picture_url = f"https://storage.example/bucket/{previous_file_id}"
+        self.user.profile.save(update_fields=["picture_url"])
+        upload_profile_picture_file.return_value = {
+            "file_id": f"users/{self.user.id}/profile-pictures/new.png",
+            "url": f"https://storage.example/bucket/users/{self.user.id}/profile-pictures/new.png",
+        }
+
+        response = self.api_post(
+            self.url,
+            {"file": self.make_file()},
+            format="multipart",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        delete_profile_picture_file.assert_called_once_with(previous_file_id)
+
     def test_profile_picture_file_is_required(self):
         response = self.api_post(self.url, {}, format="multipart")
 

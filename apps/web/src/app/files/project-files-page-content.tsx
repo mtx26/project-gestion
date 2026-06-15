@@ -290,6 +290,19 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     );
   }
 
+  if (!canViewFiles) {
+    return (
+      <Card className="rounded-lg">
+        <CardContent className="p-5">
+          <p className="font-medium">Fichiers indisponibles</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Ton role ne permet pas de voir l&apos;arborescence de ce projet.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const selectedFolderName = findFolderName(treeQuery.data ?? [], selectedFolderId);
 
   return (
@@ -303,12 +316,6 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
           </p>
         ) : null}
       </div>
-
-      {!canViewFiles ? (
-        <Alert>
-          <AlertDescription>Permission file.view requise pour voir l&apos;arborescence du projet.</AlertDescription>
-        </Alert>
-      ) : null}
 
       {treeQuery.error ? (
         <Alert variant="destructive">

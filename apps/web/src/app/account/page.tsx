@@ -10,10 +10,10 @@ import { useForm } from "react-hook-form";
 import { AccountProfileForm } from "@/components/account/account-profile-form";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { FormError } from "@/components/form-error";
+import { PasswordInput } from "@/components/password-input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
@@ -21,7 +21,7 @@ import { getErrorMessage } from "@/lib/errors";
 
 export default function AccountPage() {
   return (
-    <ProjectWorkspaceShell activeItem="account" maxWidthClassName="max-w-4xl">
+    <ProjectWorkspaceShell activeItem="account" maxWidthClassName="max-w-none">
       {({ user }) => <AccountContent user={user} />}
     </ProjectWorkspaceShell>
   );
@@ -95,12 +95,12 @@ function AccountContent({ user }: { user: User | null }) {
                   <form className="max-w-md space-y-4" onSubmit={passwordForm.handleSubmit(onChangePassword)}>
                     <div className="space-y-2">
                       <Label htmlFor="old-password">Mot de passe actuel</Label>
-                      <Input id="old-password" type="password" {...passwordForm.register("old_password")} />
+                      <PasswordInput id="old-password" autoComplete="current-password" {...passwordForm.register("old_password")} />
                       <FormError message={passwordForm.formState.errors.old_password?.message} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="new-password">Nouveau mot de passe</Label>
-                      <Input id="new-password" type="password" {...passwordForm.register("new_password")} />
+                      <PasswordInput id="new-password" autoComplete="new-password" {...passwordForm.register("new_password")} />
                       <FormError message={passwordForm.formState.errors.new_password?.message} />
                     </div>
                     <FormError message={changePassword.error ? getErrorMessage(changePassword.error) : null} />

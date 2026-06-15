@@ -89,20 +89,21 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un projet",
-        description="Restaure un projet supprime.\nPermission requise : `project.restore`.",
+        description="Restaure un projet supprime. Reserve au proprietaire du projet.",
         request=None,
     ),
 )
 class ProjectRestoreView(generics.GenericAPIView):
     serializer_class = ProjectSerializer
-    permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "project.restore"
+    permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return get_accessible_deleted_projects(self.request.user)
 
     def post(self, request, pk):
         project = self.get_object()
+        if project.owner_id != request.user.id:
+            raise PermissionDenied("Seul le proprietaire du projet peut le restaurer.")
 
         project.restore()
 

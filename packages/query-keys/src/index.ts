@@ -17,6 +17,11 @@ export const queryKeys = {
   invitations: {
     all: (projectId: number) => ["projects", projectId, "invitations"] as const,
   },
+  notifications: {
+    all: ["notifications"] as const,
+    list: (unreadOnly?: boolean) => ["notifications", "list", { unreadOnly: unreadOnly ?? false }] as const,
+    unreadCount: ["notifications", "unread-count"] as const,
+  },
   permissions: {
     list: () => ["permissions", "list"] as const,
   },
