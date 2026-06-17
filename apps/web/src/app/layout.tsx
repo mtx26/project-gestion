@@ -27,7 +27,16 @@ export default function RootLayout({
     <html
       lang="fr"
       className={`${inter.variable} ${jetBrainsMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{var t=localStorage.getItem('theme');if(!t){t=window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}document.documentElement.classList.toggle('dark',t==='dark')}catch(e){}",
+          }}
+        />
+      </head>
       <body className="flex min-h-full flex-col" suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>

@@ -18,6 +18,7 @@ import type {
   Role,
   RolePayload,
   Task,
+  TaskPayload,
   TimeEntry,
   TimeEntryPayment,
   TimeEntryPaymentPayload,
@@ -342,12 +343,37 @@ export function createApiClient({
         }),
     },
     tasks: {
-      list: (projectId: number) =>
-        request<Task[] | PaginatedResponse<Task>>(`/api/projects/${projectId}/tasks/`),
+      list: (
+        projectId: number,
+        query: { folder?: number; status?: Task["status"]; priority?: Task["priority"] } = {},
+      ) =>
+        request<Task[] | PaginatedResponse<Task>>(
+          `/api/projects/${projectId}/tasks/${buildQueryString({
+            folder: query.folder ? String(query.folder) : undefined,
+            status: query.status,
+            priority: query.priority,
+          })}`,
+        ),
+      create: (projectId: number, payload: TaskPayload) =>
+        request<Task>(`/api/projects/${projectId}/tasks/`, {
+          method: "POST",
+          body: payload,
+        }),
+      update: (projectId: number, taskId: number, payload: Partial<TaskPayload>) =>
+        request<Task>(`/api/projects/${projectId}/tasks/${taskId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      remove: (projectId: number, taskId: number) =>
+        request<void>(`/api/projects/${projectId}/tasks/${taskId}/`, {
+          method: "DELETE",
+        }),
     },
     folders: {
-      tree: (projectId: number) =>
-        request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/tree/`),
+      tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
+        request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/tree/${buildQueryString({
+          include_tasks: query.includeTasks ? "true" : undefined,
+        })}`),
       targetTree: (projectId: number) =>
         request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/target-tree/`),
       create: (projectId: number, payload: FolderPayload) =>

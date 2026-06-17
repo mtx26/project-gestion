@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import { ProjectPageFallback } from "@/components/dashboard/project-page-fallback";
-import { ProjectSettingsPage } from "@/components/dashboard/project-settings-page";
+import { ProjectTasksPageContent } from "./project-tasks-page-content";
 
-export default function SettingsPage() {
+export default function TasksPage() {
   return (
     <Suspense fallback={<ProjectPageFallback />}>
-      <ProjectSettingsPage />
+      <ProjectTasksPageContent />
     </Suspense>
   );
 }

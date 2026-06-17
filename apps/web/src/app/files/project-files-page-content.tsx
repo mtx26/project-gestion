@@ -1,10 +1,12 @@
 "use client";
 
-import type { FolderTreeNode } from "@project-gestion/types";
+import type { FolderTreeNode, Task, TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
+import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
+  Clock3,
   ChevronDown,
   ChevronRight,
   FileArchive,
@@ -16,6 +18,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  ListTodo,
   Pencil,
   Trash2,
   Upload,
@@ -25,12 +28,14 @@ import type { ComponentType, ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
@@ -43,9 +48,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -76,10 +84,15 @@ export function ProjectFilesPageContent() {
   );
 }
 
-function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
+function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProject, queryClient }: ProjectWorkspaceState) {
+  const router = useRouter();
   const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
   const canEditFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileEdit);
   const canDeleteFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileDelete);
+  const canViewTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskView);
+  const canEditTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskEdit);
+  const canViewTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryView);
+  const canRecordTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryEdit);
   const selectedProjectId = selectedProject?.id ?? null;
   const [targetFolderId, setTargetFolderId] = useState<number | null>(null);
   const [selectedFolderState, setSelectedFolderState] = useState<{ projectId: number | null; id: number | null }>({
@@ -96,14 +109,28 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   const [contextTarget, setContextTarget] = useState<FileActionTarget | null>(null);
   const [itemToDelete, setItemToDelete] = useState<FileActionTarget | null>(null);
   const [itemToRename, setItemToRename] = useState<FileActionTarget | null>(null);
+  const [inspectedFolderId, setInspectedFolderId] = useState<number | null>(null);
+  const [taskDraftFolderId, setTaskDraftFolderId] = useState<number | null>(null);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskPriority, setTaskPriority] = useState<Task["priority"]>("normal");
+  const [taskDueDate, setTaskDueDate] = useState("");
+  const [showIncompleteTasks, setShowIncompleteTasks] = useState(false);
+  const [timeDraftFolderId, setTimeDraftFolderId] = useState<number | null>(null);
+  const [timeHours, setTimeHours] = useState("1");
+  const [timeMinutes, setTimeMinutes] = useState("0");
+  const [timeHourlyRate, setTimeHourlyRate] = useState(user?.profile?.default_hourly_rate ?? "0");
+  const [timeDescription, setTimeDescription] = useState("");
   const [renameValue, setRenameValue] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [draftFolder, setDraftFolder] = useState<{ parentFolder: number | null; name: string } | null>(null);
   const draftClosedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const treeQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.folders.tree(selectedProject.id) : ["folders", "tree", "disabled"],
-    queryFn: () => api.folders.tree(selectedProject!.id),
+    queryKey: selectedProject
+      ? queryKeys.folders.tree(selectedProject.id, { includeTasks: showIncompleteTasks })
+      : ["folders", "tree", "disabled"],
+    queryFn: () => api.folders.tree(selectedProject!.id, { includeTasks: showIncompleteTasks }),
     enabled: Boolean(selectedProject && canViewFiles),
   });
   const createFolder = useMutation({
@@ -168,6 +195,66 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
       await treeQuery.refetch();
     },
     onError: (error) => setActionError(getErrorMessage(error)),
+  });
+  const createTask = useMutation({
+    mutationFn: () =>
+      api.tasks.create(selectedProject!.id, {
+        title: taskTitle.trim(),
+        description: taskDescription.trim() || null,
+        folder: taskDraftFolderId,
+        priority: taskPriority,
+        status: "todo",
+        due_date: taskDueDate || null,
+      }),
+    onMutate: () => setActionError(null),
+    onSuccess: async () => {
+      setTaskDraftFolderId(null);
+      setTaskTitle("");
+      setTaskDescription("");
+      setTaskPriority("normal");
+      setTaskDueDate("");
+      await Promise.all([
+        treeQuery.refetch(),
+        selectedProjectId ? queryClient.invalidateQueries({ queryKey: ["projects", selectedProjectId, "tasks"] }) : Promise.resolve(),
+      ]);
+    },
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
+  const createTimeEntry = useMutation({
+    mutationFn: () =>
+      api.timeEntries.create(selectedProject!.id, {
+        user: user!.id,
+        folder: timeDraftFolderId,
+        duration_minutes: Number(timeHours) * 60 + Number(timeMinutes),
+        hourly_rate: timeHourlyRate === "" ? undefined : timeHourlyRate,
+        description: timeDescription.trim() || null,
+      }),
+    onMutate: () => setActionError(null),
+    onSuccess: async () => {
+      setTimeDraftFolderId(null);
+      setTimeHours("1");
+      setTimeMinutes("0");
+      setTimeHourlyRate(user?.profile?.default_hourly_rate ?? "0");
+      setTimeDescription("");
+      if (selectedProjectId) {
+        await queryClient.invalidateQueries({ queryKey: ["projects", selectedProjectId, "time-entries"] });
+      }
+    },
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
+  const inspectedTasksQuery = useQuery({
+    queryKey: selectedProject && inspectedFolderId != null
+      ? queryKeys.tasks.list(selectedProject.id, { folderId: inspectedFolderId })
+      : ["tasks", "folder-preview", "disabled"],
+    queryFn: () => api.tasks.list(selectedProject!.id, { folder: inspectedFolderId! }),
+    enabled: Boolean(selectedProject && canViewTasks && inspectedFolderId != null),
+  });
+  const inspectedTimeEntriesQuery = useQuery({
+    queryKey: selectedProject && inspectedFolderId != null
+      ? ["projects", selectedProject.id, "time-entries", "folder-preview", inspectedFolderId]
+      : ["time-entries", "folder-preview", "disabled"],
+    queryFn: () => api.timeEntries.list(selectedProject!.id),
+    enabled: Boolean(selectedProject && canViewTime && inspectedFolderId != null),
   });
 
   const rootExpandedFolderIds = useMemo(() => {
@@ -250,6 +337,51 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     setItemToDelete(target);
   }
 
+  function openTaskDraft(folderId: number | null) {
+    setTaskDraftFolderId(folderId);
+    setTaskTitle("");
+    setTaskDescription("");
+    setTaskPriority("normal");
+    setTaskDueDate("");
+  }
+
+  function openTimeDraft(folderId: number | null) {
+    setTimeDraftFolderId(folderId);
+    setTimeHours("1");
+    setTimeMinutes("0");
+    setTimeHourlyRate(user?.profile?.default_hourly_rate ?? "0");
+    setTimeDescription("");
+  }
+
+  function submitTaskDraft() {
+    if (!canEditTasks || !taskTitle.trim()) {
+      return;
+    }
+
+    createTask.mutate();
+  }
+
+  function submitTimeDraft() {
+    const durationMinutes = Number(timeHours) * 60 + Number(timeMinutes);
+    if (!user || !canRecordTime || durationMinutes <= 0) {
+      return;
+    }
+
+    createTimeEntry.mutate();
+  }
+
+  function buildFolderTimeHref(folderId: number) {
+    const params = new URLSearchParams({
+      project: String(selectedProjectId),
+      target: `folder-${folderId}`,
+    });
+    return `/time?${params.toString()}`;
+  }
+
+  function buildFolderTasksHref(folderId: number) {
+    return `/tasks?project=${selectedProjectId}&folder=folder-${folderId}`;
+  }
+
   function confirmDelete() {
     if (!itemToDelete) {
       return;
@@ -292,14 +424,17 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
 
   if (!canViewFiles) {
     return (
-      <Card className="rounded-lg">
-        <CardContent className="p-5">
-          <p className="font-medium">Fichiers indisponibles</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Ton role ne permet pas de voir l&apos;arborescence de ce projet.
-          </p>
-        </CardContent>
-      </Card>
+      <div className="space-y-5">
+        <ProjectFilesTitle />
+        <Card className="rounded-lg">
+          <CardContent className="p-5">
+            <p className="font-medium">Fichiers indisponibles</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Ton role ne permet pas de voir l&apos;arborescence de ce projet.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
@@ -308,8 +443,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-medium uppercase text-muted-foreground">Projet</p>
-        <h1 className="mt-1 text-2xl font-semibold">Arborescence du projet</h1>
+        <ProjectFilesTitle />
         {selectedFolderName ? (
           <p className="mt-1 text-sm text-muted-foreground">
             Dossier selectionne : <span className="font-medium text-foreground">{selectedFolderName}</span>
@@ -337,13 +471,23 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
 
       <Card className="rounded-lg">
         <CardHeader>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2">
               <Folder className="size-4 text-primary" />
               {selectedProject.name}
             </CardTitle>
-            {canEditFiles ? (
-              <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-3">
+              {canViewTasks ? (
+                <label className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Checkbox
+                    checked={showIncompleteTasks}
+                    onCheckedChange={(checked) => setShowIncompleteTasks(checked === true)}
+                  />
+                  Taches en cours
+                </label>
+              ) : null}
+              {canEditFiles ? (
+                <div className="flex items-center gap-1">
                 <Button
                   variant="outline"
                   size="icon-sm"
@@ -380,12 +524,13 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
                     <Trash2 className="size-4" />
                   </Button>
                 ) : null}
-              </div>
-            ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
         </CardHeader>
         <ContextMenu>
-          <ContextMenuTrigger asChild disabled={!canEditFiles}>
+          <ContextMenuTrigger asChild>
             <CardContent
               className="pb-4"
               onContextMenuCapture={() => {
@@ -424,25 +569,65 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
                   onOpenContextMenu={setContextTarget}
                   onRequestRename={requestRename}
                   onRequestDelete={requestDelete}
+                  onInspectFolder={setInspectedFolderId}
                 />
               ) : null}
             </CardContent>
           </ContextMenuTrigger>
-          <ContextMenuContent className="w-48">
-            {contextTarget ? (
+          <ContextMenuContent className="w-56">
+            {canEditFiles && contextTarget ? (
               <ContextMenuItem onSelect={() => requestRename(contextTarget)}>
                 <Pencil className="size-4" />
                 Renommer
               </ContextMenuItem>
             ) : null}
-            <ContextMenuItem onSelect={() => onCreateSection(contextTarget?.type === "folder" ? contextTarget.id : null)}>
-              <FolderPlus className="size-4" />
-              Nouvelle section
-            </ContextMenuItem>
-            <ContextMenuItem onSelect={() => onPickFile(contextTarget?.type === "folder" ? contextTarget.id : null)}>
-              <Upload className="size-4" />
-              Importer fichier
-            </ContextMenuItem>
+            {canEditFiles && contextTarget ? <ContextMenuSeparator /> : null}
+            {contextTarget?.type === "folder" ? (
+              <ContextMenuItem onSelect={() => setInspectedFolderId(contextTarget.id)}>
+                <FolderOpen className="size-4" />
+                Voir ce dossier
+              </ContextMenuItem>
+            ) : null}
+            {canViewTime && contextTarget?.type === "folder" ? (
+              <ContextMenuItem onSelect={() => router.push(buildFolderTimeHref(contextTarget.id))}>
+                <Clock3 className="size-4" />
+                Voir les heures
+              </ContextMenuItem>
+            ) : null}
+            {canRecordTime && contextTarget?.type === "folder" ? (
+              <ContextMenuItem onSelect={() => openTimeDraft(contextTarget.id)}>
+                <Clock3 className="size-4" />
+                Ajouter du temps
+              </ContextMenuItem>
+            ) : null}
+            {canViewTasks && contextTarget?.type === "folder" ? (
+              <ContextMenuItem onSelect={() => router.push(buildFolderTasksHref(contextTarget.id))}>
+                <ListTodo className="size-4" />
+                Voir les taches
+              </ContextMenuItem>
+            ) : null}
+            {canEditTasks && contextTarget?.type === "folder" ? (
+              <ContextMenuItem onSelect={() => openTaskDraft(contextTarget.id)}>
+                <ListTodo className="size-4" />
+                Ajouter une tache
+              </ContextMenuItem>
+            ) : null}
+            {(contextTarget?.type === "folder" && (canViewTime || canRecordTime || canViewTasks || canEditTasks)) ? (
+              <ContextMenuSeparator />
+            ) : null}
+            {canEditFiles ? (
+              <>
+                <ContextMenuItem onSelect={() => onCreateSection(contextTarget?.type === "folder" ? contextTarget.id : null)}>
+                  <FolderPlus className="size-4" />
+                  Nouvelle section
+                </ContextMenuItem>
+                <ContextMenuItem onSelect={() => onPickFile(contextTarget?.type === "folder" ? contextTarget.id : null)}>
+                  <Upload className="size-4" />
+                  Importer fichier
+                </ContextMenuItem>
+              </>
+            ) : null}
+            {canEditFiles && canDeleteFiles && contextTarget ? <ContextMenuSeparator /> : null}
             {canDeleteFiles && contextTarget ? (
               <ContextMenuItem
                 variant="destructive"
@@ -455,6 +640,63 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
           </ContextMenuContent>
         </ContextMenu>
       </Card>
+
+      {inspectedFolderId != null ? (
+        <FolderLinkedPanel
+          folderName={findFolderName(treeQuery.data ?? [], inspectedFolderId) ?? `Dossier #${inspectedFolderId}`}
+          tasks={normalizeApiList(inspectedTasksQuery.data)}
+          timeEntries={normalizeApiList(inspectedTimeEntriesQuery.data).filter((entry) => entry.folder === inspectedFolderId)}
+          canViewTasks={canViewTasks}
+          canViewTime={canViewTime}
+          isLoadingTasks={inspectedTasksQuery.isLoading}
+          isLoadingTime={inspectedTimeEntriesQuery.isLoading}
+          onClose={() => setInspectedFolderId(null)}
+          onOpenTasks={() => router.push(buildFolderTasksHref(inspectedFolderId))}
+          onOpenTime={() => router.push(buildFolderTimeHref(inspectedFolderId))}
+        />
+      ) : null}
+
+      <TaskDraftDialog
+        open={taskDraftFolderId != null}
+        folderName={findFolderName(treeQuery.data ?? [], taskDraftFolderId)}
+        folders={treeQuery.data ?? []}
+        folderId={taskDraftFolderId}
+        title={taskTitle}
+        description={taskDescription}
+        priority={taskPriority}
+        dueDate={taskDueDate}
+        isPending={createTask.isPending}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTaskDraftFolderId(null);
+          }
+        }}
+        onTitleChange={setTaskTitle}
+        onDescriptionChange={setTaskDescription}
+        onFolderChange={setTaskDraftFolderId}
+        onPriorityChange={setTaskPriority}
+        onDueDateChange={setTaskDueDate}
+        onSubmit={submitTaskDraft}
+      />
+      <TimeDraftDialog
+        open={timeDraftFolderId != null}
+        folderName={findFolderName(treeQuery.data ?? [], timeDraftFolderId)}
+        hours={timeHours}
+        minutes={timeMinutes}
+        hourlyRate={timeHourlyRate}
+        description={timeDescription}
+        isPending={createTimeEntry.isPending}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTimeDraftFolderId(null);
+          }
+        }}
+        onHoursChange={setTimeHours}
+        onMinutesChange={setTimeMinutes}
+        onHourlyRateChange={setTimeHourlyRate}
+        onDescriptionChange={setTimeDescription}
+        onSubmit={submitTimeDraft}
+      />
 
       <Dialog open={itemToRename != null} onOpenChange={(open) => !open && setItemToRename(null)}>
         <DialogContent className="sm:max-w-md">
@@ -520,6 +762,385 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   );
 }
 
+function ProjectFilesTitle() {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase text-muted-foreground">Projet</p>
+      <h1 className="mt-1 text-2xl font-semibold">Documents du projet</h1>
+    </div>
+  );
+}
+
+function FolderLinkedPanel({
+  folderName,
+  tasks,
+  timeEntries,
+  canViewTasks,
+  canViewTime,
+  isLoadingTasks,
+  isLoadingTime,
+  onClose,
+  onOpenTasks,
+  onOpenTime,
+}: {
+  folderName: string;
+  tasks: Task[];
+  timeEntries: TimeEntry[];
+  canViewTasks: boolean;
+  canViewTime: boolean;
+  isLoadingTasks: boolean;
+  isLoadingTime: boolean;
+  onClose: () => void;
+  onOpenTasks: () => void;
+  onOpenTime: () => void;
+}) {
+  const totalMinutes = timeEntries.reduce((total, entry) => total + entry.duration_minutes, 0);
+  const remainingAmount = timeEntries.reduce((total, entry) => total + Number(entry.remaining_amount), 0);
+
+  return (
+    <Card className="rounded-lg">
+      <CardHeader className="gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <CardTitle className="flex items-center gap-2">
+            <FolderOpen className="size-4 text-amber-500" />
+            {folderName}
+          </CardTitle>
+          <p className="mt-1 text-sm text-muted-foreground">Elements lies au dossier selectionne.</p>
+        </div>
+        <Button type="button" variant="ghost" size="sm" onClick={onClose}>
+          Fermer
+        </Button>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-2">
+        {canViewTasks ? (
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-medium">
+                <ListTodo className="size-4 text-sky-600" />
+                Taches
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={onOpenTasks}>
+                Ouvrir
+              </Button>
+            </div>
+            {isLoadingTasks ? (
+              <Skeleton className="h-16 rounded-md" />
+            ) : tasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucune tache liee.</p>
+            ) : (
+              <div className="space-y-2">
+                {tasks.slice(0, 4).map((task) => (
+                  <div key={task.id} className="flex items-center justify-between gap-2 rounded-md bg-background px-2 py-1.5 text-sm">
+                    <span className="truncate">{task.title}</span>
+                    <Badge variant="outline">{getTaskStatusLabel(task.status)}</Badge>
+                  </div>
+                ))}
+                {tasks.length > 4 ? <p className="text-xs text-muted-foreground">+ {tasks.length - 4} autres</p> : null}
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {canViewTime ? (
+          <div className="rounded-md border bg-muted/20 p-3">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 font-medium">
+                <Clock3 className="size-4 text-primary" />
+                Temps
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={onOpenTime}>
+                Ouvrir
+              </Button>
+            </div>
+            {isLoadingTime ? (
+              <Skeleton className="h-16 rounded-md" />
+            ) : timeEntries.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Aucune heure liee.</p>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="rounded-md bg-background p-2">
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="font-medium">{formatDuration(totalMinutes)}</p>
+                </div>
+                <div className="rounded-md bg-background p-2">
+                  <p className="text-xs text-muted-foreground">Reste</p>
+                  <p className="font-medium text-orange-700">{formatMoney(remainingAmount)}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function TaskDraftDialog({
+  open,
+  folderName,
+  folders,
+  folderId,
+  title,
+  description,
+  priority,
+  dueDate,
+  isPending,
+  onOpenChange,
+  onTitleChange,
+  onDescriptionChange,
+  onFolderChange,
+  onPriorityChange,
+  onDueDateChange,
+  onSubmit,
+}: {
+  open: boolean;
+  folderName: string | null;
+  folders: FolderTreeNode[];
+  folderId: number | null;
+  title: string;
+  description: string;
+  priority: Task["priority"];
+  dueDate: string;
+  isPending: boolean;
+  onOpenChange: (open: boolean) => void;
+  onTitleChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onFolderChange: (folderId: number | null) => void;
+  onPriorityChange: (value: Task["priority"]) => void;
+  onDueDateChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Nouvelle tache</DialogTitle>
+          <DialogDescription>
+            {folderName ? `La tache sera liee au dossier ${folderName}.` : "La tache sera liee au projet."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>Dossier</Label>
+            <FolderOnlyPickerDialog
+              folders={folders}
+              selectedFolderId={folderId}
+              selectedLabel={folderName ?? "Dossier"}
+              onSelect={onFolderChange}
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="project-task-title">Titre</Label>
+            <Input id="project-task-title" value={title} onChange={(event) => onTitleChange(event.target.value)} />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Priorite</Label>
+              <Select value={priority} onValueChange={(value) => onPriorityChange(value as Task["priority"])}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Basse</SelectItem>
+                  <SelectItem value="normal">Normale</SelectItem>
+                  <SelectItem value="high">Haute</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="project-task-due-date">Echeance</Label>
+              <Input id="project-task-due-date" type="date" value={dueDate} onChange={(event) => onDueDateChange(event.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="project-task-description">Description</Label>
+            <Textarea id="project-task-description" rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Annuler
+            </Button>
+          </DialogClose>
+          <Button type="button" disabled={!title.trim() || isPending} onClick={onSubmit}>
+            {isPending ? "Creation..." : "Creer la tache"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TimeDraftDialog({
+  open,
+  folderName,
+  hours,
+  minutes,
+  hourlyRate,
+  description,
+  isPending,
+  onOpenChange,
+  onHoursChange,
+  onMinutesChange,
+  onHourlyRateChange,
+  onDescriptionChange,
+  onSubmit,
+}: {
+  open: boolean;
+  folderName: string | null;
+  hours: string;
+  minutes: string;
+  hourlyRate: string;
+  description: string;
+  isPending: boolean;
+  onOpenChange: (open: boolean) => void;
+  onHoursChange: (value: string) => void;
+  onMinutesChange: (value: string) => void;
+  onHourlyRateChange: (value: string) => void;
+  onDescriptionChange: (value: string) => void;
+  onSubmit: () => void;
+}) {
+  const durationMinutes = Number(hours) * 60 + Number(minutes);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Ajouter du temps</DialogTitle>
+          <DialogDescription>
+            {folderName ? `Le temps sera lie au dossier ${folderName}.` : "Le temps sera lie au projet."}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="project-time-hours">Heures</Label>
+              <Input id="project-time-hours" type="number" min="0" value={hours} onChange={(event) => onHoursChange(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="project-time-minutes">Minutes</Label>
+              <Input id="project-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(event) => onMinutesChange(event.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="project-time-rate">Taux horaire</Label>
+            <Input id="project-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="project-time-description">Description</Label>
+            <Textarea id="project-time-description" rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Annuler
+            </Button>
+          </DialogClose>
+          <Button type="button" disabled={durationMinutes <= 0 || isPending} onClick={onSubmit}>
+            {isPending ? "Enregistrement..." : "Enregistrer"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FolderOnlyPickerDialog({
+  folders,
+  selectedFolderId,
+  selectedLabel,
+  onSelect,
+}: {
+  folders: FolderTreeNode[];
+  selectedFolderId: number | null;
+  selectedLabel: string;
+  onSelect: (folderId: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  function selectFolder(folderId: number) {
+    onSelect(folderId);
+    setOpen(false);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setOpen(true)}>
+        <Folder className="size-4 text-amber-500" />
+        <span className="truncate">{selectedLabel}</span>
+      </Button>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Choisir un dossier</DialogTitle>
+          <DialogDescription>Selectionne le dossier qui recevra la tache.</DialogDescription>
+        </DialogHeader>
+        <div className="max-h-[50vh] overflow-y-auto rounded-md border bg-background p-2">
+          <FolderOnlyPickerRows
+            nodes={folders}
+            selectedFolderId={selectedFolderId}
+            depth={0}
+            onSelect={selectFolder}
+          />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FolderOnlyPickerRows({
+  nodes,
+  selectedFolderId,
+  depth,
+  onSelect,
+}: {
+  nodes: FolderTreeNode[];
+  selectedFolderId: number | null;
+  depth: number;
+  onSelect: (folderId: number) => void;
+}) {
+  return (
+    <>
+      {nodes.map((node) => {
+        if (node.type !== "folder") {
+          return null;
+        }
+
+        return (
+          <div key={node.id}>
+            <button
+              type="button"
+              className={`flex h-9 w-full items-center gap-2 rounded-md pr-2 text-left text-sm hover:bg-muted ${selectedFolderId === node.id ? "bg-primary/10 text-primary" : ""}`}
+              style={{ paddingLeft: `${depth * 24 + 8}px` }}
+              onClick={() => onSelect(node.id)}
+            >
+              <Folder className="size-4 text-amber-500" />
+              <span className="truncate">{node.name}</span>
+            </button>
+            {node.children?.length ? (
+              <FolderOnlyPickerRows
+                nodes={node.children}
+                selectedFolderId={selectedFolderId}
+                depth={depth + 1}
+                onSelect={onSelect}
+              />
+            ) : null}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function TaskTreeBadge({ status }: { status?: FolderTreeNode["status"] }) {
+  return (
+    <Badge variant="outline" className={status === "in_progress" ? "border-sky-200 bg-sky-50 text-sky-700" : "border-muted bg-background text-muted-foreground"}>
+      {status === "in_progress" ? "En cours" : "A faire"}
+    </Badge>
+  );
+}
+
 function findFolderName(nodes: FolderTreeNode[], folderId: number | null): string | null {
   if (folderId == null) {
     return null;
@@ -541,6 +1162,37 @@ function findFolderName(nodes: FolderTreeNode[], folderId: number | null): strin
   return null;
 }
 
+function getTaskStatusLabel(status: Task["status"]) {
+  if (status === "in_progress") {
+    return "En cours";
+  }
+  if (status === "done") {
+    return "Termine";
+  }
+  return "A faire";
+}
+
+function formatDuration(totalMinutes: number) {
+  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(roundedMinutes / 60);
+  const minutes = roundedMinutes % 60;
+
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+
+  return `${hours}h ${minutes}m`;
+}
+
+function formatMoney(value: number | string) {
+  const amount = typeof value === "number" ? value : Number(value);
+
+  return new Intl.NumberFormat("fr-BE", {
+    style: "currency",
+    currency: "EUR",
+  }).format(Number.isFinite(amount) ? amount : 0);
+}
+
 function Tree({
   nodes,
   canEdit,
@@ -558,6 +1210,7 @@ function Tree({
   onOpenContextMenu,
   onRequestRename,
   onRequestDelete,
+  onInspectFolder,
 }: {
   nodes: FolderTreeNode[];
   canEdit: boolean;
@@ -575,6 +1228,7 @@ function Tree({
   onOpenContextMenu: (target: FileActionTarget) => void;
   onRequestRename: (target: FileActionTarget) => void;
   onRequestDelete: (target: FileActionTarget) => void;
+  onInspectFolder: (folderId: number) => void;
 }) {
   if (nodes.length === 0) {
     if (draftFolder?.parentFolder === null) {
@@ -630,6 +1284,7 @@ function Tree({
           onOpenContextMenu={onOpenContextMenu}
           onRequestRename={onRequestRename}
           onRequestDelete={onRequestDelete}
+          onInspectFolder={onInspectFolder}
         />
       ))}
     </div>
@@ -654,6 +1309,7 @@ function TreeNode({
   onOpenContextMenu,
   onRequestRename,
   onRequestDelete,
+  onInspectFolder,
 }: {
   node: FolderTreeNode;
   depth: number;
@@ -672,9 +1328,13 @@ function TreeNode({
   onOpenContextMenu: (target: FileActionTarget) => void;
   onRequestRename: (target: FileActionTarget) => void;
   onRequestDelete: (target: FileActionTarget) => void;
+  onInspectFolder: (folderId: number) => void;
 }): ReactNode {
   const isFolder = node.type === "folder";
-  const actionType: FileActionTarget["type"] = isFolder ? "folder" : "document";
+  const isTask = node.type === "task";
+  const actionTarget: FileActionTarget | null = isTask
+    ? null
+    : { type: isFolder ? "folder" : "document", id: node.id, name: node.name };
   const children = node.children ?? [];
   const hasChildren = children.length > 0 || draftFolder?.parentFolder === node.id;
   const isExpanded = isFolder && expandedFolderIds.has(node.id);
@@ -684,9 +1344,6 @@ function TreeNode({
 
   function onFolderClick() {
     onSelectFolder(node.id);
-    if (hasChildren) {
-      onToggleFolder(node.id);
-    }
   }
 
   return (
@@ -704,8 +1361,8 @@ function TreeNode({
         )}
         style={{ paddingLeft: `${rowPaddingLeft}px` }}
         onContextMenu={() => {
-          if (canEdit) {
-            onOpenContextMenu({ type: actionType, id: node.id, name: node.name });
+          if (actionTarget) {
+            onOpenContextMenu(actionTarget);
           }
         }}
       >
@@ -738,7 +1395,17 @@ function TreeNode({
               return;
             }
 
+            if (isTask) {
+              return;
+            }
+
             onOpenDocument(node.id);
+          }}
+          onDoubleClick={(event) => {
+            if (isFolder) {
+              event.preventDefault();
+              onInspectFolder(node.id);
+            }
           }}
         >
           {isFolder ? (
@@ -748,24 +1415,30 @@ function TreeNode({
               <Folder className="size-4 shrink-0 text-amber-500" />
             )
           ) : (
-            <DocumentIcon node={node} />
+            isTask ? (
+              <ListTodo className="size-4 shrink-0 text-sky-600" />
+            ) : (
+              <DocumentIcon node={node} />
+            )
           )}
           <span
             className={cn(
               "min-w-0 truncate",
-              isFolder ? "font-medium" : "text-muted-foreground hover:text-foreground",
+              isFolder ? "font-medium" : isTask ? "text-foreground" : "text-muted-foreground hover:text-foreground",
               isOpeningDocument && "opacity-60",
             )}
           >
             {node.name}
           </span>
-          {!isFolder && node.file_size ? (
+          {isTask ? (
+            <TaskTreeBadge status={node.status} />
+          ) : !isFolder && node.file_size ? (
             <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(node.file_size)}</span>
           ) : (
             <span />
           )}
         </button>
-        {canEdit || canDelete ? (
+        {!isTask && (canEdit || canDelete) ? (
           <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
             {canEdit ? (
               <Button
@@ -775,7 +1448,7 @@ function TreeNode({
                 aria-label={`Renommer ${node.name}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onRequestRename({ type: actionType, id: node.id, name: node.name });
+                  onRequestRename(actionTarget!);
                 }}
               >
                 <Pencil className="size-3" />
@@ -789,7 +1462,7 @@ function TreeNode({
                 aria-label={`Supprimer ${node.name}`}
                 onClick={(event) => {
                   event.stopPropagation();
-                  onRequestDelete({ type: actionType, id: node.id, name: node.name });
+                  onRequestDelete(actionTarget!);
                 }}
               >
                 <Trash2 className="size-3" />
@@ -830,6 +1503,7 @@ function TreeNode({
               onOpenContextMenu={onOpenContextMenu}
               onRequestRename={onRequestRename}
               onRequestDelete={onRequestDelete}
+              onInspectFolder={onInspectFolder}
             />
           ))}
         </div>

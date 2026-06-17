@@ -48,10 +48,23 @@ export const queryKeys = {
       }] as const,
   },
   tasks: {
-    list: (projectId: number) => ["projects", projectId, "tasks"] as const,
+    list: (
+      projectId: number,
+      query: {
+        folderId?: number;
+        status?: string;
+        priority?: string;
+      } = {},
+    ) =>
+      ["projects", projectId, "tasks", {
+        folder: query.folderId ?? "all",
+        status: query.status ?? "all",
+        priority: query.priority ?? "all",
+      }] as const,
   },
   folders: {
-    tree: (projectId: number) => ["projects", projectId, "folders", "tree"] as const,
+    tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
+      ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false }] as const,
     targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
   },
 } as const;

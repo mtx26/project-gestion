@@ -223,6 +223,16 @@ export type Task = {
   deleted_by: ID | null;
 };
 
+export type TaskPayload = {
+  folder?: ID | null;
+  assigned_to?: ID[];
+  title: string;
+  description?: string | null;
+  status?: "todo" | "in_progress" | "done";
+  priority?: "low" | "normal" | "high";
+  due_date?: string | null;
+};
+
 export type TimeEntry = {
   id: ID;
   project: ID;

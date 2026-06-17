@@ -1,9 +1,10 @@
 import type { Project, User } from "@project-gestion/types";
+import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, ChevronsUpDown, Clock3, FolderKanban, LayoutDashboard, LogOut, Plus, Settings, SquareLibrary, UserRound } from "lucide-react";
+import { Bell, ChevronsUpDown, Clock3, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, UserRound } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,12 +26,16 @@ import {
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
 
+type Theme = "light" | "dark";
+
+const themeChangeEventName = "project-gestion-theme-change";
+
 type DashboardSidebarProps = {
   projects: Project[];
   selectedProjectId: string;
   userId: number | null;
   user: User | null | undefined;
-  activeItem: "dashboard" | "settings" | "files" | "time" | "account" | "notifications";
+  activeItem: "dashboard" | "settings" | "files" | "tasks" | "time" | "account" | "notifications";
   isLoading: boolean;
   onSelectProject: (id: number) => void;
   onCreateProject: () => void;
@@ -49,6 +54,7 @@ export function DashboardSidebar({
   onLogout,
 }: DashboardSidebarProps) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const theme = useSyncExternalStore(subscribeToTheme, getThemeSnapshot, getServerThemeSnapshot);
   const unreadNotificationsQuery = useQuery({
     queryKey: queryKeys.notifications.unreadCount,
     queryFn: api.notifications.unreadCount,
@@ -57,12 +63,39 @@ export function DashboardSidebar({
   const unreadNotifications = unreadNotificationsQuery.data?.count ?? 0;
   const settingsHref = selectedProjectId ? `/settings?project=${selectedProjectId}` : "/settings";
   const filesHref = selectedProjectId ? `/files?project=${selectedProjectId}` : "/files";
+  const tasksHref = selectedProjectId ? `/tasks?project=${selectedProjectId}` : "/tasks";
   const timeHref = selectedProjectId ? `/time?project=${selectedProjectId}` : "/time";
+  const selectedProject = projects.find((project) => String(project.id) === selectedProjectId) ?? null;
+
+  function toggleTheme() {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    applyTheme(nextTheme);
+  }
+
   const navigation = [
-    { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { key: "files", href: filesHref, label: "Projet", icon: SquareLibrary },
-    { key: "time", href: timeHref, label: "Temps", icon: Clock3 },
-    { key: "settings", href: settingsHref, label: "Parametres projet", icon: Settings },
+    { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, locked: false },
+    {
+      key: "files",
+      href: filesHref,
+      label: "Projet",
+      icon: SquareLibrary,
+      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.fileView)),
+    },
+    {
+      key: "tasks",
+      href: tasksHref,
+      label: "Taches",
+      icon: ListTodo,
+      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.taskView)),
+    },
+    {
+      key: "time",
+      href: timeHref,
+      label: "Temps",
+      icon: Clock3,
+      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.timeEntryView)),
+    },
+    { key: "settings", href: settingsHref, label: "Parametres projet", icon: Settings, locked: false },
   ] as const;
 
   return (
@@ -89,6 +122,17 @@ export function DashboardSidebar({
                 </span>
               ) : null}
             </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="group-data-[state=collapsed]/sidebar:lg:hidden"
+            onClick={toggleTheme}
+            aria-label={theme === "dark" ? "Passer en mode jour" : "Passer en mode nuit"}
+            title={theme === "dark" ? "Mode jour" : "Mode nuit"}
+          >
+            {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </Button>
         </div>
       </SidebarHeader>
@@ -142,12 +186,24 @@ export function DashboardSidebar({
             <SidebarMenu>
         {navigation.map((item) => (
           <SidebarMenuItem key={item.label}>
-            <SidebarMenuButton asChild isActive={item.key === activeItem}>
-              <Link href={item.href} title={item.label}>
+            {item.locked ? (
+              <SidebarMenuButton
+                disabled
+                title={`${item.label} verrouille`}
+                className="cursor-not-allowed opacity-50 hover:bg-transparent hover:text-inherit"
+              >
                 <item.icon className="size-4" />
                 <span className="group-data-[state=collapsed]/sidebar:lg:hidden">{item.label}</span>
-              </Link>
-            </SidebarMenuButton>
+                <Lock className="ml-auto size-3 group-data-[state=collapsed]/sidebar:lg:hidden" />
+              </SidebarMenuButton>
+            ) : (
+              <SidebarMenuButton asChild isActive={item.key === activeItem}>
+                <Link href={item.href} title={item.label}>
+                  <item.icon className="size-4" />
+                  <span className="group-data-[state=collapsed]/sidebar:lg:hidden">{item.label}</span>
+                </Link>
+              </SidebarMenuButton>
+            )}
           </SidebarMenuItem>
         ))}
             </SidebarMenu>
@@ -208,6 +264,35 @@ function UserAvatar({ user }: { user: User | null | undefined }) {
       <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
     </Avatar>
   );
+}
+
+function subscribeToTheme(callback: () => void) {
+  window.addEventListener(themeChangeEventName, callback);
+  window.addEventListener("storage", callback);
+
+  return () => {
+    window.removeEventListener(themeChangeEventName, callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
+function getThemeSnapshot(): Theme {
+  const storedTheme = window.localStorage.getItem("theme");
+  if (storedTheme === "dark" || storedTheme === "light") {
+    return storedTheme;
+  }
+
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function getServerThemeSnapshot(): Theme {
+  return "light";
+}
+
+function applyTheme(theme: Theme) {
+  window.localStorage.setItem("theme", theme);
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  window.dispatchEvent(new Event(themeChangeEventName));
 }
 
 function getUserDisplayName(user: User | null | undefined) {

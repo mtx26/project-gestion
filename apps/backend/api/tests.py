@@ -467,6 +467,27 @@ class InvitationWorkflowTests(ProjectApiTestCase):
             ).exists()
         )
 
+    def test_accepting_internal_invitation_soft_deletes_invitation_notification(self):
+        self.given_authenticated(self.owner)
+        self.invite(self.other_user.email)
+        invitation = Invitation.objects.get(email=self.other_user.email)
+        notification = Notification.objects.get(
+            user=self.other_user,
+            type="project_invitation",
+            data__invitation_id=invitation.id,
+        )
+        self.given_authenticated(self.other_user)
+
+        response = self.api_post("/api/invitations/accept/", {
+            "token": invitation.token,
+        })
+
+        self.assert_ok(response)
+        notification.refresh_from_db()
+        self.assertIsNotNone(notification.deleted_at)
+        self.assertEqual(notification.deleted_by_id, self.other_user.id)
+        self.assertTrue(notification.is_read)
+
     def test_invitation_email_must_match_authenticated_user(self):
         self.given_authenticated(self.owner)
         self.invite("new@example.com")

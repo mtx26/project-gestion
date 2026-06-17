@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, ChevronRight, Clock3, CreditCard, Folder, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Clock3, CreditCard, Folder, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -36,6 +36,7 @@ import { getErrorMessage } from "@/lib/errors";
 type UserFilter = "mine" | "all" | `member-${number}`;
 type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
 type PeriodPreset = "this-month" | "last-month" | "this-week" | "last-30-days" | "this-year" | "all";
+type TimeViewMode = "list" | "calendar";
 type TargetOption = {
   value: string;
   label: string;
@@ -76,7 +77,9 @@ function ProjectTimeContent({
   const canRecordTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryEdit);
   const canPayTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryPay);
   const canDeleteTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryDelete);
-  const [targetValue, setTargetValue] = useState("project");
+  const initialTargetValue = parseTargetFilter(searchParams.get("target")) ?? "project";
+  const [targetValue, setTargetValue] = useState(initialTargetValue);
+  const [timeFormOpen, setTimeFormOpen] = useState(searchParams.get("new") === "1");
   const [hours, setHours] = useState("1");
   const [minutes, setMinutes] = useState("0");
   const defaultHourlyRate = user?.profile?.default_hourly_rate ?? "0";
@@ -96,6 +99,8 @@ function ProjectTimeContent({
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
   const periodPreset = parsePeriodPreset(searchParams.get("period"));
+  const targetFilter = parseTargetFilter(searchParams.get("target"));
+  const viewMode = parseTimeViewMode(searchParams.get("view"));
   const includeUnpaidOutsideMonth = parseBooleanParam(searchParams.get("include_unpaid"));
 
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
@@ -143,15 +148,19 @@ function ProjectTimeContent({
   const taskTitleById = useMemo(() => {
     return collectTargetLabelsByType(targetTree, "task");
   }, [targetTree]);
+  const taskFolderById = useMemo(() => {
+    return collectTaskFolderIds(targetTree);
+  }, [targetTree]);
   const userNameById = useMemo(() => {
     return new Map(members.map((member) => [member.user, member.user_display_name]));
   }, [members]);
   const visibleTimeEntries = useMemo(
-    () => filterTimeEntriesByPaymentStatus(timeEntries, paymentStatusFilter),
-    [paymentStatusFilter, timeEntries],
+    () => filterTimeEntriesByPaymentStatus(filterTimeEntriesByTarget(timeEntries, targetFilter, taskFolderById), paymentStatusFilter),
+    [paymentStatusFilter, targetFilter, taskFolderById, timeEntries],
   );
   const totals = summarizeTimeEntries(visibleTimeEntries);
-  const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, periodPreset, members, user?.id ?? null);
+  const targetFilterLabel = targetFilter ? findTargetLabel(targetTree, targetFilter) : null;
+  const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, periodPreset, members, user?.id ?? null, targetFilterLabel);
   const durationMinutes = Number(hours) * 60 + Number(minutes);
 
   const createTimeEntry = useMutation({
@@ -170,6 +179,7 @@ function ProjectTimeContent({
       setHourlyRateDraft(null);
       setDescription("");
       setTargetValue("project");
+      setTimeFormOpen(false);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
   });
@@ -239,6 +249,8 @@ function ProjectTimeContent({
     user: UserFilter;
     payment: PaymentStatusFilter;
     period: PeriodPreset;
+    target: string | null;
+    view: TimeViewMode;
     includeUnpaid: boolean;
   }>) {
     if (!selectedProject) {
@@ -256,6 +268,16 @@ function ProjectTimeContent({
     }
     if (changes.period) {
       params.set("period", changes.period);
+    }
+    if (changes.target !== undefined) {
+      if (changes.target) {
+        params.set("target", changes.target);
+      } else {
+        params.delete("target");
+      }
+    }
+    if (changes.view) {
+      params.set("view", changes.view);
     }
     if (changes.includeUnpaid !== undefined) {
       if (changes.includeUnpaid) {
@@ -282,6 +304,10 @@ function ProjectTimeContent({
 
   function onIncludeUnpaidOutsideMonthChange(value: boolean) {
     updateUrlFilter({ includeUnpaid: value });
+  }
+
+  function onViewModeChange(value: TimeViewMode) {
+    updateUrlFilter({ view: value });
   }
 
   if (projectsQuery.isLoading) {
@@ -316,7 +342,15 @@ function ProjectTimeContent({
 
   return (
     <div className="space-y-5">
-      <TimePageTitle />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <TimePageTitle />
+        {canRecordTime ? (
+          <Button type="button" variant="outline" onClick={() => setTimeFormOpen(true)}>
+            <Plus className="size-4" />
+            Ajouter
+          </Button>
+        ) : null}
+      </div>
 
       {canViewTime && timeEntriesQuery.error ? (
         <Alert variant="destructive">
@@ -326,50 +360,29 @@ function ProjectTimeContent({
 
       {canViewTime ? (
         <TimePeriodToolbar
-        canViewAllTime={canViewAllTime}
-        members={members}
-        periodPreset={periodPreset}
-        paymentStatusFilter={paymentStatusFilter}
-        userFilter={userFilter}
-        includeUnpaidOutsideMonth={includeUnpaidOutsideMonth}
-        onPeriodPresetChange={onPeriodPresetChange}
-        onPaymentStatusFilterChange={onPaymentStatusFilterChange}
-        onUserFilterChange={onUserFilterChange}
-        onIncludeUnpaidOutsideMonthChange={onIncludeUnpaidOutsideMonthChange}
-      />
+          canViewAllTime={canViewAllTime}
+          members={members}
+          periodPreset={periodPreset}
+          paymentStatusFilter={paymentStatusFilter}
+          targetFilterLabel={targetFilterLabel}
+          userFilter={userFilter}
+          includeUnpaidOutsideMonth={includeUnpaidOutsideMonth}
+          onClearTargetFilter={() => updateUrlFilter({ target: null })}
+          onPeriodPresetChange={onPeriodPresetChange}
+          onPaymentStatusFilterChange={onPaymentStatusFilterChange}
+          onUserFilterChange={onUserFilterChange}
+          onIncludeUnpaidOutsideMonthChange={onIncludeUnpaidOutsideMonthChange}
+        />
       ) : null}
 
       <div className={canRecordTime && canViewTime ? "grid gap-4 lg:grid-cols-[380px_1fr]" : "grid gap-4"}>
         {canRecordTime ? (
-        <div className="space-y-4">
-          <TimeEntryForm
-            canRecordTime={canRecordTime}
-            hours={hours}
-            minutes={minutes}
-            hourlyRate={hourlyRate}
-            description={description}
-            targetValue={targetValue}
-            targetTree={targetTree}
-            selectedTargetLabel={selectedTargetLabel}
-            isPending={createTimeEntry.isPending}
-            error={createTimeEntry.error ? getErrorMessage(createTimeEntry.error) : null}
-            onHoursChange={setHours}
-            onMinutesChange={setMinutes}
-            onHourlyRateChange={setHourlyRateDraft}
-            onDescriptionChange={setDescription}
-            onTargetValueChange={setTargetValue}
-            onSubmit={onSubmitTimeEntry}
-          />
-
-          {canViewTime ? (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
-            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              <TimeSummary label="Temps total" value={formatDuration(totals.durationMinutes)} />
-              <TimeSummary label="Montant total" value={formatMoney(totals.costAmount)} />
-              <TimeSummary label="Reste a payer" value={formatMoney(totals.remainingAmount)} />
-            </div>
-          </div>
+          <div className="space-y-4">
+            {canViewTime ? (
+              <TimeTotalsPanel
+                label={totalsLabel}
+                totals={totals}
+              />
           ) : (
             <PermissionNotice
               title="Liste non visible"
@@ -381,8 +394,27 @@ function ProjectTimeContent({
 
         {canViewTime ? (
         <Card className="rounded-lg">
-          <CardHeader>
+          <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle>Entrees de temps</CardTitle>
+            <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
+              <Button
+                type="button"
+                variant={viewMode === "list" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onViewModeChange("list")}
+              >
+                Liste
+              </Button>
+              <Button
+                type="button"
+                variant={viewMode === "calendar" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => onViewModeChange("calendar")}
+              >
+                <CalendarDays className="size-3.5" />
+                Calendrier
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {!canViewAllTime && canViewTime ? (
@@ -391,21 +423,33 @@ function ProjectTimeContent({
               </p>
             ) : null}
 
-            <TimeEntryList
-              entries={visibleTimeEntries}
-              isLoading={timeEntriesQuery.isLoading}
-              currentUserId={user?.id ?? null}
-              userNameById={userNameById}
-              folderNameById={folderNameById}
-              taskTitleById={taskTitleById}
-              canPay={canPayTime}
-              canEdit={canRecordTime}
-              canDelete={canDeleteTime}
-              deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
-              onPay={openPaymentDialog}
-              onEdit={openEditDialog}
-              onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
-            />
+            {viewMode === "calendar" ? (
+              <TimeCalendarView
+                entries={visibleTimeEntries}
+                isLoading={timeEntriesQuery.isLoading}
+                currentUserId={user?.id ?? null}
+                userNameById={userNameById}
+                folderNameById={folderNameById}
+                taskTitleById={taskTitleById}
+                calendarDate={periodRange.startDate}
+              />
+            ) : (
+              <TimeEntryList
+                entries={visibleTimeEntries}
+                isLoading={timeEntriesQuery.isLoading}
+                currentUserId={user?.id ?? null}
+                userNameById={userNameById}
+                folderNameById={folderNameById}
+                taskTitleById={taskTitleById}
+                canPay={canPayTime}
+                canEdit={canRecordTime}
+                canDelete={canDeleteTime}
+                deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
+                onPay={openPaymentDialog}
+                onEdit={openEditDialog}
+                onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
+              />
+            )}
 
             {deleteTimeEntry.error ? (
               <Alert variant="destructive" className="mt-3">
@@ -427,6 +471,33 @@ function ProjectTimeContent({
           </div>
         ) : null}
       </div>
+
+      <Dialog open={timeFormOpen} onOpenChange={setTimeFormOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Nouvelle entree</DialogTitle>
+            <DialogDescription>Encode une duree et lie-la au projet, a un dossier ou a une tache.</DialogDescription>
+          </DialogHeader>
+          <TimeEntryForm
+            canRecordTime={canRecordTime}
+            hours={hours}
+            minutes={minutes}
+            hourlyRate={hourlyRate}
+            description={description}
+            targetValue={targetValue}
+            targetTree={targetTree}
+            selectedTargetLabel={selectedTargetLabel}
+            isPending={createTimeEntry.isPending}
+            error={createTimeEntry.error ? getErrorMessage(createTimeEntry.error) : null}
+            onHoursChange={setHours}
+            onMinutesChange={setMinutes}
+            onHourlyRateChange={setHourlyRateDraft}
+            onDescriptionChange={setDescription}
+            onTargetValueChange={setTargetValue}
+            onSubmit={onSubmitTimeEntry}
+          />
+        </DialogContent>
+      </Dialog>
 
       <PaymentDialog
         entry={paymentTarget}
@@ -490,6 +561,32 @@ function PermissionNotice({ title, description }: { title: string; description: 
   );
 }
 
+function TimeTotalsPanel({
+  label,
+  totals,
+}: {
+  label: string;
+  totals: { durationMinutes: number; costAmount: number; remainingAmount: number };
+}) {
+  return (
+    <Card className="rounded-lg">
+      <CardHeader className="gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase text-muted-foreground">{label}</p>
+          <CardTitle className="mt-1 text-lg">Synthese</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          <TimeSummary label="Temps total" value={formatDuration(totals.durationMinutes)} />
+          <TimeSummary label="Montant total" value={formatMoney(totals.costAmount)} />
+          <TimeSummary label="Reste a payer" value={formatMoney(totals.remainingAmount)} />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function TimeEntryForm({
   canRecordTime,
   hours,
@@ -528,65 +625,59 @@ function TimeEntryForm({
   const durationMinutes = Number(hours) * 60 + Number(minutes);
 
   return (
-    <Card className="rounded-lg">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Plus className="size-4 text-primary" />
-          Nouvelle entree
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        {!canRecordTime ? (
-          <Alert>
-            <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
-          </Alert>
-        ) : (
-          <form className="space-y-4" onSubmit={onSubmit}>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label htmlFor="time-hours">Heures</Label>
-                <Input id="time-hours" type="number" min="0" value={hours} onChange={(event) => onHoursChange(event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="time-minutes">Minutes</Label>
-                <Input id="time-minutes" type="number" min="0" max="59" value={minutes} onChange={(event) => onMinutesChange(event.target.value)} />
-              </div>
-            </div>
-
+    <>
+      {!canRecordTime ? (
+        <Alert>
+          <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
+        </Alert>
+      ) : (
+        <form className="space-y-4" onSubmit={onSubmit}>
+          <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
-              <Label htmlFor="time-rate">Taux horaire</Label>
-              <Input id="time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+              <Label htmlFor="time-hours">Heures</Label>
+              <Input id="time-hours" type="number" min="0" value={hours} onChange={(event) => onHoursChange(event.target.value)} />
             </div>
-
             <div className="space-y-2">
-              <Label>Cible</Label>
-              <TargetPickerDialog
-                targetTree={targetTree}
-                selectedValue={targetValue}
-                selectedLabel={selectedTargetLabel}
-                onSelect={onTargetValueChange}
-              />
+              <Label htmlFor="time-minutes">Minutes</Label>
+              <Input id="time-minutes" type="number" min="0" max="59" value={minutes} onChange={(event) => onMinutesChange(event.target.value)} />
             </div>
+          </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="time-description">Description</Label>
-              <Textarea id="time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
-            </div>
+          <div className="space-y-2">
+            <Label htmlFor="time-rate">Taux horaire</Label>
+            <Input id="time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+          </div>
 
-            {error ? (
-              <Alert variant="destructive">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
+          <div className="space-y-2">
+            <Label>Cible</Label>
+            <TargetPickerDialog
+              targetTree={targetTree}
+              selectedValue={targetValue}
+              selectedLabel={selectedTargetLabel}
+              onSelect={onTargetValueChange}
+            />
+          </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="time-description">Description</Label>
+            <Textarea id="time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
+          </div>
+
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <DialogFooter>
             <Button type="submit" disabled={durationMinutes <= 0 || isPending}>
               <Clock3 className="size-4" />
               {isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
-          </form>
-        )}
-      </CardContent>
-    </Card>
+          </DialogFooter>
+        </form>
+      )}
+    </>
   );
 }
 
@@ -595,8 +686,10 @@ function TimePeriodToolbar({
   members,
   periodPreset,
   paymentStatusFilter,
+  targetFilterLabel,
   userFilter,
   includeUnpaidOutsideMonth,
+  onClearTargetFilter,
   onPeriodPresetChange,
   onPaymentStatusFilterChange,
   onUserFilterChange,
@@ -606,8 +699,10 @@ function TimePeriodToolbar({
   members: Array<{ id: number; user: number; user_display_name: string }>;
   periodPreset: PeriodPreset;
   paymentStatusFilter: PaymentStatusFilter;
+  targetFilterLabel: string | null;
   userFilter: UserFilter;
   includeUnpaidOutsideMonth: boolean;
+  onClearTargetFilter: () => void;
   onPeriodPresetChange: (value: PeriodPreset) => void;
   onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
   onUserFilterChange: (value: UserFilter) => void;
@@ -663,6 +758,12 @@ function TimePeriodToolbar({
       >
         Impayes inclus
       </Button>
+      {targetFilterLabel ? (
+        <Button type="button" variant="secondary" className="sm:w-auto" onClick={onClearTargetFilter}>
+          <Folder className="size-4" />
+          {targetFilterLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -738,6 +839,91 @@ function TimeEntryList({
   );
 }
 
+function TimeCalendarView({
+  entries,
+  isLoading,
+  currentUserId,
+  userNameById,
+  folderNameById,
+  taskTitleById,
+  calendarDate,
+}: {
+  entries: TimeEntry[];
+  isLoading: boolean;
+  currentUserId: number | null;
+  userNameById: Map<number, string>;
+  folderNameById: Map<number, string>;
+  taskTitleById: Map<number, string>;
+  calendarDate?: string;
+}) {
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-7 gap-0 rounded-lg border bg-card">
+        {Array.from({ length: 35 }).map((_, index) => (
+          <Skeleton key={index} className="m-2 h-28 rounded-md" />
+        ))}
+      </div>
+    );
+  }
+
+  const monthDate = getCalendarMonthDate(calendarDate, entries);
+  const days = getMonthCalendarDays(monthDate);
+  const entriesByDay = groupTimeEntriesByDay(entries);
+
+  return (
+    <div className="rounded-lg border bg-card">
+      <div className="flex items-center justify-between border-b p-3">
+        <div>
+          <p className="font-medium">{formatCalendarMonth(monthDate)}</p>
+          <p className="text-xs text-muted-foreground">{entries.length} entree{entries.length > 1 ? "s" : ""}</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-7 border-b bg-muted/40 text-center text-xs font-medium text-muted-foreground">
+        {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((day) => (
+          <div key={day} className="border-r p-2 last:border-r-0">{day}</div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {days.map((day, index) => {
+          const dateKey = formatDateInputValue(day);
+          const dayEntries = entriesByDay.get(dateKey) ?? [];
+          const dayTotals = summarizeTimeEntries(dayEntries);
+          const isOutsideMonth = day.getMonth() !== monthDate.getMonth();
+
+          return (
+            <div
+              key={`${dateKey}-${index}`}
+              className={`min-h-36 border-r border-b p-2 ${index % 7 === 6 ? "border-r-0" : ""} ${isOutsideMonth ? "bg-muted/20 text-muted-foreground" : "bg-card"}`}
+            >
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <span className="text-sm font-medium">{day.getDate()}</span>
+                {dayEntries.length > 0 ? (
+                  <span className="text-xs text-muted-foreground">{formatDuration(dayTotals.durationMinutes)}</span>
+                ) : null}
+              </div>
+              <div className="space-y-1">
+                {dayEntries.slice(0, 4).map((entry) => (
+                  <div key={entry.id} className="rounded-md bg-primary/10 px-2 py-1 text-xs text-primary">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate">{entry.description || getEntryTargetLabel(entry, folderNameById, taskTitleById)}</span>
+                      <span className="shrink-0">{formatTimeOnly(entry.created_at)}</span>
+                    </div>
+                    <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {userNameById.get(entry.user) ?? (entry.user === currentUserId ? "Toi" : `Utilisateur ${entry.user}`)}
+                    </div>
+                  </div>
+                ))}
+                {dayEntries.length > 4 ? (
+                  <p className="text-xs text-muted-foreground">+ {dayEntries.length - 4} autres</p>
+                ) : null}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 function TargetPickerDialog({
   targetTree,
   selectedValue,
@@ -1233,6 +1419,25 @@ function parsePeriodPreset(value: string | null): PeriodPreset {
   return "this-month";
 }
 
+function parseTimeViewMode(value: string | null): TimeViewMode {
+  return value === "calendar" ? "calendar" : "list";
+}
+
+function parseTargetFilter(value: string | null) {
+  if (value === "project") {
+    return "project";
+  }
+  if (value?.startsWith("folder-")) {
+    const id = Number(value.replace("folder-", ""));
+    return Number.isFinite(id) && id > 0 ? `folder-${id}` : null;
+  }
+  if (value?.startsWith("task-")) {
+    const id = Number(value.replace("task-", ""));
+    return Number.isFinite(id) && id > 0 ? `task-${id}` : null;
+  }
+  return null;
+}
+
 function parseBooleanParam(value: string | null) {
   return value === "1" || value === "true";
 }
@@ -1296,6 +1501,28 @@ function filterTimeEntriesByPaymentStatus(entries: TimeEntry[], filter: PaymentS
   return entries.filter((entry) => getPaymentStatus(entry) === filter);
 }
 
+function filterTimeEntriesByTarget(entries: TimeEntry[], target: string | null, taskFolderById: Map<number, number>) {
+  if (!target) {
+    return entries;
+  }
+
+  if (target === "project") {
+    return entries.filter((entry) => entry.folder == null && entry.task == null);
+  }
+
+  if (target.startsWith("folder-")) {
+    const folderId = Number(target.replace("folder-", ""));
+    return entries.filter((entry) => entry.folder === folderId || (entry.task != null && taskFolderById.get(entry.task) === folderId));
+  }
+
+  if (target.startsWith("task-")) {
+    const taskId = Number(target.replace("task-", ""));
+    return entries.filter((entry) => entry.task === taskId);
+  }
+
+  return entries;
+}
+
 function getPaymentStatus(entry: TimeEntry): Exclude<PaymentStatusFilter, "all"> {
   if (entry.is_paid || Number(entry.remaining_amount) <= 0) {
     return "paid";
@@ -1345,6 +1572,7 @@ function getTotalsLabel(
   periodPreset: PeriodPreset,
   members: Array<{ user: number; user_display_name: string }>,
   currentUserId: number | null,
+  targetLabel: string | null,
 ) {
   const userLabel = userFilter === "all"
     ? "toute l'equipe"
@@ -1353,8 +1581,9 @@ function getTotalsLabel(
       : members.find((member) => member.user === getSelectedUserId(userFilter, currentUserId))?.user_display_name ?? "membre";
   const statusLabel = paymentStatusFilter === "all" ? "tous statuts" : getPaymentStatusLabel(paymentStatusFilter).toLowerCase();
   const periodLabel = getPeriodLabel(periodPreset).toLowerCase();
+  const targetSuffix = targetLabel ? ` - ${targetLabel}` : "";
 
-  return `Totaux - ${userLabel} - ${periodLabel} - ${statusLabel}`;
+  return `Totaux - ${userLabel} - ${periodLabel} - ${statusLabel}${targetSuffix}`;
 }
 
 function getPeriodLabel(period: PeriodPreset) {
@@ -1474,6 +1703,28 @@ function collectTargetLabelsByTypeInPlace(
   }
 }
 
+function collectTaskFolderIds(node: TargetTreeNode) {
+  const taskFolderIds = new Map<number, number>();
+  collectTaskFolderIdsInPlace(node, null, taskFolderIds);
+  return taskFolderIds;
+}
+
+function collectTaskFolderIdsInPlace(
+  node: TargetTreeNode,
+  currentFolderId: number | null,
+  taskFolderIds: Map<number, number>,
+) {
+  const folderId = node.type === "folder" ? Number(node.value.replace("folder-", "")) : currentFolderId;
+
+  if (node.type === "task" && folderId != null) {
+    taskFolderIds.set(Number(node.value.replace("task-", "")), folderId);
+  }
+
+  for (const child of node.children) {
+    collectTaskFolderIdsInPlace(child, folderId, taskFolderIds);
+  }
+}
+
 function getEntryTargetLabel(
   entry: TimeEntry,
   folderNameById: Map<number, string>,
@@ -1497,6 +1748,44 @@ function summarizeTimeEntries(entries: TimeEntry[]) {
     }),
     { durationMinutes: 0, costAmount: 0, remainingAmount: 0 },
   );
+}
+
+function groupTimeEntriesByDay(entries: TimeEntry[]) {
+  const groups = new Map<string, TimeEntry[]>();
+
+  for (const entry of entries) {
+    const key = formatDateInputValue(new Date(entry.created_at));
+    groups.set(key, [...(groups.get(key) ?? []), entry]);
+  }
+
+  for (const [key, dayEntries] of groups.entries()) {
+    groups.set(key, dayEntries.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+  }
+
+  return groups;
+}
+
+function getCalendarMonthDate(dateValue: string | undefined, entries: TimeEntry[]) {
+  if (dateValue) {
+    return new Date(`${dateValue}T12:00:00`);
+  }
+  if (entries[0]) {
+    return new Date(entries[0].created_at);
+  }
+  return new Date();
+}
+
+function getMonthCalendarDays(monthDate: Date) {
+  const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
+  const mondayOffset = (firstOfMonth.getDay() + 6) % 7;
+  const start = new Date(firstOfMonth);
+  start.setDate(firstOfMonth.getDate() - mondayOffset);
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start);
+    day.setDate(start.getDate() + index);
+    return day;
+  });
 }
 
 async function invalidateTimeQueries(
@@ -1532,4 +1821,18 @@ function formatDateTime(value: string) {
     dateStyle: "short",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function formatTimeOnly(value: string) {
+  return new Intl.DateTimeFormat("fr-BE", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatCalendarMonth(value: Date) {
+  return new Intl.DateTimeFormat("fr-BE", {
+    month: "long",
+    year: "numeric",
+  }).format(value);
 }

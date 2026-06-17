@@ -25,7 +25,6 @@ class NotificationListView(generics.ListAPIView):
             "created_by",
         ).filter(
             user=self.request.user,
-            deleted_at__isnull=True,
         )
 
         if self.request.query_params.get("unread") == "true":
@@ -42,7 +41,6 @@ class NotificationUnreadCountView(APIView):
     def get(self, request):
         count = Notification.objects.filter(
             user=request.user,
-            deleted_at__isnull=True,
             is_read=False,
         ).count()
         return Response({"count": count})
@@ -57,7 +55,6 @@ class NotificationMarkReadView(APIView):
         updated = Notification.objects.filter(
             pk=pk,
             user=request.user,
-            deleted_at__isnull=True,
         ).update(is_read=True)
 
         if not updated:
@@ -75,7 +72,6 @@ class NotificationMarkAllReadView(APIView):
     def post(self, request):
         Notification.objects.filter(
             user=request.user,
-            deleted_at__isnull=True,
             is_read=False,
         ).update(is_read=True)
         return Response(status=status.HTTP_204_NO_CONTENT)

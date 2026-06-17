@@ -46,7 +46,6 @@ def create_project_invitation(*, project, email, role, invited_by):
             email__iexact=email,
             accepted_at__isnull=True,
             expires_at__lte=now,
-            deleted_at__isnull=True,
         ).update(
             deleted_at=now,
             deleted_by=invited_by,
@@ -57,7 +56,6 @@ def create_project_invitation(*, project, email, role, invited_by):
             project=project,
             email__iexact=email,
             accepted_at__isnull=True,
-            deleted_at__isnull=True,
         ).exists():
             raise ValidationError({"email": "errors.invitation.already_pending"})
 
@@ -127,7 +125,6 @@ def accept_project_invitation(*, token, user):
             "invited_by",
         ).filter(
             token=token,
-            deleted_at__isnull=True,
         ).first()
 
         if invitation is None:
@@ -143,7 +140,6 @@ def accept_project_invitation(*, token, user):
             member = ProjectMember.objects.filter(
                 project=invitation.project,
                 user=user,
-                deleted_at__isnull=True,
             ).first()
             if member:
                 return invitation, member
@@ -156,8 +152,12 @@ def accept_project_invitation(*, token, user):
             user=user,
             type="project_invitation",
             data__invitation_id=invitation.id,
-            is_read=False,
-        ).update(is_read=True, updated_at=now)
+        ).update(
+            is_read=True,
+            deleted_at=now,
+            deleted_by=user,
+            updated_at=now,
+        )
 
         notify(
             user=invitation.invited_by,

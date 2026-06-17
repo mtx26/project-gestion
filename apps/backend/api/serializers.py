@@ -287,7 +287,13 @@ class FolderTreeSerializer(serializers.Serializer):
     def to_representation(self, instance):
         folders = instance["folders"]
         documents = instance["documents"]
-        roots = build_folder_tree(folders, documents)
+        task_nodes_by_folder, root_task_nodes = build_task_tree_nodes(instance.get("tasks", []))
+        roots = build_folder_tree(
+            folders,
+            documents,
+            children_by_folder=task_nodes_by_folder,
+            root_children=root_task_nodes,
+        )
         return FolderTreeNodeSerializer(roots, many=True).data
 
 

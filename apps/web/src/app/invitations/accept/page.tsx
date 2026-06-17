@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
+import { ProjectPageFallback } from "@/components/dashboard/project-page-fallback";
 import { FormError } from "@/components/form-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { getErrorMessage } from "@/lib/errors";
 
 export default function InvitationAcceptPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<ProjectPageFallback />}>
       <InvitationAcceptContent />
     </Suspense>
   );

@@ -72,7 +72,11 @@ class FolderListCreateView(generics.ListCreateAPIView):
 @extend_schema_view(
     get=extend_schema(
         summary="Arbre des dossiers d'un projet",
-        description="Retourne les dossiers et documents d'un projet sous forme d'arbre.\nPermission requise : `file.view`.",
+        description=(
+            "Retourne les dossiers et documents d'un projet sous forme d'arbre.\n"
+            "Avec `include_tasks=true`, ajoute les taches non terminees si l'utilisateur a aussi `task.view`.\n"
+            "Permission requise : `file.view`."
+        ),
         responses=FolderTreeNodeSerializer(many=True),
     )
 )
@@ -93,10 +97,22 @@ class FolderTreeView(generics.GenericAPIView):
             project__in=get_accessible_projects(request.user),
         ).order_by("name", "id")
 
+        if (
+            request.query_params.get("include_tasks") == "true"
+            and has_project_permission(request.user, get_object_or_404(get_accessible_projects(request.user), pk=project_id), "task.view")
+        ):
+            tasks = Task.objects.filter(
+                project_id=project_id,
+                status__in=["todo", "in_progress"],
+            ).order_by("due_date", "title", "id")
+        else:
+            tasks = Task.objects.none()
+
         serializer = self.get_serializer()
         return Response(serializer.to_representation({
             "folders": folders,
             "documents": documents,
+            "tasks": tasks,
         }))
 
 
