@@ -34,6 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { getDescendantFolderIds } from "@/lib/folder-utils";
 import {
   type TargetTreeNode,
   buildTargetTree,
@@ -162,9 +163,14 @@ function ProjectTimeContent({
   const userNameById = useMemo(() => {
     return new Map(members.map((member) => [member.user, member.user_display_name]));
   }, [members]);
+  const descendantFolderIds = useMemo(() => {
+    if (!targetFilter?.startsWith("folder-")) return null;
+    const folderId = Number(targetFilter.replace("folder-", ""));
+    return getDescendantFolderIds(foldersQuery.data ?? [], folderId);
+  }, [foldersQuery.data, targetFilter]);
   const visibleTimeEntries = useMemo(
-    () => filterTimeEntriesByPaymentStatus(filterTimeEntriesByTarget(timeEntries, targetFilter, taskFolderById), paymentStatusFilter),
-    [paymentStatusFilter, targetFilter, taskFolderById, timeEntries],
+    () => filterTimeEntriesByPaymentStatus(filterTimeEntriesByTarget(timeEntries, targetFilter, taskFolderById, descendantFolderIds), paymentStatusFilter),
+    [paymentStatusFilter, targetFilter, taskFolderById, timeEntries, descendantFolderIds],
   );
   const totals = summarizeTimeEntries(visibleTimeEntries);
   const targetFilterLabel = targetFilter ? findTargetLabel(targetTree, targetFilter) : null;
@@ -1431,7 +1437,12 @@ function filterTimeEntriesByPaymentStatus(entries: TimeEntry[], filter: PaymentS
   return entries.filter((entry) => getPaymentStatus(entry) === filter);
 }
 
-function filterTimeEntriesByTarget(entries: TimeEntry[], target: string | null, taskFolderById: Map<number, number>) {
+function filterTimeEntriesByTarget(
+  entries: TimeEntry[],
+  target: string | null,
+  taskFolderById: Map<number, number>,
+  descendantFolderIds: Set<number> | null,
+) {
   if (!target) {
     return entries;
   }
@@ -1441,8 +1452,12 @@ function filterTimeEntriesByTarget(entries: TimeEntry[], target: string | null, 
   }
 
   if (target.startsWith("folder-")) {
-    const folderId = Number(target.replace("folder-", ""));
-    return entries.filter((entry) => entry.folder === folderId || (entry.task != null && taskFolderById.get(entry.task) === folderId));
+    const folderIds = descendantFolderIds ?? new Set([Number(target.replace("folder-", ""))]);
+    return entries.filter(
+      (entry) =>
+        (entry.folder != null && folderIds.has(entry.folder)) ||
+        (entry.task != null && folderIds.has(taskFolderById.get(entry.task) ?? -1)),
+    );
   }
 
   if (target.startsWith("task-")) {

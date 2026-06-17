@@ -52,7 +52,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
@@ -130,7 +129,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   const [taskDescription, setTaskDescription] = useState("");
   const [taskPriority, setTaskPriority] = useState<Task["priority"]>("normal");
   const [taskDueDate, setTaskDueDate] = useState("");
-  const [showIncompleteTasks, setShowIncompleteTasks] = useState(false);
+  const showIncompleteTasks = true;
   const [timeDraftFolderId, setTimeDraftFolderId] = useState<number | null>(null);
   const [timeHours, setTimeHours] = useState("1");
   const [timeMinutes, setTimeMinutes] = useState("0");
@@ -495,15 +494,6 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
                 {selectedProject.name}
               </CardTitle>
               <div className="flex flex-wrap items-center gap-3">
-                {canViewTasks ? (
-                  <label className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Checkbox
-                      checked={showIncompleteTasks}
-                      onCheckedChange={(checked) => setShowIncompleteTasks(checked === true)}
-                    />
-                    Taches en cours
-                  </label>
-                ) : null}
                 {canEditFiles ? (
                   <div className="flex items-center gap-1">
                   <Button

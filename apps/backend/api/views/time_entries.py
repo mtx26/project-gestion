@@ -14,6 +14,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models import FinancialEntry, TimeEntry
 from ..permissions import HasProjectPermission
 from ..serializers import TimeEntryPaymentSerializer, TimeEntrySerializer
+from ..services.folders import get_descendant_folder_ids
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 
@@ -41,7 +42,7 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["folder", "task", "user"]
+    filterset_fields = ["task", "user"]
     search_fields = ["description"]
 
     def get_permissions(self):
@@ -73,6 +74,16 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
 
         if not has_project_permission(self.request.user, project, "time_entry.view_all"):
             queryset = queryset.filter(user=self.request.user)
+
+        folder_id_str = self.request.query_params.get("folder")
+        if folder_id_str:
+            try:
+                folder_id = int(folder_id_str)
+            except (ValueError, TypeError):
+                pass
+            else:
+                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
+                queryset = queryset.filter(folder_id__in=folder_ids)
 
         queryset = self.filter_by_date_range_and_unpaid(queryset)
 
@@ -262,7 +273,7 @@ class TimeEntryTrashListView(generics.ListAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["folder", "task", "user"]
+    filterset_fields = ["task", "user"]
     search_fields = ["description"]
 
     def get_permissions(self):
@@ -273,7 +284,7 @@ class TimeEntryTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.deleted_objects.none()
 
-        return TimeEntry.deleted_objects.filter(
+        queryset = TimeEntry.deleted_objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         ).select_related(
@@ -284,6 +295,18 @@ class TimeEntryTrashListView(generics.ListAPIView):
         ).prefetch_related(
             "financial_entries",
         ).order_by("-created_at", "-id")
+
+        folder_id_str = self.request.query_params.get("folder")
+        if folder_id_str:
+            try:
+                folder_id = int(folder_id_str)
+            except (ValueError, TypeError):
+                pass
+            else:
+                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
+                queryset = queryset.filter(folder_id__in=folder_ids)
+
+        return queryset
 
 
 @extend_schema(tags=["time entries"])

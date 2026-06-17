@@ -11,6 +11,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models import Task
 from ..permissions import HasProjectPermission
 from ..serializers import TaskSerializer
+from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
 
 
@@ -37,7 +38,6 @@ class TaskListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = [
-        "folder",
         "status",
         "priority",
         "due_date",
@@ -68,6 +68,16 @@ class TaskListCreateView(generics.ListCreateAPIView):
         ).prefetch_related(
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
+
+        folder_id_str = self.request.query_params.get("folder")
+        if folder_id_str:
+            try:
+                folder_id = int(folder_id_str)
+            except (ValueError, TypeError):
+                pass
+            else:
+                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
+                queryset = queryset.filter(folder_id__in=folder_ids)
 
         return queryset
 
@@ -163,7 +173,6 @@ class TaskTrashListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = [
-        "folder",
         "status",
         "priority",
         "due_date",
@@ -180,7 +189,7 @@ class TaskTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Task.deleted_objects.none()
 
-        return Task.deleted_objects.filter(
+        queryset = Task.deleted_objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         ).select_related(
@@ -190,6 +199,18 @@ class TaskTrashListView(generics.ListAPIView):
         ).prefetch_related(
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
+
+        folder_id_str = self.request.query_params.get("folder")
+        if folder_id_str:
+            try:
+                folder_id = int(folder_id_str)
+            except (ValueError, TypeError):
+                pass
+            else:
+                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
+                queryset = queryset.filter(folder_id__in=folder_ids)
+
+        return queryset
 
 
 @extend_schema(tags=["tasks"])

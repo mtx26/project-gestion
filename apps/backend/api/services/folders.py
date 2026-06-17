@@ -1,3 +1,19 @@
+def get_descendant_folder_ids(folder_id, project_id):
+    """Return the set of all folder IDs in the subtree rooted at folder_id (inclusive)."""
+    from ..models import Folder
+
+    ids = {folder_id}
+    queue = [folder_id]
+    while queue:
+        children = list(
+            Folder.objects.filter(parent_folder_id__in=queue, project_id=project_id)
+            .values_list("id", flat=True)
+        )
+        ids.update(children)
+        queue = children
+    return ids
+
+
 def build_document_tree_node(document):
     return {
         "type": "document",
