@@ -218,6 +218,9 @@ export function createApiClient({
         request<Project>(`/api/projects/${id}/`, { method: "PATCH", body: payload }),
       remove: (id: number) =>
         request<void>(`/api/projects/${id}/`, { method: "DELETE" }),
+      trash: () => request<Project[] | PaginatedResponse<Project>>("/api/projects/trash/"),
+      restore: (id: number) =>
+        request<Project>(`/api/projects/${id}/restore/`, { method: "POST" }),
     },
     members: {
       list: (projectId: number) =>
@@ -445,10 +448,6 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/documents/${documentId}/`, {
           method: "DELETE",
         }),
-      trash: (projectId: number) =>
-        request<File[] | PaginatedResponse<File>>(`/api/projects/${projectId}/documents/trash/`),
-      restore: (projectId: number, documentId: number) =>
-        request<File>(`/api/projects/${projectId}/documents/${documentId}/restore/`, { method: "POST" }),
       upload: (projectId: number, payload: DocumentUploadPayload) => {
         const formData = new FormData();
         formData.set("file", payload.file);

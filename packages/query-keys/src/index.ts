@@ -7,6 +7,7 @@ export const queryKeys = {
     lists: () => ["projects", "list"] as const,
     list: (search?: string) => ["projects", "list", { search: search ?? "" }] as const,
     detail: (id: number) => ["projects", "detail", id] as const,
+    trash: () => ["projects", "trash"] as const,
   },
   members: {
     list: (projectId: number) => ["projects", projectId, "members"] as const,
@@ -52,9 +53,6 @@ export const queryKeys = {
       ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false }] as const,
     targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
     trash: (projectId: number) => ["projects", projectId, "folders", "trash"] as const,
-  },
-  documents: {
-    trash: (projectId: number) => ["projects", projectId, "documents", "trash"] as const,
   },
   timeEntries: {
     list: (

@@ -144,7 +144,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <SummaryCard label="Depenses" value={formatMoney(totals.expenses)} className="text-destructive" />
         <SummaryCard label="Remboursements" value={formatMoney(totals.refunds)} className="text-emerald-600" />
-        <SummaryCard label="Solde" value={formatMoney(totals.balance)} className={totals.balance >= 0 ? "text-emerald-600" : "text-destructive"} />
+        <SummaryCard label="Net" value={formatMoney(totals.balance)} className={totals.balance >= 0 ? "text-emerald-600" : "text-destructive"} />
       </div>
 
       {entriesQuery.isLoading ? (

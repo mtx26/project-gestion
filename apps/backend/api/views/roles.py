@@ -112,66 +112,6 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
         instance.soft_delete(self.request.user)
 
 
-@extend_schema(tags=["roles"])
-@extend_schema_view(
-    post=extend_schema(
-        summary="Restaurer un role",
-        description="Restaure un role supprime d'un projet.\nPermission requise : `role.restore`.",
-        request=None,
-    ),
-)
-class RoleRestoreView(generics.GenericAPIView):
-    serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "role.restore"
-
-    def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Role.deleted_objects.none()
-
-        return get_deleted_project_roles(
-            self.request.user,
-            self.kwargs["project_id"],
-        )
-
-    def post(self, request, project_id, pk):
-        role = self.get_object()
-
-        role.restore()
-
-        serializer = self.get_serializer(role)
-        return Response(serializer.data)
-
-
-@extend_schema(tags=["roles"])
-@extend_schema_view(
-    get=extend_schema(
-        summary="Lister les roles supprimes",
-        description=(
-            "Retourne tous les roles supprimes pour un projet donne.\n\n"
-            "- Recherche disponible : `search` sur `name` et `description`.\n\n"
-            "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `role.view`."
-        ),
-    ),
-)
-class RoleTrashListView(generics.ListAPIView):
-    serializer_class = RoleSerializer
-    permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "role.view"
-    filter_backends = [SearchFilter]
-    search_fields = ["name", "description"]
-
-    def get_queryset(self):
-        if getattr(self, "swagger_fake_view", False):
-            return Role.deleted_objects.none()
-
-        return get_deleted_project_roles(
-            self.request.user,
-            self.kwargs["project_id"],
-        )
-
-
 @extend_schema(tags=["permissions"])
 @extend_schema_view(
     get=extend_schema(

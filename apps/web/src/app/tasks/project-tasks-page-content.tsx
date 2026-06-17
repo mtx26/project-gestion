@@ -43,6 +43,10 @@ type FolderFilter = "all" | `folder-${number}`;
 type SortColumn = "title" | "folder" | "status" | "priority" | "due_date";
 type SortDirection = "asc" | "desc";
 
+function parseBooleanParam(value: string | null) {
+  return value === "1" || value === "true";
+}
+
 export function ProjectTasksPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -75,6 +79,8 @@ function ProjectTasksContent({
   const folderFilter = parseFolderFilter(searchParams.get("folder"));
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const priorityFilter = parsePriorityFilter(searchParams.get("priority"));
+  const includeCompleted = parseBooleanParam(searchParams.get("include_completed"));
+  const showCompleted = includeCompleted || statusFilter === "done";
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [newTaskFolder, setNewTaskFolder] = useState<FolderFilter>(folderFilter);
@@ -184,21 +190,28 @@ function ProjectTasksContent({
     },
   });
 
-  function updateUrlFilter(changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter }>) {
+  function updateUrlFilter(changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; includeCompleted: boolean }>) {
     if (!selectedProject) {
       return;
     }
 
     const params = new URLSearchParams(searchParams.toString());
     params.set("project", String(selectedProject.id));
-    if (changes.folder) {
+    if (changes.folder !== undefined) {
       setOptionalParam(params, "folder", changes.folder);
     }
-    if (changes.status) {
+    if (changes.status !== undefined) {
       setOptionalParam(params, "status", changes.status);
     }
-    if (changes.priority) {
+    if (changes.priority !== undefined) {
       setOptionalParam(params, "priority", changes.priority);
+    }
+    if (changes.includeCompleted !== undefined) {
+      if (changes.includeCompleted) {
+        params.set("include_completed", "1");
+      } else {
+        params.delete("include_completed");
+      }
     }
 
     router.replace(`/tasks?${params.toString()}`, { scroll: false });
@@ -289,7 +302,7 @@ function ProjectTasksContent({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <TasksTitle />
         {canEditTasks ? (
-          <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(true)}>
+          <Button type="button" className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setCreateDialogOpen(true)}>
             <Plus className="size-4" />
             Nouvelle tache
           </Button>
@@ -330,6 +343,15 @@ function ProjectTasksContent({
             <SelectItem value="high">Haute</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          type="button"
+          variant={showCompleted ? "default" : "outline"}
+          size="sm"
+          className="sm:w-auto"
+          onClick={() => updateUrlFilter({ includeCompleted: !showCompleted })}
+        >
+          Inclure terminees
+        </Button>
       </div>
 
       <Card className="rounded-lg">

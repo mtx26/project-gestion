@@ -644,9 +644,10 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
         <FolderPreviewPanel
           selectedFolderId={selectedFolderId}
           selectedFolderName={selectedFolderName}
-          tasks={normalizeApiList(previewTasksQuery.data).filter(
-            (t) => descendantFolderIds == null || (t.folder != null && descendantFolderIds.has(t.folder))
-          )}
+          tasks={normalizeApiList(previewTasksQuery.data)
+            .filter((t) => t.status !== "done")
+            .filter((t) => descendantFolderIds == null || (t.folder != null && descendantFolderIds.has(t.folder)))
+          }
           timeEntries={normalizeApiList(previewTimeEntriesQuery.data).filter(
             (e) => descendantFolderIds == null || (e.folder != null && descendantFolderIds.has(e.folder))
           )}

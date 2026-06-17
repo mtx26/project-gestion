@@ -22,6 +22,7 @@ type ActiveProjectDashboardProps = {
   onCreateProject: () => void;
 };
 
+
 export function ActiveProjectDashboard({
   project,
   userId,
@@ -63,6 +64,12 @@ export function ActiveProjectDashboard({
     }),
     enabled: Boolean(project && canViewTime),
   });
+  const urgentTasksQuery = useQuery({
+    queryKey: project ? queryKeys.tasks.list(project.id, { priority: "high" }) : ["tasks", "urgent", "disabled"],
+    queryFn: () => api.tasks.list(project!.id, { priority: "high" }),
+    enabled: Boolean(project && canViewTasks),
+  });
+  const urgentTasks = normalizeApiList(urgentTasksQuery.data).filter((t) => t.status !== "done");
   const members = normalizeApiList(membersQuery.data);
   const invitations = normalizeApiList(invitationsQuery.data);
   const visibleMembers = members;
@@ -113,8 +120,9 @@ export function ActiveProjectDashboard({
             <SummaryTile
               icon={CheckCircle2}
               label="Taches urgentes"
-              value="0"
-              detail="Aucune urgence pour le moment."
+              value={urgentTasksQuery.isLoading ? "..." : String(urgentTasks.length)}
+              detail={urgentTasks.length === 0 ? "Aucune urgence pour le moment." : `${urgentTasks.length} tache${urgentTasks.length > 1 ? "s" : ""} haute priorite.`}
+              href={`/tasks?project=${project.id}&priority=high`}
             />
           ) : null}
           {canViewTime ? (
@@ -203,7 +211,7 @@ export function ActiveProjectDashboard({
                   <div className="grid gap-2 sm:grid-cols-2">
                     <FinanceLine label="Depenses" value={formatMoney(financeTotals.expenses)} />
                     <FinanceLine label="Remboursements" value={formatMoney(financeTotals.refunds)} />
-                    <FinanceLine label="Solde actuel" value={formatMoney(financeTotals.balance)} />
+                    <FinanceLine label="Net" value={formatMoney(financeTotals.balance)} />
                     <FinanceLine label="Operations" value={String(financeTotals.count)} />
                   </div>
                 </>
