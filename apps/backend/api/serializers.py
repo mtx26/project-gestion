@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
-from .services.folders import build_folder_tree, build_task_tree_nodes
+from .services.folders import build_folder_tree
 from .services.permissions import expand_permissions, get_project_permission_codes
 from .services.invitations import (
     accept_project_invitation,
@@ -285,25 +285,19 @@ class FolderTreeNodeSerializer(serializers.Serializer):
 
 class FolderTreeSerializer(serializers.Serializer):
     def to_representation(self, instance):
-        folders = instance["folders"]
-        documents = instance["documents"]
-        task_nodes_by_folder, root_task_nodes = build_task_tree_nodes(instance.get("tasks", []))
         roots = build_folder_tree(
-            folders,
-            documents,
-            children_by_folder=task_nodes_by_folder,
-            root_children=root_task_nodes,
+            instance["folders"],
+            instance["documents"],
+            instance.get("tasks"),
         )
         return FolderTreeNodeSerializer(roots, many=True).data
 
 
 class FolderTargetTreeSerializer(serializers.Serializer):
     def to_representation(self, instance):
-        task_nodes_by_folder, root_task_nodes = build_task_tree_nodes(instance.get("tasks", []))
         roots = build_folder_tree(
             instance["folders"],
-            children_by_folder=task_nodes_by_folder,
-            root_children=root_task_nodes,
+            tasks=instance.get("tasks"),
         )
         return FolderTreeNodeSerializer(roots, many=True).data
 

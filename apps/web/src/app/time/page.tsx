@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronRight, Clock3, CreditCard, Folder, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, CreditCard, Folder, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -375,23 +375,7 @@ function ProjectTimeContent({
         />
       ) : null}
 
-      <div className={canRecordTime && canViewTime ? "grid gap-4 lg:grid-cols-[380px_1fr]" : "grid gap-4"}>
-        {canRecordTime ? (
-          <div className="space-y-4">
-            {canViewTime ? (
-              <TimeTotalsPanel
-                label={totalsLabel}
-                totals={totals}
-              />
-          ) : (
-            <PermissionNotice
-              title="Liste non visible"
-              description="Tu peux enregistrer du temps, mais ton role ne permet pas de consulter les heures."
-            />
-          )}
-        </div>
-        ) : null}
-
+      <div className={canRecordTime && canViewTime && viewMode !== "calendar" ? "grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start" : "grid gap-4"}>
         {canViewTime ? (
         <Card className="rounded-lg">
           <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -425,6 +409,7 @@ function ProjectTimeContent({
 
             {viewMode === "calendar" ? (
               <TimeCalendarView
+                key={periodRange.startDate}
                 entries={visibleTimeEntries}
                 isLoading={timeEntriesQuery.isLoading}
                 currentUserId={user?.id ?? null}
@@ -460,7 +445,14 @@ function ProjectTimeContent({
         </Card>
         ) : null}
 
-        {!canRecordTime && canViewTime ? (
+        {canRecordTime && canViewTime && viewMode !== "calendar" ? (
+          <TimeTotalsPanel
+            label={totalsLabel}
+            totals={totals}
+          />
+        ) : null}
+
+        {!canRecordTime && canViewTime && viewMode !== "calendar" ? (
           <div>
             <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -469,6 +461,13 @@ function ProjectTimeContent({
               <TimeSummary label="Reste a payer" value={formatMoney(totals.remainingAmount)} />
             </div>
           </div>
+        ) : null}
+
+        {canRecordTime && !canViewTime ? (
+          <PermissionNotice
+            title="Liste non visible"
+            description="Tu peux enregistrer du temps, mais ton role ne permet pas de consulter les heures."
+          />
         ) : null}
       </div>
 
@@ -856,6 +855,8 @@ function TimeCalendarView({
   taskTitleById: Map<number, string>;
   calendarDate?: string;
 }) {
+  const [localMonthDate, setLocalMonthDate] = useState<Date | null>(null);
+
   if (isLoading) {
     return (
       <div className="grid grid-cols-7 gap-0 rounded-lg border bg-card">
@@ -866,9 +867,18 @@ function TimeCalendarView({
     );
   }
 
-  const monthDate = getCalendarMonthDate(calendarDate, entries);
+  const baseMonthDate = getCalendarMonthDate(calendarDate, entries);
+  const monthDate = localMonthDate ?? baseMonthDate;
   const days = getMonthCalendarDays(monthDate);
   const entriesByDay = groupTimeEntriesByDay(entries);
+
+  function goToPrevMonth() {
+    setLocalMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() - 1, 1));
+  }
+
+  function goToNextMonth() {
+    setLocalMonthDate(new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1));
+  }
 
   return (
     <div className="rounded-lg border bg-card">
@@ -876,6 +886,14 @@ function TimeCalendarView({
         <div>
           <p className="font-medium">{formatCalendarMonth(monthDate)}</p>
           <p className="text-xs text-muted-foreground">{entries.length} entree{entries.length > 1 ? "s" : ""}</p>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Mois precedent" onClick={goToPrevMonth}>
+            <ChevronLeft className="size-4" />
+          </Button>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Mois suivant" onClick={goToNextMonth}>
+            <ChevronRight className="size-4" />
+          </Button>
         </div>
       </div>
       <div className="grid grid-cols-7 border-b bg-muted/40 text-center text-xs font-medium text-muted-foreground">
