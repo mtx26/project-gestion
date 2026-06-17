@@ -1,6 +1,6 @@
 "use client";
 
-import type { Folder, Task, TimeEntry } from "@project-gestion/types";
+import type { Folder, Project, Task, TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
@@ -40,7 +40,7 @@ export default function TrashPage() {
 function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspaceState) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const tab = searchParams.get("tab") ?? "folders";
+  const tab = searchParams.get("tab") ?? "projects";
   const projectId = selectedProject?.id ?? null;
 
   const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
@@ -55,6 +55,18 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
     params.set("tab", value);
     router.push(`/trash?${params}`);
   }
+
+  const projectsTrashQuery = useQuery({
+    queryKey: queryKeys.projects.trash(),
+    queryFn: api.projects.trash,
+  });
+  const restoreProject = useMutation({
+    mutationFn: (id: number) => api.projects.restore(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.trash() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
+    },
+  });
 
   const foldersTrashQuery = useQuery({
     queryKey: projectId ? queryKeys.folders.trash(projectId) : ["folders", "trash", "disabled"],
@@ -96,27 +108,30 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
     },
   });
 
-  if (!selectedProject) {
-    return (
-      <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-        <p>Selectionnez un projet pour voir la corbeille.</p>
-      </div>
-    );
-  }
-
+  const deletedProjects = normalizeApiList(projectsTrashQuery.data);
   const folders = normalizeApiList(foldersTrashQuery.data);
   const tasks = normalizeApiList(tasksTrashQuery.data);
   const timeEntries = normalizeApiList(timeEntriesTrashQuery.data);
 
+  const noProjectMsg = (
+    <p className="py-8 text-center text-sm text-muted-foreground">Selectionnez un projet pour voir cet onglet.</p>
+  );
+
   return (
-    <div className="flex flex-col gap-6 p-6">
+    <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold">Corbeille</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Restaurer les elements supprimes du projet.</p>
+        <p className="text-xs font-medium uppercase text-muted-foreground">Corbeille</p>
+        <h1 className="mt-1 text-2xl font-semibold">Elements supprimes</h1>
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
         <TabsList>
+          <TabsTrigger value="projects" className="gap-2">
+            Projets
+            {deletedProjects.length > 0 ? (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{deletedProjects.length}</span>
+            ) : null}
+          </TabsTrigger>
           <TabsTrigger value="folders" className="gap-2">
             <FolderIcon className="size-4" />
             Dossiers
@@ -140,43 +155,62 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="folders" className="mt-4">
-          <TrashSection<Folder>
-            isLoading={foldersTrashQuery.isLoading}
-            canRestore={canRestoreFiles}
-            items={folders}
-            getName={(f) => f.name}
-            getSubtitle={(f) => formatDeletedAt(f.deleted_at)}
-            onRestore={(f) => restoreFolder.mutate(f.id)}
-            isRestoring={restoreFolder.isPending}
-            emptyText="Aucun dossier supprime."
+        <TabsContent value="projects" className="mt-4">
+          <TrashSection<Project>
+            isLoading={projectsTrashQuery.isLoading}
+            canRestore={true}
+            items={deletedProjects}
+            getName={(p) => p.name}
+            getSubtitle={(p) => formatDeletedAt(p.deleted_at)}
+            onRestore={(p) => restoreProject.mutate(p.id)}
+            isRestoring={restoreProject.isPending}
+            emptyText="Aucun projet supprime."
           />
+        </TabsContent>
+
+        <TabsContent value="folders" className="mt-4">
+          {!selectedProject ? noProjectMsg : (
+            <TrashSection<Folder>
+              isLoading={foldersTrashQuery.isLoading}
+              canRestore={canRestoreFiles}
+              items={folders}
+              getName={(f) => f.name}
+              getSubtitle={(f) => formatDeletedAt(f.deleted_at)}
+              onRestore={(f) => restoreFolder.mutate(f.id)}
+              isRestoring={restoreFolder.isPending}
+              emptyText="Aucun dossier supprime."
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-4">
-          <TrashSection<Task>
-            isLoading={tasksTrashQuery.isLoading}
-            canRestore={canRestoreTasks}
-            items={tasks}
-            getName={(t) => t.title}
-            getSubtitle={(t) => formatDeletedAt(t.deleted_at)}
-            onRestore={(t) => restoreTask.mutate(t.id)}
-            isRestoring={restoreTask.isPending}
-            emptyText="Aucune tache supprimee."
-          />
+          {!selectedProject ? noProjectMsg : (
+            <TrashSection<Task>
+              isLoading={tasksTrashQuery.isLoading}
+              canRestore={canRestoreTasks}
+              items={tasks}
+              getName={(t) => t.title}
+              getSubtitle={(t) => formatDeletedAt(t.deleted_at)}
+              onRestore={(t) => restoreTask.mutate(t.id)}
+              isRestoring={restoreTask.isPending}
+              emptyText="Aucune tache supprimee."
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="time" className="mt-4">
-          <TrashSection<TimeEntry>
-            isLoading={timeEntriesTrashQuery.isLoading}
-            canRestore={canRestoreTime}
-            items={timeEntries}
-            getName={(e) => e.description || formatDuration(e.duration_minutes)}
-            getSubtitle={(e) => formatDeletedAt(e.deleted_at)}
-            onRestore={(e) => restoreTimeEntry.mutate(e.id)}
-            isRestoring={restoreTimeEntry.isPending}
-            emptyText="Aucune entree de temps supprimee."
-          />
+          {!selectedProject ? noProjectMsg : (
+            <TrashSection<TimeEntry>
+              isLoading={timeEntriesTrashQuery.isLoading}
+              canRestore={canRestoreTime}
+              items={timeEntries}
+              getName={(e) => e.description || formatDuration(e.duration_minutes)}
+              getSubtitle={(e) => formatDeletedAt(e.deleted_at)}
+              onRestore={(e) => restoreTimeEntry.mutate(e.id)}
+              isRestoring={restoreTimeEntry.isPending}
+              emptyText="Aucune entree de temps supprimee."
+            />
+          )}
         </TabsContent>
       </Tabs>
     </div>

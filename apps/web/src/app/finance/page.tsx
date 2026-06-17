@@ -64,6 +64,8 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "refund">("all");
+  const [folderFilterId, setFolderFilterId] = useState<number | null>(null);
 
   const entriesQuery = useQuery({
     queryKey: projectId ? queryKeys.financialEntries.list(projectId) : ["financial-entries", "disabled"],
@@ -122,19 +124,23 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
     );
   }
 
-  const entries = normalizeApiList(entriesQuery.data);
+  const allEntries = normalizeApiList(entriesQuery.data);
   const folders = foldersQuery.data ?? [];
+  const entries = allEntries
+    .filter((e) => typeFilter === "all" || e.type === typeFilter)
+    .filter((e) => folderFilterId == null || e.folder === folderFilterId);
   const totals = computeTotals(entries);
+  const folderFilterName = folderFilterId != null ? (findFolderName(folders, Number(folderFilterId)) ?? "Dossier") : null;
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="flex items-center justify-between gap-4">
+    <div className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Finances</h1>
-          <p className="mt-1 text-sm text-muted-foreground">Depenses et remboursements du projet.</p>
+          <p className="text-xs font-medium uppercase text-muted-foreground">Finances</p>
+          <h1 className="mt-1 text-2xl font-semibold">Gestion financiere</h1>
         </div>
         {canEditFinance ? (
-          <Button type="button" onClick={() => { setFormError(null); setCreateOpen(true); }} className="gap-2">
+          <Button type="button" className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => { setFormError(null); setCreateOpen(true); }}>
             <Plus className="size-4" />
             Nouvelle entree
           </Button>
@@ -145,6 +151,33 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         <SummaryCard label="Depenses" value={formatMoney(totals.expenses)} className="text-destructive" />
         <SummaryCard label="Remboursements" value={formatMoney(totals.refunds)} className="text-emerald-600" />
         <SummaryCard label="Net" value={formatMoney(totals.balance)} className={totals.balance >= 0 ? "text-emerald-600" : "text-destructive"} />
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+          <SelectTrigger className="w-full bg-background sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous types</SelectItem>
+            <SelectItem value="expense">Depenses</SelectItem>
+            <SelectItem value="refund">Remboursements</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="w-full sm:w-56">
+          <FolderTreePickerDialog
+            folders={folders}
+            selectedFolderId={folderFilterId != null ? Number(folderFilterId) : null}
+            buttonLabel={folderFilterName ?? "Tous dossiers"}
+            description="Filtrer les entrees par dossier."
+            onSelect={(id) => setFolderFilterId(id)}
+          />
+        </div>
+        {folderFilterId != null ? (
+          <Button type="button" variant="ghost" size="sm" className="sm:w-auto" onClick={() => setFolderFilterId(null)}>
+            Effacer filtre
+          </Button>
+        ) : null}
       </div>
 
       {entriesQuery.isLoading ? (

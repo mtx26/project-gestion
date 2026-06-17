@@ -359,7 +359,7 @@ function ProjectTimeContent({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <TimePageTitle />
         {canRecordTime ? (
-          <Button type="button" variant="outline" onClick={() => setTimeFormOpen(true)}>
+          <Button type="button" className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setTimeFormOpen(true)}>
             <Plus className="size-4" />
             Ajouter
           </Button>
@@ -773,6 +773,19 @@ function TimePeriodToolbar({
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start">
+      <Select value={periodPreset} onValueChange={(value) => onPeriodPresetChange(value as PeriodPreset)}>
+        <SelectTrigger className="w-full bg-background sm:w-48">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="this-week">Cette semaine</SelectItem>
+          <SelectItem value="this-month">Ce mois</SelectItem>
+          <SelectItem value="last-month">Mois dernier</SelectItem>
+          <SelectItem value="last-30-days">30 derniers jours</SelectItem>
+          <SelectItem value="this-year">Cette annee</SelectItem>
+          <SelectItem value="all">Tout</SelectItem>
+        </SelectContent>
+      </Select>
       {canViewAllTime ? (
         <Select value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
           <SelectTrigger className="w-full bg-background sm:w-56">
@@ -794,23 +807,10 @@ function TimePeriodToolbar({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">Tous statuts</SelectItem>
+          <SelectItem value="all">Tous statuts paiement</SelectItem>
           <SelectItem value="unpaid">Non paye</SelectItem>
           <SelectItem value="partial">Partiel</SelectItem>
           <SelectItem value="paid">Paye</SelectItem>
-        </SelectContent>
-      </Select>
-      <Select value={periodPreset} onValueChange={(value) => onPeriodPresetChange(value as PeriodPreset)}>
-        <SelectTrigger className="w-full bg-background sm:w-48">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="this-week">Cette semaine</SelectItem>
-          <SelectItem value="this-month">Ce mois</SelectItem>
-          <SelectItem value="last-month">Mois dernier</SelectItem>
-          <SelectItem value="last-30-days">30 derniers jours</SelectItem>
-          <SelectItem value="this-year">Cette annee</SelectItem>
-          <SelectItem value="all">Tout</SelectItem>
         </SelectContent>
       </Select>
       <div className="w-full sm:w-52">
@@ -825,6 +825,7 @@ function TimePeriodToolbar({
       <Button
         type="button"
         variant={includeUnpaidOutsideMonth ? "default" : "outline"}
+        size="sm"
         className="sm:w-auto"
         onClick={() => onIncludeUnpaidOutsideMonthChange(!includeUnpaidOutsideMonth)}
       >

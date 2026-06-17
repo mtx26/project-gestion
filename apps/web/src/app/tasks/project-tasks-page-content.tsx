@@ -378,7 +378,7 @@ function ProjectTasksContent({
             </Empty>
           ) : (
             <TaskTable
-              tasks={sortedTasks}
+              tasks={showCompleted ? sortedTasks : sortedTasks.filter((t) => t.status !== "done")}
               folderNameById={folderNameById}
               sortConfig={sortConfig}
               canEdit={canEditTasks}
