@@ -27,12 +27,14 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
+import { TaskDetailModal } from "@/components/ui/task-detail-modal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { formatTaskDate, getPriorityClassName, getPriorityLabel, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
 
 type StatusFilter = "all" | Task["status"];
 type PriorityFilter = "all" | Task["priority"];
@@ -442,94 +444,6 @@ function ProjectTasksContent({
   );
 }
 
-function TaskDetailModal({
-  task,
-  folderNameById,
-  canEdit,
-  canDelete,
-  deletingId,
-  onClose,
-  onEdit,
-  onDelete,
-}: {
-  task: Task | null;
-  folderNameById: Map<number, string>;
-  canEdit: boolean;
-  canDelete: boolean;
-  deletingId: number | null | undefined;
-  onClose: () => void;
-  onEdit: (task: Task) => void;
-  onDelete: (task: Task) => void;
-}) {
-  const folderName = task == null ? null : task.folder == null ? "Projet" : folderNameById.get(task.folder) ?? `Dossier #${task.folder}`;
-
-  return (
-    <Dialog open={task != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="pr-6">{task?.title}</DialogTitle>
-        </DialogHeader>
-        {task ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className={getStatusClassName(task.status)}>{getStatusLabel(task.status)}</Badge>
-              <Badge variant="outline" className={getPriorityClassName(task.priority)}>{getPriorityLabel(task.priority)}</Badge>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div>
-                <p className="text-xs font-medium uppercase text-muted-foreground">Dossier</p>
-                <p className="mt-1 text-sm">{folderName}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase text-muted-foreground">Echeance</p>
-                <p className="mt-1 text-sm">{task.due_date ? formatDate(task.due_date) : "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase text-muted-foreground">Creation</p>
-                <p className="mt-1 text-sm">{formatDate(task.created_at)}</p>
-              </div>
-              <div>
-                <p className="text-xs font-medium uppercase text-muted-foreground">Terminee le</p>
-                <p className="mt-1 text-sm">{task.completed_at ? formatDate(task.completed_at) : "—"}</p>
-              </div>
-            </div>
-            {task.description ? (
-              <div>
-                <p className="text-xs font-medium uppercase text-muted-foreground">Description</p>
-                <p className="mt-1 whitespace-pre-wrap text-sm">{task.description}</p>
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-        <DialogFooter className="flex-row items-center justify-between sm:justify-between">
-          {canDelete && task ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              disabled={deletingId === task.id}
-              onClick={() => onDelete(task)}
-            >
-              <Trash2 className="size-4" />
-              {deletingId === task.id ? "Suppression..." : "Supprimer"}
-            </Button>
-          ) : <span />}
-          <div className="flex gap-2">
-            <DialogClose asChild>
-              <Button type="button" variant="outline" size="sm">Fermer</Button>
-            </DialogClose>
-            {canEdit && task ? (
-              <Button type="button" size="sm" onClick={() => onEdit(task)}>
-                <Pencil className="size-4" />
-                Modifier
-              </Button>
-            ) : null}
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function TasksTitle() {
   return (
@@ -857,7 +771,7 @@ function TaskTable({
               <TableCell>
                 <Badge variant="outline" className={getPriorityClassName(task.priority)}>{getPriorityLabel(task.priority)}</Badge>
               </TableCell>
-              <TableCell className="text-muted-foreground">{task.due_date ? formatDate(task.due_date) : "-"}</TableCell>
+              <TableCell className="text-muted-foreground">{task.due_date ? formatTaskDate(task.due_date) : "-"}</TableCell>
               <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
                 <div className="flex justify-end gap-1">
                   {canEdit ? (
@@ -946,48 +860,3 @@ async function invalidateTasks(queryClient: ProjectWorkspaceState["queryClient"]
   await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });
 }
 
-function getStatusLabel(status: Task["status"]) {
-  if (status === "in_progress") {
-    return "En cours";
-  }
-  if (status === "done") {
-    return "Termine";
-  }
-  return "A faire";
-}
-
-function getPriorityLabel(priority: Task["priority"]) {
-  if (priority === "high") {
-    return "Haute";
-  }
-  if (priority === "low") {
-    return "Basse";
-  }
-  return "Normale";
-}
-
-function getStatusClassName(status: Task["status"]) {
-  if (status === "done") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-  if (status === "in_progress") {
-    return "border-sky-200 bg-sky-50 text-sky-700";
-  }
-  return "border-muted bg-background text-muted-foreground";
-}
-
-function getPriorityClassName(priority: Task["priority"]) {
-  if (priority === "high") {
-    return "border-red-200 bg-red-50 text-red-700";
-  }
-  if (priority === "low") {
-    return "border-slate-200 bg-slate-50 text-slate-700";
-  }
-  return "border-amber-200 bg-amber-50 text-amber-700";
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("fr-BE", {
-    dateStyle: "medium",
-  }).format(new Date(value));
-}

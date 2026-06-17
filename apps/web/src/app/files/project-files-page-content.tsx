@@ -39,6 +39,7 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { Dialog as DialogPrimitive } from "radix-ui";
 import {
   Dialog,
   DialogClose,
@@ -46,6 +47,8 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogOverlay,
+  DialogPortal,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -53,6 +56,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
+import { TaskDetailModal } from "@/components/ui/task-detail-modal";
+import { getStatusClassName, getStatusLabel } from "@/lib/task-utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -118,6 +123,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   const [itemToDelete, setItemToDelete] = useState<FileActionTarget | null>(null);
   const [itemToRename, setItemToRename] = useState<FileActionTarget | null>(null);
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [taskDraftFolderId, setTaskDraftFolderId] = useState<number | null>(null);
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
@@ -272,6 +278,8 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     () => getDescendantFolderIds(treeQuery.data ?? [], selectedFolderId),
     [treeQuery.data, selectedFolderId],
   );
+
+  const folderNameById = useMemo(() => buildFolderNameMap(treeQuery.data ?? []), [treeQuery.data]);
 
   const rootExpandedFolderIds = useMemo(() => {
     return new Set((treeQuery.data ?? []).filter((node) => node.type === "folder").map((node) => node.id));
@@ -652,11 +660,12 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
           timeEntries={normalizeApiList(previewTimeEntriesQuery.data).filter(
             (e) => descendantFolderIds == null || (e.folder != null && descendantFolderIds.has(e.folder))
           )}
-          currentUserId={user?.id ?? null}
+
           canViewTasks={canViewTasks}
           canViewTime={canViewTime}
           isLoadingTasks={previewTasksQuery.isLoading}
           isLoadingTime={previewTimeEntriesQuery.isLoading}
+          onOpenTask={setViewingTask}
           onOpenTasks={() =>
             selectedFolderId != null
               ? router.push(buildFolderTasksHref(selectedFolderId))
@@ -715,6 +724,14 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
       <DocumentPreviewModal
         document={previewDocument}
         onClose={() => setPreviewDocument(null)}
+      />
+
+      <TaskDetailModal
+        task={viewingTask}
+        folderNameById={folderNameById}
+        canEdit={false}
+        canDelete={false}
+        onClose={() => setViewingTask(null)}
       />
 
       <Dialog open={itemToRename != null} onOpenChange={(open) => !open && setItemToRename(null)}>
@@ -790,16 +807,47 @@ function ProjectFilesTitle() {
   );
 }
 
+function TimeTotals({ timeEntries }: { timeEntries: TimeEntry[] }) {
+  const totals = timeEntries.reduce(
+    (acc, e) => ({
+      durationMinutes: acc.durationMinutes + e.duration_minutes,
+      costAmount: acc.costAmount + Number(e.cost_amount),
+      remainingAmount: acc.remainingAmount + Number(e.remaining_amount),
+    }),
+    { durationMinutes: 0, costAmount: 0, remainingAmount: 0 },
+  );
+
+  return (
+    <div className="space-y-2">
+      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Synthese</p>
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Temps total</span>
+          <span className="font-medium tabular-nums">{formatDuration(totals.durationMinutes)}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Montant total</span>
+          <span className="font-medium tabular-nums">{formatMoney(totals.costAmount)}</span>
+        </div>
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Reste a payer</span>
+          <span className="font-medium tabular-nums">{formatMoney(totals.remainingAmount)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FolderPreviewPanel({
   selectedFolderId,
   selectedFolderName,
   tasks,
   timeEntries,
-  currentUserId,
   canViewTasks,
   canViewTime,
   isLoadingTasks,
   isLoadingTime,
+  onOpenTask,
   onOpenTasks,
   onOpenTime,
 }: {
@@ -807,11 +855,11 @@ function FolderPreviewPanel({
   selectedFolderName: string | null;
   tasks: Task[];
   timeEntries: TimeEntry[];
-  currentUserId: number | null;
   canViewTasks: boolean;
   canViewTime: boolean;
   isLoadingTasks: boolean;
   isLoadingTime: boolean;
+  onOpenTask: (task: Task) => void;
   onOpenTasks: () => void;
   onOpenTime: () => void;
 }) {
@@ -850,10 +898,15 @@ function FolderPreviewPanel({
           ) : (
             <div className="space-y-1">
               {tasks.slice(0, 5).map((task) => (
-                <div key={task.id} className="flex items-center justify-between gap-2 rounded bg-muted/40 px-2 py-1 text-xs">
+                <button
+                  key={task.id}
+                  type="button"
+                  className="flex w-full items-center justify-between gap-2 rounded bg-muted/40 px-2 py-1 text-xs hover:bg-muted/70"
+                  onClick={() => onOpenTask(task)}
+                >
                   <span className="truncate">{task.title}</span>
-                  <Badge variant="outline" className="shrink-0 text-[10px]">{getTaskStatusLabel(task.status)}</Badge>
-                </div>
+                  <Badge variant="outline" className={cn("shrink-0 text-[10px]", getStatusClassName(task.status))}>{getStatusLabel(task.status)}</Badge>
+                </button>
               ))}
               {tasks.length > 5 ? (
                 <p className="text-xs text-muted-foreground">+{tasks.length - 5} autres</p>
@@ -879,22 +932,7 @@ function FolderPreviewPanel({
           ) : timeEntries.length === 0 ? (
             <p className="text-xs text-muted-foreground">Aucune heure liee.</p>
           ) : (
-            <div className="space-y-1.5">
-              {timeEntries.slice(0, 8).map((entry) => (
-                <div key={entry.id} className="rounded bg-muted/40 px-2 py-1.5 text-xs">
-                  <p className="font-medium">{formatDuration(entry.duration_minutes)}</p>
-                  {entry.description ? (
-                    <p className="truncate text-muted-foreground">{entry.description}</p>
-                  ) : null}
-                  <p className="text-muted-foreground">
-                    {entry.user === currentUserId ? "Toi" : `Utilisateur ${entry.user}`}
-                  </p>
-                </div>
-              ))}
-              {timeEntries.length > 8 ? (
-                <p className="text-xs text-muted-foreground">+{timeEntries.length - 8} autres</p>
-              ) : null}
-            </div>
+            <TimeTotals timeEntries={timeEntries} />
           )}
         </div>
       ) : null}
@@ -926,63 +964,71 @@ function DocumentPreviewModal({
 
   return (
     <Dialog open={doc != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-3xl">
-        <DialogHeader>
-          <DialogTitle className="truncate pr-8">{doc?.file_name ?? "Apercu"}</DialogTitle>
-        </DialogHeader>
-        {doc ? (
-          kind === "image" ? (
-            <div className="flex justify-center overflow-hidden rounded-md bg-muted/20">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={doc.url}
-                alt={doc.file_name}
-                className="max-h-[60vh] w-auto rounded-md object-contain"
-              />
-            </div>
-          ) : kind === "pdf" ? (
-            <object
-              data={doc.url}
-              type="application/pdf"
-              className="h-[60vh] w-full rounded-md border"
-              aria-label={doc.file_name}
-            >
-              <div className="flex flex-col items-center gap-3 py-8 text-sm text-muted-foreground">
-                <p>Impossible d&apos;afficher le PDF dans le navigateur.</p>
+      <DialogPortal>
+        <DialogOverlay />
+        <DialogPrimitive.Content
+          className="fixed inset-0 z-50 flex flex-col bg-background"
+        >
+          <DialogTitle className="sr-only">{doc?.file_name ?? "Apercu"}</DialogTitle>
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3">
+            <span className="truncate text-sm font-medium">{doc?.file_name ?? "Apercu"}</span>
+            <div className="flex shrink-0 items-center gap-2">
+              {doc ? (
                 <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                  <Button type="button" variant="outline">
+                  <Button type="button" variant="outline" size="sm">
                     <Download className="size-4" />
-                    Ouvrir le PDF
+                    Telecharger
                   </Button>
                 </a>
-              </div>
-            </object>
-          ) : (
-            <div className="flex flex-col items-center gap-4 py-8">
-              <p className="text-sm text-muted-foreground">Apercu non disponible pour ce type de fichier.</p>
-              <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                <Button type="button">
-                  <Download className="size-4" />
-                  Telecharger {doc.file_name}
-                </Button>
-              </a>
+              ) : null}
+              <DialogClose asChild>
+                <Button type="button" variant="outline" size="sm">Fermer</Button>
+              </DialogClose>
             </div>
-          )
-        ) : null}
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Fermer</Button>
-          </DialogClose>
+          </div>
           {doc ? (
-            <a href={doc.url} target="_blank" rel="noopener noreferrer">
-              <Button type="button" variant="outline">
-                <Download className="size-4" />
-                Telecharger
-              </Button>
-            </a>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {kind === "image" ? (
+                <div className="flex h-full items-center justify-center bg-muted/20 p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={doc.url}
+                    alt={doc.file_name}
+                    className="max-h-full w-auto object-contain"
+                  />
+                </div>
+              ) : kind === "pdf" ? (
+                <object
+                  data={doc.url}
+                  type="application/pdf"
+                  className="h-full w-full"
+                  aria-label={doc.file_name}
+                >
+                  <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+                    <p>Impossible d&apos;afficher le PDF dans le navigateur.</p>
+                    <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                      <Button type="button" variant="outline">
+                        <Download className="size-4" />
+                        Ouvrir le PDF
+                      </Button>
+                    </a>
+                  </div>
+                </object>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center gap-4">
+                  <p className="text-sm text-muted-foreground">Apercu non disponible pour ce type de fichier.</p>
+                  <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                    <Button type="button">
+                      <Download className="size-4" />
+                      Telecharger {doc.file_name}
+                    </Button>
+                  </a>
+                </div>
+              )}
+            </div>
           ) : null}
-        </DialogFooter>
-      </DialogContent>
+        </DialogPrimitive.Content>
+      </DialogPortal>
     </Dialog>
   );
 }
@@ -1195,6 +1241,16 @@ function collectFolderIds(node: FolderTreeNode, ids: Set<number>) {
   }
 }
 
+function buildFolderNameMap(nodes: FolderTreeNode[], map = new Map<number, string>()): Map<number, string> {
+  for (const node of nodes) {
+    if (node.type === "folder") {
+      map.set(node.id, node.name);
+      buildFolderNameMap(node.children ?? [], map);
+    }
+  }
+  return map;
+}
+
 function findFolderName(nodes: FolderTreeNode[], folderId: number | null): string | null {
   if (folderId == null) {
     return null;
@@ -1214,16 +1270,6 @@ function findFolderName(nodes: FolderTreeNode[], folderId: number | null): strin
   }
 
   return null;
-}
-
-function getTaskStatusLabel(status: Task["status"]) {
-  if (status === "in_progress") {
-    return "En cours";
-  }
-  if (status === "done") {
-    return "Termine";
-  }
-  return "A faire";
 }
 
 function formatDuration(totalMinutes: number) {
