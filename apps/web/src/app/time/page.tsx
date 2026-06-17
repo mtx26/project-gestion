@@ -1,6 +1,7 @@
 "use client";
 
 import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
+import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
@@ -131,6 +132,11 @@ function ProjectTimeContent({
     queryKey: selectedProject ? queryKeys.folders.targetTree(selectedProject.id) : ["folders", "target-tree", "disabled"],
     queryFn: () => api.folders.targetTree(selectedProject!.id),
     enabled: Boolean(selectedProject && canRecordTime),
+  });
+  const foldersQuery = useQuery({
+    queryKey: selectedProject ? queryKeys.folders.tree(selectedProject.id) : ["folders", "tree", "disabled"],
+    queryFn: () => api.folders.tree(selectedProject!.id),
+    enabled: Boolean(selectedProject && canViewTime),
   });
 
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
@@ -365,8 +371,13 @@ function ProjectTimeContent({
           periodPreset={periodPreset}
           paymentStatusFilter={paymentStatusFilter}
           targetFilterLabel={targetFilterLabel}
+          targetFolderId={targetFilter?.startsWith("folder-") ? Number(targetFilter.replace("folder-", "")) : null}
           userFilter={userFilter}
           includeUnpaidOutsideMonth={includeUnpaidOutsideMonth}
+          folders={foldersQuery.data ?? []}
+          onSelectFolder={(folderId) =>
+            updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })
+          }
           onClearTargetFilter={() => updateUrlFilter({ target: null })}
           onPeriodPresetChange={onPeriodPresetChange}
           onPaymentStatusFilterChange={onPaymentStatusFilterChange}
@@ -686,8 +697,11 @@ function TimePeriodToolbar({
   periodPreset,
   paymentStatusFilter,
   targetFilterLabel,
+  targetFolderId,
   userFilter,
   includeUnpaidOutsideMonth,
+  folders,
+  onSelectFolder,
   onClearTargetFilter,
   onPeriodPresetChange,
   onPaymentStatusFilterChange,
@@ -699,16 +713,21 @@ function TimePeriodToolbar({
   periodPreset: PeriodPreset;
   paymentStatusFilter: PaymentStatusFilter;
   targetFilterLabel: string | null;
+  targetFolderId: number | null;
   userFilter: UserFilter;
   includeUnpaidOutsideMonth: boolean;
+  folders: FolderTreeNode[];
+  onSelectFolder: (folderId: number | null) => void;
   onClearTargetFilter: () => void;
   onPeriodPresetChange: (value: PeriodPreset) => void;
   onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
   onUserFilterChange: (value: UserFilter) => void;
   onIncludeUnpaidOutsideMonthChange: (value: boolean) => void;
 }) {
+  const folderPickerLabel = targetFilterLabel ?? "Tous dossiers";
+
   return (
-    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start">
       {canViewAllTime ? (
         <Select value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
           <SelectTrigger className="w-full bg-background sm:w-56">
@@ -749,6 +768,15 @@ function TimePeriodToolbar({
           <SelectItem value="all">Tout</SelectItem>
         </SelectContent>
       </Select>
+      <div className="w-full sm:w-52">
+        <FolderTreePickerDialog
+          folders={folders}
+          selectedFolderId={targetFolderId}
+          buttonLabel={folderPickerLabel}
+          description="Filtrer les entrees de temps par dossier."
+          onSelect={onSelectFolder}
+        />
+      </div>
       <Button
         type="button"
         variant={includeUnpaidOutsideMonth ? "default" : "outline"}
@@ -758,9 +786,8 @@ function TimePeriodToolbar({
         Impayes inclus
       </Button>
       {targetFilterLabel ? (
-        <Button type="button" variant="secondary" className="sm:w-auto" onClick={onClearTargetFilter}>
-          <Folder className="size-4" />
-          {targetFilterLabel}
+        <Button type="button" variant="ghost" size="sm" className="sm:w-auto" onClick={onClearTargetFilter}>
+          Effacer filtre
         </Button>
       ) : null}
     </div>

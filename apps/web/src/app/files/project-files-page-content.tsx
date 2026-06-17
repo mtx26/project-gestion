@@ -52,6 +52,7 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -68,7 +69,7 @@ type FileActionTarget = {
 type PreviewDocument = {
   url: string;
   file_name: string;
-  mime_type: string;
+  mime_type: string | null;
 };
 
 const TREE_INDENT = 28;
@@ -253,19 +254,24 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   const selectedFolderId = selectedFolderState.projectId === selectedProjectId ? selectedFolderState.id : null;
 
   const previewTasksQuery = useQuery({
-    queryKey: selectedProject && selectedFolderId != null
-      ? queryKeys.tasks.list(selectedProject.id, { folderId: selectedFolderId })
+    queryKey: selectedProject
+      ? queryKeys.tasks.list(selectedProject.id, {})
       : ["tasks", "folder-preview", "disabled"],
-    queryFn: () => api.tasks.list(selectedProject!.id, { folder: selectedFolderId! }),
-    enabled: Boolean(selectedProject && canViewTasks && selectedFolderId != null),
+    queryFn: () => api.tasks.list(selectedProject!.id, {}),
+    enabled: Boolean(selectedProject && canViewTasks),
   });
   const previewTimeEntriesQuery = useQuery({
-    queryKey: selectedProject && selectedFolderId != null
-      ? ["projects", selectedProject.id, "time-entries", "folder-preview", selectedFolderId]
+    queryKey: selectedProject
+      ? ["projects", selectedProject.id, "time-entries", "folder-preview"]
       : ["time-entries", "folder-preview", "disabled"],
     queryFn: () => api.timeEntries.list(selectedProject!.id),
-    enabled: Boolean(selectedProject && canViewTime && selectedFolderId != null),
+    enabled: Boolean(selectedProject && canViewTime),
   });
+
+  const descendantFolderIds = useMemo(
+    () => getDescendantFolderIds(treeQuery.data ?? [], selectedFolderId),
+    [treeQuery.data, selectedFolderId],
+  );
 
   const rootExpandedFolderIds = useMemo(() => {
     return new Set((treeQuery.data ?? []).filter((node) => node.type === "folder").map((node) => node.id));
@@ -640,14 +646,27 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
         <FolderPreviewPanel
           selectedFolderId={selectedFolderId}
           selectedFolderName={selectedFolderName}
-          tasks={normalizeApiList(previewTasksQuery.data)}
-          timeEntries={normalizeApiList(previewTimeEntriesQuery.data).filter((entry) => entry.folder === selectedFolderId)}
+          tasks={normalizeApiList(previewTasksQuery.data).filter(
+            (t) => descendantFolderIds == null || (t.folder != null && descendantFolderIds.has(t.folder))
+          )}
+          timeEntries={normalizeApiList(previewTimeEntriesQuery.data).filter(
+            (e) => descendantFolderIds == null || (e.folder != null && descendantFolderIds.has(e.folder))
+          )}
+          currentUserId={user?.id ?? null}
           canViewTasks={canViewTasks}
           canViewTime={canViewTime}
           isLoadingTasks={previewTasksQuery.isLoading}
           isLoadingTime={previewTimeEntriesQuery.isLoading}
-          onOpenTasks={() => selectedFolderId != null ? router.push(buildFolderTasksHref(selectedFolderId)) : undefined}
-          onOpenTime={() => selectedFolderId != null ? router.push(buildFolderTimeHref(selectedFolderId)) : undefined}
+          onOpenTasks={() =>
+            selectedFolderId != null
+              ? router.push(buildFolderTasksHref(selectedFolderId))
+              : router.push(`/tasks?project=${selectedProjectId}`)
+          }
+          onOpenTime={() =>
+            selectedFolderId != null
+              ? router.push(buildFolderTimeHref(selectedFolderId))
+              : router.push(`/time?project=${selectedProjectId}`)
+          }
         />
       </div>
 
@@ -776,6 +795,7 @@ function FolderPreviewPanel({
   selectedFolderName,
   tasks,
   timeEntries,
+  currentUserId,
   canViewTasks,
   canViewTime,
   isLoadingTasks,
@@ -787,6 +807,7 @@ function FolderPreviewPanel({
   selectedFolderName: string | null;
   tasks: Task[];
   timeEntries: TimeEntry[];
+  currentUserId: number | null;
   canViewTasks: boolean;
   canViewTime: boolean;
   isLoadingTasks: boolean;
@@ -794,25 +815,19 @@ function FolderPreviewPanel({
   onOpenTasks: () => void;
   onOpenTime: () => void;
 }) {
-  if (selectedFolderId == null) {
-    return (
-      <div className="flex min-h-45 items-center justify-center rounded-lg border border-dashed bg-muted/20 p-4">
-        <p className="text-center text-sm text-muted-foreground">
-          Selectionne un dossier pour voir son apercu
-        </p>
-      </div>
-    );
-  }
-
-  const totalMinutes = timeEntries.reduce((total, entry) => total + entry.duration_minutes, 0);
-  const remainingAmount = timeEntries.reduce((total, entry) => total + Number(entry.remaining_amount), 0);
+  const headerName = selectedFolderId == null ? "Projet" : selectedFolderName;
+  const headerIcon = selectedFolderId == null ? (
+    <Folder className="size-4 shrink-0 text-primary" />
+  ) : (
+    <FolderOpen className="size-4 shrink-0 text-amber-500" />
+  );
 
   return (
     <div className="space-y-3">
       <div className="rounded-lg border bg-card px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <FolderOpen className="size-4 shrink-0 text-amber-500" />
-          <span className="truncate text-sm font-medium">{selectedFolderName}</span>
+          {headerIcon}
+          <span className="truncate text-sm font-medium">{headerName}</span>
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">Apercu du dossier</p>
       </div>
@@ -864,21 +879,40 @@ function FolderPreviewPanel({
           ) : timeEntries.length === 0 ? (
             <p className="text-xs text-muted-foreground">Aucune heure liee.</p>
           ) : (
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded bg-muted/40 p-2">
-                <p className="text-[10px] text-muted-foreground">Total</p>
-                <p className="text-sm font-medium">{formatDuration(totalMinutes)}</p>
-              </div>
-              <div className="rounded bg-muted/40 p-2">
-                <p className="text-[10px] text-muted-foreground">Reste</p>
-                <p className="text-sm font-medium text-orange-700">{formatMoney(remainingAmount)}</p>
-              </div>
+            <div className="space-y-1.5">
+              {timeEntries.slice(0, 8).map((entry) => (
+                <div key={entry.id} className="rounded bg-muted/40 px-2 py-1.5 text-xs">
+                  <p className="font-medium">{formatDuration(entry.duration_minutes)}</p>
+                  {entry.description ? (
+                    <p className="truncate text-muted-foreground">{entry.description}</p>
+                  ) : null}
+                  <p className="text-muted-foreground">
+                    {entry.user === currentUserId ? "Toi" : `Utilisateur ${entry.user}`}
+                  </p>
+                </div>
+              ))}
+              {timeEntries.length > 8 ? (
+                <p className="text-xs text-muted-foreground">+{timeEntries.length - 8} autres</p>
+              ) : null}
             </div>
           )}
         </div>
       ) : null}
     </div>
   );
+}
+
+function getDocumentPreviewKind(doc: PreviewDocument): "image" | "pdf" | "none" {
+  const mime = doc.mime_type ?? "";
+  const ext = (doc.file_name.split(".").pop() ?? "").toLowerCase();
+
+  if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) {
+    return "image";
+  }
+  if (mime === "application/pdf" || ext === "pdf") {
+    return "pdf";
+  }
+  return "none";
 }
 
 function DocumentPreviewModal({
@@ -888,27 +922,45 @@ function DocumentPreviewModal({
   document: PreviewDocument | null;
   onClose: () => void;
 }) {
-  const isImage = doc?.mime_type?.startsWith("image/") ?? false;
-  const isPdf = doc?.mime_type === "application/pdf";
+  const kind = doc ? getDocumentPreviewKind(doc) : "none";
 
   return (
     <Dialog open={doc != null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle className="truncate">{doc?.file_name ?? "Apercu"}</DialogTitle>
+          <DialogTitle className="truncate pr-8">{doc?.file_name ?? "Apercu"}</DialogTitle>
         </DialogHeader>
         {doc ? (
-          isImage ? (
-            <div className="flex justify-center overflow-hidden rounded-md">
+          kind === "image" ? (
+            <div className="flex justify-center overflow-hidden rounded-md bg-muted/20">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={doc.url} alt={doc.file_name} className="max-h-[60vh] w-auto rounded-md object-contain" />
+              <img
+                src={doc.url}
+                alt={doc.file_name}
+                className="max-h-[60vh] w-auto rounded-md object-contain"
+              />
             </div>
-          ) : isPdf ? (
-            <iframe src={doc.url} title={doc.file_name} className="h-[60vh] w-full rounded-md border" />
+          ) : kind === "pdf" ? (
+            <object
+              data={doc.url}
+              type="application/pdf"
+              className="h-[60vh] w-full rounded-md border"
+              aria-label={doc.file_name}
+            >
+              <div className="flex flex-col items-center gap-3 py-8 text-sm text-muted-foreground">
+                <p>Impossible d&apos;afficher le PDF dans le navigateur.</p>
+                <a href={doc.url} target="_blank" rel="noopener noreferrer">
+                  <Button type="button" variant="outline">
+                    <Download className="size-4" />
+                    Ouvrir le PDF
+                  </Button>
+                </a>
+              </div>
+            </object>
           ) : (
             <div className="flex flex-col items-center gap-4 py-8">
               <p className="text-sm text-muted-foreground">Apercu non disponible pour ce type de fichier.</p>
-              <a href={doc.url} download={doc.file_name} target="_blank" rel="noopener noreferrer">
+              <a href={doc.url} target="_blank" rel="noopener noreferrer">
                 <Button type="button">
                   <Download className="size-4" />
                   Telecharger {doc.file_name}
@@ -922,7 +974,7 @@ function DocumentPreviewModal({
             <Button type="button" variant="outline">Fermer</Button>
           </DialogClose>
           {doc ? (
-            <a href={doc.url} download={doc.file_name} target="_blank" rel="noopener noreferrer">
+            <a href={doc.url} target="_blank" rel="noopener noreferrer">
               <Button type="button" variant="outline">
                 <Download className="size-4" />
                 Telecharger
@@ -982,10 +1034,11 @@ function TaskDraftDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Dossier</Label>
-            <FolderOnlyPickerDialog
+            <FolderTreePickerDialog
               folders={folders}
               selectedFolderId={folderId}
-              selectedLabel={folderName ?? "Dossier"}
+              buttonLabel={folderName ?? "Projet"}
+              description="Selectionne le dossier qui recevra la tache."
               onSelect={onFolderChange}
             />
           </div>
@@ -1107,98 +1160,39 @@ function TimeDraftDialog({
   );
 }
 
-function FolderOnlyPickerDialog({
-  folders,
-  selectedFolderId,
-  selectedLabel,
-  onSelect,
-}: {
-  folders: FolderTreeNode[];
-  selectedFolderId: number | null;
-  selectedLabel: string;
-  onSelect: (folderId: number | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  function selectFolder(folderId: number) {
-    onSelect(folderId);
-    setOpen(false);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setOpen(true)}>
-        <Folder className="size-4 text-amber-500" />
-        <span className="truncate">{selectedLabel}</span>
-      </Button>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Choisir un dossier</DialogTitle>
-          <DialogDescription>Selectionne le dossier qui recevra la tache.</DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[50vh] overflow-y-auto rounded-md border bg-background p-2">
-          <FolderOnlyPickerRows
-            nodes={folders}
-            selectedFolderId={selectedFolderId}
-            depth={0}
-            onSelect={selectFolder}
-          />
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function FolderOnlyPickerRows({
-  nodes,
-  selectedFolderId,
-  depth,
-  onSelect,
-}: {
-  nodes: FolderTreeNode[];
-  selectedFolderId: number | null;
-  depth: number;
-  onSelect: (folderId: number) => void;
-}) {
-  return (
-    <>
-      {nodes.map((node) => {
-        if (node.type !== "folder") {
-          return null;
-        }
-
-        return (
-          <div key={node.id}>
-            <button
-              type="button"
-              className={`flex h-9 w-full items-center gap-2 rounded-md pr-2 text-left text-sm hover:bg-muted ${selectedFolderId === node.id ? "bg-primary/10 text-primary" : ""}`}
-              style={{ paddingLeft: `${depth * 24 + 8}px` }}
-              onClick={() => onSelect(node.id)}
-            >
-              <Folder className="size-4 text-amber-500" />
-              <span className="truncate">{node.name}</span>
-            </button>
-            {node.children?.length ? (
-              <FolderOnlyPickerRows
-                nodes={node.children}
-                selectedFolderId={selectedFolderId}
-                depth={depth + 1}
-                onSelect={onSelect}
-              />
-            ) : null}
-          </div>
-        );
-      })}
-    </>
-  );
-}
-
 function TaskTreeBadge({ status }: { status?: FolderTreeNode["status"] }) {
   return (
     <Badge variant="outline" className={status === "in_progress" ? "border-sky-200 bg-sky-50 text-sky-700" : "border-muted bg-background text-muted-foreground"}>
       {status === "in_progress" ? "En cours" : "A faire"}
     </Badge>
   );
+}
+
+function getDescendantFolderIds(nodes: FolderTreeNode[], targetId: number | null): Set<number> | null {
+  if (targetId == null) return null;
+  const target = findTreeNode(nodes, targetId);
+  const ids = new Set<number>();
+  if (target) collectFolderIds(target, ids);
+  else ids.add(targetId);
+  return ids;
+}
+
+function findTreeNode(nodes: FolderTreeNode[], id: number): FolderTreeNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findTreeNode(node.children ?? [], id);
+    if (found) return found;
+  }
+  return null;
+}
+
+function collectFolderIds(node: FolderTreeNode, ids: Set<number>) {
+  if (node.type === "folder") {
+    ids.add(node.id);
+    for (const child of node.children ?? []) {
+      collectFolderIds(child, ids);
+    }
+  }
 }
 
 function findFolderName(nodes: FolderTreeNode[], folderId: number | null): string | null {

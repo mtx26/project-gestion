@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Folder, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { type FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -26,6 +26,7 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -109,11 +110,7 @@ function ProjectTasksContent({
     queryFn: () => api.folders.tree(selectedProject!.id),
     enabled: Boolean(selectedProject && canViewFiles),
   });
-  const folderOptions = useMemo(() => getFolderOptions(foldersQuery.data ?? []), [foldersQuery.data]);
-  const folderNameById = useMemo(
-    () => new Map(folderOptions.map((folder) => [folder.id, folder.name])),
-    [folderOptions],
-  );
+  const folderNameById = useMemo(() => buildFolderNameMap(foldersQuery.data ?? []), [foldersQuery.data]);
   const tasks = normalizeApiList(tasksQuery.data);
   const sortedTasks = useMemo(() => {
     if (!sortConfig) {
@@ -298,19 +295,15 @@ function ProjectTasksContent({
 
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
         {canViewFiles ? (
-          <Select value={folderFilter} onValueChange={(value) => updateUrlFilter({ folder: value as FolderFilter })}>
-            <SelectTrigger className="w-full bg-background sm:w-56">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les dossiers</SelectItem>
-              {folderOptions.map((folder) => (
-                <SelectItem key={folder.id} value={`folder-${folder.id}`}>
-                  {"  ".repeat(folder.depth)}{folder.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="w-full sm:w-56">
+            <FolderTreePickerDialog
+              folders={foldersQuery.data ?? []}
+              selectedFolderId={folderId}
+              buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
+              description="Filtrer les taches par dossier."
+              onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
+            />
+          </div>
         ) : null}
         <Select value={statusFilter} onValueChange={(value) => updateUrlFilter({ status: value as StatusFilter })}>
           <SelectTrigger className="w-full bg-background sm:w-44">
@@ -388,7 +381,7 @@ function ProjectTasksContent({
       <TaskCreateDialog
         open={createDialogOpen}
         canViewFiles={canViewFiles}
-        folderOptions={folderOptions}
+        folders={foldersQuery.data ?? []}
         title={title}
         description={description}
         folder={newTaskFolder}
@@ -407,7 +400,7 @@ function ProjectTasksContent({
       <TaskEditDialog
         task={editingTask}
         canViewFiles={canViewFiles}
-        folderOptions={folderOptions}
+        folders={foldersQuery.data ?? []}
         title={editTitle}
         description={editDescription}
         folder={editFolder}
@@ -550,7 +543,7 @@ function TasksTitle() {
 function TaskCreateDialog({
   open,
   canViewFiles,
-  folderOptions,
+  folders,
   title,
   description,
   folder,
@@ -568,7 +561,7 @@ function TaskCreateDialog({
 }: {
   open: boolean;
   canViewFiles: boolean;
-  folderOptions: Array<{ id: number; name: string; depth: number }>;
+  folders: FolderTreeNode[];
   title: string;
   description: string;
   folder: FolderFilter;
@@ -584,6 +577,8 @@ function TaskCreateDialog({
   onDueDateChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const folderId = getFolderId(folder);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -601,10 +596,12 @@ function TaskCreateDialog({
             {canViewFiles ? (
               <div className="space-y-2">
                 <Label>Dossier</Label>
-                <FolderPickerDialog
-                  folderOptions={folderOptions}
-                  selectedValue={folder}
-                  onSelect={onFolderChange}
+                <FolderTreePickerDialog
+                  folders={folders}
+                  selectedFolderId={folderId}
+                  buttonLabel={folderId == null ? "Projet" : (findFolderName(folders, folderId) ?? "Dossier")}
+                  description="Selectionne le dossier qui recevra la tache."
+                  onSelect={(id) => onFolderChange(id == null ? "all" : `folder-${id}`)}
                 />
               </div>
             ) : null}
@@ -641,9 +638,7 @@ function TaskCreateDialog({
 
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Annuler
-              </Button>
+              <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
             <Button type="submit" disabled={!title.trim() || isPending}>
               {isPending ? "Creation..." : "Creer"}
@@ -658,7 +653,7 @@ function TaskCreateDialog({
 function TaskEditDialog({
   task,
   canViewFiles,
-  folderOptions,
+  folders,
   title,
   description,
   folder,
@@ -678,7 +673,7 @@ function TaskEditDialog({
 }: {
   task: Task | null;
   canViewFiles: boolean;
-  folderOptions: Array<{ id: number; name: string; depth: number }>;
+  folders: FolderTreeNode[];
   title: string;
   description: string;
   folder: FolderFilter;
@@ -696,6 +691,8 @@ function TaskEditDialog({
   onDueDateChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const folderId = getFolderId(folder);
+
   return (
     <Dialog open={task != null} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
@@ -713,10 +710,12 @@ function TaskEditDialog({
             {canViewFiles ? (
               <div className="space-y-2">
                 <Label>Dossier</Label>
-                <FolderPickerDialog
-                  folderOptions={folderOptions}
-                  selectedValue={folder}
-                  onSelect={onFolderChange}
+                <FolderTreePickerDialog
+                  folders={folders}
+                  selectedFolderId={folderId}
+                  buttonLabel={folderId == null ? "Projet" : (findFolderName(folders, folderId) ?? "Dossier")}
+                  description="Selectionne le dossier qui recevra la tache."
+                  onSelect={(id) => onFolderChange(id == null ? "all" : `folder-${id}`)}
                 />
               </div>
             ) : null}
@@ -768,76 +767,13 @@ function TaskEditDialog({
 
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Annuler
-              </Button>
+              <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
             <Button type="submit" disabled={!title.trim() || isPending}>
               {isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function FolderPickerDialog({
-  folderOptions,
-  selectedValue,
-  onSelect,
-}: {
-  folderOptions: Array<{ id: number; name: string; depth: number }>;
-  selectedValue: FolderFilter;
-  onSelect: (value: FolderFilter) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const selectedLabel = selectedValue === "all"
-    ? "Projet"
-    : folderOptions.find((folder) => `folder-${folder.id}` === selectedValue)?.name ?? "Dossier";
-
-  function selectFolder(value: FolderFilter) {
-    onSelect(value);
-    setOpen(false);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Button type="button" variant="outline" className="w-full justify-start" onClick={() => setOpen(true)}>
-        <Folder className="size-4 text-amber-500" />
-        <span className="truncate">{selectedLabel}</span>
-      </Button>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Choisir un dossier</DialogTitle>
-          <DialogDescription>Parcours l&apos;arborescence et selectionne le dossier cible.</DialogDescription>
-        </DialogHeader>
-        <div className="max-h-[50vh] overflow-y-auto rounded-md border bg-background p-2">
-          <button
-            type="button"
-            className={`flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm hover:bg-muted ${selectedValue === "all" ? "bg-primary/10 text-primary" : ""}`}
-            onClick={() => selectFolder("all")}
-          >
-            <Folder className="size-4 text-primary" />
-            Projet
-          </button>
-          {folderOptions.map((folder) => {
-            const value: FolderFilter = `folder-${folder.id}`;
-
-            return (
-              <button
-                key={folder.id}
-                type="button"
-                className={`flex h-9 w-full items-center gap-2 rounded-md pr-2 text-left text-sm hover:bg-muted ${selectedValue === value ? "bg-primary/10 text-primary" : ""}`}
-                style={{ paddingLeft: `${folder.depth * 24 + 8}px` }}
-                onClick={() => selectFolder(value)}
-              >
-                <Folder className="size-4 text-amber-500" />
-                <span className="truncate">{folder.name}</span>
-              </button>
-            );
-          })}
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -977,6 +913,17 @@ function getFolderId(value: FolderFilter) {
   return null;
 }
 
+function findFolderName(nodes: FolderTreeNode[], id: number): string | null {
+  for (const node of nodes) {
+    if (node.type === "folder") {
+      if (node.id === id) return node.name;
+      const found = findFolderName(node.children ?? [], id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function setOptionalParam(params: URLSearchParams, key: string, value: string) {
   if (value === "all") {
     params.delete(key);
@@ -985,19 +932,14 @@ function setOptionalParam(params: URLSearchParams, key: string, value: string) {
   params.set(key, value);
 }
 
-function getFolderOptions(nodes: FolderTreeNode[], depth = 0): Array<{ id: number; name: string; depth: number }> {
-  const folders: Array<{ id: number; name: string; depth: number }> = [];
-
+function buildFolderNameMap(nodes: FolderTreeNode[], map = new Map<number, string>()): Map<number, string> {
   for (const node of nodes) {
-    if (node.type !== "folder") {
-      continue;
+    if (node.type === "folder") {
+      map.set(node.id, node.name);
+      buildFolderNameMap(node.children ?? [], map);
     }
-
-    folders.push({ id: node.id, name: node.name, depth });
-    folders.push(...getFolderOptions(node.children ?? [], depth + 1));
   }
-
-  return folders;
+  return map;
 }
 
 async function invalidateTasks(queryClient: ProjectWorkspaceState["queryClient"], projectId: number) {
