@@ -2,11 +2,12 @@
 
 import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
+import { TargetIcon, TargetPickerDialog } from "@/components/ui/target-tree-picker";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, Clock3, CreditCard, Folder, ListTodo, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CreditCard, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -33,20 +34,21 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import {
+  type TargetTreeNode,
+  buildTargetTree,
+  collectTargetLabelsByType,
+  collectTaskFolderIds,
+  findTargetLabel,
+  getTargetPayload,
+  getTargetValueFromEntry,
+} from "@/lib/target-utils";
+import { formatDuration, formatMoney } from "@/lib/task-utils";
 
 type UserFilter = "mine" | "all" | `member-${number}`;
 type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
 type PeriodPreset = "this-month" | "last-month" | "this-week" | "last-30-days" | "this-year" | "all";
 type TimeViewMode = "list" | "calendar";
-type TargetOption = {
-  value: string;
-  label: string;
-  depth: number;
-  type: "project" | "folder" | "task";
-};
-type TargetTreeNode = TargetOption & {
-  children: TargetTreeNode[];
-};
 
 export default function TimePage() {
   const router = useRouter();
@@ -1006,160 +1008,6 @@ function TimeCalendarView({
     </div>
   );
 }
-function TargetPickerDialog({
-  targetTree,
-  selectedValue,
-  selectedLabel,
-  onSelect,
-}: {
-  targetTree: TargetTreeNode;
-  selectedValue: string;
-  selectedLabel: string;
-  onSelect: (value: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [expandedValues, setExpandedValues] = useState<Set<string>>(() => new Set(["project"]));
-
-  function toggleNode(value: string) {
-    setExpandedValues((current) => {
-      const next = new Set(current);
-      if (next.has(value)) {
-        next.delete(value);
-      } else {
-        next.add(value);
-      }
-      return next;
-    });
-  }
-
-  function selectTarget(value: string) {
-    onSelect(value);
-    setOpen(false);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <Button
-        type="button"
-        variant="outline"
-        className="h-auto min-h-9 w-full justify-start gap-2 px-3 py-2"
-        onClick={() => setOpen(true)}
-      >
-        <TargetIcon type={getTargetTypeFromValue(selectedValue)} />
-        <span className="min-w-0 truncate">{selectedLabel}</span>
-      </Button>
-
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Choisir une cible</DialogTitle>
-          <DialogDescription>
-            Parcours les dossiers et selectionne un dossier ou une tache.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="max-h-[56vh] overflow-y-auto rounded-md border bg-background p-2">
-          <TargetTreeRow
-            node={targetTree}
-            selectedValue={selectedValue}
-            expandedValues={expandedValues}
-            onToggle={toggleNode}
-            onSelect={selectTarget}
-          />
-        </div>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              Fermer
-            </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function TargetTreeRow({
-  node,
-  selectedValue,
-  expandedValues,
-  onToggle,
-  onSelect,
-}: {
-  node: TargetTreeNode;
-  selectedValue: string;
-  expandedValues: Set<string>;
-  onToggle: (value: string) => void;
-  onSelect: (value: string) => void;
-}) {
-  const isExpanded = expandedValues.has(node.value);
-  const hasChildren = node.children.length > 0;
-  const isSelected = selectedValue === node.value;
-
-  return (
-    <div>
-      <div
-        className="grid h-9 grid-cols-[24px_minmax(0,1fr)] items-center gap-2 rounded-md pr-2 hover:bg-muted/70"
-        style={{ paddingLeft: `${node.depth * 22}px` }}
-      >
-        {hasChildren ? (
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={isExpanded ? "Replier" : "Deplier"}
-            onClick={() => onToggle(node.value)}
-          >
-            {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-          </button>
-        ) : (
-          <span className="size-6" />
-        )}
-
-        <button
-          type="button"
-          className={`flex min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-left ${
-            isSelected ? "bg-primary/10 text-primary" : ""
-          }`}
-          onClick={() => onSelect(node.value)}
-        >
-          <TargetIcon type={node.type} />
-          <span className="min-w-0 truncate">{node.label}</span>
-          {node.type === "task" ? (
-            <Badge variant="outline" className="ml-auto shrink-0 border-sky-200 bg-sky-50 text-sky-700">
-              Tache
-            </Badge>
-          ) : null}
-        </button>
-      </div>
-
-      {hasChildren && isExpanded ? (
-        <div>
-          {node.children.map((child) => (
-            <TargetTreeRow
-              key={child.value}
-              node={child}
-              selectedValue={selectedValue}
-              expandedValues={expandedValues}
-              onToggle={onToggle}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TargetIcon({ type }: { type: TargetTreeNode["type"] }) {
-  if (type === "task") {
-    return <ListTodo className="size-4 shrink-0 text-sky-600" />;
-  }
-  if (type === "folder") {
-    return <Folder className="size-4 shrink-0 text-amber-500" />;
-  }
-  return <Clock3 className="size-4 shrink-0 text-primary" />;
-}
-
 function TimeEntryRow({
   entry,
   displayName,
@@ -1687,126 +1535,6 @@ function getPeriodLabel(period: PeriodPreset) {
   return "Toute la periode";
 }
 
-function getTargetPayload(value: string) {
-  if (value.startsWith("folder-")) {
-    return { folder: Number(value.replace("folder-", "")), task: null };
-  }
-  if (value.startsWith("task-")) {
-    return { folder: null, task: Number(value.replace("task-", "")) };
-  }
-  return { folder: null, task: null };
-}
-
-function getTargetValueFromEntry(entry: Pick<TimeEntry, "folder" | "task">) {
-  if (entry.task != null) {
-    return `task-${entry.task}`;
-  }
-  if (entry.folder != null) {
-    return `folder-${entry.folder}`;
-  }
-  return "project";
-}
-
-function buildTargetTree(nodes: FolderTreeNode[]): TargetTreeNode {
-  const root: TargetTreeNode = {
-    value: "project",
-    label: "Projet",
-    depth: 0,
-    type: "project",
-    children: [],
-  };
-
-  root.children.push(...buildFolderTargetTree(nodes, 1));
-  return root;
-}
-
-function buildFolderTargetTree(nodes: FolderTreeNode[], depth: number) {
-  const result: TargetTreeNode[] = [];
-
-  for (const node of nodes) {
-    if (node.type !== "folder" && node.type !== "task") {
-      continue;
-    }
-
-    result.push({
-      value: `${node.type}-${node.id}`,
-      label: node.name,
-      depth,
-      type: node.type,
-      children: node.type === "folder" ? buildFolderTargetTree(node.children ?? [], depth + 1) : [],
-    });
-  }
-
-  return result;
-}
-
-function findTargetLabel(node: TargetTreeNode, value: string): string | null {
-  if (node.value === value) {
-    return node.label;
-  }
-
-  for (const child of node.children) {
-    const label = findTargetLabel(child, value);
-    if (label) {
-      return label;
-    }
-  }
-
-  return null;
-}
-
-function getTargetTypeFromValue(value: string): TargetTreeNode["type"] {
-  if (value.startsWith("task-")) {
-    return "task";
-  }
-  if (value.startsWith("folder-")) {
-    return "folder";
-  }
-  return "project";
-}
-
-function collectTargetLabelsByType(node: TargetTreeNode, type: "folder" | "task") {
-  const labels = new Map<number, string>();
-  collectTargetLabelsByTypeInPlace(node, type, labels);
-  return labels;
-}
-
-function collectTargetLabelsByTypeInPlace(
-  node: TargetTreeNode,
-  type: "folder" | "task",
-  labels: Map<number, string>,
-) {
-  if (node.type === type) {
-    labels.set(Number(node.value.replace(`${type}-`, "")), node.label);
-  }
-
-  for (const child of node.children) {
-    collectTargetLabelsByTypeInPlace(child, type, labels);
-  }
-}
-
-function collectTaskFolderIds(node: TargetTreeNode) {
-  const taskFolderIds = new Map<number, number>();
-  collectTaskFolderIdsInPlace(node, null, taskFolderIds);
-  return taskFolderIds;
-}
-
-function collectTaskFolderIdsInPlace(
-  node: TargetTreeNode,
-  currentFolderId: number | null,
-  taskFolderIds: Map<number, number>,
-) {
-  const folderId = node.type === "folder" ? Number(node.value.replace("folder-", "")) : currentFolderId;
-
-  if (node.type === "task" && folderId != null) {
-    taskFolderIds.set(Number(node.value.replace("task-", "")), folderId);
-  }
-
-  for (const child of node.children) {
-    collectTaskFolderIdsInPlace(child, folderId, taskFolderIds);
-  }
-}
-
 function getEntryTargetLabel(
   entry: TimeEntry,
   folderNameById: Map<number, string>,
@@ -1875,27 +1603,6 @@ async function invalidateTimeQueries(
   projectId: number,
 ) {
   await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "time-entries"] });
-}
-
-function formatDuration(totalMinutes: number) {
-  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
-  const hours = Math.floor(roundedMinutes / 60);
-  const minutes = roundedMinutes % 60;
-
-  if (minutes === 0) {
-    return `${hours}h`;
-  }
-
-  return `${hours}h ${minutes}m`;
-}
-
-function formatMoney(value: number | string) {
-  const amount = typeof value === "number" ? value : Number(value);
-
-  return new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
 function formatDateTime(value: string) {

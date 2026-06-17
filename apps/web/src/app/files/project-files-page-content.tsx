@@ -57,7 +57,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { TaskDetailModal } from "@/components/ui/task-detail-modal";
-import { getStatusClassName, getStatusLabel } from "@/lib/task-utils";
+import { buildFolderNameMap, findFolderName, getDescendantFolderIds } from "@/lib/folder-utils";
+import { formatDuration, formatMoney, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
@@ -1212,85 +1213,6 @@ function TaskTreeBadge({ status }: { status?: FolderTreeNode["status"] }) {
       {status === "in_progress" ? "En cours" : "A faire"}
     </Badge>
   );
-}
-
-function getDescendantFolderIds(nodes: FolderTreeNode[], targetId: number | null): Set<number> | null {
-  if (targetId == null) return null;
-  const target = findTreeNode(nodes, targetId);
-  const ids = new Set<number>();
-  if (target) collectFolderIds(target, ids);
-  else ids.add(targetId);
-  return ids;
-}
-
-function findTreeNode(nodes: FolderTreeNode[], id: number): FolderTreeNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    const found = findTreeNode(node.children ?? [], id);
-    if (found) return found;
-  }
-  return null;
-}
-
-function collectFolderIds(node: FolderTreeNode, ids: Set<number>) {
-  if (node.type === "folder") {
-    ids.add(node.id);
-    for (const child of node.children ?? []) {
-      collectFolderIds(child, ids);
-    }
-  }
-}
-
-function buildFolderNameMap(nodes: FolderTreeNode[], map = new Map<number, string>()): Map<number, string> {
-  for (const node of nodes) {
-    if (node.type === "folder") {
-      map.set(node.id, node.name);
-      buildFolderNameMap(node.children ?? [], map);
-    }
-  }
-  return map;
-}
-
-function findFolderName(nodes: FolderTreeNode[], folderId: number | null): string | null {
-  if (folderId == null) {
-    return null;
-  }
-
-  for (const node of nodes) {
-    if (node.type === "folder" && node.id === folderId) {
-      return node.name;
-    }
-
-    if (node.children?.length) {
-      const nested = findFolderName(node.children, folderId);
-      if (nested) {
-        return nested;
-      }
-    }
-  }
-
-  return null;
-}
-
-function formatDuration(totalMinutes: number) {
-  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
-  const hours = Math.floor(roundedMinutes / 60);
-  const minutes = roundedMinutes % 60;
-
-  if (minutes === 0) {
-    return `${hours}h`;
-  }
-
-  return `${hours}h ${minutes}m`;
-}
-
-function formatMoney(value: number | string) {
-  const amount = typeof value === "number" ? value : Number(value);
-
-  return new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
 function Tree({

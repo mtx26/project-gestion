@@ -34,6 +34,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { buildFolderNameMap, findFolderName } from "@/lib/folder-utils";
 import { formatTaskDate, getPriorityClassName, getPriorityLabel, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
 
 type StatusFilter = "all" | Task["status"];
@@ -380,7 +381,8 @@ function ProjectTasksContent({
         </CardContent>
       </Card>
 
-      <TaskCreateDialog
+      <TaskFormDialog
+        mode="create"
         open={createDialogOpen}
         canViewFiles={canViewFiles}
         folders={foldersQuery.data ?? []}
@@ -399,7 +401,8 @@ function ProjectTasksContent({
         onDueDateChange={setDueDate}
         onSubmit={onCreateTask}
       />
-      <TaskEditDialog
+      <TaskFormDialog
+        mode="edit"
         task={editingTask}
         canViewFiles={canViewFiles}
         folders={foldersQuery.data ?? []}
@@ -454,117 +457,9 @@ function TasksTitle() {
   );
 }
 
-function TaskCreateDialog({
+function TaskFormDialog({
+  mode,
   open,
-  canViewFiles,
-  folders,
-  title,
-  description,
-  folder,
-  priority,
-  dueDate,
-  isPending,
-  error,
-  onOpenChange,
-  onTitleChange,
-  onDescriptionChange,
-  onFolderChange,
-  onPriorityChange,
-  onDueDateChange,
-  onSubmit,
-}: {
-  open: boolean;
-  canViewFiles: boolean;
-  folders: FolderTreeNode[];
-  title: string;
-  description: string;
-  folder: FolderFilter;
-  priority: Task["priority"];
-  dueDate: string;
-  isPending: boolean;
-  error: string | null;
-  onOpenChange: (open: boolean) => void;
-  onTitleChange: (value: string) => void;
-  onDescriptionChange: (value: string) => void;
-  onFolderChange: (value: FolderFilter) => void;
-  onPriorityChange: (value: Task["priority"]) => void;
-  onDueDateChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-}) {
-  const folderId = getFolderId(folder);
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Nouvelle tache</DialogTitle>
-          <DialogDescription>Ajoute une tache et rattache-la au bon dossier si necessaire.</DialogDescription>
-        </DialogHeader>
-        <form className="space-y-4" onSubmit={onSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="task-title">Titre</Label>
-            <Input id="task-title" value={title} onChange={(event) => onTitleChange(event.target.value)} />
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {canViewFiles ? (
-              <div className="space-y-2">
-                <Label>Dossier</Label>
-                <FolderTreePickerDialog
-                  folders={folders}
-                  selectedFolderId={folderId}
-                  buttonLabel={folderId == null ? "Projet" : (findFolderName(folders, folderId) ?? "Dossier")}
-                  description="Selectionne le dossier qui recevra la tache."
-                  onSelect={(id) => onFolderChange(id == null ? "all" : `folder-${id}`)}
-                />
-              </div>
-            ) : null}
-            <div className="space-y-2">
-              <Label>Priorite</Label>
-              <Select value={priority} onValueChange={(value) => onPriorityChange(value as Task["priority"])}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Basse</SelectItem>
-                  <SelectItem value="normal">Normale</SelectItem>
-                  <SelectItem value="high">Haute</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="task-due-date">Echeance</Label>
-            <Input id="task-due-date" type="date" value={dueDate} onChange={(event) => onDueDateChange(event.target.value)} />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="task-description">Description</Label>
-            <Textarea id="task-description" rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
-          </div>
-
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">Annuler</Button>
-            </DialogClose>
-            <Button type="submit" disabled={!title.trim() || isPending}>
-              {isPending ? "Creation..." : "Creer"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function TaskEditDialog({
   task,
   canViewFiles,
   folders,
@@ -585,13 +480,15 @@ function TaskEditDialog({
   onDueDateChange,
   onSubmit,
 }: {
-  task: Task | null;
+  mode: "create" | "edit";
+  open?: boolean;
+  task?: Task | null;
   canViewFiles: boolean;
   folders: FolderTreeNode[];
   title: string;
   description: string;
   folder: FolderFilter;
-  status: Task["status"];
+  status?: Task["status"];
   priority: Task["priority"];
   dueDate: string;
   isPending: boolean;
@@ -600,24 +497,29 @@ function TaskEditDialog({
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onFolderChange: (value: FolderFilter) => void;
-  onStatusChange: (value: Task["status"]) => void;
+  onStatusChange?: (value: Task["status"]) => void;
   onPriorityChange: (value: Task["priority"]) => void;
   onDueDateChange: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
+  const isOpen = mode === "create" ? (open ?? false) : task != null;
   const folderId = getFolderId(folder);
 
   return (
-    <Dialog open={task != null} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Modifier la tache</DialogTitle>
-          <DialogDescription>Modifie le titre, la cible, le statut et les informations de suivi.</DialogDescription>
+          <DialogTitle>{mode === "create" ? "Nouvelle tache" : "Modifier la tache"}</DialogTitle>
+          <DialogDescription>
+            {mode === "create"
+              ? "Ajoute une tache et rattache-la au bon dossier si necessaire."
+              : "Modifie le titre, la cible, le statut et les informations de suivi."}
+          </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={onSubmit}>
           <div className="space-y-2">
-            <Label htmlFor="edit-task-title">Titre</Label>
-            <Input id="edit-task-title" value={title} onChange={(event) => onTitleChange(event.target.value)} />
+            <Label htmlFor="task-form-title">Titre</Label>
+            <Input id="task-form-title" value={title} onChange={(e) => onTitleChange(e.target.value)} />
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -633,44 +535,61 @@ function TaskEditDialog({
                 />
               </div>
             ) : null}
-            <div className="space-y-2">
-              <Label>Statut</Label>
-              <Select value={status} onValueChange={(value) => onStatusChange(value as Task["status"])}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="todo">A faire</SelectItem>
-                  <SelectItem value="in_progress">En cours</SelectItem>
-                  <SelectItem value="done">Termine</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {mode === "edit" && status !== undefined && onStatusChange ? (
+              <div className="space-y-2">
+                <Label>Statut</Label>
+                <Select value={status} onValueChange={(v) => onStatusChange(v as Task["status"])}>
+                  <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="todo">A faire</SelectItem>
+                    <SelectItem value="in_progress">En cours</SelectItem>
+                    <SelectItem value="done">Termine</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : mode === "create" ? (
+              <div className="space-y-2">
+                <Label>Priorite</Label>
+                <Select value={priority} onValueChange={(v) => onPriorityChange(v as Task["priority"])}>
+                  <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Basse</SelectItem>
+                    <SelectItem value="normal">Normale</SelectItem>
+                    <SelectItem value="high">Haute</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Priorite</Label>
-              <Select value={priority} onValueChange={(value) => onPriorityChange(value as Task["priority"])}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Basse</SelectItem>
-                  <SelectItem value="normal">Normale</SelectItem>
-                  <SelectItem value="high">Haute</SelectItem>
-                </SelectContent>
-              </Select>
+          {mode === "edit" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Priorite</Label>
+                <Select value={priority} onValueChange={(v) => onPriorityChange(v as Task["priority"])}>
+                  <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Basse</SelectItem>
+                    <SelectItem value="normal">Normale</SelectItem>
+                    <SelectItem value="high">Haute</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="task-form-due-date">Echeance</Label>
+                <Input id="task-form-due-date" type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} />
+              </div>
             </div>
+          ) : (
             <div className="space-y-2">
-              <Label htmlFor="edit-task-due-date">Echeance</Label>
-              <Input id="edit-task-due-date" type="date" value={dueDate} onChange={(event) => onDueDateChange(event.target.value)} />
+              <Label htmlFor="task-form-due-date">Echeance</Label>
+              <Input id="task-form-due-date" type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} />
             </div>
-          </div>
+          )}
 
           <div className="space-y-2">
-            <Label htmlFor="edit-task-description">Description</Label>
-            <Textarea id="edit-task-description" rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
+            <Label htmlFor="task-form-description">Description</Label>
+            <Textarea id="task-form-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
           </div>
 
           {error ? (
@@ -684,7 +603,7 @@ function TaskEditDialog({
               <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
             <Button type="submit" disabled={!title.trim() || isPending}>
-              {isPending ? "Enregistrement..." : "Enregistrer"}
+              {mode === "create" ? (isPending ? "Creation..." : "Creer") : (isPending ? "Enregistrement..." : "Enregistrer")}
             </Button>
           </DialogFooter>
         </form>
@@ -827,33 +746,12 @@ function getFolderId(value: FolderFilter) {
   return null;
 }
 
-function findFolderName(nodes: FolderTreeNode[], id: number): string | null {
-  for (const node of nodes) {
-    if (node.type === "folder") {
-      if (node.id === id) return node.name;
-      const found = findFolderName(node.children ?? [], id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
-
 function setOptionalParam(params: URLSearchParams, key: string, value: string) {
   if (value === "all") {
     params.delete(key);
     return;
   }
   params.set(key, value);
-}
-
-function buildFolderNameMap(nodes: FolderTreeNode[], map = new Map<number, string>()): Map<number, string> {
-  for (const node of nodes) {
-    if (node.type === "folder") {
-      map.set(node.id, node.name);
-      buildFolderNameMap(node.children ?? [], map);
-    }
-  }
-  return map;
 }
 
 async function invalidateTasks(queryClient: ProjectWorkspaceState["queryClient"], projectId: number) {
