@@ -289,6 +289,14 @@ export type FinancialEntry = {
   deleted_by: ID | null;
 };
 
+export type FinancialEntryPayload = {
+  amount: string;
+  type: "expense" | "refund";
+  category?: string | null;
+  description?: string | null;
+  folder?: ID | null;
+};
+
 export type FinancialEntryChartTotals = {
   count: number;
   expenses: string;

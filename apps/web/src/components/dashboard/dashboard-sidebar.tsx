@@ -2,7 +2,7 @@ import type { Project, User } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, ChevronsUpDown, Clock3, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, UserRound } from "lucide-react";
+import { Banknote, Bell, ChevronsUpDown, Clock3, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,7 +35,7 @@ type DashboardSidebarProps = {
   selectedProjectId: string;
   userId: number | null;
   user: User | null | undefined;
-  activeItem: "dashboard" | "settings" | "files" | "tasks" | "time" | "account" | "notifications";
+  activeItem: "dashboard" | "settings" | "files" | "tasks" | "time" | "finance" | "trash" | "account" | "notifications";
   isLoading: boolean;
   onSelectProject: (id: number) => void;
   onCreateProject: () => void;
@@ -65,6 +65,8 @@ export function DashboardSidebar({
   const filesHref = selectedProjectId ? `/files?project=${selectedProjectId}` : "/files";
   const tasksHref = selectedProjectId ? `/tasks?project=${selectedProjectId}` : "/tasks";
   const timeHref = selectedProjectId ? `/time?project=${selectedProjectId}` : "/time";
+  const trashHref = selectedProjectId ? `/trash?project=${selectedProjectId}` : "/trash";
+  const financeHref = selectedProjectId ? `/finance?project=${selectedProjectId}` : "/finance";
   const selectedProject = projects.find((project) => String(project.id) === selectedProjectId) ?? null;
 
   function toggleTheme() {
@@ -94,6 +96,20 @@ export function DashboardSidebar({
       label: "Temps",
       icon: Clock3,
       locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.timeEntryView)),
+    },
+    {
+      key: "finance",
+      href: financeHref,
+      label: "Finances",
+      icon: Banknote,
+      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.financeView)),
+    },
+    {
+      key: "trash",
+      href: trashHref,
+      label: "Corbeille",
+      icon: Trash2,
+      locked: false,
     },
     { key: "settings", href: settingsHref, label: "Parametres projet", icon: Settings, locked: false },
   ] as const;

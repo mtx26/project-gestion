@@ -3,6 +3,7 @@ import type {
   AuthTokens,
   FinancialEntryChart,
   FinancialEntry,
+  FinancialEntryPayload,
   FolderTreeNode,
   Invitation,
   InvitationAcceptResponse,
@@ -308,6 +309,29 @@ export function createApiClient({
         request<FinancialEntryChart>(
           `/api/projects/${projectId}/financial-entries/chart/${buildQueryString(query)}`,
         ),
+      create: (projectId: number, payload: FinancialEntryPayload) =>
+        request<FinancialEntry>(`/api/projects/${projectId}/financial-entries/`, {
+          method: "POST",
+          body: payload,
+        }),
+      update: (projectId: number, entryId: number, payload: Partial<FinancialEntryPayload>) =>
+        request<FinancialEntry>(`/api/projects/${projectId}/financial-entries/${entryId}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      remove: (projectId: number, entryId: number) =>
+        request<void>(`/api/projects/${projectId}/financial-entries/${entryId}/`, {
+          method: "DELETE",
+        }),
+      trash: (projectId: number) =>
+        request<FinancialEntry[] | PaginatedResponse<FinancialEntry>>(
+          `/api/projects/${projectId}/financial-entries/trash/`,
+        ),
+      restore: (projectId: number, entryId: number) =>
+        request<FinancialEntry>(
+          `/api/projects/${projectId}/financial-entries/${entryId}/restore/`,
+          { method: "POST" },
+        ),
     },
     timeEntries: {
       list: (
@@ -341,6 +365,10 @@ export function createApiClient({
           method: "POST",
           body: payload,
         }),
+      trash: (projectId: number) =>
+        request<TimeEntry[] | PaginatedResponse<TimeEntry>>(`/api/projects/${projectId}/time-entries/trash/`),
+      restore: (projectId: number, timeEntryId: number) =>
+        request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/restore/`, { method: "POST" }),
     },
     tasks: {
       list: (
@@ -368,6 +396,10 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/tasks/${taskId}/`, {
           method: "DELETE",
         }),
+      trash: (projectId: number) =>
+        request<Task[] | PaginatedResponse<Task>>(`/api/projects/${projectId}/tasks/trash/`),
+      restore: (projectId: number, taskId: number) =>
+        request<Task>(`/api/projects/${projectId}/tasks/${taskId}/restore/`, { method: "POST" }),
     },
     folders: {
       tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
@@ -390,6 +422,10 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/folders/${folderId}/`, {
           method: "DELETE",
         }),
+      trash: (projectId: number) =>
+        request<Folder[] | PaginatedResponse<Folder>>(`/api/projects/${projectId}/folders/trash/`),
+      restore: (projectId: number, folderId: number) =>
+        request<Folder>(`/api/projects/${projectId}/folders/${folderId}/restore/`, { method: "POST" }),
     },
     documents: {
       download: (projectId: number, documentId: number) =>
@@ -409,6 +445,10 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/documents/${documentId}/`, {
           method: "DELETE",
         }),
+      trash: (projectId: number) =>
+        request<File[] | PaginatedResponse<File>>(`/api/projects/${projectId}/documents/trash/`),
+      restore: (projectId: number, documentId: number) =>
+        request<File>(`/api/projects/${projectId}/documents/${documentId}/restore/`, { method: "POST" }),
       upload: (projectId: number, payload: DocumentUploadPayload) => {
         const formData = new FormData();
         formData.set("file", payload.file);

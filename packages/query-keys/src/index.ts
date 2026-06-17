@@ -29,6 +29,32 @@ export const queryKeys = {
     list: (projectId: number) => ["projects", projectId, "financial-entries"] as const,
     chart: (projectId: number, groupBy: "day" | "month") =>
       ["projects", projectId, "financial-entries", "chart", groupBy] as const,
+    trash: (projectId: number) => ["projects", projectId, "financial-entries", "trash"] as const,
+  },
+  tasks: {
+    list: (
+      projectId: number,
+      query: {
+        folderId?: number;
+        status?: string;
+        priority?: string;
+      } = {},
+    ) =>
+      ["projects", projectId, "tasks", {
+        folder: query.folderId ?? "all",
+        status: query.status ?? "all",
+        priority: query.priority ?? "all",
+      }] as const,
+    trash: (projectId: number) => ["projects", projectId, "tasks", "trash"] as const,
+  },
+  folders: {
+    tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
+      ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false }] as const,
+    targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
+    trash: (projectId: number) => ["projects", projectId, "folders", "trash"] as const,
+  },
+  documents: {
+    trash: (projectId: number) => ["projects", projectId, "documents", "trash"] as const,
   },
   timeEntries: {
     list: (
@@ -46,25 +72,6 @@ export const queryKeys = {
         endDate: query.endDate ?? "",
         includeUnpaid: query.includeUnpaid ?? false,
       }] as const,
-  },
-  tasks: {
-    list: (
-      projectId: number,
-      query: {
-        folderId?: number;
-        status?: string;
-        priority?: string;
-      } = {},
-    ) =>
-      ["projects", projectId, "tasks", {
-        folder: query.folderId ?? "all",
-        status: query.status ?? "all",
-        priority: query.priority ?? "all",
-      }] as const,
-  },
-  folders: {
-    tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
-      ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false }] as const,
-    targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
+    trash: (projectId: number) => ["projects", projectId, "time-entries", "trash"] as const,
   },
 } as const;

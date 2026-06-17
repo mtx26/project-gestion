@@ -129,7 +129,6 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   const [taskDescription, setTaskDescription] = useState("");
   const [taskPriority, setTaskPriority] = useState<Task["priority"]>("normal");
   const [taskDueDate, setTaskDueDate] = useState("");
-  const showIncompleteTasks = true;
   const [timeDraftFolderId, setTimeDraftFolderId] = useState<number | null>(null);
   const [timeHours, setTimeHours] = useState("1");
   const [timeMinutes, setTimeMinutes] = useState("0");
@@ -142,9 +141,9 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   const fileInputRef = useRef<HTMLInputElement>(null);
   const treeQuery = useQuery({
     queryKey: selectedProject
-      ? queryKeys.folders.tree(selectedProject.id, { includeTasks: showIncompleteTasks })
+      ? queryKeys.folders.tree(selectedProject.id, { includeTasks: true })
       : ["folders", "tree", "disabled"],
-    queryFn: () => api.folders.tree(selectedProject!.id, { includeTasks: showIncompleteTasks }),
+    queryFn: () => api.folders.tree(selectedProject!.id, { includeTasks: true }),
     enabled: Boolean(selectedProject && canViewFiles),
   });
   const createFolder = useMutation({
