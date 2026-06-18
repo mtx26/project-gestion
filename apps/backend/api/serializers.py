@@ -34,6 +34,13 @@ from .models import (
 )
 
 
+def _get_user_display_name(user):
+    if user is None:
+        return None
+    full_name = user.get_full_name().strip()
+    return full_name or user.username or user.email
+
+
 BASE_READ_ONLY_FIELDS = [
     "id",
     "created_at",
@@ -384,6 +391,8 @@ class DocumentDownloadSerializer(serializers.Serializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Task
         fields = [
@@ -391,6 +400,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "project",
             "folder",
             "created_by",
+            "created_by_name",
             "assigned_to",
             "title",
             "description",
@@ -406,7 +416,11 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
             "created_by",
+            "created_by_name",
         ]
+
+    def get_created_by_name(self, obj):
+        return _get_user_display_name(obj.created_by)
 
     def create(self, validated_data):
         assigned_to = validated_data.pop("assigned_to", [])
@@ -583,6 +597,8 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     paid_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
     is_paid = serializers.SerializerMethodField()
+    task_name = serializers.SerializerMethodField()
+    user_display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = TimeEntry
@@ -591,7 +607,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "project",
             "folder",
             "task",
+            "task_name",
             "user",
+            "user_display_name",
             "duration_minutes",
             "hourly_rate",
             "cost_amount",
@@ -610,7 +628,15 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "paid_amount",
             "remaining_amount",
             "is_paid",
+            "task_name",
+            "user_display_name",
         ]
+
+    def get_task_name(self, obj):
+        return obj.task.title if obj.task_id else None
+
+    def get_user_display_name(self, obj):
+        return _get_user_display_name(obj.user)
 
     def create(self, validated_data):
         time_entry = TimeEntry(**validated_data)
@@ -764,6 +790,7 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
 class FinancialEntrySerializer(serializers.ModelSerializer):
     document_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = FinancialEntry
@@ -777,6 +804,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "task",
             "task_name",
             "created_by",
+            "created_by_name",
             "amount",
             "type",
             "category",
@@ -791,6 +819,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "created_by",
             "document_name",
             "task_name",
+            "created_by_name",
         ]
 
     def get_document_name(self, obj):
@@ -798,6 +827,9 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None
+
+    def get_created_by_name(self, obj):
+        return _get_user_display_name(obj.created_by)
 
     def create(self, validated_data):
         financial_entry = FinancialEntry(**validated_data)
@@ -826,6 +858,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 class ExpenseRequestSerializer(serializers.ModelSerializer):
     document_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
+    requested_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ExpenseRequest
@@ -843,6 +876,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "task_name",
             "status",
             "requested_by",
+            "requested_by_name",
             "approved_at",
             "approved_by",
             "created_at",
@@ -858,6 +892,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "approved_by",
             "document_name",
             "task_name",
+            "requested_by_name",
         ]
 
     def get_document_name(self, obj):
@@ -865,6 +900,9 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
 
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None
+
+    def get_requested_by_name(self, obj):
+        return _get_user_display_name(obj.requested_by)
 
     def create(self, validated_data):
         expense_request = ExpenseRequest(**validated_data)

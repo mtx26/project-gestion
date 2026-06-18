@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, Folder, ListTodo, Pencil, Plus, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -67,6 +67,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
   const [folderFilterId, setFolderFilterId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [userFilter, setUserFilter] = useState<"all" | number>("all");
 
   const requestsQuery = useQuery({
     queryKey: projectId ? queryKeys.expenseRequests.list(projectId) : ["expense-requests", "disabled"],
@@ -84,6 +85,12 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     queryKey: projectId ? queryKeys.folders.targetTree(projectId) : ["folders", "target-tree", "disabled"],
     queryFn: () => api.folders.targetTree(projectId!),
     enabled: Boolean(projectId && canEdit),
+  });
+
+  const membersQuery = useQuery({
+    queryKey: projectId ? queryKeys.members.list(projectId) : ["members", "disabled"],
+    queryFn: () => api.members.list(projectId!),
+    enabled: Boolean(projectId && canView),
   });
 
   const createRequest = useMutation({
@@ -147,11 +154,13 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const allRequests = normalizeApiList(requestsQuery.data);
   const folders = foldersQuery.data ?? [];
   const targetFolders = targetTreeQuery.data ?? [];
+  const members = normalizeApiList(membersQuery.data);
 
   const search = searchQuery.trim().toLowerCase();
   const requests = allRequests
     .filter((r) => statusFilter === "all" || r.status === statusFilter)
     .filter((r) => folderFilterId == null || r.folder === folderFilterId)
+    .filter((r) => userFilter === "all" || r.requested_by === userFilter)
     .filter((r) =>
       !search ||
       r.title.toLowerCase().includes(search) ||
@@ -160,7 +169,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     );
 
   const folderFilterName = folderFilterId != null ? (findFolderName(folders, folderFilterId) ?? "Dossier") : null;
-  const hasFilters = statusFilter !== "all" || folderFilterId != null || searchQuery.trim() !== "";
+  const hasFilters = statusFilter !== "all" || folderFilterId != null || searchQuery.trim() !== "" || userFilter !== "all";
 
   return (
     <div className="space-y-5">
@@ -205,12 +214,25 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
             <SelectItem value="rejected">Refuse</SelectItem>
           </SelectContent>
         </Select>
+        {members.length > 0 ? (
+          <Select value={String(userFilter)} onValueChange={(v) => setUserFilter(v === "all" ? "all" : Number(v))}>
+            <SelectTrigger className="w-full bg-background sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les membres</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={String(m.user)}>{m.user_display_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
         {hasFilters ? (
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            onClick={() => { setStatusFilter("all"); setFolderFilterId(null); setSearchQuery(""); }}
+            onClick={() => { setStatusFilter("all"); setFolderFilterId(null); setSearchQuery(""); setUserFilter("all"); }}
           >
             Effacer filtres
           </Button>
@@ -264,7 +286,16 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                     </span>
                   ) : null}
                   {req.document ? (
-                    <span className="shrink-0">{req.document_name ?? `Document #${req.document}`}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <FileText className="size-3" />
+                      {req.document_name ?? `Document #${req.document}`}
+                    </span>
+                  ) : null}
+                  {req.requested_by_name ? (
+                    <span className="inline-flex items-center gap-1">
+                      <UserRound className="size-3" />
+                      {req.requested_by_name}
+                    </span>
                   ) : null}
                   <span className="ml-auto shrink-0">
                     {new Date(req.created_at).toLocaleDateString("fr-BE")}

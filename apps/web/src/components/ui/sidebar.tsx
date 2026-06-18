@@ -10,6 +10,8 @@ type SidebarContextValue = {
   open: boolean;
   setOpen: (open: boolean) => void;
   toggleSidebar: () => void;
+  mobileOpen: boolean;
+  setMobileOpen: (open: boolean) => void;
 };
 
 const SidebarContext = React.createContext<SidebarContextValue | null>(null);
@@ -20,6 +22,18 @@ function useSidebar() {
     throw new Error("useSidebar must be used within a SidebarProvider.");
   }
   return context;
+}
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState(true);
+  React.useEffect(() => {
+    const mql = window.matchMedia("(max-width: 1023px)");
+    setIsMobile(mql.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+  return isMobile;
 }
 
 function SidebarProvider({
@@ -35,6 +49,7 @@ function SidebarProvider({
   onOpenChange?: (open: boolean) => void;
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
+  const [mobileOpen, setMobileOpen] = React.useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
 
   const setOpen = React.useCallback(
@@ -52,8 +67,10 @@ function SidebarProvider({
       open,
       setOpen,
       toggleSidebar: () => setOpen(!open),
+      mobileOpen,
+      setMobileOpen,
     }),
-    [open, setOpen],
+    [open, setOpen, mobileOpen],
   );
 
   return (
@@ -80,20 +97,44 @@ function Sidebar({
 }: React.ComponentProps<"aside"> & {
   collapsible?: "icon" | "none";
 }) {
-  const { open } = useSidebar();
+  const { open, mobileOpen, setMobileOpen } = useSidebar();
 
   return (
-    <aside
-      data-slot="sidebar"
-      data-state={open ? "expanded" : "collapsed"}
-      className={cn(
-        "group/sidebar flex shrink-0 flex-col border-b bg-sidebar text-sidebar-foreground transition-[width] lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:border-b-0",
-        open ? "lg:w-[--sidebar-width]" : "lg:w-[--sidebar-width-icon]",
-        className,
-      )}
-    >
-      {children}
-    </aside>
+    <>
+      {/* Desktop: collapsible sidebar */}
+      <aside
+        data-slot="sidebar"
+        data-state={open ? "expanded" : "collapsed"}
+        className={cn(
+          "group/sidebar hidden lg:flex lg:shrink-0 lg:flex-col lg:sticky lg:top-0 lg:h-dvh lg:border-r lg:bg-sidebar lg:text-sidebar-foreground lg:transition-[width]",
+          open ? "lg:w-[--sidebar-width]" : "lg:w-[--sidebar-width-icon]",
+          className,
+        )}
+      >
+        {children}
+      </aside>
+
+      {/* Mobile: slide-in overlay drawer */}
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          <div
+            className="absolute inset-0 bg-black/40"
+            onClick={() => setMobileOpen(false)}
+            aria-hidden="true"
+          />
+          <aside
+            data-slot="sidebar"
+            data-state="expanded"
+            className={cn(
+              "group/sidebar absolute inset-y-0 left-0 flex w-[--sidebar-width] flex-col overflow-y-auto border-r bg-sidebar text-sidebar-foreground shadow-xl",
+              className,
+            )}
+          >
+            {children}
+          </aside>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -189,10 +230,18 @@ function SidebarRail({ className, ...props }: React.ComponentProps<"button">) {
 }
 
 function SidebarTrigger({ className, ...props }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, mobileOpen, setMobileOpen } = useSidebar();
+  const isMobile = useIsMobile();
 
   return (
-    <Button type="button" variant="ghost" size="icon" className={className} onClick={toggleSidebar} {...props}>
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      className={className}
+      onClick={isMobile ? () => setMobileOpen(!mobileOpen) : toggleSidebar}
+      {...props}
+    >
       <PanelLeft className="size-4" />
       <span className="sr-only">Basculer la sidebar</span>
     </Button>

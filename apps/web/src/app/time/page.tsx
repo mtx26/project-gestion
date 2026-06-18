@@ -896,7 +896,7 @@ function TimeEntryList({
         <TimeEntryRow
           key={entry.id}
           entry={entry}
-          displayName={userNameById.get(entry.user) ?? (entry.user === currentUserId ? "Toi" : `Utilisateur ${entry.user}`)}
+          displayName={userNameById.get(entry.user) ?? entry.user_display_name}
           targetLabel={getEntryTargetLabel(entry, folderNameById, taskTitleById)}
           canPay={canPay}
           canEdit={canEdit}
@@ -1000,7 +1000,7 @@ function TimeCalendarView({
                       <span className="shrink-0">{formatTimeOnly(entry.created_at)}</span>
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {userNameById.get(entry.user) ?? (entry.user === currentUserId ? "Toi" : `Utilisateur ${entry.user}`)}
+                      {userNameById.get(entry.user) ?? entry.user_display_name}
                     </div>
                   </div>
                 ))}
@@ -1529,7 +1529,7 @@ function getTotalsLabel(
   const periodLabel = getPeriodLabel(periodPreset).toLowerCase();
   const targetSuffix = targetLabel ? ` - ${targetLabel}` : "";
 
-  return `Totaux - ${userLabel} - ${periodLabel} - ${statusLabel}${targetSuffix}`;
+  return `Totaux - ${periodLabel} - ${userLabel} - ${statusLabel}${targetSuffix}`;
 }
 
 function getPeriodLabel(period: PeriodPreset) {
@@ -1557,7 +1557,7 @@ function getEntryTargetLabel(
   taskTitleById: Map<number, string>,
 ) {
   if (entry.task != null) {
-    return taskTitleById.get(entry.task) ?? `#${entry.task}`;
+    return taskTitleById.get(entry.task) ?? entry.task_name ?? `#${entry.task}`;
   }
   if (entry.folder != null) {
     return folderNameById.get(entry.folder) ?? `#${entry.folder}`;

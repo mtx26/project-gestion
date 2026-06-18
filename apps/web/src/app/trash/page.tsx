@@ -6,6 +6,7 @@ import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, RotateCcw } from "lucide-react";
+import { formatBytes } from "@/lib/task-utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
@@ -219,15 +220,11 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
 
         <TabsContent value="documents" className="mt-4">
           {!selectedProject ? noProjectMsg : !canRestoreFiles ? lockedMsg : (
-            <TrashSection<ApiFile>
+            <DocumentTrashSection
               isLoading={documentsTrashQuery.isLoading}
-              canRestore={canRestoreFiles}
               items={documents}
-              getName={(d) => d.name}
-              getSubtitle={(d) => formatDeletedAt(d.deleted_at)}
               onRestore={(d) => restoreDocument.mutate(d.id)}
               isRestoring={restoreDocument.isPending}
-              emptyText="Aucun document supprime."
             />
           )}
         </TabsContent>
@@ -262,6 +259,78 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
           )}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function getFileTypeLabel(mimeType: string | null, fileName: string): string {
+  if (!mimeType) {
+    const ext = fileName.split(".").pop()?.toUpperCase();
+    return ext ?? "Fichier";
+  }
+  if (mimeType.startsWith("image/")) return "Image";
+  if (mimeType === "application/pdf") return "PDF";
+  if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return "Tableur";
+  if (mimeType.includes("word") || mimeType.includes("document")) return "Document";
+  if (mimeType.startsWith("video/")) return "Video";
+  if (mimeType.startsWith("audio/")) return "Audio";
+  const ext = fileName.split(".").pop()?.toUpperCase();
+  return ext ?? "Fichier";
+}
+
+function DocumentTrashSection({
+  isLoading,
+  items,
+  onRestore,
+  isRestoring,
+}: {
+  isLoading: boolean;
+  items: ApiFile[];
+  onRestore: (item: ApiFile) => void;
+  isRestoring: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2">
+        {Array.from({ length: 3 }, (_, i) => (
+          <Skeleton key={i} className="h-16 w-full rounded-lg" />
+        ))}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return <p className="py-8 text-center text-sm text-muted-foreground">Aucun document supprime.</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      {items.map((doc) => (
+        <div key={doc.id} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-muted">
+            <FileText className="size-5 text-muted-foreground" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-medium">{doc.name}</p>
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-xs text-muted-foreground">
+              <span>{getFileTypeLabel(doc.mime_type, doc.file_name)}</span>
+              {doc.file_size ? <span>{formatBytes(doc.file_size)}</span> : null}
+              <span>{formatDeletedAt(doc.deleted_at)}</span>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-2"
+            onClick={() => onRestore(doc)}
+            disabled={isRestoring}
+          >
+            <RotateCcw className="size-3.5" />
+            Restaurer
+          </Button>
+        </div>
+      ))}
     </div>
   );
 }

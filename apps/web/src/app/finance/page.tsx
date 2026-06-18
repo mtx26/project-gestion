@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Folder, Pencil, Plus, Trash2 } from "lucide-react";
+import { Calendar, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -66,6 +66,8 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const [formError, setFormError] = useState<string | null>(null);
   const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "refund">("all");
   const [folderFilterId, setFolderFilterId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [userFilter, setUserFilter] = useState<"all" | number>("all");
 
   const entriesQuery = useQuery({
     queryKey: projectId ? queryKeys.financialEntries.list(projectId) : ["financial-entries", "disabled"],
@@ -83,6 +85,12 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
     queryKey: projectId ? queryKeys.folders.targetTree(projectId) : ["folders", "target-tree", "disabled"],
     queryFn: () => api.folders.targetTree(projectId!),
     enabled: Boolean(projectId && canEditFinance),
+  });
+
+  const membersQuery = useQuery({
+    queryKey: projectId ? queryKeys.members.list(projectId) : ["members", "disabled"],
+    queryFn: () => api.members.list(projectId!),
+    enabled: Boolean(projectId && canViewFinance),
   });
 
   const createEntry = useMutation({
@@ -133,11 +141,22 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const allEntries = normalizeApiList(entriesQuery.data);
   const folders = foldersQuery.data ?? [];
   const targetFolders = targetTreeQuery.data ?? [];
+  const members = normalizeApiList(membersQuery.data);
+  const search = searchQuery.trim().toLowerCase();
   const entries = allEntries
     .filter((e) => typeFilter === "all" || e.type === typeFilter)
-    .filter((e) => folderFilterId == null || e.folder === folderFilterId);
+    .filter((e) => folderFilterId == null || e.folder === folderFilterId)
+    .filter((e) => userFilter === "all" || e.created_by === userFilter)
+    .filter((e) =>
+      !search ||
+      (e.category ?? "").toLowerCase().includes(search) ||
+      (e.description ?? "").toLowerCase().includes(search) ||
+      (e.task_name ?? "").toLowerCase().includes(search) ||
+      (e.created_by_name ?? "").toLowerCase().includes(search),
+    );
   const totals = computeTotals(entries);
   const folderFilterName = folderFilterId != null ? (findFolderName(folders, Number(folderFilterId)) ?? "Dossier") : null;
+  const hasFilters = typeFilter !== "all" || folderFilterId != null || searchQuery.trim() !== "" || userFilter !== "all";
 
   return (
     <div className="space-y-5">
@@ -155,7 +174,13 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
       </div>
 
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <div className="w-full sm:w-56">
+        <Input
+          className="w-full bg-background sm:w-56"
+          placeholder="Rechercher…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <div className="w-full sm:w-48">
           <TreePickerDialog
             mode="folder"
             folders={folders}
@@ -166,7 +191,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
           />
         </div>
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
-          <SelectTrigger className="w-full bg-background sm:w-48">
+          <SelectTrigger className="w-full bg-background sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -175,9 +200,27 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
             <SelectItem value="refund">Remboursements</SelectItem>
           </SelectContent>
         </Select>
-        {folderFilterId != null ? (
-          <Button type="button" variant="ghost" size="sm" className="sm:w-auto" onClick={() => setFolderFilterId(null)}>
-            Effacer filtre
+        {members.length > 0 ? (
+          <Select value={String(userFilter)} onValueChange={(v) => setUserFilter(v === "all" ? "all" : Number(v))}>
+            <SelectTrigger className="w-full bg-background sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les membres</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={String(m.user)}>{m.user_display_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
+        {hasFilters ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => { setTypeFilter("all"); setFolderFilterId(null); setSearchQuery(""); setUserFilter("all"); }}
+          >
+            Effacer filtres
           </Button>
         ) : null}
       </div>
@@ -205,7 +248,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
             >
               <EntryTypeBadge type={entry.type} />
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   <span className="font-semibold tabular-nums">
                     {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
                   </span>
@@ -213,20 +256,35 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                     <span className="truncate text-sm text-muted-foreground">{entry.category}</span>
                   ) : null}
                 </div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
-                  {entry.description ? <span className="truncate">{entry.description}</span> : null}
+                {entry.description ? (
+                  <p className="truncate text-sm text-muted-foreground">{entry.description}</p>
+                ) : null}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                   {entry.task_name ? (
-                    <span className="shrink-0">{entry.task_name}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <ListTodo className="size-3 text-sky-600" />
+                      {entry.task_name}
+                    </span>
                   ) : entry.folder ? (
-                    <span className="shrink-0 inline-flex items-center gap-1">
+                    <span className="inline-flex items-center gap-1">
                       <Folder className="size-3 text-amber-500" />
                       {findFolderName(folders, entry.folder) ?? `Dossier #${entry.folder}`}
                     </span>
                   ) : null}
                   {entry.document ? (
-                    <span className="shrink-0">{entry.document_name ?? `Document #${entry.document}`}</span>
+                    <span className="inline-flex items-center gap-1">
+                      <FileText className="size-3" />
+                      {entry.document_name ?? `Document #${entry.document}`}
+                    </span>
                   ) : null}
-                  <span className="ml-auto shrink-0">
+                  {entry.created_by_name ? (
+                    <span className="inline-flex items-center gap-1">
+                      <UserRound className="size-3" />
+                      {entry.created_by_name}
+                    </span>
+                  ) : null}
+                  <span className="ml-auto inline-flex items-center gap-1">
+                    <Calendar className="size-3" />
                     {new Date(entry.created_at).toLocaleDateString("fr-BE")}
                   </span>
                 </div>

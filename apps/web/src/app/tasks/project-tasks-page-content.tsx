@@ -97,6 +97,7 @@ function ProjectTasksContent({
   const [editPriority, setEditPriority] = useState<Task["priority"]>("normal");
   const [editDueDate, setEditDueDate] = useState("");
 
+  const [userFilter, setUserFilter] = useState<"all" | number>("all");
   const folderId = getFolderId(folderFilter);
   const tasksQuery = useQuery({
     queryKey: selectedProject
@@ -119,8 +120,18 @@ function ProjectTasksContent({
     queryFn: () => api.folders.tree(selectedProject!.id),
     enabled: Boolean(selectedProject && canViewFiles),
   });
+  const membersQuery = useQuery({
+    queryKey: selectedProject ? queryKeys.members.list(selectedProject.id) : ["members", "disabled"],
+    queryFn: () => api.members.list(selectedProject!.id),
+    enabled: Boolean(selectedProject && canViewTasks),
+  });
   const folderNameById = useMemo(() => buildFolderNameMap(foldersQuery.data ?? []), [foldersQuery.data]);
-  const tasks = normalizeApiList(tasksQuery.data);
+  const allTasks = normalizeApiList(tasksQuery.data);
+  const members = normalizeApiList(membersQuery.data);
+  const tasks = useMemo(
+    () => userFilter === "all" ? allTasks : allTasks.filter((t) => t.created_by === userFilter),
+    [allTasks, userFilter],
+  );
   const sortedTasks = useMemo(() => {
     if (!sortConfig) {
       return tasks;
@@ -343,6 +354,19 @@ function ProjectTasksContent({
             <SelectItem value="high">Haute</SelectItem>
           </SelectContent>
         </Select>
+        {members.length > 0 ? (
+          <Select value={String(userFilter)} onValueChange={(v) => setUserFilter(v === "all" ? "all" : Number(v))}>
+            <SelectTrigger className="w-full bg-background sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les membres</SelectItem>
+              {members.map((m) => (
+                <SelectItem key={m.id} value={String(m.user)}>{m.user_display_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : null}
         <Button
           type="button"
           variant={showCompleted ? "default" : "outline"}
@@ -695,6 +719,7 @@ function TaskTable({
           <SortableTableHead column="status" sortConfig={sortConfig} onSort={onSort}>Statut</SortableTableHead>
           <SortableTableHead column="priority" sortConfig={sortConfig} onSort={onSort}>Priorite</SortableTableHead>
           <SortableTableHead column="due_date" sortConfig={sortConfig} onSort={onSort}>Echeance</SortableTableHead>
+          <TableHead className="hidden sm:table-cell">Cree par</TableHead>
           <TableHead className="w-24 text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
@@ -713,6 +738,7 @@ function TaskTable({
                 <Badge variant="outline" className={getPriorityClassName(task.priority)}>{getPriorityLabel(task.priority)}</Badge>
               </TableCell>
               <TableCell className="text-muted-foreground">{task.due_date ? formatTaskDate(task.due_date) : "-"}</TableCell>
+              <TableCell className="hidden text-muted-foreground sm:table-cell">{task.created_by_name ?? "-"}</TableCell>
               <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
                 <div className="flex justify-end gap-1">
                   {canEdit ? (

@@ -70,6 +70,7 @@ class FinancialEntryListCreateView(generics.ListCreateAPIView):
             "folder",
             "document",
             "time_entry",
+            "task",
             "created_by",
         ).order_by("-created_at", "-id")
 
@@ -256,6 +257,7 @@ class FinancialEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
             "folder",
             "document",
             "time_entry",
+            "task",
             "created_by",
         )
 
@@ -299,6 +301,7 @@ class FinancialEntryTrashListView(generics.ListAPIView):
             "folder",
             "document",
             "time_entry",
+            "task",
             "created_by",
         ).order_by("-created_at", "-id")
 
@@ -328,6 +331,7 @@ class FinancialEntryRestoreView(generics.GenericAPIView):
             "folder",
             "document",
             "time_entry",
+            "task",
             "created_by",
         )
 

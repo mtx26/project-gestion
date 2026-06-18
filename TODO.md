@@ -21,10 +21,10 @@
     faire un chat par projet
 
 <!-- 
-ok retire le truc du douple clic dans la page projet mais met jsyte un page sur la droite de l'arboresence comme le previsualisetio windows et la tu met les task et temps
-permet de chnager de mois etc quand les time settend sur plus , pour povroi les voir dans le claendrier, ok inverse de gauche a droite  les state et entre de temps, et si en mode cledrier, tu cache les state
-ok permet d'ouvrir les tache dans une modal, et pour les ficheir ouvre les dans un visualisateur dans une moadal, de manier integre plsutot quand dasn uen autre page, 
-simplie build_folder_tree car c'est inconprehensible comme focntion reduit le nombre de focntio et ameliore la lisibilité etc 
-permet de trier en clicant dur Tache	Dossier	Statut	Priorite	Echeance
+et dans project avec l'arboerance met aussi par qui c'est creer mais dnas l'Apercu du dossier , 
+rajhoite tou les truc en plus dans le clic droit dans projet et retire tou les ajouter, mais juste le view qui redireige vers la page avec lke fitltre 
+change Totaux - toute l'equipe - ce mois - tous statuts - Technique poru qui soit dan le mem ordre que le filtre
+met un filtre pour reboursement  et finance et task un filtre par user.
+ 
 
  -->

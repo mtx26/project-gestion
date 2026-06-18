@@ -100,52 +100,50 @@ export function ProjectWorkspaceShell({
   return (
     <ProtectedRoute>
       <SidebarProvider>
-        <div className="flex min-h-dvh w-full flex-col bg-background text-foreground lg:flex-row">
-          <DashboardSidebar
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            userId={user?.id ?? null}
-            user={user}
-            activeItem={activeItem}
-            isLoading={projectsQuery.isLoading}
-            onSelectProject={onSelectProject}
-            onCreateProject={() => setCreateDialogOpen(true)}
-            onLogout={onLogout}
-          />
+        <DashboardSidebar
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          userId={user?.id ?? null}
+          user={user}
+          activeItem={activeItem}
+          isLoading={projectsQuery.isLoading}
+          onSelectProject={onSelectProject}
+          onCreateProject={() => setCreateDialogOpen(true)}
+          onLogout={onLogout}
+        />
 
-          <SidebarInset>
-            <div className={`mx-auto w-full px-4 py-6 sm:px-6 lg:px-8 ${maxWidthClassName}`}>
-              <div className="mb-4">
-                <SidebarTrigger />
-              </div>
-
-              {projectsQuery.error ? (
-                <Alert variant="destructive" className="mb-6">
-                  <AlertDescription>{getErrorMessage(projectsQuery.error)}</AlertDescription>
-                </Alert>
-              ) : null}
-
-              {children({
-                user,
-                projects,
-                projectsQuery,
-                selectedProjectId,
-                selectedProject,
-                openCreateProject: () => setCreateDialogOpen(true),
-                queryClient,
-              })}
+        <SidebarInset>
+          <div className={`mx-auto w-full px-4 py-6 sm:px-6 lg:px-8 ${maxWidthClassName}`}>
+            <div className="mb-4">
+              <SidebarTrigger />
             </div>
-          </SidebarInset>
 
-          <CreateProjectDialog
-            open={createDialogOpen}
-            onOpenChange={setCreateDialogOpen}
-            form={form}
-            onSubmit={onCreateProject}
-            error={createProject.error ? getErrorMessage(createProject.error) : null}
-            isPending={createProject.isPending}
-          />
-        </div>
+            {projectsQuery.error ? (
+              <Alert variant="destructive" className="mb-6">
+                <AlertDescription>{getErrorMessage(projectsQuery.error)}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            {children({
+              user,
+              projects,
+              projectsQuery,
+              selectedProjectId,
+              selectedProject,
+              openCreateProject: () => setCreateDialogOpen(true),
+              queryClient,
+            })}
+          </div>
+        </SidebarInset>
+
+        <CreateProjectDialog
+          open={createDialogOpen}
+          onOpenChange={setCreateDialogOpen}
+          form={form}
+          onSubmit={onCreateProject}
+          error={createProject.error ? getErrorMessage(createProject.error) : null}
+          isPending={createProject.isPending}
+        />
       </SidebarProvider>
     </ProtectedRoute>
   );

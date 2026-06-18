@@ -210,6 +210,7 @@ export type Task = {
   project: ID;
   folder: ID | null;
   created_by: ID;
+  created_by_name: string | null;
   assigned_to: ID[];
   title: string;
   description: string | null;
@@ -238,7 +239,9 @@ export type TimeEntry = {
   project: ID;
   folder: ID | null;
   task: ID | null;
+  task_name: string | null;
   user: ID;
+  user_display_name: string;
   duration_minutes: number;
   hourly_rate: string;
   cost_amount: string;
@@ -282,6 +285,7 @@ export type FinancialEntry = {
   task: ID | null;
   task_name: string | null;
   created_by: ID;
+  created_by_name: string | null;
   amount: string;
   type: "expense" | "refund";
   category: string | null;
@@ -316,6 +320,7 @@ export type ExpenseRequest = {
   task_name: string | null;
   status: "pending" | "approved" | "rejected";
   requested_by: ID;
+  requested_by_name: string | null;
   approved_at: string | null;
   approved_by: ID | null;
   created_at: string;
