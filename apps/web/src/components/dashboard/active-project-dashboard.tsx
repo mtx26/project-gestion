@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { CheckCircle2, Clock3, Plus, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -202,9 +202,7 @@ export function ActiveProjectDashboard({
               {isFinanceLoading ? (
                 <FinanceLoadingState />
               ) : financeError ? (
-                <Alert variant="destructive">
-                  <AlertDescription>{financeError}</AlertDescription>
-                </Alert>
+                <FormErrorAlert error={financeError} />
               ) : (
                 <>
                   <FinanceTimelineChart points={financePoints} />

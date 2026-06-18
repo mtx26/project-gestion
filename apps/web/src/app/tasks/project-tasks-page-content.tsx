@@ -10,8 +10,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import React, { type FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -37,17 +37,13 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { buildFolderNameMap, findFolderName } from "@/lib/folder-utils";
 import { formatTaskDate, getPriorityClassName, getPriorityLabel, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
-import { parseIdParam, setOptionalParam } from "@/lib/url-params";
+import { parseBooleanParam, parseIdParam, setOptionalParam } from "@/lib/url-params";
 
 type StatusFilter = "all" | Task["status"];
 type PriorityFilter = "all" | Task["priority"];
 type FolderFilter = "all" | `folder-${number}`;
 type SortColumn = "title" | "folder" | "status" | "priority" | "due_date";
 type SortDirection = "asc" | "desc";
-
-function parseBooleanParam(value: string | null) {
-  return value === "1" || value === "true";
-}
 
 export function ProjectTasksPageContent() {
   const router = useRouter();
@@ -324,9 +320,9 @@ function ProjectTasksContent({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-nowrap sm:items-center">
         <Select value={statusFilter} onValueChange={(value) => updateUrlFilter({ status: value as StatusFilter })}>
-          <SelectTrigger className="w-full bg-background sm:w-44">
+          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -337,7 +333,7 @@ function ProjectTasksContent({
           </SelectContent>
         </Select>
         <Select value={priorityFilter} onValueChange={(value) => updateUrlFilter({ priority: value as PriorityFilter })}>
-          <SelectTrigger className="w-full bg-background sm:w-44">
+          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -350,11 +346,11 @@ function ProjectTasksContent({
         <MemberFilterSelect
           members={members}
           value={createdByFilter}
-          className="sm:w-44"
+          className="sm:flex-1 sm:min-w-0"
           onChange={(id) => updateUrlFilter({ member: id })}
         />
         {canViewFiles ? (
-          <div className="w-full sm:w-44">
+          <div className="w-full sm:flex-1 sm:min-w-0">
             <TreePickerDialog
               mode="folder"
               folders={foldersQuery.data ?? []}
@@ -369,7 +365,7 @@ function ProjectTasksContent({
           type="button"
           variant={showCompleted ? "default" : "outline"}
           size="sm"
-          className="sm:w-auto"
+          className="shrink-0"
           onClick={() => updateUrlFilter({ includeCompleted: !showCompleted })}
         >
           Inclure terminees
@@ -378,6 +374,7 @@ function ProjectTasksContent({
           type="button"
           variant="ghost"
           size="sm"
+          className="shrink-0"
           onClick={() => {
             if (!selectedProject) return;
             const params = new URLSearchParams({ project: String(selectedProject.id) });
@@ -393,11 +390,7 @@ function ProjectTasksContent({
           <CardTitle>Taches</CardTitle>
         </CardHeader>
         <CardContent>
-          {tasksQuery.error ? (
-            <Alert variant="destructive" className="mb-3">
-              <AlertDescription>{getErrorMessage(tasksQuery.error)}</AlertDescription>
-            </Alert>
-          ) : null}
+          <FormErrorAlert error={tasksQuery.error ? getErrorMessage(tasksQuery.error) : null} className="mb-3" />
           {tasksQuery.isLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-20 rounded-md" />
@@ -424,15 +417,8 @@ function ProjectTasksContent({
               onDelete={(task) => deleteTask.mutate(task.id)}
             />
           )}
-          {updateTask.error ? (
-            <Alert variant="destructive" className="mt-3">
-              <AlertDescription>{getErrorMessage(updateTask.error)}</AlertDescription>
-            </Alert>
-          ) : null}
-          {deleteTask.error ? (
-            <Alert variant="destructive" className="mt-3">
-              <AlertDescription>{getErrorMessage(deleteTask.error)}</AlertDescription>
-            </Alert>
+          <FormErrorAlert error={updateTask.error ? getErrorMessage(updateTask.error) : null} className="mt-3" />
+          <FormErrorAlert error={deleteTask.error ? getErrorMessage(deleteTask.error) : null} className="mt-3" />
           ) : null}
         </CardContent>
       </Card>
@@ -649,11 +635,7 @@ function TaskFormDialog({
             <Textarea id="task-form-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
           </div>
 
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
+          <FormErrorAlert error={error} />
 
           <DialogFooter>
             <DialogClose asChild>

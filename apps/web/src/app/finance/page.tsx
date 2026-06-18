@@ -208,9 +208,9 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
+      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-nowrap sm:items-center">
         <Select value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
-          <SelectTrigger className="w-full bg-background sm:w-44">
+          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -222,10 +222,10 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         <MemberFilterSelect
           members={members}
           value={userFilterId}
-          className="sm:w-48"
+          className="sm:flex-1 sm:min-w-0"
           onChange={(id) => updateUrlFilter({ member: id })}
         />
-        <div className="w-full sm:w-48">
+        <div className="w-full sm:flex-1 sm:min-w-0">
           <TreePickerDialog
             mode="folder"
             folders={folders}
@@ -236,7 +236,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
           />
         </div>
         <Input
-          className="w-full bg-background sm:w-56"
+          className="w-full bg-background sm:flex-1 sm:min-w-0"
           placeholder="Rechercher…"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -245,6 +245,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
           type="button"
           variant="ghost"
           size="sm"
+          className="shrink-0"
           onClick={() => {
             setSearchQuery("");
             const params = new URLSearchParams({ project: String(selectedProject.id) });

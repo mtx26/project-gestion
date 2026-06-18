@@ -10,7 +10,7 @@ import { formatBytes } from "@/lib/task-utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/task-utils";
@@ -291,11 +291,7 @@ function DocumentTrashSection({
 }) {
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2">
-        {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="h-16 w-full rounded-lg" />
-        ))}
-      </div>
+      <SkeletonLoader count={3} className="h-16 w-full rounded-lg" />
     );
   }
 
@@ -356,11 +352,7 @@ function TrashSection<T extends { id: number }>({
 }) {
   if (isLoading) {
     return (
-      <div className="flex flex-col gap-2">
-        {Array.from({ length: 3 }, (_, i) => (
-          <Skeleton key={i} className="h-14 w-full rounded-lg" />
-        ))}
-      </div>
+      <SkeletonLoader count={3} />
     );
   }
 

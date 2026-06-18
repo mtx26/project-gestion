@@ -28,7 +28,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -483,23 +483,9 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     <div className="space-y-5">
       <ProjectFilesTitle />
 
-      {treeQuery.error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{getErrorMessage(treeQuery.error)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {createFolder.error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{getErrorMessage(createFolder.error)}</AlertDescription>
-        </Alert>
-      ) : null}
-
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
+      <FormErrorAlert error={treeQuery.error ? getErrorMessage(treeQuery.error) : null} />
+      <FormErrorAlert error={createFolder.error ? getErrorMessage(createFolder.error) : null} />
+      <FormErrorAlert error={actionError} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
         <Card className="rounded-lg">

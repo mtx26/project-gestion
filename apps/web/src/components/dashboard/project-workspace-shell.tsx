@@ -8,7 +8,7 @@ import { normalizeApiList } from "@project-gestion/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProtectedRoute } from "@/components/protected-route";
@@ -118,11 +118,7 @@ export function ProjectWorkspaceShell({
               <SidebarTrigger />
             </div>
 
-            {projectsQuery.error ? (
-              <Alert variant="destructive" className="mb-6">
-                <AlertDescription>{getErrorMessage(projectsQuery.error)}</AlertDescription>
-              </Alert>
-            ) : null}
+            <FormErrorAlert error={projectsQuery.error ? getErrorMessage(projectsQuery.error) : null} className="mb-6" />
 
             {children({
               user,

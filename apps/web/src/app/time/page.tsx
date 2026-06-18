@@ -12,8 +12,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -367,11 +367,7 @@ function ProjectTimeContent({
         ) : null}
       </div>
 
-      {canViewTime && timeEntriesQuery.error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{getErrorMessage(timeEntriesQuery.error)}</AlertDescription>
-        </Alert>
-      ) : null}
+      <FormErrorAlert error={canViewTime && timeEntriesQuery.error ? getErrorMessage(timeEntriesQuery.error) : null} />
 
       {canViewTime ? (
         <TimePeriodToolbar
@@ -387,7 +383,6 @@ function ProjectTimeContent({
           onSelectFolder={(folderId) =>
             updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })
           }
-          onClearTargetFilter={() => updateUrlFilter({ target: null })}
           onClearAllFilters={() => {
             if (!selectedProject) return;
             const params = new URLSearchParams({ project: String(selectedProject.id) });
@@ -459,10 +454,7 @@ function ProjectTimeContent({
               />
             )}
 
-            {deleteTimeEntry.error ? (
-              <Alert variant="destructive" className="mt-3">
-                <AlertDescription>{getErrorMessage(deleteTimeEntry.error)}</AlertDescription>
-              </Alert>
+            <FormErrorAlert error={deleteTimeEntry.error ? getErrorMessage(deleteTimeEntry.error) : null} className="mt-3" />
             ) : null}
           </CardContent>
         </Card>
@@ -752,10 +744,7 @@ function TimeEntryForm({
             <Textarea id="time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
           </div>
 
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+          <FormErrorAlert error={error} />
           ) : null}
 
           <DialogFooter>
@@ -806,9 +795,9 @@ function TimePeriodToolbar({
   const folderPickerLabel = targetFilterLabel ?? "Tous dossiers";
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-start">
+    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-nowrap sm:items-center">
       <Select value={periodPreset} onValueChange={(value) => onPeriodPresetChange(value as PeriodPreset)}>
-        <SelectTrigger className="w-full bg-background sm:w-48">
+        <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -822,7 +811,7 @@ function TimePeriodToolbar({
       </Select>
       {canViewAllTime ? (
         <Select value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
-          <SelectTrigger className="w-full bg-background sm:w-56">
+          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -836,7 +825,7 @@ function TimePeriodToolbar({
           </SelectContent>
         </Select>
       ) : null}
-      <div className="w-full sm:w-48">
+      <div className="w-full sm:flex-1 sm:min-w-0">
         <TreePickerDialog
           mode="folder"
           folders={folders}
@@ -847,7 +836,7 @@ function TimePeriodToolbar({
         />
       </div>
       <Select value={paymentStatusFilter} onValueChange={(value) => onPaymentStatusFilterChange(value as PaymentStatusFilter)}>
-        <SelectTrigger className="w-full bg-background sm:w-48">
+        <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -861,12 +850,12 @@ function TimePeriodToolbar({
         type="button"
         variant={includeUnpaidOutsideMonth ? "default" : "outline"}
         size="sm"
-        className="sm:w-auto"
+        className="shrink-0"
         onClick={() => onIncludeUnpaidOutsideMonthChange(!includeUnpaidOutsideMonth)}
       >
         Impayes inclus
       </Button>
-      <Button type="button" variant="ghost" size="sm" className="sm:w-auto" onClick={onClearAllFilters}>
+      <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onClearAllFilters}>
         Effacer filtres
       </Button>
     </div>
@@ -1214,10 +1203,7 @@ function EditTimeEntryDialog({
             <Textarea id="edit-time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
           </div>
 
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+          <FormErrorAlert error={error} />
           ) : null}
         </div>
 
@@ -1296,10 +1282,7 @@ function PaymentDialog({
             </div>
           ) : null}
 
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
+          <FormErrorAlert error={error} />
           ) : null}
         </div>
 
