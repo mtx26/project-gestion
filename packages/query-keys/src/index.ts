@@ -27,7 +27,12 @@ export const queryKeys = {
     list: () => ["permissions", "list"] as const,
   },
   financialEntries: {
-    list: (projectId: number) => ["projects", projectId, "financial-entries"] as const,
+    list: (projectId: number, query: { type?: string; folder?: number; createdBy?: number } = {}) =>
+      ["projects", projectId, "financial-entries", {
+        type: query.type ?? "all",
+        folder: query.folder ?? "all",
+        createdBy: query.createdBy ?? "all",
+      }] as const,
     chart: (projectId: number, groupBy: "day" | "month") =>
       ["projects", projectId, "financial-entries", "chart", groupBy] as const,
     trash: (projectId: number) => ["projects", projectId, "financial-entries", "trash"] as const,
@@ -37,7 +42,12 @@ export const queryKeys = {
     trash: (projectId: number) => ["projects", projectId, "documents", "trash"] as const,
   },
   expenseRequests: {
-    list: (projectId: number) => ["projects", projectId, "expense-requests"] as const,
+    list: (projectId: number, query: { status?: string; folder?: number; requestedBy?: number } = {}) =>
+      ["projects", projectId, "expense-requests", {
+        status: query.status ?? "all",
+        folder: query.folder ?? "all",
+        requestedBy: query.requestedBy ?? "all",
+      }] as const,
   },
   tasks: {
     list: (
@@ -46,12 +56,14 @@ export const queryKeys = {
         folderId?: number;
         status?: string;
         priority?: string;
+        createdBy?: number;
       } = {},
     ) =>
       ["projects", projectId, "tasks", {
         folder: query.folderId ?? "all",
         status: query.status ?? "all",
         priority: query.priority ?? "all",
+        createdBy: query.createdBy ?? "all",
       }] as const,
     trash: (projectId: number) => ["projects", projectId, "tasks", "trash"] as const,
   },

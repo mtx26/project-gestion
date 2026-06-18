@@ -146,6 +146,8 @@ export type Folder = {
   id: ID;
   project: ID;
   parent_folder: ID | null;
+  created_by: ID | null;
+  created_by_name: string | null;
   name: string;
   description: string | null;
   color: string | null;
@@ -202,6 +204,7 @@ export type FolderTreeNode = {
   file_name?: string;
   file_size?: number | null;
   mime_type?: string | null;
+  created_by_name?: string | null;
   children?: FolderTreeNode[];
 };
 

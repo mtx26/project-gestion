@@ -31,6 +31,11 @@ export function getDescendantFolderIds(nodes: FolderTreeNode[], targetId: number
   return ids;
 }
 
+export function findFolderNode(nodes: FolderTreeNode[], folderId: number | null): FolderTreeNode | null {
+  if (folderId == null) return null;
+  return findTreeNode(nodes, folderId);
+}
+
 function findTreeNode(nodes: FolderTreeNode[], id: number): FolderTreeNode | null {
   for (const node of nodes) {
     if (node.id === id) return node;

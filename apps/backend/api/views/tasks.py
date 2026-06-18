@@ -1,5 +1,6 @@
 from django.shortcuts import get_object_or_404
 
+import django_filters
 from rest_framework import generics
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +14,21 @@ from ..permissions import HasProjectPermission
 from ..serializers import TaskSerializer
 from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
+
+
+class TaskFilter(django_filters.FilterSet):
+    folder = django_filters.NumberFilter(method="filter_folder")
+
+    class Meta:
+        model = Task
+        fields = ["status", "priority", "due_date", "created_by", "assigned_to"]
+
+    def filter_folder(self, queryset, name, value):
+        project_id = self.request.parser_context["kwargs"].get("project_id")
+        if not project_id:
+            return queryset
+        folder_ids = get_descendant_folder_ids(value, project_id)
+        return queryset.filter(folder_id__in=folder_ids)
 
 
 @extend_schema(tags=["tasks"])
@@ -37,13 +53,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = [
-        "status",
-        "priority",
-        "due_date",
-        "created_by",
-        "assigned_to",
-    ]
+    filterset_class = TaskFilter
     search_fields = ["title", "description"]
 
     def get_permissions(self):
@@ -58,7 +68,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Task.objects.none()
 
-        queryset = Task.objects.filter(
+        return Task.objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         ).select_related(
@@ -68,18 +78,6 @@ class TaskListCreateView(generics.ListCreateAPIView):
         ).prefetch_related(
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
-
-        folder_id_str = self.request.query_params.get("folder")
-        if folder_id_str:
-            try:
-                folder_id = int(folder_id_str)
-            except (ValueError, TypeError):
-                pass
-            else:
-                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
-                queryset = queryset.filter(folder_id__in=folder_ids)
-
-        return queryset
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -172,13 +170,7 @@ class TaskTrashListView(generics.ListAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = [
-        "status",
-        "priority",
-        "due_date",
-        "created_by",
-        "assigned_to",
-    ]
+    filterset_class = TaskFilter
     search_fields = ["title", "description"]
 
     def get_permissions(self):
@@ -189,7 +181,7 @@ class TaskTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Task.deleted_objects.none()
 
-        queryset = Task.deleted_objects.filter(
+        return Task.deleted_objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         ).select_related(
@@ -199,18 +191,6 @@ class TaskTrashListView(generics.ListAPIView):
         ).prefetch_related(
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
-
-        folder_id_str = self.request.query_params.get("folder")
-        if folder_id_str:
-            try:
-                folder_id = int(folder_id_str)
-            except (ValueError, TypeError):
-                pass
-            else:
-                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
-                queryset = queryset.filter(folder_id__in=folder_ids)
-
-        return queryset
 
 
 @extend_schema(tags=["tasks"])

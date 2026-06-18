@@ -54,24 +54,56 @@ export default function RequestsPage() {
 }
 
 function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWorkspaceState) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const canView = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestView);
   const canEdit = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestEdit);
   const canDelete = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestDelete);
   const canApprove = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestApprove);
   const projectId = selectedProject?.id ?? null;
 
+  const statusFilter = parseStatusFilter(searchParams.get("status"));
+  const folderFilterId = parseIdParam(searchParams.get("folder"));
+  const userFilterId = parseIdParam(searchParams.get("member"));
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
-  const [folderFilterId, setFolderFilterId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [userFilter, setUserFilter] = useState<"all" | number>("all");
+
+  function updateUrlFilter(changes: { status?: string; folder?: number | null; member?: number | null }) {
+    if (!selectedProject) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("project", String(selectedProject.id));
+    if ("status" in changes) {
+      const v = changes.status ?? "all";
+      if (v !== "all") params.set("status", v); else params.delete("status");
+    }
+    if ("folder" in changes) {
+      if (changes.folder != null) params.set("folder", String(changes.folder));
+      else params.delete("folder");
+    }
+    if ("member" in changes) {
+      if (changes.member != null) params.set("member", String(changes.member));
+      else params.delete("member");
+    }
+    router.replace(`/requests?${params.toString()}`, { scroll: false });
+  }
 
   const requestsQuery = useQuery({
-    queryKey: projectId ? queryKeys.expenseRequests.list(projectId) : ["expense-requests", "disabled"],
-    queryFn: () => api.expenseRequests.list(projectId!),
+    queryKey: projectId
+      ? queryKeys.expenseRequests.list(projectId, {
+          status: statusFilter !== "all" ? statusFilter : undefined,
+          folder: folderFilterId ?? undefined,
+          requestedBy: userFilterId ?? undefined,
+        })
+      : ["expense-requests", "disabled"],
+    queryFn: () => api.expenseRequests.list(projectId!, {
+      status: statusFilter !== "all" ? statusFilter : undefined,
+      folder: folderFilterId ?? undefined,
+      requested_by: userFilterId ?? undefined,
+    }),
     enabled: Boolean(projectId && canView),
   });
 
@@ -96,7 +128,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const createRequest = useMutation({
     mutationFn: (payload: ExpenseRequestPayload) => api.expenseRequests.create(projectId!, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setCreateOpen(false);
     },
   });
@@ -105,7 +137,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     mutationFn: ({ id, payload }: { id: number; payload: Partial<ExpenseRequestPayload> }) =>
       api.expenseRequests.update(projectId!, id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setEditingRequest(null);
     },
   });
@@ -113,7 +145,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const deleteRequest = useMutation({
     mutationFn: (id: number) => api.expenseRequests.remove(projectId!, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setDeletingId(null);
     },
   });
@@ -121,8 +153,8 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const approveRequest = useMutation({
     mutationFn: (id: number) => api.expenseRequests.approve(projectId!, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
     },
     onError: (err) => setActionError(getErrorMessage(err)),
   });
@@ -130,7 +162,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const rejectRequest = useMutation({
     mutationFn: (id: number) => api.expenseRequests.reject(projectId!, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
     },
     onError: (err) => setActionError(getErrorMessage(err)),
   });
@@ -157,19 +189,15 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const members = normalizeApiList(membersQuery.data);
 
   const search = searchQuery.trim().toLowerCase();
-  const requests = allRequests
-    .filter((r) => statusFilter === "all" || r.status === statusFilter)
-    .filter((r) => folderFilterId == null || r.folder === folderFilterId)
-    .filter((r) => userFilter === "all" || r.requested_by === userFilter)
-    .filter((r) =>
-      !search ||
-      r.title.toLowerCase().includes(search) ||
-      (r.category ?? "").toLowerCase().includes(search) ||
-      (r.description ?? "").toLowerCase().includes(search),
-    );
+  const requests = search
+    ? allRequests.filter((r) =>
+        r.title.toLowerCase().includes(search) ||
+        (r.category ?? "").toLowerCase().includes(search) ||
+        (r.description ?? "").toLowerCase().includes(search),
+      )
+    : allRequests;
 
   const folderFilterName = folderFilterId != null ? (findFolderName(folders, folderFilterId) ?? "Dossier") : null;
-  const hasFilters = statusFilter !== "all" || folderFilterId != null || searchQuery.trim() !== "" || userFilter !== "all";
 
   return (
     <div className="space-y-5">
@@ -187,23 +215,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       </div>
 
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <Input
-          className="w-full bg-background sm:w-56"
-          placeholder="Rechercher…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <div className="w-full sm:w-48">
-          <TreePickerDialog
-            mode="folder"
-            folders={folders}
-            selectedFolderId={folderFilterId}
-            buttonLabel={folderFilterName ?? "Tous dossiers"}
-            description="Filtrer les demandes par dossier."
-            onSelect={(id) => setFolderFilterId(id)}
-          />
-        </div>
-        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+        <Select value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v })}>
           <SelectTrigger className="w-full bg-background sm:w-44">
             <SelectValue />
           </SelectTrigger>
@@ -215,7 +227,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
           </SelectContent>
         </Select>
         {members.length > 0 ? (
-          <Select value={String(userFilter)} onValueChange={(v) => setUserFilter(v === "all" ? "all" : Number(v))}>
+          <Select value={userFilterId != null ? String(userFilterId) : "all"} onValueChange={(v) => updateUrlFilter({ member: v === "all" ? null : Number(v) })}>
             <SelectTrigger className="w-full bg-background sm:w-48">
               <SelectValue />
             </SelectTrigger>
@@ -227,16 +239,34 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
             </SelectContent>
           </Select>
         ) : null}
-        {hasFilters ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => { setStatusFilter("all"); setFolderFilterId(null); setSearchQuery(""); setUserFilter("all"); }}
-          >
-            Effacer filtres
-          </Button>
-        ) : null}
+        <div className="w-full sm:w-48">
+          <TreePickerDialog
+            mode="folder"
+            folders={folders}
+            selectedFolderId={folderFilterId}
+            buttonLabel={folderFilterName ?? "Tous dossiers"}
+            description="Filtrer les demandes par dossier."
+            onSelect={(id) => updateUrlFilter({ folder: id })}
+          />
+        </div>
+        <Input
+          className="w-full bg-background sm:w-56"
+          placeholder="Rechercher…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setSearchQuery("");
+            const params = new URLSearchParams({ project: String(selectedProject.id) });
+            router.replace(`/requests?${params.toString()}`, { scroll: false });
+          }}
+        >
+          Effacer filtres
+        </Button>
       </div>
 
       {actionError ? (
@@ -616,4 +646,15 @@ function RequestStatusBadge({ status }: { status: ExpenseRequest["status"] }) {
       En attente
     </Badge>
   );
+}
+
+function parseStatusFilter(value: string | null): "all" | "pending" | "approved" | "rejected" {
+  if (value === "pending" || value === "approved" || value === "rejected") return value;
+  return "all";
+}
+
+function parseIdParam(value: string | null): number | null {
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }

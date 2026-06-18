@@ -58,14 +58,14 @@ class FolderListCreateView(generics.ListCreateAPIView):
         return Folder.objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user)
-        ).order_by("name", "id")
+        ).select_related("created_by").order_by("name", "id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
             get_accessible_projects(self.request.user),
             pk=self.kwargs["project_id"],
         )
-        serializer.save(project=project)
+        serializer.save(project=project, created_by=self.request.user)
 
 
 @extend_schema(tags=["folders"])
@@ -90,7 +90,7 @@ class FolderTreeView(generics.GenericAPIView):
         folders = Folder.objects.filter(
             project_id=project_id,
             project__in=get_accessible_projects(request.user),
-        ).order_by("name", "id")
+        ).select_related("created_by").order_by("name", "id")
 
         documents = Document.objects.filter(
             project_id=project_id,
@@ -141,7 +141,7 @@ class FolderTargetTreeView(generics.GenericAPIView):
 
         folders = Folder.objects.filter(
             project=project,
-        ).order_by("name", "id")
+        ).select_related("created_by").order_by("name", "id")
 
         if has_project_permission(request.user, project, "task.view"):
             tasks = Task.objects.filter(

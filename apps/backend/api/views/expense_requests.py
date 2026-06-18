@@ -31,7 +31,7 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["status", "folder"]
+    filterset_fields = ["status", "folder", "requested_by"]
     search_fields = ["title", "category", "description"]
 
     def get_permissions(self):

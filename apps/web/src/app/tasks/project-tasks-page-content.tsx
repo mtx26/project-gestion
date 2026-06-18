@@ -26,7 +26,7 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
+import { TreePickerDialog } from "@/components/ui/tree-picker";
 import { TaskDetailModal } from "@/components/ui/task-detail-modal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -97,7 +97,7 @@ function ProjectTasksContent({
   const [editPriority, setEditPriority] = useState<Task["priority"]>("normal");
   const [editDueDate, setEditDueDate] = useState("");
 
-  const [userFilter, setUserFilter] = useState<"all" | number>("all");
+  const createdByFilter = parseIdParam(searchParams.get("member"));
   const folderId = getFolderId(folderFilter);
   const tasksQuery = useQuery({
     queryKey: selectedProject
@@ -105,6 +105,7 @@ function ProjectTasksContent({
           folderId: folderId ?? undefined,
           status: statusFilter === "all" ? undefined : statusFilter,
           priority: priorityFilter === "all" ? undefined : priorityFilter,
+          createdBy: createdByFilter ?? undefined,
         })
       : ["tasks", "disabled"],
     queryFn: () =>
@@ -112,6 +113,7 @@ function ProjectTasksContent({
         ...(folderId == null ? {} : { folder: folderId }),
         ...(statusFilter === "all" ? {} : { status: statusFilter }),
         ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
+        ...(createdByFilter == null ? {} : { created_by: createdByFilter }),
       }),
     enabled: Boolean(selectedProject && canViewTasks),
   });
@@ -126,12 +128,8 @@ function ProjectTasksContent({
     enabled: Boolean(selectedProject && canViewTasks),
   });
   const folderNameById = useMemo(() => buildFolderNameMap(foldersQuery.data ?? []), [foldersQuery.data]);
-  const allTasks = normalizeApiList(tasksQuery.data);
+  const tasks = normalizeApiList(tasksQuery.data);
   const members = normalizeApiList(membersQuery.data);
-  const tasks = useMemo(
-    () => userFilter === "all" ? allTasks : allTasks.filter((t) => t.created_by === userFilter),
-    [allTasks, userFilter],
-  );
   const sortedTasks = useMemo(() => {
     if (!sortConfig) {
       return tasks;
@@ -201,7 +199,7 @@ function ProjectTasksContent({
     },
   });
 
-  function updateUrlFilter(changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; includeCompleted: boolean }>) {
+  function updateUrlFilter(changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; includeCompleted: boolean; member: number | null }>) {
     if (!selectedProject) {
       return;
     }
@@ -223,6 +221,10 @@ function ProjectTasksContent({
       } else {
         params.delete("include_completed");
       }
+    }
+    if ("member" in changes) {
+      if (changes.member != null) params.set("member", String(changes.member));
+      else params.delete("member");
     }
 
     router.replace(`/tasks?${params.toString()}`, { scroll: false });
@@ -321,17 +323,6 @@ function ProjectTasksContent({
       </div>
 
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
-        {canViewFiles ? (
-          <div className="w-full sm:w-56">
-            <FolderTreePickerDialog
-              folders={foldersQuery.data ?? []}
-              selectedFolderId={folderId}
-              buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
-              description="Filtrer les taches par dossier."
-              onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
-            />
-          </div>
-        ) : null}
         <Select value={statusFilter} onValueChange={(value) => updateUrlFilter({ status: value as StatusFilter })}>
           <SelectTrigger className="w-full bg-background sm:w-44">
             <SelectValue />
@@ -355,7 +346,7 @@ function ProjectTasksContent({
           </SelectContent>
         </Select>
         {members.length > 0 ? (
-          <Select value={String(userFilter)} onValueChange={(v) => setUserFilter(v === "all" ? "all" : Number(v))}>
+          <Select value={createdByFilter != null ? String(createdByFilter) : "all"} onValueChange={(v) => updateUrlFilter({ member: v === "all" ? null : Number(v) })}>
             <SelectTrigger className="w-full bg-background sm:w-48">
               <SelectValue />
             </SelectTrigger>
@@ -367,6 +358,18 @@ function ProjectTasksContent({
             </SelectContent>
           </Select>
         ) : null}
+        {canViewFiles ? (
+          <div className="w-full sm:w-56">
+            <TreePickerDialog
+              mode="folder"
+              folders={foldersQuery.data ?? []}
+              selectedFolderId={folderId}
+              buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
+              description="Filtrer les taches par dossier."
+              onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
+            />
+          </div>
+        ) : null}
         <Button
           type="button"
           variant={showCompleted ? "default" : "outline"}
@@ -375,6 +378,18 @@ function ProjectTasksContent({
           onClick={() => updateUrlFilter({ includeCompleted: !showCompleted })}
         >
           Inclure terminees
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            if (!selectedProject) return;
+            const params = new URLSearchParams({ project: String(selectedProject.id) });
+            router.replace(`/tasks?${params.toString()}`, { scroll: false });
+          }}
+        >
+          Effacer filtres
         </Button>
       </div>
 
@@ -572,7 +587,8 @@ function TaskFormDialog({
             {canViewFiles ? (
               <div className="space-y-2">
                 <Label>Dossier</Label>
-                <FolderTreePickerDialog
+                <TreePickerDialog
+                  mode="folder"
                   folders={folders}
                   selectedFolderId={folderId}
                   buttonLabel={folderId == null ? "Projet" : (findFolderName(folders, folderId) ?? "Dossier")}
@@ -792,6 +808,12 @@ function getFolderId(value: FolderFilter) {
     return Number(value.replace("folder-", ""));
   }
   return null;
+}
+
+function parseIdParam(value: string | null): number | null {
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 function setOptionalParam(params: URLSearchParams, key: string, value: string) {

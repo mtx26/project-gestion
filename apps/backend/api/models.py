@@ -77,6 +77,7 @@ class ProjectMember(BaseModel):
 class Folder(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     parent_folder = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="folders_created")
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     color = models.CharField(max_length=7, null=True, blank=True)

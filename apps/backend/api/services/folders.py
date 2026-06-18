@@ -44,6 +44,12 @@ def build_folder_tree(folders, documents=None, tasks=None):
     roots = []
 
     for folder in folders:
+        created_by = getattr(folder, "created_by", None)
+        if created_by is not None:
+            full_name = (created_by.get_full_name() or "").strip()
+            created_by_name = full_name or created_by.username or created_by.email
+        else:
+            created_by_name = None
         folder_nodes[folder.id] = {
             "type": "folder",
             "id": folder.id,
@@ -51,6 +57,7 @@ def build_folder_tree(folders, documents=None, tasks=None):
             "description": folder.description,
             "color": folder.color,
             "icon": folder.icon,
+            "created_by_name": created_by_name,
             "children": [],
         }
 

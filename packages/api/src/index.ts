@@ -303,9 +303,16 @@ export function createApiClient({
         }),
     },
     financialEntries: {
-      list: (projectId: number) =>
+      list: (
+        projectId: number,
+        query: { type?: string; folder?: number; created_by?: number } = {},
+      ) =>
         request<FinancialEntry[] | PaginatedResponse<FinancialEntry>>(
-          `/api/projects/${projectId}/financial-entries/`,
+          `/api/projects/${projectId}/financial-entries/${buildQueryString({
+            type: query.type,
+            folder: query.folder != null ? String(query.folder) : undefined,
+            created_by: query.created_by != null ? String(query.created_by) : undefined,
+          })}`,
         ),
       chart: (
         projectId: number,
@@ -378,13 +385,14 @@ export function createApiClient({
     tasks: {
       list: (
         projectId: number,
-        query: { folder?: number; status?: Task["status"]; priority?: Task["priority"] } = {},
+        query: { folder?: number; status?: Task["status"]; priority?: Task["priority"]; created_by?: number } = {},
       ) =>
         request<Task[] | PaginatedResponse<Task>>(
           `/api/projects/${projectId}/tasks/${buildQueryString({
             folder: query.folder ? String(query.folder) : undefined,
             status: query.status,
             priority: query.priority,
+            created_by: query.created_by != null ? String(query.created_by) : undefined,
           })}`,
         ),
       create: (projectId: number, payload: TaskPayload) =>
@@ -468,9 +476,16 @@ export function createApiClient({
         request<File>(`/api/projects/${projectId}/documents/${id}/restore/`, { method: "POST" }),
     },
     expenseRequests: {
-      list: (projectId: number) =>
+      list: (
+        projectId: number,
+        query: { status?: string; folder?: number; requested_by?: number } = {},
+      ) =>
         request<ExpenseRequest[] | PaginatedResponse<ExpenseRequest>>(
-          `/api/projects/${projectId}/expense-requests/`,
+          `/api/projects/${projectId}/expense-requests/${buildQueryString({
+            status: query.status,
+            folder: query.folder != null ? String(query.folder) : undefined,
+            requested_by: query.requested_by != null ? String(query.requested_by) : undefined,
+          })}`,
         ),
       create: (projectId: number, payload: ExpenseRequestPayload) =>
         request<ExpenseRequest>(`/api/projects/${projectId}/expense-requests/`, {

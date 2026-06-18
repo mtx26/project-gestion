@@ -55,23 +55,52 @@ export default function FinancePage() {
 }
 
 function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorkspaceState) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const canViewFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeView);
   const canEditFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeEdit);
   const canDeleteFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeDelete);
   const projectId = selectedProject?.id ?? null;
 
+  const typeFilter = parseTypeFilter(searchParams.get("type"));
+  const folderFilterId = parseIdParam(searchParams.get("folder"));
+  const userFilterId = parseIdParam(searchParams.get("member"));
+
   const [createOpen, setCreateOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [typeFilter, setTypeFilter] = useState<"all" | "expense" | "refund">("all");
-  const [folderFilterId, setFolderFilterId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [userFilter, setUserFilter] = useState<"all" | number>("all");
+
+  function updateUrlFilter(changes: { type?: string; folder?: number | null; member?: number | null }) {
+    if (!selectedProject) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("project", String(selectedProject.id));
+    if ("type" in changes) setOptionalParam(params, "type", changes.type ?? "all");
+    if ("folder" in changes) {
+      if (changes.folder != null) params.set("folder", String(changes.folder));
+      else params.delete("folder");
+    }
+    if ("member" in changes) {
+      if (changes.member != null) params.set("member", String(changes.member));
+      else params.delete("member");
+    }
+    router.replace(`/finance?${params.toString()}`, { scroll: false });
+  }
 
   const entriesQuery = useQuery({
-    queryKey: projectId ? queryKeys.financialEntries.list(projectId) : ["financial-entries", "disabled"],
-    queryFn: () => api.financialEntries.list(projectId!),
+    queryKey: projectId
+      ? queryKeys.financialEntries.list(projectId, {
+          type: typeFilter !== "all" ? typeFilter : undefined,
+          folder: folderFilterId ?? undefined,
+          createdBy: userFilterId ?? undefined,
+        })
+      : ["financial-entries", "disabled"],
+    queryFn: () => api.financialEntries.list(projectId!, {
+      type: typeFilter !== "all" ? typeFilter : undefined,
+      folder: folderFilterId ?? undefined,
+      created_by: userFilterId ?? undefined,
+    }),
     enabled: Boolean(projectId && canViewFinance),
   });
 
@@ -96,7 +125,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const createEntry = useMutation({
     mutationFn: (payload: FinancialEntryPayload) => api.financialEntries.create(projectId!, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setCreateOpen(false);
       setFormError(null);
     },
@@ -107,7 +136,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
     mutationFn: ({ id, payload }: { id: number; payload: Partial<FinancialEntryPayload> }) =>
       api.financialEntries.update(projectId!, id, payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setEditingEntry(null);
       setFormError(null);
     },
@@ -117,7 +146,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const deleteEntry = useMutation({
     mutationFn: (id: number) => api.financialEntries.remove(projectId!, id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.list(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setDeletingEntryId(null);
     },
   });
@@ -143,20 +172,16 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const targetFolders = targetTreeQuery.data ?? [];
   const members = normalizeApiList(membersQuery.data);
   const search = searchQuery.trim().toLowerCase();
-  const entries = allEntries
-    .filter((e) => typeFilter === "all" || e.type === typeFilter)
-    .filter((e) => folderFilterId == null || e.folder === folderFilterId)
-    .filter((e) => userFilter === "all" || e.created_by === userFilter)
-    .filter((e) =>
-      !search ||
-      (e.category ?? "").toLowerCase().includes(search) ||
-      (e.description ?? "").toLowerCase().includes(search) ||
-      (e.task_name ?? "").toLowerCase().includes(search) ||
-      (e.created_by_name ?? "").toLowerCase().includes(search),
-    );
+  const entries = search
+    ? allEntries.filter((e) =>
+        (e.category ?? "").toLowerCase().includes(search) ||
+        (e.description ?? "").toLowerCase().includes(search) ||
+        (e.task_name ?? "").toLowerCase().includes(search) ||
+        (e.created_by_name ?? "").toLowerCase().includes(search),
+      )
+    : allEntries;
   const totals = computeTotals(entries);
-  const folderFilterName = folderFilterId != null ? (findFolderName(folders, Number(folderFilterId)) ?? "Dossier") : null;
-  const hasFilters = typeFilter !== "all" || folderFilterId != null || searchQuery.trim() !== "" || userFilter !== "all";
+  const folderFilterName = folderFilterId != null ? (findFolderName(folders, folderFilterId) ?? "Dossier") : null;
 
   return (
     <div className="space-y-5">
@@ -174,23 +199,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
       </div>
 
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
-        <Input
-          className="w-full bg-background sm:w-56"
-          placeholder="Rechercher…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-        <div className="w-full sm:w-48">
-          <TreePickerDialog
-            mode="folder"
-            folders={folders}
-            selectedFolderId={folderFilterId}
-            buttonLabel={folderFilterName ?? "Tous dossiers"}
-            description="Filtrer les entrees par dossier."
-            onSelect={(id) => setFolderFilterId(id)}
-          />
-        </div>
-        <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
+        <Select value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
           <SelectTrigger className="w-full bg-background sm:w-44">
             <SelectValue />
           </SelectTrigger>
@@ -201,7 +210,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
           </SelectContent>
         </Select>
         {members.length > 0 ? (
-          <Select value={String(userFilter)} onValueChange={(v) => setUserFilter(v === "all" ? "all" : Number(v))}>
+          <Select value={userFilterId != null ? String(userFilterId) : "all"} onValueChange={(v) => updateUrlFilter({ member: v === "all" ? null : Number(v) })}>
             <SelectTrigger className="w-full bg-background sm:w-48">
               <SelectValue />
             </SelectTrigger>
@@ -213,16 +222,34 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
             </SelectContent>
           </Select>
         ) : null}
-        {hasFilters ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => { setTypeFilter("all"); setFolderFilterId(null); setSearchQuery(""); setUserFilter("all"); }}
-          >
-            Effacer filtres
-          </Button>
-        ) : null}
+        <div className="w-full sm:w-48">
+          <TreePickerDialog
+            mode="folder"
+            folders={folders}
+            selectedFolderId={folderFilterId}
+            buttonLabel={folderFilterName ?? "Tous dossiers"}
+            description="Filtrer les entrees par dossier."
+            onSelect={(id) => updateUrlFilter({ folder: id })}
+          />
+        </div>
+        <Input
+          className="w-full bg-background sm:w-56"
+          placeholder="Rechercher…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setSearchQuery("");
+            const params = new URLSearchParams({ project: String(selectedProject.id) });
+            router.replace(`/finance?${params.toString()}`, { scroll: false });
+          }}
+        >
+          Effacer filtres
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -600,4 +627,20 @@ function computeTotals(entries: FinancialEntry[]) {
     else refunds += amount;
   }
   return { expenses, refunds, balance: refunds - expenses };
+}
+
+function parseTypeFilter(value: string | null): "all" | "expense" | "refund" {
+  if (value === "expense" || value === "refund") return value;
+  return "all";
+}
+
+function parseIdParam(value: string | null): number | null {
+  if (!value) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function setOptionalParam(params: URLSearchParams, key: string, value: string | "all") {
+  if (value && value !== "all") params.set(key, value);
+  else params.delete(key);
 }

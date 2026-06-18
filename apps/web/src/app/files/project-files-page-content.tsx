@@ -56,7 +56,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { TaskDetailModal } from "@/components/ui/task-detail-modal";
-import { buildFolderNameMap, findFolderName, getDescendantFolderIds } from "@/lib/folder-utils";
+import { buildFolderNameMap, findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
 import { formatDuration, formatMoney, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -461,6 +461,8 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   }
 
   const selectedFolderName = findFolderName(treeQuery.data ?? [], selectedFolderId);
+  const selectedFolderNode = findFolderNode(treeQuery.data ?? [], selectedFolderId);
+  const selectedFolderCreatedBy = selectedFolderNode?.created_by_name ?? null;
 
   return (
     <div className="space-y-5">
@@ -644,6 +646,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
         <FolderPreviewPanel
           selectedFolderId={selectedFolderId}
           selectedFolderName={selectedFolderName}
+          selectedFolderCreatedBy={selectedFolderCreatedBy}
           tasks={normalizeApiList(previewTasksQuery.data)
             .filter((t) => t.status !== "done")
             .filter((t) => descendantFolderIds == null || (t.folder != null && descendantFolderIds.has(t.folder)))
@@ -832,6 +835,7 @@ function TimeTotals({ timeEntries }: { timeEntries: TimeEntry[] }) {
 function FolderPreviewPanel({
   selectedFolderId,
   selectedFolderName,
+  selectedFolderCreatedBy,
   tasks,
   timeEntries,
   canViewTasks,
@@ -844,6 +848,7 @@ function FolderPreviewPanel({
 }: {
   selectedFolderId: number | null;
   selectedFolderName: string | null;
+  selectedFolderCreatedBy: string | null;
   tasks: Task[];
   timeEntries: TimeEntry[];
   canViewTasks: boolean;
@@ -868,7 +873,11 @@ function FolderPreviewPanel({
           {headerIcon}
           <span className="truncate text-sm font-medium">{headerName}</span>
         </div>
-        <p className="mt-0.5 text-xs text-muted-foreground">Apercu du dossier</p>
+        {selectedFolderCreatedBy ? (
+          <p className="mt-0.5 text-xs text-muted-foreground">Cree par {selectedFolderCreatedBy}</p>
+        ) : (
+          <p className="mt-0.5 text-xs text-muted-foreground">Apercu du dossier</p>
+        )}
       </div>
 
       {canViewTasks ? (

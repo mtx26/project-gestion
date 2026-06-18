@@ -228,6 +228,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
 
 class FolderSerializer(serializers.ModelSerializer):
     is_root = serializers.BooleanField(read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Folder
@@ -235,6 +236,8 @@ class FolderSerializer(serializers.ModelSerializer):
             "id",
             "project",
             "parent_folder",
+            "created_by",
+            "created_by_name",
             "name",
             "description",
             "color",
@@ -247,8 +250,12 @@ class FolderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
+            "created_by",
             "is_root",
         ]
+
+    def get_created_by_name(self, obj):
+        return _get_user_display_name(obj.created_by)
         
     def create(self, validated_data):
         folder = Folder(**validated_data)
@@ -285,6 +292,7 @@ class FolderTreeNodeSerializer(serializers.Serializer):
     file_name = serializers.CharField(required=False)
     file_size = serializers.IntegerField(required=False)
     mime_type = serializers.CharField(required=False)
+    created_by_name = serializers.CharField(allow_null=True, required=False)
     children = serializers.ListField(
         child=serializers.DictField(),
         required=False,
