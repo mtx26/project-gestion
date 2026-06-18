@@ -55,10 +55,8 @@ services:
       context: ./apps/backend
     restart: unless-stopped
     depends_on:
-      db:
-        condition: service_healthy
-      minio-init:
-        condition: service_completed_successfully
+      - db
+      - minio-init
     environment:
       DATABASE_URL: postgresql://project_gestion:${DB_PASSWORD:-changeme}@db:5432/project_gestion
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
