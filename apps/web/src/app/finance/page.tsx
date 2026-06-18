@@ -5,9 +5,9 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Folder, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -23,12 +23,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DocumentAttachmentField } from "@/components/ui/document-attachment-field";
-import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
@@ -79,6 +79,12 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
     enabled: Boolean(projectId && canViewFinance),
   });
 
+  const targetTreeQuery = useQuery({
+    queryKey: projectId ? queryKeys.folders.targetTree(projectId) : ["folders", "target-tree", "disabled"],
+    queryFn: () => api.folders.targetTree(projectId!),
+    enabled: Boolean(projectId && canEditFinance),
+  });
+
   const createEntry = useMutation({
     mutationFn: (payload: FinancialEntryPayload) => api.financialEntries.create(projectId!, payload),
     onSuccess: () => {
@@ -126,6 +132,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
 
   const allEntries = normalizeApiList(entriesQuery.data);
   const folders = foldersQuery.data ?? [];
+  const targetFolders = targetTreeQuery.data ?? [];
   const entries = allEntries
     .filter((e) => typeFilter === "all" || e.type === typeFilter)
     .filter((e) => folderFilterId == null || e.folder === folderFilterId);
@@ -149,9 +156,10 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
 
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
         <div className="w-full sm:w-56">
-          <FolderTreePickerDialog
+          <TreePickerDialog
+            mode="folder"
             folders={folders}
-            selectedFolderId={folderFilterId != null ? Number(folderFilterId) : null}
+            selectedFolderId={folderFilterId}
             buttonLabel={folderFilterName ?? "Tous dossiers"}
             description="Filtrer les entrees par dossier."
             onSelect={(id) => setFolderFilterId(id)}
@@ -205,10 +213,13 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                     <span className="truncate text-sm text-muted-foreground">{entry.category}</span>
                   ) : null}
                 </div>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
                   {entry.description ? <span className="truncate">{entry.description}</span> : null}
-                  {entry.folder ? (
-                    <span className="shrink-0">
+                  {entry.task_name ? (
+                    <span className="shrink-0">{entry.task_name}</span>
+                  ) : entry.folder ? (
+                    <span className="shrink-0 inline-flex items-center gap-1">
+                      <Folder className="size-3 text-amber-500" />
                       {findFolderName(folders, entry.folder) ?? `Dossier #${entry.folder}`}
                     </span>
                   ) : null}
@@ -253,7 +264,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         open={createOpen}
         onOpenChange={(open) => { setCreateOpen(open); if (!open) setFormError(null); }}
         projectId={projectId!}
-        folders={folders}
+        targetFolders={targetFolders}
         error={formError}
         isPending={createEntry.isPending}
         onSubmit={(payload) => createEntry.mutate(payload)}
@@ -266,7 +277,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         open={editingEntry != null}
         onOpenChange={(open) => { if (!open) { setEditingEntry(null); setFormError(null); } }}
         projectId={projectId!}
-        folders={folders}
+        targetFolders={targetFolders}
         error={formError}
         isPending={updateEntry.isPending}
         onSubmit={(payload) => editingEntry && updateEntry.mutate({ id: editingEntry.id, payload })}
@@ -303,7 +314,7 @@ function FinancialEntryFormDialog({
   open,
   onOpenChange,
   projectId,
-  folders,
+  targetFolders,
   error,
   isPending,
   onSubmit,
@@ -313,21 +324,29 @@ function FinancialEntryFormDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: number;
-  folders: FolderTreeNode[];
+  targetFolders: FolderTreeNode[];
   error: string | null;
   isPending: boolean;
   onSubmit: (payload: FinancialEntryPayload) => void;
 }) {
+  const initialTarget = entry?.task != null
+    ? `task-${entry.task}`
+    : entry?.folder != null
+    ? `folder-${entry.folder}`
+    : "project";
+
   const [type, setType] = useState<"expense" | "refund">(entry?.type ?? "expense");
   const [amount, setAmount] = useState(entry?.amount ?? "");
   const [category, setCategory] = useState(entry?.category ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
-  const [folderId, setFolderId] = useState<number | null>(entry?.folder ?? null);
+  const [targetValue, setTargetValue] = useState(initialTarget);
   const [documentId, setDocumentId] = useState<number | null>(entry?.document ?? null);
   const [documentFile, setDocumentFile] = useState<globalThis.File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const folderName = findFolderName(folders, folderId);
+
+  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
+  const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -335,7 +354,7 @@ function FinancialEntryFormDialog({
       setAmount(entry?.amount ?? "");
       setCategory(entry?.category ?? "");
       setDescription(entry?.description ?? "");
-      setFolderId(entry?.folder ?? null);
+      setTargetValue(initialTarget);
       setDocumentId(entry?.document ?? null);
       setDocumentFile(null);
       setUploadError(null);
@@ -351,10 +370,11 @@ function FinancialEntryFormDialog({
 
     if (documentFile) {
       setUploading(true);
+      const { folder } = getTargetPayload(targetValue);
       try {
         const uploaded: ApiFile = await api.documents.upload(projectId, {
           file: documentFile,
-          folder: folderId ?? undefined,
+          folder: folder ?? undefined,
           name: documentFile.name,
         });
         resolvedDocumentId = uploaded.id;
@@ -366,12 +386,14 @@ function FinancialEntryFormDialog({
       setUploading(false);
     }
 
+    const { folder, task } = getTargetPayload(targetValue);
     onSubmit({
       type,
       amount: amount.replace(",", "."),
       category: category.trim() || null,
       description: description.trim() || null,
-      folder: folderId,
+      folder,
+      task,
       document: resolvedDocumentId,
     });
   }
@@ -439,12 +461,13 @@ function FinancialEntryFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Dossier (optionnel)</Label>
-            <FolderTreePickerDialog
-              folders={folders}
-              selectedFolderId={folderId}
-              buttonLabel={folderName ?? "Projet"}
-              onSelect={setFolderId}
+            <Label>Cible (optionnel)</Label>
+            <TreePickerDialog
+              mode="target"
+              folders={targetFolders}
+              selectedValue={targetValue}
+              selectedLabel={targetLabel}
+              onSelect={setTargetValue}
             />
           </div>
 

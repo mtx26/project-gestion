@@ -189,3 +189,64 @@ class DocumentDownloadView(generics.GenericAPIView):
         return Response(serializer.data)
 
 
+@extend_schema(tags=["documents"])
+@extend_schema_view(
+    get=extend_schema(
+        summary="Lister les documents supprimes",
+        description=(
+            "Retourne les documents supprimes d'un projet.\n\n"
+            "- Filtres disponibles : `folder`, `mime_type`.\n\n"
+            "- Recherche disponible : `search` sur `name`, `description`, `file_name` et `mime_type`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `file.restore`."
+        ),
+    )
+)
+class DocumentTrashListView(generics.ListAPIView):
+    serializer_class = DocumentSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["folder", "mime_type"]
+    search_fields = ["name", "description", "file_name", "mime_type"]
+
+    def get_permissions(self):
+        self.permission_code = "file.restore"
+        return super().get_permissions()
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Document.deleted_objects.none()
+
+        return Document.deleted_objects.filter(
+            project_id=self.kwargs["project_id"],
+            project__in=get_accessible_projects(self.request.user),
+        ).order_by("name", "id")
+
+
+@extend_schema(tags=["documents"])
+@extend_schema_view(
+    post=extend_schema(
+        summary="Restaurer un document",
+        description="Restaure un document supprime. Le fichier binaire en stockage n'est jamais supprime.\nPermission requise : `file.restore`.",
+        request=None,
+    )
+)
+class DocumentRestoreView(generics.GenericAPIView):
+    serializer_class = DocumentSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "file.restore"
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Document.deleted_objects.none()
+
+        return Document.deleted_objects.filter(
+            project_id=self.kwargs["project_id"],
+            project__in=get_accessible_projects(self.request.user),
+        )
+
+    def post(self, request, project_id, pk):
+        document = self.get_object()
+        document.restore()
+        serializer = self.get_serializer(document)
+        return Response(serializer.data)

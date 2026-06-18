@@ -462,6 +462,10 @@ export function createApiClient({
           body: formData,
         });
       },
+      trash: (projectId: number) =>
+        request<File[] | PaginatedResponse<File>>(`/api/projects/${projectId}/documents/trash/`),
+      restore: (projectId: number, id: number) =>
+        request<File>(`/api/projects/${projectId}/documents/${id}/restore/`, { method: "POST" }),
     },
     expenseRequests: {
       list: (projectId: number) =>

@@ -763,6 +763,7 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
 
 class FinancialEntrySerializer(serializers.ModelSerializer):
     document_name = serializers.SerializerMethodField()
+    task_name = serializers.SerializerMethodField()
 
     class Meta:
         model = FinancialEntry
@@ -773,6 +774,8 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "document",
             "document_name",
             "time_entry",
+            "task",
+            "task_name",
             "created_by",
             "amount",
             "type",
@@ -787,10 +790,14 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "project",
             "created_by",
             "document_name",
+            "task_name",
         ]
 
     def get_document_name(self, obj):
         return obj.document.file_name if obj.document_id else None
+
+    def get_task_name(self, obj):
+        return obj.task.title if obj.task_id else None
 
     def create(self, validated_data):
         financial_entry = FinancialEntry(**validated_data)
@@ -818,6 +825,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
 class ExpenseRequestSerializer(serializers.ModelSerializer):
     document_name = serializers.SerializerMethodField()
+    task_name = serializers.SerializerMethodField()
 
     class Meta:
         model = ExpenseRequest
@@ -831,6 +839,8 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "folder",
             "document",
             "document_name",
+            "task",
+            "task_name",
             "status",
             "requested_by",
             "approved_at",
@@ -847,10 +857,14 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "approved_at",
             "approved_by",
             "document_name",
+            "task_name",
         ]
 
     def get_document_name(self, obj):
         return obj.document.file_name if obj.document_id else None
+
+    def get_task_name(self, obj):
+        return obj.task.title if obj.task_id else None
 
     def create(self, validated_data):
         expense_request = ExpenseRequest(**validated_data)

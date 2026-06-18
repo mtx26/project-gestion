@@ -32,6 +32,10 @@ export const queryKeys = {
       ["projects", projectId, "financial-entries", "chart", groupBy] as const,
     trash: (projectId: number) => ["projects", projectId, "financial-entries", "trash"] as const,
   },
+  documents: {
+    list: (projectId: number) => ["projects", projectId, "documents"] as const,
+    trash: (projectId: number) => ["projects", projectId, "documents", "trash"] as const,
+  },
   expenseRequests: {
     list: (projectId: number) => ["projects", projectId, "expense-requests"] as const,
   },

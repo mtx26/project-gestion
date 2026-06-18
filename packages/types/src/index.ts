@@ -279,6 +279,8 @@ export type FinancialEntry = {
   document: ID | null;
   document_name: string | null;
   time_entry: ID | null;
+  task: ID | null;
+  task_name: string | null;
   created_by: ID;
   amount: string;
   type: "expense" | "refund";
@@ -297,6 +299,7 @@ export type FinancialEntryPayload = {
   description?: string | null;
   folder?: ID | null;
   document?: ID | null;
+  task?: ID | null;
 };
 
 export type ExpenseRequest = {
@@ -309,6 +312,8 @@ export type ExpenseRequest = {
   folder: ID | null;
   document: ID | null;
   document_name: string | null;
+  task: ID | null;
+  task_name: string | null;
   status: "pending" | "approved" | "rejected";
   requested_by: ID;
   approved_at: string | null;
@@ -326,6 +331,7 @@ export type ExpenseRequestPayload = {
   description?: string | null;
   folder?: ID | null;
   document?: ID | null;
+  task?: ID | null;
 };
 
 export type FinancialEntryChartTotals = {

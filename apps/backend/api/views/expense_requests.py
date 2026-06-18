@@ -3,9 +3,11 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from rest_framework import generics
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import ExpenseRequest, FinancialEntry
@@ -28,6 +30,9 @@ from ..services.projects import get_accessible_projects
 class ExpenseRequestListCreateView(generics.ListCreateAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_fields = ["status", "folder"]
+    search_fields = ["title", "category", "description"]
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -48,6 +53,7 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
             "project",
             "folder",
             "document",
+            "task",
             "requested_by",
             "approved_by",
         ).order_by("-created_at", "-id")
@@ -104,6 +110,7 @@ class ExpenseRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
             "project",
             "folder",
             "document",
+            "task",
             "requested_by",
             "approved_by",
         )
@@ -141,6 +148,7 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
             "project",
             "folder",
             "document",
+            "task",
             "requested_by",
             "approved_by",
         )
@@ -158,6 +166,7 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
                 project=expense_request.project,
                 folder=expense_request.folder,
                 document=expense_request.document,
+                task=expense_request.task,
                 created_by=request.user,
                 amount=expense_request.amount,
                 type=FinancialEntry.FinancialType.EXPENSE,
@@ -194,6 +203,7 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
             "project",
             "folder",
             "document",
+            "task",
             "requested_by",
             "approved_by",
         )

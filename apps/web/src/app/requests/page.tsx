@@ -5,9 +5,9 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, Pencil, Plus, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Folder, ListTodo, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -22,11 +22,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DocumentAttachmentField } from "@/components/ui/document-attachment-field";
-import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
@@ -63,6 +64,9 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [folderFilterId, setFolderFilterId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const requestsQuery = useQuery({
     queryKey: projectId ? queryKeys.expenseRequests.list(projectId) : ["expense-requests", "disabled"],
@@ -74,6 +78,12 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     queryKey: projectId ? queryKeys.folders.tree(projectId) : ["folders", "tree", "disabled"],
     queryFn: () => api.folders.tree(projectId!),
     enabled: Boolean(projectId && canView),
+  });
+
+  const targetTreeQuery = useQuery({
+    queryKey: projectId ? queryKeys.folders.targetTree(projectId) : ["folders", "target-tree", "disabled"],
+    queryFn: () => api.folders.targetTree(projectId!),
+    enabled: Boolean(projectId && canEdit),
   });
 
   const createRequest = useMutation({
@@ -134,8 +144,23 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     );
   }
 
-  const requests = normalizeApiList(requestsQuery.data);
+  const allRequests = normalizeApiList(requestsQuery.data);
   const folders = foldersQuery.data ?? [];
+  const targetFolders = targetTreeQuery.data ?? [];
+
+  const search = searchQuery.trim().toLowerCase();
+  const requests = allRequests
+    .filter((r) => statusFilter === "all" || r.status === statusFilter)
+    .filter((r) => folderFilterId == null || r.folder === folderFilterId)
+    .filter((r) =>
+      !search ||
+      r.title.toLowerCase().includes(search) ||
+      (r.category ?? "").toLowerCase().includes(search) ||
+      (r.description ?? "").toLowerCase().includes(search),
+    );
+
+  const folderFilterName = folderFilterId != null ? (findFolderName(folders, folderFilterId) ?? "Dossier") : null;
+  const hasFilters = statusFilter !== "all" || folderFilterId != null || searchQuery.trim() !== "";
 
   return (
     <div className="space-y-5">
@@ -148,6 +173,46 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
           <Button type="button" className="gap-2" onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
             Nouvelle demande
+          </Button>
+        ) : null}
+      </div>
+
+      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <Input
+          className="w-full bg-background sm:w-56"
+          placeholder="Rechercher…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+        <div className="w-full sm:w-48">
+          <TreePickerDialog
+            mode="folder"
+            folders={folders}
+            selectedFolderId={folderFilterId}
+            buttonLabel={folderFilterName ?? "Tous dossiers"}
+            description="Filtrer les demandes par dossier."
+            onSelect={(id) => setFolderFilterId(id)}
+          />
+        </div>
+        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
+          <SelectTrigger className="w-full bg-background sm:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tous statuts</SelectItem>
+            <SelectItem value="pending">En attente</SelectItem>
+            <SelectItem value="approved">Approuve</SelectItem>
+            <SelectItem value="rejected">Refuse</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasFilters ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => { setStatusFilter("all"); setFolderFilterId(null); setSearchQuery(""); }}
+          >
+            Effacer filtres
           </Button>
         ) : null}
       </div>
@@ -171,21 +236,30 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
           {requests.map((req) => (
             <div
               key={req.id}
-              className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3"
+              className="flex items-start gap-4 rounded-lg border bg-card px-4 py-3"
             >
-              <RequestStatusBadge status={req.status} />
+              <div className="pt-0.5">
+                <RequestStatusBadge status={req.status} />
+              </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">{req.title}</span>
-                  <span className="tabular-nums text-muted-foreground">{formatMoney(req.amount)}</span>
-                  {req.category ? (
-                    <span className="truncate text-sm text-muted-foreground">{req.category}</span>
-                  ) : null}
+                  <span className="shrink-0 tabular-nums text-muted-foreground">{formatMoney(req.amount)}</span>
                 </div>
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {req.description ? <span className="truncate">{req.description}</span> : null}
-                  {req.folder ? (
-                    <span className="shrink-0">
+                {req.category || req.description ? (
+                  <p className="truncate text-sm text-muted-foreground">
+                    {[req.category, req.description].filter(Boolean).join(" · ")}
+                  </p>
+                ) : null}
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                  {req.task_name ? (
+                    <span className="inline-flex items-center gap-1">
+                      <ListTodo className="size-3 text-sky-600" />
+                      {req.task_name}
+                    </span>
+                  ) : req.folder ? (
+                    <span className="inline-flex items-center gap-1">
+                      <Folder className="size-3 text-amber-500" />
                       {findFolderName(folders, req.folder) ?? `Dossier #${req.folder}`}
                     </span>
                   ) : null}
@@ -197,7 +271,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                   </span>
                 </div>
               </div>
-              <div className="flex shrink-0 gap-1">
+              <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                 {canApprove && req.status === "pending" ? (
                   <>
                     <Button
@@ -256,7 +330,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         open={createOpen}
         onOpenChange={setCreateOpen}
         projectId={projectId!}
-        folders={folders}
+        targetFolders={targetFolders}
         isPending={createRequest.isPending}
         onSubmit={(payload) => createRequest.mutate(payload)}
       />
@@ -268,7 +342,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         open={editingRequest != null}
         onOpenChange={(open) => { if (!open) setEditingRequest(null); }}
         projectId={projectId!}
-        folders={folders}
+        targetFolders={targetFolders}
         isPending={updateRequest.isPending}
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}
       />
@@ -304,7 +378,7 @@ function ExpenseRequestFormDialog({
   open,
   onOpenChange,
   projectId,
-  folders,
+  targetFolders,
   isPending,
   onSubmit,
 }: {
@@ -313,20 +387,28 @@ function ExpenseRequestFormDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: number;
-  folders: FolderTreeNode[];
+  targetFolders: FolderTreeNode[];
   isPending: boolean;
   onSubmit: (payload: ExpenseRequestPayload) => void;
 }) {
+  const initialTarget = request?.task != null
+    ? `task-${request.task}`
+    : request?.folder != null
+    ? `folder-${request.folder}`
+    : "project";
+
   const [title, setTitle] = useState(request?.title ?? "");
   const [amount, setAmount] = useState(request?.amount ?? "");
   const [category, setCategory] = useState(request?.category ?? "");
   const [description, setDescription] = useState(request?.description ?? "");
-  const [folderId, setFolderId] = useState<number | null>(request?.folder ?? null);
+  const [targetValue, setTargetValue] = useState(initialTarget);
   const [documentId, setDocumentId] = useState<number | null>(request?.document ?? null);
   const [documentFile, setDocumentFile] = useState<globalThis.File | null>(null);
   const [uploading, setUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const folderName = findFolderName(folders, folderId);
+
+  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
+  const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -334,7 +416,7 @@ function ExpenseRequestFormDialog({
       setAmount(request?.amount ?? "");
       setCategory(request?.category ?? "");
       setDescription(request?.description ?? "");
-      setFolderId(request?.folder ?? null);
+      setTargetValue(initialTarget);
       setDocumentId(request?.document ?? null);
       setDocumentFile(null);
       setFormError(null);
@@ -350,10 +432,11 @@ function ExpenseRequestFormDialog({
 
     if (documentFile) {
       setUploading(true);
+      const { folder } = getTargetPayload(targetValue);
       try {
         const uploaded: ApiFile = await api.documents.upload(projectId, {
           file: documentFile,
-          folder: folderId ?? undefined,
+          folder: folder ?? undefined,
           name: documentFile.name,
         });
         resolvedDocumentId = uploaded.id;
@@ -365,12 +448,14 @@ function ExpenseRequestFormDialog({
       setUploading(false);
     }
 
+    const { folder, task } = getTargetPayload(targetValue);
     onSubmit({
       title: title.trim(),
       amount: amount.replace(",", "."),
       category: category.trim() || null,
       description: description.trim() || null,
-      folder: folderId,
+      folder,
+      task,
       document: resolvedDocumentId,
     });
   }
@@ -439,12 +524,13 @@ function ExpenseRequestFormDialog({
           </div>
 
           <div className="flex flex-col gap-2">
-            <Label>Dossier (optionnel)</Label>
-            <FolderTreePickerDialog
-              folders={folders}
-              selectedFolderId={folderId}
-              buttonLabel={folderName ?? "Projet"}
-              onSelect={setFolderId}
+            <Label>Cible (optionnel)</Label>
+            <TreePickerDialog
+              mode="target"
+              folders={targetFolders}
+              selectedValue={targetValue}
+              selectedLabel={targetLabel}
+              onSelect={setTargetValue}
             />
           </div>
 
