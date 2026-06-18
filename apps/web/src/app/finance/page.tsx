@@ -1,13 +1,12 @@
 "use client";
 
-import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
+import type { FinancialEntry, FinancialEntryPayload, File as ApiFile, FolderTreeNode } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { FormEvent } from "react";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -23,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DocumentAttachmentField } from "@/components/ui/document-attachment-field";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -212,6 +212,9 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                       {findFolderName(folders, entry.folder) ?? `Dossier #${entry.folder}`}
                     </span>
                   ) : null}
+                  {entry.document ? (
+                    <span className="shrink-0">{entry.document_name ?? `Document #${entry.document}`}</span>
+                  ) : null}
                   <span className="ml-auto shrink-0">
                     {new Date(entry.created_at).toLocaleDateString("fr-BE")}
                   </span>
@@ -249,6 +252,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         mode="create"
         open={createOpen}
         onOpenChange={(open) => { setCreateOpen(open); if (!open) setFormError(null); }}
+        projectId={projectId!}
         folders={folders}
         error={formError}
         isPending={createEntry.isPending}
@@ -261,6 +265,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         entry={editingEntry ?? undefined}
         open={editingEntry != null}
         onOpenChange={(open) => { if (!open) { setEditingEntry(null); setFormError(null); } }}
+        projectId={projectId!}
         folders={folders}
         error={formError}
         isPending={updateEntry.isPending}
@@ -297,6 +302,7 @@ function FinancialEntryFormDialog({
   entry,
   open,
   onOpenChange,
+  projectId,
   folders,
   error,
   isPending,
@@ -306,6 +312,7 @@ function FinancialEntryFormDialog({
   entry?: FinancialEntry;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  projectId: number;
   folders: FolderTreeNode[];
   error: string | null;
   isPending: boolean;
@@ -316,6 +323,10 @@ function FinancialEntryFormDialog({
   const [category, setCategory] = useState(entry?.category ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [folderId, setFolderId] = useState<number | null>(entry?.folder ?? null);
+  const [documentId, setDocumentId] = useState<number | null>(entry?.document ?? null);
+  const [documentFile, setDocumentFile] = useState<globalThis.File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const folderName = findFolderName(folders, folderId);
 
   function handleOpenChange(next: boolean) {
@@ -325,20 +336,47 @@ function FinancialEntryFormDialog({
       setCategory(entry?.category ?? "");
       setDescription(entry?.description ?? "");
       setFolderId(entry?.folder ?? null);
+      setDocumentId(entry?.document ?? null);
+      setDocumentFile(null);
+      setUploadError(null);
     }
     onOpenChange(next);
   }
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.BaseSyntheticEvent) {
     e.preventDefault();
+    setUploadError(null);
+
+    let resolvedDocumentId = documentId;
+
+    if (documentFile) {
+      setUploading(true);
+      try {
+        const uploaded: ApiFile = await api.documents.upload(projectId, {
+          file: documentFile,
+          folder: folderId ?? undefined,
+          name: documentFile.name,
+        });
+        resolvedDocumentId = uploaded.id;
+      } catch (err) {
+        setUploadError(getErrorMessage(err));
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+
     onSubmit({
       type,
       amount: amount.replace(",", "."),
       category: category.trim() || null,
       description: description.trim() || null,
       folder: folderId,
+      document: resolvedDocumentId,
     });
   }
+
+  const isSubmitting = uploading || isPending;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -410,6 +448,20 @@ function FinancialEntryFormDialog({
             />
           </div>
 
+          <DocumentAttachmentField
+            documentId={documentId}
+            documentName={entry?.document_name}
+            selectedFile={documentFile}
+            onFileChange={setDocumentFile}
+            onClearDocument={() => setDocumentId(null)}
+          />
+
+          {uploadError ? (
+            <Alert variant="destructive">
+              <AlertDescription>{uploadError}</AlertDescription>
+            </Alert>
+          ) : null}
+
           {error ? (
             <Alert variant="destructive">
               <AlertDescription>{error}</AlertDescription>
@@ -421,8 +473,8 @@ function FinancialEntryFormDialog({
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
-          <Button type="submit" form="finance-form" disabled={isPending}>
-            {mode === "create" ? "Creer" : "Enregistrer"}
+          <Button type="submit" form="finance-form" disabled={isSubmitting}>
+            {uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
           </Button>
         </DialogFooter>
       </DialogContent>

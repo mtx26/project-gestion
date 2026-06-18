@@ -487,6 +487,11 @@ export function createApiClient({
           `/api/projects/${projectId}/expense-requests/${id}/approve/`,
           { method: "POST" },
         ),
+      reject: (projectId: number, id: number) =>
+        request<ExpenseRequest>(
+          `/api/projects/${projectId}/expense-requests/${id}/reject/`,
+          { method: "POST" },
+        ),
     },
   };
 }

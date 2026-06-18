@@ -5,6 +5,7 @@ export type TargetOption = {
   label: string;
   depth: number;
   type: "project" | "folder" | "task";
+  status?: "todo" | "in_progress" | "done";
 };
 
 export type TargetTreeNode = TargetOption & {
@@ -31,6 +32,7 @@ function buildFolderTargetTree(nodes: FolderTreeNode[], depth: number): TargetTr
       label: node.name,
       depth,
       type: node.type,
+      status: node.type === "task" ? node.status : undefined,
       children: node.type === "folder" ? buildFolderTargetTree(node.children ?? [], depth + 1) : [],
     });
   }

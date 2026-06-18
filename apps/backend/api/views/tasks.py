@@ -182,7 +182,7 @@ class TaskTrashListView(generics.ListAPIView):
     search_fields = ["title", "description"]
 
     def get_permissions(self):
-        self.permission_code = "task.view"
+        self.permission_code = "task.restore"
         return super().get_permissions()
 
     def get_queryset(self):

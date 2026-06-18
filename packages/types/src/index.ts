@@ -277,6 +277,7 @@ export type FinancialEntry = {
   project: ID;
   folder: ID | null;
   document: ID | null;
+  document_name: string | null;
   time_entry: ID | null;
   created_by: ID;
   amount: string;
@@ -307,6 +308,7 @@ export type ExpenseRequest = {
   description: string | null;
   folder: ID | null;
   document: ID | null;
+  document_name: string | null;
   status: "pending" | "approved" | "rejected";
   requested_by: ID;
   approved_at: string | null;

@@ -167,3 +167,40 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
 
         serializer = self.get_serializer(expense_request)
         return Response(serializer.data)
+
+
+@extend_schema(tags=["expense-requests"])
+@extend_schema_view(
+    post=extend_schema(
+        summary="Refuser une demande de remboursement",
+        description="Refuse une demande en attente.\nPermission requise : `expense_request.approve`.",
+        request=None,
+    )
+)
+class ExpenseRequestRejectView(generics.GenericAPIView):
+    serializer_class = ExpenseRequestSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "expense_request.approve"
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ExpenseRequest.objects.none()
+
+        return ExpenseRequest.objects.filter(
+            project_id=self.kwargs["project_id"],
+            project__in=get_accessible_projects(self.request.user),
+            status=ExpenseRequest.STATUS_PENDING,
+        ).select_related(
+            "project",
+            "folder",
+            "document",
+            "requested_by",
+            "approved_by",
+        )
+
+    def post(self, request, project_id, pk):
+        expense_request = self.get_object()
+        expense_request.status = ExpenseRequest.STATUS_REJECTED
+        expense_request.save()
+        serializer = self.get_serializer(expense_request)
+        return Response(serializer.data)

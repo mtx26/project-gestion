@@ -284,7 +284,7 @@ class FinancialEntryTrashListView(generics.ListAPIView):
     search_fields = ["category", "description"]
 
     def get_permissions(self):
-        self.permission_code = "finance.view"
+        self.permission_code = "finance.restore"
         return super().get_permissions()
 
     def get_queryset(self):

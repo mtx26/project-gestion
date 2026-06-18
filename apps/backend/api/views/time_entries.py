@@ -277,7 +277,7 @@ class TimeEntryTrashListView(generics.ListAPIView):
     search_fields = ["description"]
 
     def get_permissions(self):
-        self.permission_code = "time_entry.view"
+        self.permission_code = "time_entry.restore"
         return super().get_permissions()
 
     def get_queryset(self):

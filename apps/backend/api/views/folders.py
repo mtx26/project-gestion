@@ -222,7 +222,7 @@ class FolderTrashListView(generics.ListAPIView):
     search_fields = ["name", "description"]
 
     def get_permissions(self):
-        self.permission_code = "file.view"
+        self.permission_code = "file.restore"
         return super().get_permissions()
 
     def get_queryset(self):

@@ -7,7 +7,7 @@ import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, Clock, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DocumentAttachmentField } from "@/components/ui/document-attachment-field";
 import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,7 +62,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const [createOpen, setCreateOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const requestsQuery = useQuery({
     queryKey: projectId ? queryKeys.expenseRequests.list(projectId) : ["expense-requests", "disabled"],
@@ -80,9 +81,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
       setCreateOpen(false);
-      setFormError(null);
     },
-    onError: (err) => setFormError(getErrorMessage(err)),
   });
 
   const updateRequest = useMutation({
@@ -91,9 +90,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
       setEditingRequest(null);
-      setFormError(null);
     },
-    onError: (err) => setFormError(getErrorMessage(err)),
   });
 
   const deleteRequest = useMutation({
@@ -110,7 +107,15 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
       queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.list(projectId!) });
     },
-    onError: (err) => setFormError(getErrorMessage(err)),
+    onError: (err) => setActionError(getErrorMessage(err)),
+  });
+
+  const rejectRequest = useMutation({
+    mutationFn: (id: number) => api.expenseRequests.reject(projectId!, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.list(projectId!) });
+    },
+    onError: (err) => setActionError(getErrorMessage(err)),
   });
 
   if (!selectedProject) {
@@ -140,12 +145,18 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
           <h1 className="mt-1 text-2xl font-semibold">Demandes de remboursement</h1>
         </div>
         {canEdit ? (
-          <Button type="button" className="gap-2" onClick={() => { setFormError(null); setCreateOpen(true); }}>
+          <Button type="button" className="gap-2" onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
             Nouvelle demande
           </Button>
         ) : null}
       </div>
+
+      {actionError ? (
+        <Alert variant="destructive">
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
+      ) : null}
 
       {requestsQuery.isLoading ? (
         <div className="flex flex-col gap-2">
@@ -178,7 +189,9 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                       {findFolderName(folders, req.folder) ?? `Dossier #${req.folder}`}
                     </span>
                   ) : null}
-                  {req.document ? <span className="shrink-0">Document joint</span> : null}
+                  {req.document ? (
+                    <span className="shrink-0">{req.document_name ?? `Document #${req.document}`}</span>
+                  ) : null}
                   <span className="ml-auto shrink-0">
                     {new Date(req.created_at).toLocaleDateString("fr-BE")}
                   </span>
@@ -186,24 +199,37 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
               </div>
               <div className="flex shrink-0 gap-1">
                 {canApprove && req.status === "pending" ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={approveRequest.isPending}
-                    onClick={() => approveRequest.mutate(req.id)}
-                  >
-                    <CheckCircle2 className="size-3.5" />
-                    Approuver
-                  </Button>
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={approveRequest.isPending || rejectRequest.isPending}
+                      onClick={() => { setActionError(null); approveRequest.mutate(req.id); }}
+                    >
+                      <CheckCircle2 className="size-3.5" />
+                      Approuver
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700"
+                      disabled={approveRequest.isPending || rejectRequest.isPending}
+                      onClick={() => { setActionError(null); rejectRequest.mutate(req.id); }}
+                    >
+                      <XCircle className="size-3.5" />
+                      Refuser
+                    </Button>
+                  </>
                 ) : null}
                 {canEdit && req.status === "pending" ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => { setFormError(null); setEditingRequest(req); }}
+                    onClick={() => setEditingRequest(req)}
                   >
                     <Pencil className="size-4" />
                   </Button>
@@ -228,10 +254,9 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       <ExpenseRequestFormDialog
         mode="create"
         open={createOpen}
-        onOpenChange={(open) => { setCreateOpen(open); if (!open) setFormError(null); }}
+        onOpenChange={setCreateOpen}
         projectId={projectId!}
         folders={folders}
-        error={formError}
         isPending={createRequest.isPending}
         onSubmit={(payload) => createRequest.mutate(payload)}
       />
@@ -241,10 +266,9 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         mode="edit"
         request={editingRequest ?? undefined}
         open={editingRequest != null}
-        onOpenChange={(open) => { if (!open) { setEditingRequest(null); setFormError(null); } }}
+        onOpenChange={(open) => { if (!open) setEditingRequest(null); }}
         projectId={projectId!}
         folders={folders}
-        error={formError}
         isPending={updateRequest.isPending}
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}
       />
@@ -281,7 +305,6 @@ function ExpenseRequestFormDialog({
   onOpenChange,
   projectId,
   folders,
-  error,
   isPending,
   onSubmit,
 }: {
@@ -291,7 +314,6 @@ function ExpenseRequestFormDialog({
   onOpenChange: (open: boolean) => void;
   projectId: number;
   folders: FolderTreeNode[];
-  error: string | null;
   isPending: boolean;
   onSubmit: (payload: ExpenseRequestPayload) => void;
 }) {
@@ -303,8 +325,7 @@ function ExpenseRequestFormDialog({
   const [documentId, setDocumentId] = useState<number | null>(request?.document ?? null);
   const [documentFile, setDocumentFile] = useState<globalThis.File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const folderName = findFolderName(folders, folderId);
 
   function handleOpenChange(next: boolean) {
@@ -316,15 +337,14 @@ function ExpenseRequestFormDialog({
       setFolderId(request?.folder ?? null);
       setDocumentId(request?.document ?? null);
       setDocumentFile(null);
-      setUploadError(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setFormError(null);
     }
     onOpenChange(next);
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.BaseSyntheticEvent) {
     e.preventDefault();
-    setUploadError(null);
+    setFormError(null);
 
     let resolvedDocumentId = documentId;
 
@@ -338,7 +358,7 @@ function ExpenseRequestFormDialog({
         });
         resolvedDocumentId = uploaded.id;
       } catch (err) {
-        setUploadError(getErrorMessage(err));
+        setFormError(getErrorMessage(err));
         setUploading(false);
         return;
       }
@@ -428,43 +448,17 @@ function ExpenseRequestFormDialog({
             />
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="req-document">Document justificatif (optionnel)</Label>
-            {documentId && !documentFile ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Document existant #{documentId}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="h-auto p-0 text-destructive hover:text-destructive"
-                  onClick={() => setDocumentId(null)}
-                >
-                  Supprimer
-                </Button>
-              </div>
-            ) : null}
-            <Input
-              id="req-document"
-              ref={fileInputRef}
-              type="file"
-              className="cursor-pointer"
-              onChange={(e) => setDocumentFile(e.target.files?.[0] ?? null)}
-            />
-            {documentFile ? (
-              <p className="text-xs text-muted-foreground">{documentFile.name}</p>
-            ) : null}
-          </div>
+          <DocumentAttachmentField
+            documentId={documentId}
+            documentName={request?.document_name}
+            selectedFile={documentFile}
+            onFileChange={setDocumentFile}
+            onClearDocument={() => setDocumentId(null)}
+          />
 
-          {uploadError ? (
+          {formError ? (
             <Alert variant="destructive">
-              <AlertDescription>{uploadError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription>{formError}</AlertDescription>
             </Alert>
           ) : null}
         </form>

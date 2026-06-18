@@ -762,6 +762,8 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):
+    document_name = serializers.SerializerMethodField()
+
     class Meta:
         model = FinancialEntry
         fields = [
@@ -769,6 +771,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "project",
             "folder",
             "document",
+            "document_name",
             "time_entry",
             "created_by",
             "amount",
@@ -783,7 +786,11 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
             "created_by",
+            "document_name",
         ]
+
+    def get_document_name(self, obj):
+        return obj.document.file_name if obj.document_id else None
 
     def create(self, validated_data):
         financial_entry = FinancialEntry(**validated_data)
@@ -810,6 +817,8 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
 
 class ExpenseRequestSerializer(serializers.ModelSerializer):
+    document_name = serializers.SerializerMethodField()
+
     class Meta:
         model = ExpenseRequest
         fields = [
@@ -821,6 +830,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "description",
             "folder",
             "document",
+            "document_name",
             "status",
             "requested_by",
             "approved_at",
@@ -836,7 +846,11 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "status",
             "approved_at",
             "approved_by",
+            "document_name",
         ]
+
+    def get_document_name(self, obj):
+        return obj.document.file_name if obj.document_id else None
 
     def create(self, validated_data):
         expense_request = ExpenseRequest(**validated_data)

@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Clock3, Folder as FolderIcon, ListTodo, RotateCcw } from "lucide-react";
+import { Clock3, Folder as FolderIcon, ListTodo, Lock, RotateCcw } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
   const foldersTrashQuery = useQuery({
     queryKey: projectId ? queryKeys.folders.trash(projectId) : ["folders", "trash", "disabled"],
     queryFn: () => api.folders.trash(projectId!),
-    enabled: Boolean(projectId && canViewFiles),
+    enabled: Boolean(projectId && canRestoreFiles),
   });
   const restoreFolder = useMutation({
     mutationFn: (folderId: number) => api.folders.restore(projectId!, folderId),
@@ -84,7 +84,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
   const tasksTrashQuery = useQuery({
     queryKey: projectId ? queryKeys.tasks.trash(projectId) : ["tasks", "trash", "disabled"],
     queryFn: () => api.tasks.trash(projectId!),
-    enabled: Boolean(projectId && canViewTasks),
+    enabled: Boolean(projectId && canRestoreTasks),
   });
   const restoreTask = useMutation({
     mutationFn: (taskId: number) => api.tasks.restore(projectId!, taskId),
@@ -98,7 +98,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
   const timeEntriesTrashQuery = useQuery({
     queryKey: projectId ? queryKeys.timeEntries.trash(projectId) : ["time-entries", "trash", "disabled"],
     queryFn: () => api.timeEntries.trash(projectId!),
-    enabled: Boolean(projectId && canViewTime),
+    enabled: Boolean(projectId && canRestoreTime),
   });
   const restoreTimeEntry = useMutation({
     mutationFn: (timeEntryId: number) => api.timeEntries.restore(projectId!, timeEntryId),
@@ -133,21 +133,33 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
             ) : null}
           </TabsTrigger>
           <TabsTrigger value="folders" className="gap-2">
-            <FolderIcon className="size-4" />
+            {selectedProject && !canRestoreFiles ? (
+              <Lock className="size-4 text-muted-foreground" />
+            ) : (
+              <FolderIcon className="size-4" />
+            )}
             Dossiers
             {folders.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{folders.length}</span>
             ) : null}
           </TabsTrigger>
           <TabsTrigger value="tasks" className="gap-2">
-            <ListTodo className="size-4" />
+            {selectedProject && !canRestoreTasks ? (
+              <Lock className="size-4 text-muted-foreground" />
+            ) : (
+              <ListTodo className="size-4" />
+            )}
             Taches
             {tasks.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{tasks.length}</span>
             ) : null}
           </TabsTrigger>
           <TabsTrigger value="time" className="gap-2">
-            <Clock3 className="size-4" />
+            {selectedProject && !canRestoreTime ? (
+              <Lock className="size-4 text-muted-foreground" />
+            ) : (
+              <Clock3 className="size-4" />
+            )}
             Temps
             {timeEntries.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{timeEntries.length}</span>
@@ -169,7 +181,9 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
         </TabsContent>
 
         <TabsContent value="folders" className="mt-4">
-          {!selectedProject ? noProjectMsg : (
+          {!selectedProject ? noProjectMsg : !canRestoreFiles ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Vous n&apos;avez pas acces a cet onglet.</p>
+          ) : (
             <TrashSection<Folder>
               isLoading={foldersTrashQuery.isLoading}
               canRestore={canRestoreFiles}
@@ -184,7 +198,9 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
         </TabsContent>
 
         <TabsContent value="tasks" className="mt-4">
-          {!selectedProject ? noProjectMsg : (
+          {!selectedProject ? noProjectMsg : !canRestoreTasks ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Vous n&apos;avez pas acces a cet onglet.</p>
+          ) : (
             <TrashSection<Task>
               isLoading={tasksTrashQuery.isLoading}
               canRestore={canRestoreTasks}
@@ -199,7 +215,9 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
         </TabsContent>
 
         <TabsContent value="time" className="mt-4">
-          {!selectedProject ? noProjectMsg : (
+          {!selectedProject ? noProjectMsg : !canRestoreTime ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">Vous n&apos;avez pas acces a cet onglet.</p>
+          ) : (
             <TrashSection<TimeEntry>
               isLoading={timeEntriesTrashQuery.isLoading}
               canRestore={canRestoreTime}
