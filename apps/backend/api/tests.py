@@ -1,9 +1,14 @@
+from datetime import datetime
+from decimal import Decimal
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.mail import EmailMessage
 from django.test import TestCase, override_settings
+from django.utils import timezone
+from anymail.backends.resend import EmailBackend as ResendEmailBackend
 from rest_framework import status
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APIClient
@@ -22,6 +27,7 @@ from .models import (
     Task,
     TimeEntry,
     FinancialEntry,
+    ExpenseRequest,
 )
 from .services.mail import send_email
 from .services.storage import validate_document_file
@@ -209,6 +215,34 @@ class EmailDeliveryServiceTests(TestCase):
             "Main project",
         )
 
+    @override_settings(EMAIL_BACKEND="anymail.backends.resend.EmailBackend")
+    def test_send_email_omits_body_when_resend_template_is_used(self):
+        sent_messages = []
+
+        def capture_send(message):
+            sent_messages.append(message)
+            return 1
+
+        with patch.object(EmailMessage, "send", autospec=True, side_effect=capture_send):
+            delivery = send_email(
+                to_email="recipient@example.com",
+                subject="Invitation",
+                type="project_invitation",
+                text_body="Fallback invitation text.",
+                resend_template_id="project-invitation",
+                resend_template_variables={"PROJECT_NAME": "Main project"},
+            )
+
+        self.assertEqual(delivery.status, EmailDelivery.Status.SENT)
+        self.assertEqual(len(sent_messages), 1)
+        self.assertIsNone(sent_messages[0].body)
+        payload = ResendEmailBackend(api_key="test-key").build_message_payload(
+            sent_messages[0],
+            {},
+        )
+        self.assertNotIn("text", payload.data)
+        self.assertEqual(payload.data["template"]["id"], "project-invitation")
+
 
 @override_settings(
     EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
@@ -231,6 +265,12 @@ class InvitationWorkflowTests(ProjectApiTestCase):
             "role": role or self.role.id,
         })
 
+    def patch_invitation(self, invitation, payload):
+        return self.api_patch(
+            f"/api/projects/{self.project.id}/invitations/{invitation.id}/",
+            payload,
+        )
+
     def test_anonymous_cannot_invite(self):
         response = self.invite("new@example.com")
 
@@ -252,7 +292,8 @@ class InvitationWorkflowTests(ProjectApiTestCase):
             project=self.project,
             type="project_invitation",
         )
-        self.assertEqual(notification.data, {"invitation_id": invitation.id})
+        self.assertEqual(notification.data["invitation_id"], invitation.id)
+        self.assertEqual(notification.data["token"], invitation.token)
         self.assertFalse(EmailDelivery.objects.exists())
         self.assertEqual(len(mail.outbox), 0)
 
@@ -338,6 +379,56 @@ class InvitationWorkflowTests(ProjectApiTestCase):
         self.assertEqual(EmailDelivery.objects.count(), 1)
         self.assertEqual(len(mail.outbox), 1)
 
+    def test_owner_can_patch_invitation_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+
+        response = self.patch_invitation(invitation, {"role": next_role.id})
+
+        self.assert_ok(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, next_role.id)
+
+    def test_member_with_member_edit_can_patch_invitation_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+        self.given_member_authenticated(["member.edit"])
+
+        response = self.patch_invitation(invitation, {"role": next_role.id})
+
+        self.assert_ok(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, next_role.id)
+
+    def test_member_without_member_edit_cannot_patch_invitation_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+        self.given_member_authenticated(["member.view"])
+
+        response = self.patch_invitation(invitation, {"role": next_role.id})
+
+        self.assert_forbidden(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, self.role.id)
+
+    def test_patch_invitation_rejects_role_from_another_project(self):
+        other_role = Role.objects.create(project=self.other_project, name="Other invited role")
+        self.given_authenticated(self.owner)
+        self.invite("new@example.com")
+        invitation = Invitation.objects.get(email="new@example.com")
+
+        response = self.patch_invitation(invitation, {"role": other_role.id})
+
+        self.assert_bad_request(response)
+        invitation.refresh_from_db()
+        self.assertEqual(invitation.role_id, self.role.id)
+
     @override_settings(DEFAULT_REPLY_TO_EMAIL="contact@example.com")
     def test_owner_invites_unknown_email_with_reply_to(self):
         self.given_authenticated(self.owner)
@@ -376,6 +467,27 @@ class InvitationWorkflowTests(ProjectApiTestCase):
                 role=self.role,
             ).exists()
         )
+
+    def test_accepting_internal_invitation_soft_deletes_invitation_notification(self):
+        self.given_authenticated(self.owner)
+        self.invite(self.other_user.email)
+        invitation = Invitation.objects.get(email=self.other_user.email)
+        notification = Notification.objects.get(
+            user=self.other_user,
+            type="project_invitation",
+            data__invitation_id=invitation.id,
+        )
+        self.given_authenticated(self.other_user)
+
+        response = self.api_post("/api/invitations/accept/", {
+            "token": invitation.token,
+        })
+
+        self.assert_ok(response)
+        notification.refresh_from_db()
+        self.assertIsNotNone(notification.deleted_at)
+        self.assertEqual(notification.deleted_by_id, self.other_user.id)
+        self.assertTrue(notification.is_read)
 
     def test_invitation_email_must_match_authenticated_user(self):
         self.given_authenticated(self.owner)
@@ -599,6 +711,18 @@ class ProjectRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_visible_project_names(response, ["Main project"])
+        project = self.response_results(response)[0]
+        self.assertEqual(project["owner_display_name"], self.owner.username)
+        self.assertEqual(project["current_user_permission_codes"], [])
+
+    def test_member_project_list_includes_effective_permission_codes(self):
+        self.given_member_authenticated(["project.edit", "task.view"])
+
+        response = self.when_list_projects()
+
+        self.assert_ok(response)
+        project = self.response_results(response)[0]
+        self.assertEqual(project["current_user_permission_codes"], ["project.edit", "task.view"])
 
     def test_user_can_list_owned_projects_only_when_not_a_member_elsewhere(self):
         self.given_authenticated(self.other_user)
@@ -741,16 +865,16 @@ class ProjectRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_project_restored()
 
 
-    def test_member_with_project_restore_can_restore_project(self):
-        self.given_member_with_permissions(["project.restore"], project=self.deleted_project)
+    def test_member_with_project_edit_cannot_restore_project(self):
+        self.given_member_with_permissions(["project.edit"], project=self.deleted_project)
         self.given_authenticated(self.member)
 
         response = self.when_restore_project()
 
-        self.assert_ok(response)
-        self.assert_project_restored()
+        self.assert_forbidden(response)
+        self.assert_project_still_deleted()
 
-    def test_member_without_project_restore_cannot_restore_project(self):
+    def test_member_without_project_permission_cannot_restore_project(self):
         self.given_member_with_permissions([], project=self.deleted_project)
         self.given_authenticated(self.member)
 
@@ -1179,6 +1303,133 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
 
+class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.url = f"/api/projects/{self.project.id}/folders/target-tree/"
+        self.root_folder = Folder.objects.create(
+            project=self.project,
+            name="Root folder",
+        )
+        self.child_folder = Folder.objects.create(
+            project=self.project,
+            parent_folder=self.root_folder,
+            name="Child folder",
+        )
+        self.root_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Root task",
+            status="todo",
+        )
+        self.child_task = Task.objects.create(
+            project=self.project,
+            folder=self.child_folder,
+            created_by=self.owner,
+            title="Child task",
+            status="in_progress",
+            priority="high",
+        )
+        self.deleted_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Deleted task",
+            status="todo",
+        )
+        self.deleted_task.soft_delete(self.owner)
+        self.other_project_task = Task.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            title="Other project task",
+            status="todo",
+        )
+
+    # WHEN
+    def when_get_target_tree(self):
+        return self.api_get(self.url)
+
+    # ASSERT
+    def flatten_tree(self, nodes):
+        flattened = []
+
+        for node in nodes:
+            flattened.append(node)
+            flattened.extend(self.flatten_tree(node.get("children", [])))
+
+        return flattened
+
+    def assert_target_tree_contains_tasks(self, response):
+        tree = self.response_data(response)
+        nodes_by_name = {node["name"]: node for node in self.flatten_tree(tree)}
+
+        self.assertEqual(nodes_by_name["Root task"]["type"], "task")
+        self.assertEqual(nodes_by_name["Root task"]["status"], "todo")
+        self.assertEqual(nodes_by_name["Child task"]["type"], "task")
+        self.assertEqual(nodes_by_name["Child task"]["priority"], "high")
+
+        child_folder = nodes_by_name["Child folder"]
+        self.assertEqual(
+            {node["name"] for node in child_folder["children"]},
+            {"Child task"},
+        )
+
+    def assert_target_tree_excludes_tasks(self, response):
+        tree = self.response_data(response)
+        node_names = {node["name"] for node in self.flatten_tree(tree)}
+
+        self.assertIn("Root folder", node_names)
+        self.assertIn("Child folder", node_names)
+        self.assertNotIn("Root task", node_names)
+        self.assertNotIn("Child task", node_names)
+        self.assertNotIn("Deleted task", node_names)
+        self.assertNotIn("Other project task", node_names)
+
+    # TESTS GET
+    def test_anonymous_cannot_get_target_tree(self):
+        response = self.when_get_target_tree()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_get_target_tree_with_tasks(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        self.assert_target_tree_contains_tasks(response)
+
+    def test_member_with_time_edit_and_task_view_can_get_target_tree_with_tasks(self):
+        self.given_member_authenticated(["time_entry.edit", "task.view"])
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        self.assert_target_tree_contains_tasks(response)
+
+    def test_member_with_time_edit_without_task_view_gets_folders_only(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        self.assert_target_tree_excludes_tasks(response)
+
+    def test_member_without_time_edit_cannot_get_target_tree(self):
+        self.given_member_authenticated(["task.view"])
+
+        response = self.when_get_target_tree()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_get_target_tree(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_get_target_tree()
+
+        self.assert_forbidden(response)
+
+
 class FolderDetailRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()
@@ -1191,7 +1442,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
             project=self.other_project,
             name="Other project folder",
         )
-        self.url = f"/api/projects/{self.project.id}/folders/{self.folder.id}"
+        self.url = f"/api/projects/{self.project.id}/folders/{self.folder.id}/"
 
     # WHEN
     def when_get_folder(self):
@@ -1253,7 +1504,7 @@ class FolderDetailRoutePermissionTests(ProjectApiTestCase):
 
     def test_member_cannot_get_folder_from_another_project(self):
         self.given_member_authenticated(["file.view"])
-        self.url = f"/api/projects/{self.other_project.id}/folders/{self.other_project_folder.id}"
+        self.url = f"/api/projects/{self.other_project.id}/folders/{self.other_project_folder.id}/"
 
         response = self.when_get_folder()
 
@@ -2923,13 +3174,35 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
-    def test_member_with_time_entry_view_can_list_time_entries(self):
+    def test_member_with_time_entry_view_can_list_own_time_entries_only(self):
         self.given_member_authenticated(["time_entry.view"])
+        TimeEntry.objects.create(
+            project=self.project,
+            user=self.member,
+            duration_minutes=45,
+            hourly_rate="30.00",
+            description="Own member work",
+        )
+
+        response = self.when_list_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Own member work"])
+
+    def test_member_with_time_entry_view_all_can_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
 
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+
+    def test_member_with_time_entry_pay_only_cannot_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.pay"])
+
+        response = self.when_list_time_entries()
+
+        self.assert_forbidden(response)
 
     def test_member_without_time_entry_view_cannot_list_time_entries(self):
         self.given_member_authenticated(["time_entry.edit"])
@@ -2960,6 +3233,65 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
+
+    def test_list_can_filter_by_created_date_range(self):
+        TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
+        )
+        TimeEntry.objects.filter(pk=self.root_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 7, 1, 12, 0)),
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries("?start_date=2025-06-01&end_date=2025-06-30")
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work"])
+
+    def test_list_can_include_unpaid_entries_outside_date_range(self):
+        TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
+        )
+        TimeEntry.objects.filter(pk=self.root_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 7, 1, 12, 0)),
+        )
+        old_unpaid_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Old unpaid work",
+        )
+        TimeEntry.objects.filter(pk=old_unpaid_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 5, 1, 12, 0)),
+        )
+        old_paid_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="20.00",
+            description="Old paid work",
+        )
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=old_paid_entry,
+            created_by=self.owner,
+            amount="20.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Full payment",
+        )
+        TimeEntry.objects.filter(pk=old_paid_entry.pk).update(
+            created_at=timezone.make_aware(datetime(2025, 5, 2, 12, 0)),
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries(
+            "?start_date=2025-06-01&end_date=2025-06-30&include_unpaid=true"
+        )
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work", "Old unpaid work"])
 
     def test_list_can_search_by_description(self):
         self.given_authenticated(self.owner)
@@ -3190,8 +3522,15 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
 
-    def test_member_with_time_entry_view_can_get_time_entry(self):
+    def test_member_with_time_entry_view_cannot_get_other_member_time_entry(self):
         self.given_member_authenticated(["time_entry.view"])
+
+        response = self.when_get_time_entry()
+
+        self.assert_not_found(response)
+
+    def test_member_with_time_entry_view_all_can_get_time_entry(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
 
         response = self.when_get_time_entry()
 
@@ -3268,6 +3607,63 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_forbidden(response)
         self.assert_time_entry_not_deleted()
+
+
+class TimeEntryPaymentRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Payable time",
+        )
+        self.url = f"/api/projects/{self.project.id}/time-entries/{self.entry.id}/pay/"
+
+    def when_pay_time_entry(self, payload):
+        return self.api_post(self.url, payload)
+
+    def assert_time_payment_exists(self, amount):
+        self.assertTrue(
+            FinancialEntry.objects.filter(
+                project=self.project,
+                time_entry=self.entry,
+                amount=amount,
+                type=FinancialEntry.FinancialType.EXPENSE,
+            ).exists()
+        )
+
+    def test_owner_can_pay_full_time_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_pay_time_entry({"pay_full": True})
+
+        self.assert_created(response)
+        self.assert_time_payment_exists(Decimal("40.00"))
+
+    def test_member_with_time_entry_pay_can_pay_partial_amount(self):
+        self.given_member_authenticated(["time_entry.pay"])
+
+        response = self.when_pay_time_entry({"amount": "15.50"})
+
+        self.assert_created(response)
+        self.assert_time_payment_exists(Decimal("15.50"))
+
+    def test_member_without_time_entry_pay_cannot_pay_time_entry(self):
+        self.given_member_authenticated(["time_entry.view_all"])
+
+        response = self.when_pay_time_entry({"pay_full": True})
+
+        self.assert_forbidden(response)
+
+    def test_payment_rejects_amount_above_remaining_amount(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_pay_time_entry({"amount": "40.01"})
+
+        self.assert_bad_request(response)
 
 
 class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):
@@ -3771,6 +4167,186 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_bad_request(response)
         self.assert_financial_entry_does_not_exist("Invalid payment finance")
+
+
+class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.january_expense = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="100.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="January labor",
+        )
+        self.january_refund = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="25.00",
+            type=FinancialEntry.FinancialType.REFUND,
+            category="labor",
+            description="January refund",
+        )
+        self.february_expense = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="50.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="material",
+            description="February material",
+        )
+        self.deleted_entry = FinancialEntry.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            amount="900.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="deleted",
+            description="Deleted chart entry",
+        )
+        self.deleted_entry.soft_delete(self.owner)
+        self.other_project_entry = FinancialEntry.objects.create(
+            project=self.other_project,
+            created_by=self.other_user,
+            amount="800.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="other",
+            description="Other project chart entry",
+        )
+
+        self.set_created_at(self.january_expense, datetime(2026, 1, 5, 12, 0))
+        self.set_created_at(self.january_refund, datetime(2026, 1, 20, 12, 0))
+        self.set_created_at(self.february_expense, datetime(2026, 2, 3, 12, 0))
+        self.set_created_at(self.deleted_entry, datetime(2026, 2, 4, 12, 0))
+        self.set_created_at(self.other_project_entry, datetime(2026, 1, 5, 12, 0))
+
+        self.url = f"/api/projects/{self.project.id}/financial-entries/chart/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/financial-entries/chart/"
+
+    # GIVEN
+    def set_created_at(self, entry, value):
+        FinancialEntry.all_objects.filter(pk=entry.pk).update(
+            created_at=timezone.make_aware(value),
+        )
+
+    # WHEN
+    def when_get_financial_chart(self, query=""):
+        return self.api_get(f"{self.url}{query}")
+
+    # TESTS GET
+    def test_anonymous_cannot_get_financial_chart(self):
+        response = self.when_get_financial_chart()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_get_financial_chart_data(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_chart()
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual(data["group_by"], "month")
+        self.assertIsNone(data["start_date"])
+        self.assertIsNone(data["end_date"])
+        self.assertEqual(data["totals"], {
+            "count": 3,
+            "expenses": "150.00",
+            "refunds": "25.00",
+            "balance": "125.00",
+        })
+        self.assertEqual(data["series"], [
+            {
+                "period": "2026-01",
+                "count": 2,
+                "expenses": "100.00",
+                "refunds": "25.00",
+                "balance": "75.00",
+            },
+            {
+                "period": "2026-02",
+                "count": 1,
+                "expenses": "50.00",
+                "refunds": "0.00",
+                "balance": "50.00",
+            },
+        ])
+        self.assertEqual(data["categories"], [
+            {
+                "category": "labor",
+                "count": 2,
+                "expenses": "100.00",
+                "refunds": "25.00",
+                "balance": "75.00",
+            },
+            {
+                "category": "material",
+                "count": 1,
+                "expenses": "50.00",
+                "refunds": "0.00",
+                "balance": "50.00",
+            },
+        ])
+
+    def test_member_with_finance_view_can_get_financial_chart(self):
+        self.given_member_authenticated(["finance.view"])
+
+        response = self.when_get_financial_chart()
+
+        self.assert_ok(response)
+
+    def test_member_without_finance_view_cannot_get_financial_chart(self):
+        self.given_member_authenticated(["finance.edit"])
+
+        response = self.when_get_financial_chart()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_get_another_project_financial_chart(self):
+        self.given_member_authenticated(["finance.view"])
+        self.url = self.other_project_url
+
+        response = self.when_get_financial_chart()
+
+        self.assert_forbidden(response)
+
+    def test_chart_can_group_by_day_and_filter_date_range(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_chart(
+            "?group_by=day&start_date=2026-02-01&end_date=2026-02-28"
+        )
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual(data["group_by"], "day")
+        self.assertEqual(data["start_date"], "2026-02-01")
+        self.assertEqual(data["end_date"], "2026-02-28")
+        self.assertEqual(data["totals"], {
+            "count": 1,
+            "expenses": "50.00",
+            "refunds": "0.00",
+            "balance": "50.00",
+        })
+        self.assertEqual(data["series"], [
+            {
+                "period": "2026-02-03",
+                "count": 1,
+                "expenses": "50.00",
+                "refunds": "0.00",
+                "balance": "50.00",
+            },
+        ])
+
+    def test_chart_rejects_end_date_before_start_date(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_chart(
+            "?start_date=2026-02-28&end_date=2026-02-01"
+        )
+
+        self.assert_bad_request(response)
 
 
 class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
@@ -4280,15 +4856,7 @@ class ProjectDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_no_content(response)
         self.assert_project_deleted_by(self.owner)
 
-    def test_member_with_project_delete_can_soft_delete_project(self):
-        self.given_member_authenticated(["project.delete"])
-
-        response = self.when_delete_project()
-
-        self.assert_no_content(response)
-        self.assert_project_deleted_by(self.member)
-
-    def test_member_without_project_delete_cannot_delete_project(self):
+    def test_member_with_project_edit_cannot_delete_project(self):
         self.given_member_authenticated(["project.edit"])
 
         response = self.when_delete_project()
@@ -4472,6 +5040,23 @@ class RoleRoutePermissionTests(ProjectApiTestCase):
         role = self.assert_role_exists("Role with duplicate permissions")
         self.assert_role_permission_codes(role, ["file.view"])
 
+    def test_create_role_adds_permission_dependencies(self):
+        time_pay_permission = self.given_permission("time_entry.pay")
+        self.given_permission("time_entry.view")
+        self.given_permission("time_entry.view_all")
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_role({
+            "name": "Payroll role",
+            "permission_ids": [time_pay_permission.id],
+        })
+
+        self.assert_created(response)
+        role = self.assert_role_exists("Payroll role")
+        self.assert_role_permission_codes(
+            role,
+            ["time_entry.pay", "time_entry.view", "time_entry.view_all"],
+        )
 
     def test_create_role_uses_project_from_url_not_payload(self):
         self.given_authenticated(self.owner)
@@ -4634,7 +5219,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["file.edit"])
+        self.assert_role_permission_codes(["file.edit", "file.view"])
 
     def test_patch_role_replaces_permissions(self):
         self.given_authenticated(self.owner)
@@ -4644,7 +5229,7 @@ class RoleDetailRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_ok(response)
-        self.assert_role_permission_codes(["file.edit"])
+        self.assert_role_permission_codes(["file.edit", "file.view"])
 
     # TESTS DELETE
     def test_anonymous_cannot_delete_role(self):
@@ -4945,10 +5530,20 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.url = f"/api/projects/{self.project.id}/members/{self.target_member.id}/"
 
     # WHEN
+    def when_get_member(self):
+        return self.api_get(self.url)
+
+    def when_patch_member(self, payload):
+        return self.api_patch(self.url, payload)
+
     def when_delete_member(self):
         return self.api_delete(self.url)
 
     # ASSERT
+    def assert_member_role(self, role):
+        self.target_member.refresh_from_db()
+        self.assertEqual(self.target_member.role_id, role.id)
+
     def assert_member_not_deleted(self):
         self.target_member.refresh_from_db()
         self.assertIsNone(self.target_member.deleted_at)
@@ -4957,6 +5552,54 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.target_member.refresh_from_db()
         self.assertIsNotNone(self.target_member.deleted_at)
         self.assertEqual(self.target_member.deleted_by_id, user.id)
+
+    # TESTS GET
+    def test_get_member_marks_deleted_role(self):
+        self.target_role.soft_delete(self.owner)
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_member()
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertTrue(data["role_deleted"])
+        self.assertIsNone(data["role_name"])
+
+    # TESTS PATCH
+    def test_owner_can_patch_member_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next role")
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_member({"role": next_role.id})
+
+        self.assert_ok(response)
+        self.assert_member_role(next_role)
+
+    def test_member_with_member_edit_can_patch_member_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next role")
+        self.given_member_authenticated(["member.edit"])
+
+        response = self.when_patch_member({"role": next_role.id})
+
+        self.assert_ok(response)
+        self.assert_member_role(next_role)
+
+    def test_member_without_member_edit_cannot_patch_member_role(self):
+        next_role = Role.objects.create(project=self.project, name="Next role")
+        self.given_member_authenticated(["member.view"])
+
+        response = self.when_patch_member({"role": next_role.id})
+
+        self.assert_forbidden(response)
+        self.assert_member_role(self.target_role)
+
+    def test_patch_rejects_role_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_member({"role": self.other_project_role.id})
+
+        self.assert_bad_request(response)
+        self.assert_member_role(self.target_role)
 
     # TESTS DELETE
     def test_anonymous_cannot_delete_member(self):
@@ -5006,3 +5649,295 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
         self.other_project_member.refresh_from_db()
         self.assertIsNone(self.other_project_member.deleted_at)
+
+
+class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Expense folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other expense folder",
+        )
+        self.document = Document.objects.create(
+            project=self.project,
+            folder=self.folder,
+            name="Receipt",
+            file_id="receipt-file-er",
+            file_name="receipt.pdf",
+        )
+        self.pending_request = ExpenseRequest.objects.create(
+            project=self.project,
+            title="Pending request",
+            amount="50.00",
+            category="transport",
+            description="Bus ticket",
+            folder=self.folder,
+            requested_by=self.owner,
+        )
+        self.approved_request = ExpenseRequest.objects.create(
+            project=self.project,
+            title="Approved request",
+            amount="100.00",
+            status=ExpenseRequest.STATUS_APPROVED,
+            requested_by=self.owner,
+            approved_by=self.owner,
+        )
+        self.other_project_request = ExpenseRequest.objects.create(
+            project=self.other_project,
+            title="Other project request",
+            amount="75.00",
+            requested_by=self.other_user,
+        )
+        self.url = f"/api/projects/{self.project.id}/expense-requests/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/expense-requests/"
+
+    # WHEN
+    def when_list_requests(self, query=""):
+        return self.api_get(f"{self.url}{query}")
+
+    def when_create_request(self, payload):
+        return self.api_post(self.url, payload)
+
+    def when_get_request(self, request_id):
+        return self.api_get(f"{self.url}{request_id}/")
+
+    def when_patch_request(self, request_id, payload):
+        return self.api_patch(f"{self.url}{request_id}/", payload)
+
+    def when_delete_request(self, request_id):
+        return self.api_delete(f"{self.url}{request_id}/")
+
+    def when_approve_request(self, request_id):
+        return self.api_post(f"{self.url}{request_id}/approve/", {})
+
+    # ASSERT
+    def assert_visible_request_titles(self, response, expected_titles):
+        requests = self.response_results(response)
+        titles = {r["title"] for r in requests}
+        self.assertEqual(titles, set(expected_titles))
+
+    def assert_request_exists(self, title):
+        return ExpenseRequest.objects.get(project=self.project, title=title)
+
+    def assert_request_does_not_exist(self, title):
+        self.assertFalse(ExpenseRequest.objects.filter(project=self.project, title=title).exists())
+
+    # TESTS GET list
+    def test_anonymous_cannot_list_expense_requests(self):
+        response = self.when_list_requests()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_list_expense_requests(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_requests()
+
+        self.assert_ok(response)
+        self.assert_visible_request_titles(response, ["Pending request", "Approved request"])
+
+    def test_member_with_view_can_list_expense_requests(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_list_requests()
+
+        self.assert_ok(response)
+        self.assert_visible_request_titles(response, ["Pending request", "Approved request"])
+
+    def test_member_without_view_cannot_list_expense_requests(self):
+        self.given_member_authenticated(["expense_request.edit"])
+
+        response = self.when_list_requests()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_list_expense_requests(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_list_requests()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_list_another_project_requests(self):
+        self.given_member_authenticated(["expense_request.view"])
+        self.url = self.other_project_url
+
+        response = self.when_list_requests()
+
+        self.assert_forbidden(response)
+
+    # TESTS POST
+    def test_anonymous_cannot_create_expense_request(self):
+        response = self.when_create_request({
+            "title": "Anonymous request",
+            "amount": "20.00",
+        })
+
+        self.assert_unauthorized(response)
+        self.assert_request_does_not_exist("Anonymous request")
+
+    def test_owner_can_create_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_request({
+            "title": "Owner request",
+            "amount": "30.00",
+            "category": "office",
+            "description": "Paper",
+            "folder": self.folder.id,
+        })
+
+        self.assert_created(response)
+        req = self.assert_request_exists("Owner request")
+        self.assertEqual(req.requested_by_id, self.owner.id)
+        self.assertEqual(req.status, ExpenseRequest.STATUS_PENDING)
+
+    def test_member_with_edit_can_create_expense_request(self):
+        self.given_member_authenticated(["expense_request.view", "expense_request.edit"])
+
+        response = self.when_create_request({
+            "title": "Member request",
+            "amount": "15.00",
+        })
+
+        self.assert_created(response)
+        req = self.assert_request_exists("Member request")
+        self.assertEqual(req.requested_by_id, self.member.id)
+
+    def test_member_without_edit_cannot_create_expense_request(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_create_request({
+            "title": "Forbidden request",
+            "amount": "10.00",
+        })
+
+        self.assert_forbidden(response)
+        self.assert_request_does_not_exist("Forbidden request")
+
+    def test_create_rejects_folder_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_request({
+            "title": "Cross-project folder",
+            "amount": "10.00",
+            "folder": self.other_project_folder.id,
+        })
+
+        self.assert_bad_request(response)
+        self.assert_request_does_not_exist("Cross-project folder")
+
+    # TESTS PATCH
+    def test_owner_can_patch_pending_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_request(self.pending_request.id, {"title": "Updated title"})
+
+        self.assert_ok(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.title, "Updated title")
+
+    def test_member_without_edit_cannot_patch_expense_request(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_patch_request(self.pending_request.id, {"title": "Should not update"})
+
+        self.assert_forbidden(response)
+
+    # TESTS DELETE
+    def test_anonymous_cannot_delete_expense_request(self):
+        response = self.when_delete_request(self.pending_request.id)
+
+        self.assert_unauthorized(response)
+        self.assertIsNone(self.pending_request.deleted_at)
+
+    def test_owner_can_soft_delete_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_delete_request(self.pending_request.id)
+
+        self.assert_no_content(response)
+        self.pending_request.refresh_from_db()
+        self.assertIsNotNone(self.pending_request.deleted_at)
+
+    def test_member_without_delete_cannot_delete_expense_request(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_delete_request(self.pending_request.id)
+
+        self.assert_forbidden(response)
+
+    # TESTS APPROVE
+    def test_anonymous_cannot_approve_expense_request(self):
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_unauthorized(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_PENDING)
+
+    def test_owner_can_approve_pending_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_ok(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_APPROVED)
+        self.assertEqual(self.pending_request.approved_by_id, self.owner.id)
+        self.assertIsNotNone(self.pending_request.approved_at)
+
+    def test_approve_creates_financial_entry(self):
+        self.given_authenticated(self.owner)
+
+        before_count = FinancialEntry.objects.filter(project=self.project).count()
+
+        self.when_approve_request(self.pending_request.id)
+
+        after_count = FinancialEntry.objects.filter(project=self.project).count()
+        self.assertEqual(after_count, before_count + 1)
+
+        entry = FinancialEntry.objects.get(
+            project=self.project,
+            description=self.pending_request.title,
+        )
+        self.assertEqual(entry.type, FinancialEntry.FinancialType.EXPENSE)
+        self.assertEqual(str(entry.amount), self.pending_request.amount)
+        self.assertEqual(entry.folder_id, self.pending_request.folder_id)
+        self.assertEqual(entry.category, self.pending_request.category)
+
+    def test_member_with_approve_permission_can_approve(self):
+        self.given_member_authenticated(["expense_request.view", "expense_request.approve"])
+
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_ok(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_APPROVED)
+
+    def test_member_without_approve_cannot_approve(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_forbidden(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_PENDING)
+
+    def test_cannot_approve_already_approved_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_approve_request(self.approved_request.id)
+
+        self.assert_not_found(response)
+
+    def test_cannot_approve_request_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.api_post(f"{self.other_project_url}{self.other_project_request.id}/approve/", {})
+
+        self.assert_forbidden(response)

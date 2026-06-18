@@ -1,6 +1,6 @@
 import uuid
 from pathlib import PurePosixPath
-from urllib.parse import quote
+from urllib.parse import quote, unquote, urlparse
 
 import boto3
 from django.conf import settings
@@ -141,6 +141,19 @@ def upload_profile_picture_file(file, user_id):
     }
 
 
+def get_profile_picture_file_id_from_url(url, user_id):
+    if not url:
+        return None
+
+    path = unquote(urlparse(url).path.lstrip("/"))
+    marker = f"users/{user_id}/profile-pictures/"
+    marker_index = path.find(marker)
+    if marker_index < 0:
+        return None
+
+    return path[marker_index:]
+
+
 def get_document_file(file_id):
     return get_s3_client().get_object(
         Bucket=settings.S3_BUCKET_NAME,
@@ -151,6 +164,13 @@ def get_document_file(file_id):
 def delete_document_file(file_id):
     get_s3_client().delete_object(
         Bucket=settings.S3_BUCKET_NAME,
+        Key=file_id,
+    )
+
+
+def delete_profile_picture_file(file_id):
+    get_s3_client().delete_object(
+        Bucket=settings.PROFILE_PICTURE_S3_BUCKET_NAME,
         Key=file_id,
     )
 

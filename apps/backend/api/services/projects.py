@@ -13,7 +13,7 @@ def get_accessible_projects(user, include_deleted=False):
     return manager.filter(
         models.Q(owner=user)
         | models.Q(projectmember__user=user),
-    ).distinct().order_by("id")
+    ).select_related("owner").distinct().order_by("id")
 
 
 def get_accessible_deleted_projects(user):

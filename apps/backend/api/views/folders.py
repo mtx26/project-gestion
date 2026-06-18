@@ -8,8 +8,14 @@ from rest_framework.permissions import IsAuthenticated
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..models import Document, Folder
-from ..serializers import FolderSerializer, FolderTreeNodeSerializer, FolderTreeSerializer
+from ..models import Document, Folder, Task
+from ..serializers import (
+    FolderSerializer,
+    FolderTargetTreeSerializer,
+    FolderTreeNodeSerializer,
+    FolderTreeSerializer,
+)
+from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..permissions import HasProjectPermission
 
@@ -52,21 +58,25 @@ class FolderListCreateView(generics.ListCreateAPIView):
         return Folder.objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user)
-        ).order_by("name", "id")
+        ).select_related("created_by").order_by("name", "id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
             get_accessible_projects(self.request.user),
             pk=self.kwargs["project_id"],
         )
-        serializer.save(project=project)
+        serializer.save(project=project, created_by=self.request.user)
 
 
 @extend_schema(tags=["folders"])
 @extend_schema_view(
     get=extend_schema(
         summary="Arbre des dossiers d'un projet",
-        description="Retourne les dossiers et documents d'un projet sous forme d'arbre.\nPermission requise : `file.view`.",
+        description=(
+            "Retourne les dossiers et documents d'un projet sous forme d'arbre.\n"
+            "Avec `include_tasks=true`, ajoute les taches non terminees si l'utilisateur a aussi `task.view`.\n"
+            "Permission requise : `file.view`."
+        ),
         responses=FolderTreeNodeSerializer(many=True),
     )
 )
@@ -80,17 +90,70 @@ class FolderTreeView(generics.GenericAPIView):
         folders = Folder.objects.filter(
             project_id=project_id,
             project__in=get_accessible_projects(request.user),
-        ).order_by("name", "id")
+        ).select_related("created_by").order_by("name", "id")
 
         documents = Document.objects.filter(
             project_id=project_id,
             project__in=get_accessible_projects(request.user),
         ).order_by("name", "id")
 
+        if (
+            request.query_params.get("include_tasks") == "true"
+            and has_project_permission(request.user, get_object_or_404(get_accessible_projects(request.user), pk=project_id), "task.view")
+        ):
+            tasks = Task.objects.filter(
+                project_id=project_id,
+                status__in=["todo", "in_progress"],
+            ).order_by("due_date", "title", "id")
+        else:
+            tasks = Task.objects.none()
+
         serializer = self.get_serializer()
         return Response(serializer.to_representation({
             "folders": folders,
             "documents": documents,
+            "tasks": tasks,
+        }))
+
+
+@extend_schema(tags=["folders"])
+@extend_schema_view(
+    get=extend_schema(
+        summary="Arbre des cibles de temps d'un projet",
+        description=(
+            "Retourne les dossiers et, si autorise, les taches d'un projet sous forme d'arbre.\n"
+            "Permission requise : `time_entry.edit`. Les taches requierent aussi `task.view`."
+        ),
+        responses=FolderTreeNodeSerializer(many=True),
+    )
+)
+class FolderTargetTreeView(generics.GenericAPIView):
+    serializer_class = FolderTargetTreeSerializer
+    queryset = Folder.objects.none()
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "time_entry.edit"
+
+    def get(self, request, project_id):
+        project = get_object_or_404(
+            get_accessible_projects(request.user),
+            pk=project_id,
+        )
+
+        folders = Folder.objects.filter(
+            project=project,
+        ).select_related("created_by").order_by("name", "id")
+
+        if has_project_permission(request.user, project, "task.view"):
+            tasks = Task.objects.filter(
+                project=project,
+            ).order_by("title", "id")
+        else:
+            tasks = Task.objects.none()
+
+        serializer = self.get_serializer()
+        return Response(serializer.to_representation({
+            "folders": folders,
+            "tasks": tasks,
         }))
         
 @extend_schema(tags=["folders"])
@@ -159,7 +222,7 @@ class FolderTrashListView(generics.ListAPIView):
     search_fields = ["name", "description"]
 
     def get_permissions(self):
-        self.permission_code = "file.view"
+        self.permission_code = "file.restore"
         return super().get_permissions()
 
     def get_queryset(self):

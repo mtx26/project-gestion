@@ -1,0 +1,96 @@
+shadcn/ui component inventory
+Last checked: 2026-06-14
+Source: https://ui.shadcn.com/docs/components
+
+Rule for new UI work:
+- Before building a custom interactive UI element, check this file and apps/web/src/components/ui.
+- If shadcn already provides the pattern, install/use the shadcn component first.
+- Keep custom logic only for project-specific behavior, data transforms, or domain workflows.
+
+Installed in this project:
+- Alert
+- Badge
+- Button
+- Card
+- Checkbox
+- Context Menu
+- Dialog
+- Empty
+- Input
+- Label
+- Progress
+- Select
+- Separator
+- Skeleton
+- Table
+- Tabs
+- Textarea
+
+Official shadcn components list:
+- Accordion
+- Alert
+- Alert Dialog
+- Aspect Ratio
+- Avatar
+- Badge
+- Breadcrumb
+- Button
+- Button Group
+- Calendar
+- Card
+- Carousel
+- Chart
+- Checkbox
+- Collapsible
+- Combobox
+- Command
+- Context Menu
+- Data Table
+- Date Picker
+- Dialog
+- Direction
+- Drawer
+- Dropdown Menu
+- Empty
+- Field
+- Hover Card
+- Input
+- Input Group
+- Input OTP
+- Item
+- Kbd
+- Label
+- Menubar
+- Native Select
+- Navigation Menu
+- Pagination
+- Popover
+- Progress
+- Radio Group
+- Resizable
+- Scroll Area
+- Select
+- Separator
+- Sheet
+- Sidebar
+- Skeleton
+- Slider
+- Sonner
+- Spinner
+- Switch
+- Table
+- Tabs
+- Textarea
+- Toast
+- Toggle
+- Toggle Group
+- Tooltip
+- Typography
+
+Frontend audit notes:
+- Prefer Alert for API/user-facing errors instead of standalone styled paragraphs.
+- Prefer Empty for empty states instead of repeated dashed sections.
+- Prefer Context Menu for right-click actions instead of manual x/y menu positioning.
+- Keep native hidden file inputs when they are only an implementation detail behind a shadcn Button.
+- Consider adding Alert Dialog before the next destructive confirmation refactor.
+- Consider adding Field before a broader form refactor; current forms already use Input, Label, Select, Textarea and Button.

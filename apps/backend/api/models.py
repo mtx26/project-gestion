@@ -77,6 +77,7 @@ class ProjectMember(BaseModel):
 class Folder(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     parent_folder = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="folders_created")
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     color = models.CharField(max_length=7, null=True, blank=True)
@@ -319,7 +320,11 @@ class FinancialEntry(BaseModel):
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
-    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True)
+    documents = models.ManyToManyField(
+        Document,
+        blank=True,
+        related_name="financial_entries_docs",
+    )
     time_entry = models.ForeignKey(
         TimeEntry,
         on_delete=models.SET_NULL,
@@ -327,6 +332,7 @@ class FinancialEntry(BaseModel):
         blank=True,
         related_name="financial_entries",
     )
+    task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="financial_entries")
     created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="financial_entries_created")
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=FinancialType.choices)
@@ -339,11 +345,14 @@ class FinancialEntry(BaseModel):
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.financial_entry.folder_project_mismatch")
 
-        if self.document and self.document.project_id != self.project_id:
-            raise ValidationError("errors.financial_entry.document_project_mismatch")
-
         if self.time_entry and self.time_entry.project_id != self.project_id:
             raise ValidationError("errors.financial_entry.time_entry_project_mismatch")
+
+        if self.task and self.task.project_id != self.project_id:
+            raise ValidationError("errors.financial_entry.task_project_mismatch")
+
+        if self.folder and self.task:
+            raise ValidationError("errors.financial_entry.multiple_targets")
 
         if self.time_entry and self.amount is not None and self.type == self.FinancialType.EXPENSE:
             paid_amount = self._get_time_entry_paid_amount_excluding_self()
@@ -371,3 +380,46 @@ class FinancialEntry(BaseModel):
                 paid_amount -= entry.amount
 
         return max(paid_amount, Decimal("0.00"))
+
+
+class ExpenseRequest(BaseModel):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "En attente"),
+        (STATUS_APPROVED, "Approuve"),
+        (STATUS_REJECTED, "Refuse"),
+    ]
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    category = models.CharField(max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
+    documents = models.ManyToManyField(
+        Document,
+        blank=True,
+        related_name="expense_requests_docs",
+    )
+    task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="expense_requests_made")
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_approved")
+
+    def clean(self):
+        super().clean()
+
+        if self.folder and self.folder.project_id != self.project_id:
+            raise ValidationError("errors.expense_request.folder_project_mismatch")
+
+        if self.folder and self.task:
+            raise ValidationError("errors.expense_request.multiple_targets")
+
+        if self.task and self.task.project_id != self.project_id:
+            raise ValidationError("errors.expense_request.task_project_mismatch")
+
+    class Meta:
+        ordering = ["-created_at"]

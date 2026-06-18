@@ -1,0 +1,105 @@
+services:
+
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: project_gestion
+      POSTGRES_USER: project_gestion
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U project_gestion"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── MinIO (stockage S3) ─────────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Crée les buckets au démarrage si ils n'existent pas
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin};
+        mc mb --ignore-existing local/${S3_BUCKET_NAME:-project-documents};
+        mc mb --ignore-existing local/${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures};
+      "
+
+  # ── Django backend ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./apps/backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://project_gestion:${DB_PASSWORD:-changeme}@db:5432/project_gestion
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      FRONTEND_APP_URL: ${FRONTEND_APP_URL:-http://localhost:3000}
+      PASSWORD_RESET_CONFIRM_URL: ${PASSWORD_RESET_CONFIRM_URL:-http://localhost:3000/auth/reset-password}
+      EMAIL_VERIFICATION_URL: ${EMAIL_VERIFICATION_URL:-http://localhost:3000/auth/verify-email}
+      GOOGLE_OAUTH_CALLBACK_URL: ${GOOGLE_OAUTH_CALLBACK_URL:-http://localhost:3000/auth/google/callback}
+      INVITATION_EXPIRES_DAYS: ${INVITATION_EXPIRES_DAYS:-7}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
+      SERVER_EMAIL: ${SERVER_EMAIL:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      ANYMAIL_WEBHOOK_SECRET: ${ANYMAIL_WEBHOOK_SECRET:-}
+      RESEND_SIGNING_SECRET: ${RESEND_SIGNING_SECRET:-}
+      RESEND_INVITATION_TEMPLATE_ID: ${RESEND_INVITATION_TEMPLATE_ID:-project-invitation}
+      RESEND_PASSWORD_RESET_TEMPLATE_ID: ${RESEND_PASSWORD_RESET_TEMPLATE_ID:-password-reset}
+      RESEND_EMAIL_VERIFICATION_TEMPLATE_ID: ${RESEND_EMAIL_VERIFICATION_TEMPLATE_ID:-email-verification}
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_BUCKET_NAME: ${S3_BUCKET_NAME:-project-documents}
+      PROFILE_PICTURE_S3_BUCKET_NAME: ${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures}
+      S3_REGION: ${S3_REGION:-us-east-1}
+    ports:
+      - "8000:8000"
+
+  # ── Next.js frontend ────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  minio_data:

@@ -9,6 +9,7 @@ from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
 from .services.folders import build_folder_tree
+from .services.permissions import expand_permissions, get_project_permission_codes
 from .services.invitations import (
     accept_project_invitation,
     create_project_invitation,
@@ -29,7 +30,15 @@ from .models import (
     Notification,
     TimeEntry,
     FinancialEntry,
+    ExpenseRequest,
 )
+
+
+def _get_user_display_name(user):
+    if user is None:
+        return None
+    full_name = user.get_full_name().strip()
+    return full_name or user.username or user.email
 
 
 BASE_READ_ONLY_FIELDS = [
@@ -42,11 +51,16 @@ BASE_READ_ONLY_FIELDS = [
 
 
 class ProjectSerializer(serializers.ModelSerializer):
+    owner_display_name = serializers.SerializerMethodField()
+    current_user_permission_codes = serializers.SerializerMethodField()
+
     class Meta:
         model = Project
         fields = [
             "id",
             "owner",
+            "owner_display_name",
+            "current_user_permission_codes",
             "name",
             "description",
             "created_at",
@@ -56,7 +70,19 @@ class ProjectSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "owner",
+            "owner_display_name",
+            "current_user_permission_codes",
         ]
+
+    def get_owner_display_name(self, project):
+        owner = project.owner
+        full_name = owner.get_full_name().strip()
+        return full_name or owner.username or owner.email
+
+    def get_current_user_permission_codes(self, project):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return get_project_permission_codes(user, project)
 
 
 class PermissionSerializer(serializers.ModelSerializer):
@@ -128,7 +154,7 @@ class RoleSerializer(serializers.ModelSerializer):
 
         unique_permissions = {
             permission.id: permission
-            for permission in permissions
+            for permission in expand_permissions(permissions)
         }.values()
 
         RolePermission.objects.bulk_create([
@@ -147,13 +173,24 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class ProjectMemberSerializer(serializers.ModelSerializer):
+    user_display_name = serializers.SerializerMethodField()
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+    user_picture_url = serializers.SerializerMethodField()
+    role_name = serializers.SerializerMethodField()
+    role_deleted = serializers.SerializerMethodField()
+
     class Meta:
         model = ProjectMember
         fields = [
             "id",
             "project",
             "user",
+            "user_display_name",
+            "user_email",
+            "user_picture_url",
             "role",
+            "role_name",
+            "role_deleted",
             "created_at",
             "updated_at",
             "deleted_at",
@@ -161,11 +198,46 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
+            "user_display_name",
+            "user_email",
+            "user_picture_url",
+            "role_name",
+            "role_deleted",
         ]
+
+    def get_user_display_name(self, member):
+        full_name = member.user.get_full_name().strip()
+        return full_name or member.user.username or member.user.email
+
+    def get_user_picture_url(self, member):
+        try:
+            return member.user.profile.picture_url or None
+        except AttributeError:
+            return None
+
+    def get_role_name(self, member):
+        if member.role.deleted_at is not None:
+            return None
+
+        return member.role.name
+
+    def get_role_deleted(self, member):
+        return member.role.deleted_at is not None
+
+    def validate_role(self, role):
+        project_id = self.context.get("project_id")
+        if project_id is None and self.instance is not None:
+            project_id = self.instance.project_id
+
+        if project_id is not None and role.project_id != project_id:
+            raise serializers.ValidationError("errors.project_member.role_project_mismatch")
+
+        return role
 
 
 class FolderSerializer(serializers.ModelSerializer):
     is_root = serializers.BooleanField(read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Folder
@@ -173,6 +245,8 @@ class FolderSerializer(serializers.ModelSerializer):
             "id",
             "project",
             "parent_folder",
+            "created_by",
+            "created_by_name",
             "name",
             "description",
             "color",
@@ -185,8 +259,12 @@ class FolderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
+            "created_by",
             "is_root",
         ]
+
+    def get_created_by_name(self, obj):
+        return _get_user_display_name(obj.created_by)
         
     def create(self, validated_data):
         folder = Folder(**validated_data)
@@ -210,15 +288,20 @@ class FolderSerializer(serializers.ModelSerializer):
 
 
 class FolderTreeNodeSerializer(serializers.Serializer):
-    type = serializers.ChoiceField(choices=["folder", "document"])
+    type = serializers.ChoiceField(choices=["folder", "document", "task"])
     id = serializers.IntegerField()
     name = serializers.CharField()
     description = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     color = serializers.CharField(allow_blank=True, allow_null=True, required=False)
     icon = serializers.CharField(allow_blank=True, allow_null=True, required=False)
+    folder = serializers.IntegerField(allow_null=True, required=False)
+    status = serializers.CharField(required=False)
+    priority = serializers.CharField(required=False)
+    due_date = serializers.CharField(allow_null=True, required=False)
     file_name = serializers.CharField(required=False)
     file_size = serializers.IntegerField(required=False)
     mime_type = serializers.CharField(required=False)
+    created_by_name = serializers.CharField(allow_null=True, required=False)
     children = serializers.ListField(
         child=serializers.DictField(),
         required=False,
@@ -227,9 +310,20 @@ class FolderTreeNodeSerializer(serializers.Serializer):
 
 class FolderTreeSerializer(serializers.Serializer):
     def to_representation(self, instance):
-        folders = instance["folders"]
-        documents = instance["documents"]
-        roots = build_folder_tree(folders, documents)
+        roots = build_folder_tree(
+            instance["folders"],
+            instance["documents"],
+            instance.get("tasks"),
+        )
+        return FolderTreeNodeSerializer(roots, many=True).data
+
+
+class FolderTargetTreeSerializer(serializers.Serializer):
+    def to_representation(self, instance):
+        roots = build_folder_tree(
+            instance["folders"],
+            tasks=instance.get("tasks"),
+        )
         return FolderTreeNodeSerializer(roots, many=True).data
 
 
@@ -314,6 +408,8 @@ class DocumentDownloadSerializer(serializers.Serializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
+    created_by_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Task
         fields = [
@@ -321,6 +417,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "project",
             "folder",
             "created_by",
+            "created_by_name",
             "assigned_to",
             "title",
             "description",
@@ -336,7 +433,11 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
             "created_by",
+            "created_by_name",
         ]
+
+    def get_created_by_name(self, obj):
+        return _get_user_display_name(obj.created_by)
 
     def create(self, validated_data):
         assigned_to = validated_data.pop("assigned_to", [])
@@ -412,6 +513,16 @@ class InvitationSerializer(serializers.ModelSerializer):
             "token",
             "accepted_at",
         ]
+
+    def validate_role(self, role):
+        project_id = self.context.get("project_id")
+        if project_id is None and self.instance is not None:
+            project_id = self.instance.project_id
+
+        if project_id is not None and role.project_id != project_id:
+            raise serializers.ValidationError("errors.invitation.role_project_mismatch")
+
+        return role
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_status(self, invitation):
@@ -503,6 +614,8 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     paid_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
     is_paid = serializers.SerializerMethodField()
+    task_name = serializers.SerializerMethodField()
+    user_display_name = serializers.SerializerMethodField()
 
     class Meta:
         model = TimeEntry
@@ -511,7 +624,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "project",
             "folder",
             "task",
+            "task_name",
             "user",
+            "user_display_name",
             "duration_minutes",
             "hourly_rate",
             "cost_amount",
@@ -530,7 +645,15 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "paid_amount",
             "remaining_amount",
             "is_paid",
+            "task_name",
+            "user_display_name",
         ]
+
+    def get_task_name(self, obj):
+        return obj.task.title if obj.task_id else None
+
+    def get_user_display_name(self, obj):
+        return _get_user_display_name(obj.user)
 
     def create(self, validated_data):
         time_entry = TimeEntry(**validated_data)
@@ -601,16 +724,109 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         return str(value.quantize(Decimal("0.01")))
 
 
+class TimeEntryPaymentSerializer(serializers.Serializer):
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+    )
+    pay_full = serializers.BooleanField(required=False, default=False)
+    description = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    financial_entry = serializers.SerializerMethodField(read_only=True)
+    time_entry = TimeEntrySerializer(read_only=True)
+
+    def validate(self, attrs):
+        time_entry = self.context["time_entry"]
+        remaining_amount = self._get_remaining_amount(time_entry)
+
+        if remaining_amount <= Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.already_paid"
+            })
+
+        amount = remaining_amount if attrs.get("pay_full") else attrs.get("amount")
+        if amount is None:
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_required"
+            })
+
+        if amount <= Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_must_be_positive"
+            })
+
+        if amount > remaining_amount:
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_exceeds_remaining"
+            })
+
+        attrs["amount"] = amount
+        return attrs
+
+    def create(self, validated_data):
+        time_entry = self.context["time_entry"]
+        request = self.context["request"]
+        description = validated_data.get("description") or None
+
+        financial_entry = FinancialEntry.objects.create(
+            project=time_entry.project,
+            time_entry=time_entry,
+            created_by=request.user,
+            amount=validated_data["amount"],
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="Main d'oeuvre",
+            description=description,
+        )
+
+        return {
+            "financial_entry": financial_entry,
+            "time_entry": time_entry,
+        }
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_financial_entry(self, payment):
+        return FinancialEntrySerializer(payment["financial_entry"]).data
+
+    def _get_remaining_amount(self, time_entry):
+        cost_amount = Decimal(time_entry.duration_minutes) * time_entry.hourly_rate / Decimal("60")
+        paid_amount = Decimal("0.00")
+
+        for financial_entry in time_entry.financial_entries.all():
+            if financial_entry.type == FinancialEntry.FinancialType.EXPENSE:
+                paid_amount += financial_entry.amount
+            elif financial_entry.type == FinancialEntry.FinancialType.REFUND:
+                paid_amount -= financial_entry.amount
+
+        return max(cost_amount - max(paid_amount, Decimal("0.00")), Decimal("0.00"))
+
+
 class FinancialEntrySerializer(serializers.ModelSerializer):
+    task_name = serializers.SerializerMethodField()
+    created_by_name = serializers.SerializerMethodField()
+    time_entry_user_name = serializers.SerializerMethodField()
+    documents_info = serializers.SerializerMethodField()
+    documents = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Document.objects.all(), required=False, write_only=True,
+    )
+
     class Meta:
         model = FinancialEntry
         fields = [
             "id",
             "project",
             "folder",
-            "document",
+            "documents",
+            "documents_info",
             "time_entry",
+            "time_entry_user_name",
+            "task",
+            "task_name",
             "created_by",
+            "created_by_name",
             "amount",
             "type",
             "category",
@@ -623,9 +839,28 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
             "created_by",
+            "task_name",
+            "created_by_name",
+            "time_entry_user_name",
+            "documents_info",
         ]
 
+    def get_task_name(self, obj):
+        return obj.task.title if obj.task_id else None
+
+    def get_created_by_name(self, obj):
+        return _get_user_display_name(obj.created_by)
+
+    def get_time_entry_user_name(self, obj):
+        if obj.time_entry_id and obj.time_entry:
+            return _get_user_display_name(obj.time_entry.user)
+        return None
+
+    def get_documents_info(self, obj):
+        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
+
     def create(self, validated_data):
+        documents = validated_data.pop("documents", [])
         financial_entry = FinancialEntry(**validated_data)
 
         try:
@@ -634,9 +869,12 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         financial_entry.save()
+        if documents:
+            financial_entry.documents.set(documents)
         return financial_entry
 
     def update(self, instance, validated_data):
+        documents = validated_data.pop("documents", None)
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
@@ -646,4 +884,133 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         instance.save()
+        if documents is not None:
+            instance.documents.set(documents)
         return instance
+
+
+class ExpenseRequestSerializer(serializers.ModelSerializer):
+    task_name = serializers.SerializerMethodField()
+    requested_by_name = serializers.SerializerMethodField()
+    documents_info = serializers.SerializerMethodField()
+    documents = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Document.objects.all(), required=False, write_only=True,
+    )
+
+    class Meta:
+        model = ExpenseRequest
+        fields = [
+            "id",
+            "project",
+            "title",
+            "amount",
+            "category",
+            "description",
+            "folder",
+            "documents",
+            "documents_info",
+            "task",
+            "task_name",
+            "status",
+            "requested_by",
+            "requested_by_name",
+            "approved_at",
+            "approved_by",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
+        read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
+            "requested_by",
+            "status",
+            "approved_at",
+            "approved_by",
+            "task_name",
+            "requested_by_name",
+            "documents_info",
+        ]
+
+    def get_task_name(self, obj):
+        return obj.task.title if obj.task_id else None
+
+    def get_requested_by_name(self, obj):
+        return _get_user_display_name(obj.requested_by)
+
+    def get_documents_info(self, obj):
+        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
+
+    def create(self, validated_data):
+        documents = validated_data.pop("documents", [])
+        expense_request = ExpenseRequest(**validated_data)
+
+        try:
+            expense_request.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        expense_request.save()
+        if documents:
+            expense_request.documents.set(documents)
+        return expense_request
+
+    def update(self, instance, validated_data):
+        documents = validated_data.pop("documents", None)
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        instance.save()
+        if documents is not None:
+            instance.documents.set(documents)
+        return instance
+
+
+class FinancialEntryChartQuerySerializer(serializers.Serializer):
+    group_by = serializers.ChoiceField(
+        choices=["day", "month"],
+        required=False,
+        default="month",
+    )
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+
+    def validate(self, attrs):
+        start_date = attrs.get("start_date")
+        end_date = attrs.get("end_date")
+
+        if start_date and end_date and start_date > end_date:
+            raise serializers.ValidationError({
+                "end_date": "errors.financial_chart.end_date_before_start_date"
+            })
+
+        return attrs
+
+
+class FinancialEntryChartTotalsSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    expenses = serializers.CharField()
+    refunds = serializers.CharField()
+    balance = serializers.CharField()
+
+
+class FinancialEntryChartSeriesPointSerializer(FinancialEntryChartTotalsSerializer):
+    period = serializers.CharField()
+
+
+class FinancialEntryChartCategorySerializer(FinancialEntryChartTotalsSerializer):
+    category = serializers.CharField(allow_null=True)
+
+
+class FinancialEntryChartSerializer(serializers.Serializer):
+    group_by = serializers.ChoiceField(choices=["day", "month"])
+    start_date = serializers.DateField(allow_null=True)
+    end_date = serializers.DateField(allow_null=True)
+    totals = FinancialEntryChartTotalsSerializer()
+    series = FinancialEntryChartSeriesPointSerializer(many=True)
+    categories = FinancialEntryChartCategorySerializer(many=True)

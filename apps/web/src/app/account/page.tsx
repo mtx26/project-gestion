@@ -1,0 +1,118 @@
+"use client";
+
+import { changePasswordSchema, type ChangePasswordFormValues } from "@project-gestion/validation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { User } from "@project-gestion/types";
+import { useMutation } from "@tanstack/react-query";
+import { Save } from "lucide-react";
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { AccountProfileForm } from "@/components/account/account-profile-form";
+import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
+import { FormError } from "@/components/form-error";
+import { PasswordInput } from "@/components/password-input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
+
+export default function AccountPage() {
+  return (
+    <ProjectWorkspaceShell activeItem="account" maxWidthClassName="max-w-none">
+      {({ user }) => <AccountContent user={user} />}
+    </ProjectWorkspaceShell>
+  );
+}
+
+function AccountContent({ user }: { user: User | null }) {
+  const [notice, setNotice] = useState<string | null>(null);
+  const passwordForm = useForm<ChangePasswordFormValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { old_password: "", new_password: "" },
+  });
+
+  const changePassword = useMutation({
+    mutationFn: api.auth.changePassword,
+    onSuccess: () => {
+      passwordForm.reset();
+      setNotice("Mot de passe mis a jour.");
+    },
+  });
+
+  function onChangePassword(values: ChangePasswordFormValues) {
+    changePassword.mutate(values);
+  }
+
+  return (
+        <div className="space-y-5">
+          <div>
+            <p className="text-xs font-medium uppercase text-muted-foreground">Compte</p>
+            <h1 className="mt-1 text-2xl font-semibold">Parametres du compte</h1>
+          </div>
+
+          {notice ? (
+            <Alert>
+              <AlertDescription>{notice}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <Tabs defaultValue="profile">
+            <div>
+              <TabsList className="h-auto w-max">
+                <TabsTrigger value="profile" className="min-w-28 flex-none px-3 py-2">
+                  Profil
+                </TabsTrigger>
+                <TabsTrigger value="security" className="min-w-28 flex-none px-3 py-2">
+                  Securite
+                </TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="profile">
+              <Card className="rounded-lg">
+                <CardHeader>
+                  <CardTitle>Informations generales</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <AccountProfileForm
+                    user={user}
+                    onProfileSaved={() => setNotice("Profil mis a jour.")}
+                    onPictureSaved={() => setNotice("Photo de profil mise a jour.")}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="security">
+              <Card className="rounded-lg">
+                <CardHeader>
+                  <CardTitle>Mot de passe</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <form className="max-w-md space-y-4" onSubmit={passwordForm.handleSubmit(onChangePassword)}>
+                    <div className="space-y-2">
+                      <Label htmlFor="old-password">Mot de passe actuel</Label>
+                      <PasswordInput id="old-password" autoComplete="current-password" {...passwordForm.register("old_password")} />
+                      <FormError message={passwordForm.formState.errors.old_password?.message} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password">Nouveau mot de passe</Label>
+                      <PasswordInput id="new-password" autoComplete="new-password" {...passwordForm.register("new_password")} />
+                      <FormError message={passwordForm.formState.errors.new_password?.message} />
+                    </div>
+                    <FormError message={changePassword.error ? getErrorMessage(changePassword.error) : null} />
+                    <Button type="submit" disabled={changePassword.isPending}>
+                      <Save className="size-4" />
+                      {changePassword.isPending ? "Enregistrement..." : "Enregistrer"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+        </div>
+  );
+}

@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework import generics, serializers
 from rest_framework import status
 from rest_framework.parsers import MultiPartParser
@@ -14,7 +16,11 @@ from django.conf import settings
 from django.contrib.auth.models import User
 from dj_rest_auth.registration.views import SocialLoginView
 
-from api.services.storage import upload_profile_picture_file
+from api.services.storage import (
+    delete_profile_picture_file,
+    get_profile_picture_file_id_from_url,
+    upload_profile_picture_file,
+)
 
 from .models import Profile
 from .serializers import (
@@ -30,6 +36,8 @@ from .serializers import (
     ResendEmailVerificationSerializer,
     UserSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 @extend_schema(tags=["user"])
@@ -345,11 +353,24 @@ class CurrentUserProfilePictureView(generics.GenericAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        metadata = upload_profile_picture_file(uploaded_file, request.user.id)
         profile, _ = Profile.objects.get_or_create(user=request.user)
+        previous_picture_url = profile.picture_url
+
+        metadata = upload_profile_picture_file(uploaded_file, request.user.id)
         profile.picture_url = metadata["url"]
         profile.save(update_fields=["picture_url", "updated_at"])
         request.user.profile = profile
+        self.delete_previous_picture(previous_picture_url, request.user.id, metadata["file_id"])
 
         serializer = UserSerializer(request.user)
         return Response(serializer.data)
+
+    def delete_previous_picture(self, previous_picture_url, user_id, current_file_id):
+        previous_file_id = get_profile_picture_file_id_from_url(previous_picture_url, user_id)
+        if not previous_file_id or previous_file_id == current_file_id:
+            return
+
+        try:
+            delete_profile_picture_file(previous_file_id)
+        except Exception:
+            logger.warning("Could not delete previous profile picture %s", previous_file_id, exc_info=True)

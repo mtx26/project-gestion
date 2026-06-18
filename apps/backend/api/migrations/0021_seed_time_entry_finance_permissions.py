@@ -8,9 +8,19 @@ PERMISSIONS = [
         "description": "permissions.time_entry.view.description",
     },
     {
+        "code": "time_entry.view_all",
+        "name": "permissions.time_entry.view_all.name",
+        "description": "permissions.time_entry.view_all.description",
+    },
+    {
         "code": "time_entry.edit",
         "name": "permissions.time_entry.edit.name",
         "description": "permissions.time_entry.edit.description",
+    },
+    {
+        "code": "time_entry.pay",
+        "name": "permissions.time_entry.pay.name",
+        "description": "permissions.time_entry.pay.description",
     },
     {
         "code": "time_entry.delete",

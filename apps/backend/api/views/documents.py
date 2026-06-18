@@ -192,13 +192,13 @@ class DocumentDownloadView(generics.GenericAPIView):
 @extend_schema(tags=["documents"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les documents supprimés",
+        summary="Lister les documents supprimes",
         description=(
-            "Retourne les documents supprimés d'un projet.\n\n"
+            "Retourne les documents supprimes d'un projet.\n\n"
             "- Filtres disponibles : `folder`, `mime_type`.\n\n"
             "- Recherche disponible : `search` sur `name`, `description`, `file_name` et `mime_type`.\n\n"
             "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `file.view`."
+            "- Permission requise : `file.restore`."
         ),
     )
 )
@@ -210,7 +210,7 @@ class DocumentTrashListView(generics.ListAPIView):
     search_fields = ["name", "description", "file_name", "mime_type"]
 
     def get_permissions(self):
-        self.permission_code = "file.view"
+        self.permission_code = "file.restore"
         return super().get_permissions()
 
     def get_queryset(self):
@@ -227,17 +227,14 @@ class DocumentTrashListView(generics.ListAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un document",
+        description="Restaure un document supprime. Le fichier binaire en stockage n'est jamais supprime.\nPermission requise : `file.restore`.",
         request=None,
-        description="Restaure un document supprimé.\nPermission requise : `file.restore`.",
     )
 )
 class DocumentRestoreView(generics.GenericAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        self.permission_code = "file.restore"
-        return super().get_permissions()
+    permission_code = "file.restore"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -250,8 +247,6 @@ class DocumentRestoreView(generics.GenericAPIView):
 
     def post(self, request, project_id, pk):
         document = self.get_object()
-
         document.restore()
-
         serializer = self.get_serializer(document)
         return Response(serializer.data)

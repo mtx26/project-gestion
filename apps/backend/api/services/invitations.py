@@ -8,7 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
-from ..models import Invitation, ProjectMember
+from ..models import Invitation, Notification, ProjectMember
 from .mail import send_email
 from .notifications import notify
 from .projects import get_accessible_projects
@@ -46,7 +46,6 @@ def create_project_invitation(*, project, email, role, invited_by):
             email__iexact=email,
             accepted_at__isnull=True,
             expires_at__lte=now,
-            deleted_at__isnull=True,
         ).update(
             deleted_at=now,
             deleted_by=invited_by,
@@ -57,7 +56,6 @@ def create_project_invitation(*, project, email, role, invited_by):
             project=project,
             email__iexact=email,
             accepted_at__isnull=True,
-            deleted_at__isnull=True,
         ).exists():
             raise ValidationError({"email": "errors.invitation.already_pending"})
 
@@ -79,7 +77,7 @@ def create_project_invitation(*, project, email, role, invited_by):
                 type="project_invitation",
                 title="Invitation a un projet",
                 message=f"Vous avez ete invite au projet {project.name}.",
-                data={"invitation_id": invitation.id},
+                data={"invitation_id": invitation.id, "token": invitation.token},
             )
         else:
             send_invitation_email(invitation)
@@ -127,14 +125,10 @@ def accept_project_invitation(*, token, user):
             "invited_by",
         ).filter(
             token=token,
-            deleted_at__isnull=True,
         ).first()
 
         if invitation is None:
             raise ValidationError({"token": "errors.invitation.invalid_token"})
-
-        if invitation.accepted_at is not None:
-            raise ValidationError({"token": "errors.invitation.already_accepted"})
 
         if invitation.expires_at <= now:
             raise ValidationError({"token": "errors.invitation.expired"})
@@ -142,9 +136,28 @@ def accept_project_invitation(*, token, user):
         if normalize_invitation_email(user.email) != invitation.email:
             raise ValidationError({"token": "errors.invitation.email_mismatch"})
 
+        if invitation.accepted_at is not None:
+            member = ProjectMember.objects.filter(
+                project=invitation.project,
+                user=user,
+            ).first()
+            if member:
+                return invitation, member
+            raise ValidationError({"token": "errors.invitation.already_accepted"})
+
         member = _get_or_create_project_member(invitation, user)
         invitation.accepted_at = now
         invitation.save(update_fields=["accepted_at", "updated_at"])
+        Notification.objects.filter(
+            user=user,
+            type="project_invitation",
+            data__invitation_id=invitation.id,
+        ).update(
+            is_read=True,
+            deleted_at=now,
+            deleted_by=user,
+            updated_at=now,
+        )
 
         notify(
             user=invitation.invited_by,
