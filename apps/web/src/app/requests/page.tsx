@@ -36,7 +36,7 @@ import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } 
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
-import { formatMoney } from "@/lib/task-utils";
+import { formatDate, formatMoney } from "@/lib/task-utils";
 import { parseIdParam } from "@/lib/url-params";
 
 function buildRequestsHref(projectId: number | string) {
@@ -327,7 +327,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                     </span>
                   ) : null}
                   <span className="ml-auto shrink-0">
-                    {new Date(req.created_at).toLocaleDateString("fr-BE")}
+                    {formatDate(req.created_at)}
                   </span>
                 </div>
               </div>
@@ -677,7 +677,7 @@ function ExpenseRequestDetailDialog({
                 <p className="text-xs text-muted-foreground">Date</p>
                 <div className="flex items-center gap-1.5">
                   <Calendar className="size-3.5 text-muted-foreground" />
-                  <span>{new Date(request.created_at).toLocaleDateString("fr-BE")}</span>
+                  <span>{formatDate(request.created_at)}</span>
                 </div>
               </div>
             </div>

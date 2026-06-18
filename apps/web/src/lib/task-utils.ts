@@ -28,6 +28,10 @@ export function formatTaskDate(value: string) {
   return new Intl.DateTimeFormat("fr-BE", { dateStyle: "medium" }).format(new Date(value));
 }
 
+export function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("fr-BE");
+}
+
 export function formatDuration(totalMinutes: number) {
   const roundedMinutes = Math.max(0, Math.round(totalMinutes));
   const hours = Math.floor(roundedMinutes / 60);

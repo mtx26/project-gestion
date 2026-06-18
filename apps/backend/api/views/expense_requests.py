@@ -27,7 +27,7 @@ def _expense_request_qs(user, project_id, **extra_filters):
         "task",
         "requested_by",
         "approved_by",
-    )
+    ).prefetch_related("documents")
 
 
 @extend_schema(tags=["expense-requests"])

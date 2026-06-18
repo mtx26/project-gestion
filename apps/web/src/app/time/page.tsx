@@ -32,6 +32,7 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -883,9 +884,7 @@ function TimeEntryList({
   if (isLoading) {
     return (
       <div className="space-y-2">
-        <Skeleton className="h-24 rounded-md" />
-        <Skeleton className="h-24 rounded-md" />
-        <Skeleton className="h-24 rounded-md" />
+        <SkeletonLoader count={3} className="h-24 rounded-md" />
       </div>
     );
   }
@@ -942,9 +941,7 @@ function TimeCalendarView({
   if (isLoading) {
     return (
       <div className="grid grid-cols-7 gap-0 rounded-lg border bg-card">
-        {Array.from({ length: 35 }).map((_, index) => (
-          <Skeleton key={index} className="m-2 h-28 rounded-md" />
-        ))}
+        <SkeletonLoader count={35} className="m-2 h-28 rounded-md" />
       </div>
     );
   }

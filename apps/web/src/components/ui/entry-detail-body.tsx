@@ -1,7 +1,7 @@
 "use client";
 
 import type { FolderTreeNode } from "@project-gestion/types";
-import { ExternalLink, FileText, Folder, ListTodo } from "lucide-react";
+import { Eye, FileText, Folder, ListTodo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { findFolderName } from "@/lib/folder-utils";
 
@@ -75,8 +75,8 @@ export function EntryDetailBody({
                   disabled={isOpeningDocument}
                   onClick={() => onOpenDocument(doc.id)}
                 >
-                  <ExternalLink className="size-3.5" />
-                  Ouvrir
+                  <Eye className="size-3.5" />
+                  Apercu
                 </Button>
               </div>
             ))}

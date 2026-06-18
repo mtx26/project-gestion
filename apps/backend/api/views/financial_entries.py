@@ -71,7 +71,7 @@ class FinancialEntryListCreateView(generics.ListCreateAPIView):
             "time_entry__user",
             "task",
             "created_by",
-        ).order_by("-created_at", "-id")
+        ).prefetch_related("documents").order_by("-created_at", "-id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
@@ -254,11 +254,10 @@ class FinancialEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
         ).select_related(
             "project",
             "folder",
-            "document",
             "time_entry",
             "task",
             "created_by",
-        )
+        ).prefetch_related("documents")
 
     def perform_destroy(self, instance):
         instance.soft_delete(self.request.user)
@@ -298,11 +297,10 @@ class FinancialEntryTrashListView(generics.ListAPIView):
         ).select_related(
             "project",
             "folder",
-            "document",
             "time_entry",
             "task",
             "created_by",
-        ).order_by("-created_at", "-id")
+        ).prefetch_related("documents").order_by("-created_at", "-id")
 
 
 @extend_schema(tags=["finance"])
@@ -328,11 +326,10 @@ class FinancialEntryRestoreView(generics.GenericAPIView):
         ).select_related(
             "project",
             "folder",
-            "document",
             "time_entry",
             "task",
             "created_by",
-        )
+        ).prefetch_related("documents")
 
     def post(self, request, project_id, pk):
         financial_entry = self.get_object()

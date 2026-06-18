@@ -37,7 +37,7 @@ import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } 
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
-import { formatMoney } from "@/lib/task-utils";
+import { formatDate, formatMoney } from "@/lib/task-utils";
 import { parseIdParam, setOptionalParam } from "@/lib/url-params";
 
 function buildFinanceHref(projectId: number | string, params: URLSearchParams) {
@@ -320,7 +320,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                   ) : null}
                   <span className="ml-auto inline-flex items-center gap-1">
                     <Calendar className="size-3" />
-                    {new Date(entry.created_at).toLocaleDateString("fr-BE")}
+                    {formatDate(entry.created_at)}
                   </span>
                 </div>
               </div>
@@ -655,7 +655,7 @@ function FinancialEntryDetailDialog({
                 <p className="text-xs text-muted-foreground">Date</p>
                 <div className="flex items-center gap-1.5">
                   <Calendar className="size-3.5 text-muted-foreground" />
-                  <span>{new Date(entry.created_at).toLocaleDateString("fr-BE")}</span>
+                  <span>{formatDate(entry.created_at)}</span>
                 </div>
               </div>
             </div>
