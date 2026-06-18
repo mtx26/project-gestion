@@ -101,7 +101,7 @@ export function TreePickerDialog(props: TreePickerProps) {
       <Button
         type="button"
         variant="outline"
-        className="h-auto min-h-9 w-full justify-start gap-2 px-3 py-2"
+        className="h-8 w-full justify-start gap-2 bg-background px-3"
         onClick={() => setOpen(true)}
       >
         <TreeIcon type={selectedType} />

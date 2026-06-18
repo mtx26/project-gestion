@@ -770,7 +770,7 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
     def create(self, validated_data):
         time_entry = self.context["time_entry"]
         request = self.context["request"]
-        description = validated_data.get("description") or f"Pour {_get_user_display_name(time_entry.user)}"
+        description = validated_data.get("description") or None
 
         financial_entry = FinancialEntry.objects.create(
             project=time_entry.project,
@@ -807,6 +807,7 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
 class FinancialEntrySerializer(serializers.ModelSerializer):
     task_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    time_entry_user_name = serializers.SerializerMethodField()
     documents_info = serializers.SerializerMethodField()
     documents = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Document.objects.all(), required=False, write_only=True,
@@ -821,6 +822,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "documents",
             "documents_info",
             "time_entry",
+            "time_entry_user_name",
             "task",
             "task_name",
             "created_by",
@@ -839,6 +841,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "created_by",
             "task_name",
             "created_by_name",
+            "time_entry_user_name",
             "documents_info",
         ]
 
@@ -847,6 +850,11 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return _get_user_display_name(obj.created_by)
+
+    def get_time_entry_user_name(self, obj):
+        if obj.time_entry_id and obj.time_entry:
+            return _get_user_display_name(obj.time_entry.user)
+        return None
 
     def get_documents_info(self, obj):
         return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]

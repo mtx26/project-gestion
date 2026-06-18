@@ -54,7 +54,7 @@ import {
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
+import { TreePickerDialog } from "@/components/ui/tree-picker";
 import { TaskDetailModal } from "@/components/ui/task-detail-modal";
 import { buildFolderNameMap, findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
 import { formatDuration, formatMoney, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
@@ -1120,7 +1120,8 @@ function TaskDraftDialog({
         <div className="space-y-4">
           <div className="space-y-2">
             <Label>Dossier</Label>
-            <FolderTreePickerDialog
+            <TreePickerDialog
+              mode="folder"
               folders={folders}
               selectedFolderId={folderId}
               buttonLabel={folderName ?? "Projet"}

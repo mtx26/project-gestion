@@ -285,6 +285,7 @@ export type FinancialEntry = {
   folder: ID | null;
   documents_info: Array<{ id: ID; name: string | null }>;
   time_entry: ID | null;
+  time_entry_user_name: string | null;
   task: ID | null;
   task_name: string | null;
   created_by: ID;

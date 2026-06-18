@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, ExternalLink, Eye, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
+import { Calendar, ExternalLink, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -278,7 +278,8 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className="flex items-center gap-4 rounded-lg border bg-card px-4 py-3"
+              className="flex cursor-pointer items-center gap-4 rounded-lg border bg-card px-4 py-3 hover:bg-muted/30"
+              onClick={() => setViewingEntry(entry)}
             >
               <EntryTypeBadge type={entry.type} />
               <div className="min-w-0 flex-1">
@@ -312,7 +313,12 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                       {entry.documents_info.length > 1 ? ` +${entry.documents_info.length - 1}` : ""}
                     </span>
                   ) : null}
-                  {entry.created_by_name ? (
+                  {entry.time_entry_user_name ? (
+                    <span className="inline-flex items-center gap-1">
+                      <UserRound className="size-3 text-violet-500" />
+                      Pour {entry.time_entry_user_name}
+                    </span>
+                  ) : entry.created_by_name ? (
                     <span className="inline-flex items-center gap-1">
                       <UserRound className="size-3" />
                       {entry.created_by_name}
@@ -325,20 +331,12 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setViewingEntry(entry)}
-                >
-                  <Eye className="size-4" />
-                </Button>
                 {canEditFinance ? (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => { setFormError(null); setEditingEntry(entry); }}
+                    onClick={(e) => { e.stopPropagation(); setFormError(null); setEditingEntry(entry); }}
                   >
                     <Pencil className="size-4" />
                   </Button>
@@ -349,7 +347,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                     variant="ghost"
                     size="icon-sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => setDeletingEntryId(entry.id)}
+                    onClick={(e) => { e.stopPropagation(); setDeletingEntryId(entry.id); }}
                   >
                     <Trash2 className="size-4" />
                   </Button>
@@ -705,7 +703,15 @@ function FinancialEntryDetailDialog({
             ) : null}
 
             <div className="grid grid-cols-2 gap-3 text-sm">
-              {entry.created_by_name ? (
+              {entry.time_entry_user_name ? (
+                <div>
+                  <p className="text-xs text-muted-foreground">Pour</p>
+                  <div className="flex items-center gap-1.5">
+                    <UserRound className="size-3.5 text-violet-500" />
+                    <span>{entry.time_entry_user_name}</span>
+                  </div>
+                </div>
+              ) : entry.created_by_name ? (
                 <div>
                   <p className="text-xs text-muted-foreground">Cree par</p>
                   <div className="flex items-center gap-1.5">

@@ -1,7 +1,7 @@
 "use client";
 
 import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
-import { FolderTreePickerDialog } from "@/components/ui/folder-tree-picker";
+import { TreePickerDialog } from "@/components/ui/tree-picker";
 import { TargetIcon, TargetPickerDialog } from "@/components/ui/target-tree-picker";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
@@ -839,8 +839,9 @@ function TimePeriodToolbar({
           </SelectContent>
         </Select>
       ) : null}
-      <div className="w-full sm:w-52">
-        <FolderTreePickerDialog
+      <div className="w-full sm:w-48">
+        <TreePickerDialog
+          mode="folder"
           folders={folders}
           selectedFolderId={targetFolderId}
           buttonLabel={folderPickerLabel}

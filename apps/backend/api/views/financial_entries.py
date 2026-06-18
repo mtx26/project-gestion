@@ -47,7 +47,7 @@ class FinancialEntryListCreateView(generics.ListCreateAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["folder", "document", "time_entry", "type", "category", "created_by"]
+    filterset_fields = ["folder", "time_entry", "type", "category", "created_by"]
     search_fields = ["category", "description"]
 
     def get_permissions(self):
@@ -68,8 +68,7 @@ class FinancialEntryListCreateView(generics.ListCreateAPIView):
         ).select_related(
             "project",
             "folder",
-            "document",
-            "time_entry",
+            "time_entry__user",
             "task",
             "created_by",
         ).order_by("-created_at", "-id")
@@ -282,7 +281,7 @@ class FinancialEntryTrashListView(generics.ListAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["folder", "document", "time_entry", "type", "category", "created_by"]
+    filterset_fields = ["folder", "time_entry", "type", "category", "created_by"]
     search_fields = ["category", "description"]
 
     def get_permissions(self):

@@ -16,6 +16,20 @@ from ..serializers import ExpenseRequestSerializer
 from ..services.projects import get_accessible_projects
 
 
+def _expense_request_qs(user, project_id, **extra_filters):
+    return ExpenseRequest.objects.filter(
+        project_id=project_id,
+        project__in=get_accessible_projects(user),
+        **extra_filters,
+    ).select_related(
+        "project",
+        "folder",
+        "task",
+        "requested_by",
+        "approved_by",
+    )
+
+
 @extend_schema(tags=["expense-requests"])
 @extend_schema_view(
     get=extend_schema(
@@ -46,17 +60,7 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return ExpenseRequest.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "document",
-            "task",
-            "requested_by",
-            "approved_by",
-        ).order_by("-created_at", "-id")
+        return _expense_request_qs(self.request.user, self.kwargs["project_id"]).order_by("-created_at", "-id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
@@ -103,17 +107,7 @@ class ExpenseRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return ExpenseRequest.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "document",
-            "task",
-            "requested_by",
-            "approved_by",
-        )
+        return _expense_request_qs(self.request.user, self.kwargs["project_id"])
 
     def perform_destroy(self, instance):
         instance.soft_delete(self.request.user)
@@ -125,7 +119,7 @@ class ExpenseRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
         summary="Approuver une demande de remboursement",
         description=(
             "Approuve une demande en attente et cree automatiquement une entree financiere "
-            "de type depense avec le meme dossier, document et montant.\n\n"
+            "de type depense avec le meme dossier et montant.\n\n"
             "Permission requise : `expense_request.approve`."
         ),
         request=None,
@@ -140,17 +134,8 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return ExpenseRequest.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-            status=ExpenseRequest.STATUS_PENDING,
-        ).select_related(
-            "project",
-            "folder",
-            "document",
-            "task",
-            "requested_by",
-            "approved_by",
+        return _expense_request_qs(
+            self.request.user, self.kwargs["project_id"], status=ExpenseRequest.STATUS_PENDING
         )
 
     def post(self, request, project_id, pk):
@@ -162,10 +147,9 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
             expense_request.approved_at = timezone.now()
             expense_request.save()
 
-            FinancialEntry.objects.create(
+            financial_entry = FinancialEntry.objects.create(
                 project=expense_request.project,
                 folder=expense_request.folder,
-                document=expense_request.document,
                 task=expense_request.task,
                 created_by=request.user,
                 amount=expense_request.amount,
@@ -173,6 +157,8 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
                 category=expense_request.category,
                 description=expense_request.title,
             )
+            if expense_request.documents.exists():
+                financial_entry.documents.set(expense_request.documents.all())
 
         serializer = self.get_serializer(expense_request)
         return Response(serializer.data)
@@ -195,17 +181,8 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return ExpenseRequest.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-            status=ExpenseRequest.STATUS_PENDING,
-        ).select_related(
-            "project",
-            "folder",
-            "document",
-            "task",
-            "requested_by",
-            "approved_by",
+        return _expense_request_qs(
+            self.request.user, self.kwargs["project_id"], status=ExpenseRequest.STATUS_PENDING
         )
 
     def post(self, request, project_id, pk):

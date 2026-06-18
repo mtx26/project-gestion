@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, CheckCircle2, Clock, ExternalLink, Eye, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, ExternalLink, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -295,7 +295,8 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
           {requests.map((req) => (
             <div
               key={req.id}
-              className="flex items-start gap-4 rounded-lg border bg-card px-4 py-3"
+              className="flex cursor-pointer items-start gap-4 rounded-lg border bg-card px-4 py-3 hover:bg-muted/30"
+              onClick={() => setViewingRequest(req)}
             >
               <div className="pt-0.5">
                 <RequestStatusBadge status={req.status} />
@@ -341,14 +342,6 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  onClick={() => setViewingRequest(req)}
-                >
-                  <Eye className="size-4" />
-                </Button>
                 {canApprove && req.status === "pending" ? (
                   <>
                     <Button
@@ -357,7 +350,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                       size="sm"
                       className="gap-1.5"
                       disabled={approveRequest.isPending || rejectRequest.isPending}
-                      onClick={() => { setActionError(null); approveRequest.mutate(req.id); }}
+                      onClick={(e) => { e.stopPropagation(); setActionError(null); approveRequest.mutate(req.id); }}
                     >
                       <CheckCircle2 className="size-3.5" />
                       Approuver
@@ -368,7 +361,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                       size="sm"
                       className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700"
                       disabled={approveRequest.isPending || rejectRequest.isPending}
-                      onClick={() => { setActionError(null); rejectRequest.mutate(req.id); }}
+                      onClick={(e) => { e.stopPropagation(); setActionError(null); rejectRequest.mutate(req.id); }}
                     >
                       <XCircle className="size-3.5" />
                       Refuser
@@ -380,7 +373,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    onClick={() => setEditingRequest(req)}
+                    onClick={(e) => { e.stopPropagation(); setEditingRequest(req); }}
                   >
                     <Pencil className="size-4" />
                   </Button>
@@ -391,7 +384,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                     variant="ghost"
                     size="icon-sm"
                     className="text-destructive hover:text-destructive"
-                    onClick={() => setDeletingId(req.id)}
+                    onClick={(e) => { e.stopPropagation(); setDeletingId(req.id); }}
                   >
                     <Trash2 className="size-4" />
                   </Button>

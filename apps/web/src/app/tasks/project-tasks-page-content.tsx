@@ -347,7 +347,7 @@ function ProjectTasksContent({
         </Select>
         {members.length > 0 ? (
           <Select value={createdByFilter != null ? String(createdByFilter) : "all"} onValueChange={(v) => updateUrlFilter({ member: v === "all" ? null : Number(v) })}>
-            <SelectTrigger className="w-full bg-background sm:w-48">
+            <SelectTrigger className="w-full bg-background sm:w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -359,7 +359,7 @@ function ProjectTasksContent({
           </Select>
         ) : null}
         {canViewFiles ? (
-          <div className="w-full sm:w-56">
+          <div className="w-full sm:w-44">
             <TreePickerDialog
               mode="folder"
               folders={foldersQuery.data ?? []}
