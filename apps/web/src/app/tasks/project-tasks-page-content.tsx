@@ -302,7 +302,7 @@ function ProjectTasksContent({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <TasksTitle />
         {canEditTasks ? (
-          <Button type="button" className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setCreateDialogOpen(true)}>
+          <Button type="button" className="gap-2" onClick={() => setCreateDialogOpen(true)}>
             <Plus className="size-4" />
             Nouvelle tache
           </Button>

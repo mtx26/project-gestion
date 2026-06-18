@@ -359,7 +359,7 @@ function ProjectTimeContent({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <TimePageTitle />
         {canRecordTime ? (
-          <Button type="button" className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setTimeFormOpen(true)}>
+          <Button type="button" className="gap-2" onClick={() => setTimeFormOpen(true)}>
             <Plus className="size-4" />
             Ajouter
           </Button>
@@ -786,6 +786,15 @@ function TimePeriodToolbar({
           <SelectItem value="all">Tout</SelectItem>
         </SelectContent>
       </Select>
+      <div className="w-full sm:w-52">
+        <FolderTreePickerDialog
+          folders={folders}
+          selectedFolderId={targetFolderId}
+          buttonLabel={folderPickerLabel}
+          description="Filtrer les entrees de temps par dossier."
+          onSelect={onSelectFolder}
+        />
+      </div>
       {canViewAllTime ? (
         <Select value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
           <SelectTrigger className="w-full bg-background sm:w-56">
@@ -813,15 +822,6 @@ function TimePeriodToolbar({
           <SelectItem value="paid">Paye</SelectItem>
         </SelectContent>
       </Select>
-      <div className="w-full sm:w-52">
-        <FolderTreePickerDialog
-          folders={folders}
-          selectedFolderId={targetFolderId}
-          buttonLabel={folderPickerLabel}
-          description="Filtrer les entrees de temps par dossier."
-          onSelect={onSelectFolder}
-        />
-      </div>
       <Button
         type="button"
         variant={includeUnpaidOutsideMonth ? "default" : "outline"}

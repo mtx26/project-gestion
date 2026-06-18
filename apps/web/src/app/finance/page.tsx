@@ -140,20 +140,23 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
           <h1 className="mt-1 text-2xl font-semibold">Gestion financiere</h1>
         </div>
         {canEditFinance ? (
-          <Button type="button" className="gap-2 bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => { setFormError(null); setCreateOpen(true); }}>
+          <Button type="button" className="gap-2" onClick={() => { setFormError(null); setCreateOpen(true); }}>
             <Plus className="size-4" />
             Nouvelle entree
           </Button>
         ) : null}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCard label="Depenses" value={formatMoney(totals.expenses)} className="text-destructive" />
-        <SummaryCard label="Remboursements" value={formatMoney(totals.refunds)} className="text-emerald-600" />
-        <SummaryCard label="Net" value={formatMoney(totals.balance)} className={totals.balance >= 0 ? "text-emerald-600" : "text-destructive"} />
-      </div>
-
       <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <div className="w-full sm:w-56">
+          <FolderTreePickerDialog
+            folders={folders}
+            selectedFolderId={folderFilterId != null ? Number(folderFilterId) : null}
+            buttonLabel={folderFilterName ?? "Tous dossiers"}
+            description="Filtrer les entrees par dossier."
+            onSelect={(id) => setFolderFilterId(id)}
+          />
+        </div>
         <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as typeof typeFilter)}>
           <SelectTrigger className="w-full bg-background sm:w-48">
             <SelectValue />
@@ -164,20 +167,17 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
             <SelectItem value="refund">Remboursements</SelectItem>
           </SelectContent>
         </Select>
-        <div className="w-full sm:w-56">
-          <FolderTreePickerDialog
-            folders={folders}
-            selectedFolderId={folderFilterId != null ? Number(folderFilterId) : null}
-            buttonLabel={folderFilterName ?? "Tous dossiers"}
-            description="Filtrer les entrees par dossier."
-            onSelect={(id) => setFolderFilterId(id)}
-          />
-        </div>
         {folderFilterId != null ? (
           <Button type="button" variant="ghost" size="sm" className="sm:w-auto" onClick={() => setFolderFilterId(null)}>
             Effacer filtre
           </Button>
         ) : null}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <SummaryCard label="Depenses" value={formatMoney(totals.expenses)} className="text-destructive" />
+        <SummaryCard label="Remboursements" value={formatMoney(totals.refunds)} className="text-emerald-600" />
+        <SummaryCard label="Net" value={formatMoney(totals.balance)} className={totals.balance >= 0 ? "text-emerald-600" : "text-destructive"} />
       </div>
 
       {entriesQuery.isLoading ? (
