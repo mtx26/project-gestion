@@ -1,4 +1,4 @@
-export const permissionCodes = {
+﻿export const permissionCodes = {
   projectEdit: "project.edit",
   roleView: "role.view",
   roleEdit: "role.edit",
@@ -24,6 +24,10 @@ export const permissionCodes = {
   financeEdit: "finance.edit",
   financeDelete: "finance.delete",
   financeRestore: "finance.restore",
+  expenseRequestView: "expense_request.view",
+  expenseRequestEdit: "expense_request.edit",
+  expenseRequestDelete: "expense_request.delete",
+  expenseRequestApprove: "expense_request.approve",
 } as const;
 
 export type PermissionCode = (typeof permissionCodes)[keyof typeof permissionCodes];
@@ -38,6 +42,7 @@ export const permissionScopeLabels = {
   task: "Taches",
   time_entry: "Temps",
   finance: "Finance",
+  expense_request: "Remboursements",
   other: "Autres",
 } as const;
 
@@ -76,6 +81,9 @@ export const permissionDependencyCodes: Partial<Record<PermissionCode, Permissio
   [permissionCodes.financeEdit]: [permissionCodes.financeView],
   [permissionCodes.financeDelete]: [permissionCodes.financeView],
   [permissionCodes.financeRestore]: [permissionCodes.financeView],
+  [permissionCodes.expenseRequestEdit]: [permissionCodes.expenseRequestView],
+  [permissionCodes.expenseRequestDelete]: [permissionCodes.expenseRequestView],
+  [permissionCodes.expenseRequestApprove]: [permissionCodes.expenseRequestView],
 };
 
 export type PermissionScope = keyof typeof permissionScopeLabels;

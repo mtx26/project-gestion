@@ -371,3 +371,38 @@ class FinancialEntry(BaseModel):
                 paid_amount -= entry.amount
 
         return max(paid_amount, Decimal("0.00"))
+
+
+class ExpenseRequest(BaseModel):
+    STATUS_PENDING = "pending"
+    STATUS_APPROVED = "approved"
+    STATUS_REJECTED = "rejected"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "En attente"),
+        (STATUS_APPROVED, "Approuve"),
+        (STATUS_REJECTED, "Refuse"),
+    ]
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    title = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    category = models.CharField(max_length=100, blank=True, null=True)
+    description = models.TextField(blank=True, null=True)
+    folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
+    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="expense_requests_made")
+    approved_at = models.DateTimeField(null=True, blank=True)
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_approved")
+
+    def clean(self):
+        super().clean()
+
+        if self.folder and self.folder.project_id != self.project_id:
+            raise ValidationError("errors.expense_request.folder_project_mismatch")
+
+        if self.document and self.document.project_id != self.project_id:
+            raise ValidationError("errors.expense_request.document_project_mismatch")
+
+    class Meta:
+        ordering = ["-created_at"]

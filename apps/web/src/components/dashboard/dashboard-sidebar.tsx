@@ -2,7 +2,7 @@ import type { Project, User } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { Banknote, Bell, ChevronsUpDown, Clock3, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
+import { Banknote, Bell, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -35,7 +35,7 @@ type DashboardSidebarProps = {
   selectedProjectId: string;
   userId: number | null;
   user: User | null | undefined;
-  activeItem: "dashboard" | "settings" | "files" | "tasks" | "time" | "finance" | "trash" | "account" | "notifications";
+  activeItem: "dashboard" | "settings" | "files" | "tasks" | "time" | "finance" | "requests" | "trash" | "account" | "notifications";
   isLoading: boolean;
   onSelectProject: (id: number) => void;
   onCreateProject: () => void;
@@ -67,6 +67,7 @@ export function DashboardSidebar({
   const timeHref = selectedProjectId ? `/time?project=${selectedProjectId}` : "/time";
   const trashHref = selectedProjectId ? `/trash?project=${selectedProjectId}` : "/trash";
   const financeHref = selectedProjectId ? `/finance?project=${selectedProjectId}` : "/finance";
+  const requestsHref = selectedProjectId ? `/requests?project=${selectedProjectId}` : "/requests";
   const selectedProject = projects.find((project) => String(project.id) === selectedProjectId) ?? null;
 
   function toggleTheme() {
@@ -103,6 +104,13 @@ export function DashboardSidebar({
       label: "Finances",
       icon: Banknote,
       locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.financeView)),
+    },
+    {
+      key: "requests",
+      href: requestsHref,
+      label: "Remboursements",
+      icon: ClipboardList,
+      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.expenseRequestView)),
     },
     {
       key: "trash",

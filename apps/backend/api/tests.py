@@ -27,6 +27,7 @@ from .models import (
     Task,
     TimeEntry,
     FinancialEntry,
+    ExpenseRequest,
 )
 from .services.mail import send_email
 from .services.storage import validate_document_file
@@ -5648,3 +5649,295 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
         self.other_project_member.refresh_from_db()
         self.assertIsNone(self.other_project_member.deleted_at)
+
+
+class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Expense folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other expense folder",
+        )
+        self.document = Document.objects.create(
+            project=self.project,
+            folder=self.folder,
+            name="Receipt",
+            file_id="receipt-file-er",
+            file_name="receipt.pdf",
+        )
+        self.pending_request = ExpenseRequest.objects.create(
+            project=self.project,
+            title="Pending request",
+            amount="50.00",
+            category="transport",
+            description="Bus ticket",
+            folder=self.folder,
+            requested_by=self.owner,
+        )
+        self.approved_request = ExpenseRequest.objects.create(
+            project=self.project,
+            title="Approved request",
+            amount="100.00",
+            status=ExpenseRequest.STATUS_APPROVED,
+            requested_by=self.owner,
+            approved_by=self.owner,
+        )
+        self.other_project_request = ExpenseRequest.objects.create(
+            project=self.other_project,
+            title="Other project request",
+            amount="75.00",
+            requested_by=self.other_user,
+        )
+        self.url = f"/api/projects/{self.project.id}/expense-requests/"
+        self.other_project_url = f"/api/projects/{self.other_project.id}/expense-requests/"
+
+    # WHEN
+    def when_list_requests(self, query=""):
+        return self.api_get(f"{self.url}{query}")
+
+    def when_create_request(self, payload):
+        return self.api_post(self.url, payload)
+
+    def when_get_request(self, request_id):
+        return self.api_get(f"{self.url}{request_id}/")
+
+    def when_patch_request(self, request_id, payload):
+        return self.api_patch(f"{self.url}{request_id}/", payload)
+
+    def when_delete_request(self, request_id):
+        return self.api_delete(f"{self.url}{request_id}/")
+
+    def when_approve_request(self, request_id):
+        return self.api_post(f"{self.url}{request_id}/approve/", {})
+
+    # ASSERT
+    def assert_visible_request_titles(self, response, expected_titles):
+        requests = self.response_results(response)
+        titles = {r["title"] for r in requests}
+        self.assertEqual(titles, set(expected_titles))
+
+    def assert_request_exists(self, title):
+        return ExpenseRequest.objects.get(project=self.project, title=title)
+
+    def assert_request_does_not_exist(self, title):
+        self.assertFalse(ExpenseRequest.objects.filter(project=self.project, title=title).exists())
+
+    # TESTS GET list
+    def test_anonymous_cannot_list_expense_requests(self):
+        response = self.when_list_requests()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_list_expense_requests(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_requests()
+
+        self.assert_ok(response)
+        self.assert_visible_request_titles(response, ["Pending request", "Approved request"])
+
+    def test_member_with_view_can_list_expense_requests(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_list_requests()
+
+        self.assert_ok(response)
+        self.assert_visible_request_titles(response, ["Pending request", "Approved request"])
+
+    def test_member_without_view_cannot_list_expense_requests(self):
+        self.given_member_authenticated(["expense_request.edit"])
+
+        response = self.when_list_requests()
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_list_expense_requests(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_list_requests()
+
+        self.assert_forbidden(response)
+
+    def test_member_cannot_list_another_project_requests(self):
+        self.given_member_authenticated(["expense_request.view"])
+        self.url = self.other_project_url
+
+        response = self.when_list_requests()
+
+        self.assert_forbidden(response)
+
+    # TESTS POST
+    def test_anonymous_cannot_create_expense_request(self):
+        response = self.when_create_request({
+            "title": "Anonymous request",
+            "amount": "20.00",
+        })
+
+        self.assert_unauthorized(response)
+        self.assert_request_does_not_exist("Anonymous request")
+
+    def test_owner_can_create_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_request({
+            "title": "Owner request",
+            "amount": "30.00",
+            "category": "office",
+            "description": "Paper",
+            "folder": self.folder.id,
+        })
+
+        self.assert_created(response)
+        req = self.assert_request_exists("Owner request")
+        self.assertEqual(req.requested_by_id, self.owner.id)
+        self.assertEqual(req.status, ExpenseRequest.STATUS_PENDING)
+
+    def test_member_with_edit_can_create_expense_request(self):
+        self.given_member_authenticated(["expense_request.view", "expense_request.edit"])
+
+        response = self.when_create_request({
+            "title": "Member request",
+            "amount": "15.00",
+        })
+
+        self.assert_created(response)
+        req = self.assert_request_exists("Member request")
+        self.assertEqual(req.requested_by_id, self.member.id)
+
+    def test_member_without_edit_cannot_create_expense_request(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_create_request({
+            "title": "Forbidden request",
+            "amount": "10.00",
+        })
+
+        self.assert_forbidden(response)
+        self.assert_request_does_not_exist("Forbidden request")
+
+    def test_create_rejects_folder_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_request({
+            "title": "Cross-project folder",
+            "amount": "10.00",
+            "folder": self.other_project_folder.id,
+        })
+
+        self.assert_bad_request(response)
+        self.assert_request_does_not_exist("Cross-project folder")
+
+    # TESTS PATCH
+    def test_owner_can_patch_pending_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_request(self.pending_request.id, {"title": "Updated title"})
+
+        self.assert_ok(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.title, "Updated title")
+
+    def test_member_without_edit_cannot_patch_expense_request(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_patch_request(self.pending_request.id, {"title": "Should not update"})
+
+        self.assert_forbidden(response)
+
+    # TESTS DELETE
+    def test_anonymous_cannot_delete_expense_request(self):
+        response = self.when_delete_request(self.pending_request.id)
+
+        self.assert_unauthorized(response)
+        self.assertIsNone(self.pending_request.deleted_at)
+
+    def test_owner_can_soft_delete_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_delete_request(self.pending_request.id)
+
+        self.assert_no_content(response)
+        self.pending_request.refresh_from_db()
+        self.assertIsNotNone(self.pending_request.deleted_at)
+
+    def test_member_without_delete_cannot_delete_expense_request(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_delete_request(self.pending_request.id)
+
+        self.assert_forbidden(response)
+
+    # TESTS APPROVE
+    def test_anonymous_cannot_approve_expense_request(self):
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_unauthorized(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_PENDING)
+
+    def test_owner_can_approve_pending_expense_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_ok(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_APPROVED)
+        self.assertEqual(self.pending_request.approved_by_id, self.owner.id)
+        self.assertIsNotNone(self.pending_request.approved_at)
+
+    def test_approve_creates_financial_entry(self):
+        self.given_authenticated(self.owner)
+
+        before_count = FinancialEntry.objects.filter(project=self.project).count()
+
+        self.when_approve_request(self.pending_request.id)
+
+        after_count = FinancialEntry.objects.filter(project=self.project).count()
+        self.assertEqual(after_count, before_count + 1)
+
+        entry = FinancialEntry.objects.get(
+            project=self.project,
+            description=self.pending_request.title,
+        )
+        self.assertEqual(entry.type, FinancialEntry.FinancialType.EXPENSE)
+        self.assertEqual(str(entry.amount), self.pending_request.amount)
+        self.assertEqual(entry.folder_id, self.pending_request.folder_id)
+        self.assertEqual(entry.category, self.pending_request.category)
+
+    def test_member_with_approve_permission_can_approve(self):
+        self.given_member_authenticated(["expense_request.view", "expense_request.approve"])
+
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_ok(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_APPROVED)
+
+    def test_member_without_approve_cannot_approve(self):
+        self.given_member_authenticated(["expense_request.view"])
+
+        response = self.when_approve_request(self.pending_request.id)
+
+        self.assert_forbidden(response)
+        self.pending_request.refresh_from_db()
+        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_PENDING)
+
+    def test_cannot_approve_already_approved_request(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_approve_request(self.approved_request.id)
+
+        self.assert_not_found(response)
+
+    def test_cannot_approve_request_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.api_post(f"{self.other_project_url}{self.other_project_request.id}/approve/", {})
+
+        self.assert_forbidden(response)

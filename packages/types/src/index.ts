@@ -295,6 +295,35 @@ export type FinancialEntryPayload = {
   category?: string | null;
   description?: string | null;
   folder?: ID | null;
+  document?: ID | null;
+};
+
+export type ExpenseRequest = {
+  id: ID;
+  project: ID;
+  title: string;
+  amount: string;
+  category: string | null;
+  description: string | null;
+  folder: ID | null;
+  document: ID | null;
+  status: "pending" | "approved" | "rejected";
+  requested_by: ID;
+  approved_at: string | null;
+  approved_by: ID | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+  deleted_by: ID | null;
+};
+
+export type ExpenseRequestPayload = {
+  title: string;
+  amount: string;
+  category?: string | null;
+  description?: string | null;
+  folder?: ID | null;
+  document?: ID | null;
 };
 
 export type FinancialEntryChartTotals = {

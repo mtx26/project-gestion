@@ -59,7 +59,12 @@ from .views.financial_entries import (
     FinancialEntryTrashListView,
     FinancialEntryRestoreView,
 )
-    
+from .views.expense_requests import (
+    ExpenseRequestListCreateView,
+    ExpenseRequestDetailView,
+    ExpenseRequestApproveView,
+)
+
 
 urlpatterns = [
     path("users/", UserListView.as_view(), name="user-list"),
@@ -110,5 +115,8 @@ urlpatterns = [
     path("projects/<int:project_id>/financial-entries/trash/", FinancialEntryTrashListView.as_view(), name="project-financial-entries-trash"),
     path("projects/<int:project_id>/financial-entries/<int:pk>/", FinancialEntryDetailView.as_view(), name="project-financial-entry-detail"),
     path("projects/<int:project_id>/financial-entries/<int:pk>/restore/", FinancialEntryRestoreView.as_view(), name="project-financial-entry-restore"),
-
+    # Expense Requests
+    path("projects/<int:project_id>/expense-requests/", ExpenseRequestListCreateView.as_view(), name="project-expense-requests"),
+    path("projects/<int:project_id>/expense-requests/<int:pk>/", ExpenseRequestDetailView.as_view(), name="project-expense-request-detail"),
+    path("projects/<int:project_id>/expense-requests/<int:pk>/approve/", ExpenseRequestApproveView.as_view(), name="project-expense-request-approve"),
 ]

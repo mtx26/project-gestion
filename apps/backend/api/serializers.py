@@ -30,6 +30,7 @@ from .models import (
     Notification,
     TimeEntry,
     FinancialEntry,
+    ExpenseRequest,
 )
 
 
@@ -794,6 +795,59 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
         financial_entry.save()
         return financial_entry
+
+    def update(self, instance, validated_data):
+        for field, value in validated_data.items():
+            setattr(instance, field, value)
+
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        instance.save()
+        return instance
+
+
+class ExpenseRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ExpenseRequest
+        fields = [
+            "id",
+            "project",
+            "title",
+            "amount",
+            "category",
+            "description",
+            "folder",
+            "document",
+            "status",
+            "requested_by",
+            "approved_at",
+            "approved_by",
+            "created_at",
+            "updated_at",
+            "deleted_at",
+            "deleted_by",
+        ]
+        read_only_fields = BASE_READ_ONLY_FIELDS + [
+            "project",
+            "requested_by",
+            "status",
+            "approved_at",
+            "approved_by",
+        ]
+
+    def create(self, validated_data):
+        expense_request = ExpenseRequest(**validated_data)
+
+        try:
+            expense_request.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
+
+        expense_request.save()
+        return expense_request
 
     def update(self, instance, validated_data):
         for field, value in validated_data.items():

@@ -1,6 +1,8 @@
 import type {
   ApiFieldErrors,
   AuthTokens,
+  ExpenseRequest,
+  ExpenseRequestPayload,
   FinancialEntryChart,
   FinancialEntry,
   FinancialEntryPayload,
@@ -460,6 +462,31 @@ export function createApiClient({
           body: formData,
         });
       },
+    },
+    expenseRequests: {
+      list: (projectId: number) =>
+        request<ExpenseRequest[] | PaginatedResponse<ExpenseRequest>>(
+          `/api/projects/${projectId}/expense-requests/`,
+        ),
+      create: (projectId: number, payload: ExpenseRequestPayload) =>
+        request<ExpenseRequest>(`/api/projects/${projectId}/expense-requests/`, {
+          method: "POST",
+          body: payload,
+        }),
+      update: (projectId: number, id: number, payload: Partial<ExpenseRequestPayload>) =>
+        request<ExpenseRequest>(`/api/projects/${projectId}/expense-requests/${id}/`, {
+          method: "PATCH",
+          body: payload,
+        }),
+      remove: (projectId: number, id: number) =>
+        request<void>(`/api/projects/${projectId}/expense-requests/${id}/`, {
+          method: "DELETE",
+        }),
+      approve: (projectId: number, id: number) =>
+        request<ExpenseRequest>(
+          `/api/projects/${projectId}/expense-requests/${id}/approve/`,
+          { method: "POST" },
+        ),
     },
   };
 }

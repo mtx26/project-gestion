@@ -405,7 +405,7 @@ function FinancialEntryFormDialog({
             <FolderTreePickerDialog
               folders={folders}
               selectedFolderId={folderId}
-              buttonLabel={folderName ?? "Aucun dossier"}
+              buttonLabel={folderName ?? "Projet"}
               onSelect={setFolderId}
             />
           </div>
