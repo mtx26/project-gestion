@@ -13,6 +13,7 @@ import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,6 +47,7 @@ import {
 } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { parseBooleanParam } from "@/lib/url-params";
+import { PageTitle } from "@/components/ui/page-title";
 
 type UserFilter = "mine" | "all" | `member-${number}`;
 type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
@@ -346,7 +348,7 @@ function ProjectTimeContent({
   if (!canViewTime && !canRecordTime) {
     return (
       <div className="space-y-5">
-        <TimePageTitle />
+        <PageTitle category="Temps" title="Suivi du travail" />
         <PermissionNotice
           title="Suivi du temps indisponible"
           description="Ton role ne permet pas de consulter ni d'enregistrer des heures sur ce projet."
@@ -358,7 +360,7 @@ function ProjectTimeContent({
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <TimePageTitle />
+        <PageTitle category="Temps" title="Suivi du travail" />
         {canRecordTime ? (
           <Button type="button" className="gap-2" onClick={() => setTimeFormOpen(true)}>
             <Plus className="size-4" />
@@ -455,7 +457,6 @@ function ProjectTimeContent({
             )}
 
             <FormErrorAlert error={deleteTimeEntry.error ? getErrorMessage(deleteTimeEntry.error) : null} className="mt-3" />
-            ) : null}
           </CardContent>
         </Card>
         ) : null}
@@ -554,15 +555,6 @@ function ProjectTimeContent({
         }}
         onSubmit={() => updateTimeEntry.mutate()}
       />
-    </div>
-  );
-}
-
-function TimePageTitle() {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase text-muted-foreground">Temps</p>
-      <h1 className="mt-1 text-2xl font-semibold">Suivi du travail</h1>
     </div>
   );
 }
@@ -745,7 +737,6 @@ function TimeEntryForm({
           </div>
 
           <FormErrorAlert error={error} />
-          ) : null}
 
           <DialogFooter>
             <Button type="submit" disabled={durationMinutes <= 0 || isPending}>
@@ -1204,7 +1195,6 @@ function EditTimeEntryDialog({
           </div>
 
           <FormErrorAlert error={error} />
-          ) : null}
         </div>
 
         <DialogFooter>
@@ -1283,7 +1273,6 @@ function PaymentDialog({
           ) : null}
 
           <FormErrorAlert error={error} />
-          ) : null}
         </div>
 
         <DialogFooter>

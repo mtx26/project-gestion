@@ -9,7 +9,6 @@ import {
   Clock3,
   ChevronDown,
   ChevronRight,
-  Download,
   FileArchive,
   FileCode,
   FileImage,
@@ -39,7 +38,6 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import { Dialog as DialogPrimitive } from "radix-ui";
 import {
   Dialog,
   DialogClose,
@@ -47,10 +45,9 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -62,6 +59,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { PageTitle } from "@/components/ui/page-title";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -69,12 +67,6 @@ type FileActionTarget = {
   type: "folder" | "document";
   id: number;
   name: string;
-};
-
-type PreviewDocument = {
-  url: string;
-  file_name: string;
-  mime_type: string | null;
 };
 
 const TREE_INDENT = 28;
@@ -462,7 +454,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   if (!canViewFiles) {
     return (
       <div className="space-y-5">
-        <ProjectFilesTitle />
+        <PageTitle category="Projet" title="Documents du projet" />
         <Card className="rounded-lg">
           <CardContent className="p-5">
             <p className="font-medium">Fichiers indisponibles</p>
@@ -481,7 +473,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
 
   return (
     <div className="space-y-5">
-      <ProjectFilesTitle />
+      <PageTitle category="Projet" title="Documents du projet" />
 
       <FormErrorAlert error={treeQuery.error ? getErrorMessage(treeQuery.error) : null} />
       <FormErrorAlert error={createFolder.error ? getErrorMessage(createFolder.error) : null} />
@@ -798,15 +790,6 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   );
 }
 
-function ProjectFilesTitle() {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase text-muted-foreground">Projet</p>
-      <h1 className="mt-1 text-2xl font-semibold">Documents du projet</h1>
-    </div>
-  );
-}
-
 function TimeTotals({ timeEntries }: { timeEntries: TimeEntry[] }) {
   const totals = timeEntries.reduce(
     (acc, e) => ({
@@ -964,99 +947,6 @@ function containsFolderId(nodes: FolderTreeNode[], id: number): boolean {
     if (containsFolderId(node.children ?? [], id)) return true;
   }
   return false;
-}
-
-function getDocumentPreviewKind(doc: PreviewDocument): "image" | "pdf" | "none" {
-  const mime = doc.mime_type ?? "";
-  const ext = (doc.file_name.split(".").pop() ?? "").toLowerCase();
-
-  if (mime.startsWith("image/") || ["jpg", "jpeg", "png", "gif", "webp", "svg", "bmp"].includes(ext)) {
-    return "image";
-  }
-  if (mime === "application/pdf" || ext === "pdf") {
-    return "pdf";
-  }
-  return "none";
-}
-
-function DocumentPreviewModal({
-  document: doc,
-  onClose,
-}: {
-  document: PreviewDocument | null;
-  onClose: () => void;
-}) {
-  const kind = doc ? getDocumentPreviewKind(doc) : "none";
-
-  return (
-    <Dialog open={doc != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogPortal>
-        <DialogOverlay />
-        <DialogPrimitive.Content
-          className="fixed inset-0 z-50 flex flex-col bg-background"
-        >
-          <DialogTitle className="sr-only">{doc?.file_name ?? "Apercu"}</DialogTitle>
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b px-4 py-3">
-            <span className="truncate text-sm font-medium">{doc?.file_name ?? "Apercu"}</span>
-            <div className="flex shrink-0 items-center gap-2">
-              {doc ? (
-                <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                  <Button type="button" variant="outline" size="sm">
-                    <Download className="size-4" />
-                    Telecharger
-                  </Button>
-                </a>
-              ) : null}
-              <DialogClose asChild>
-                <Button type="button" variant="outline" size="sm">Fermer</Button>
-              </DialogClose>
-            </div>
-          </div>
-          {doc ? (
-            <div className="min-h-0 flex-1 overflow-hidden">
-              {kind === "image" ? (
-                <div className="flex h-full items-center justify-center bg-muted/20 p-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={doc.url}
-                    alt={doc.file_name}
-                    className="max-h-full w-auto object-contain"
-                  />
-                </div>
-              ) : kind === "pdf" ? (
-                <object
-                  data={doc.url}
-                  type="application/pdf"
-                  className="h-full w-full"
-                  aria-label={doc.file_name}
-                >
-                  <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-                    <p>Impossible d&apos;afficher le PDF dans le navigateur.</p>
-                    <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                      <Button type="button" variant="outline">
-                        <Download className="size-4" />
-                        Ouvrir le PDF
-                      </Button>
-                    </a>
-                  </div>
-                </object>
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center gap-4">
-                  <p className="text-sm text-muted-foreground">Apercu non disponible pour ce type de fichier.</p>
-                  <a href={doc.url} target="_blank" rel="noopener noreferrer">
-                    <Button type="button">
-                      <Download className="size-4" />
-                      Telecharger {doc.file_name}
-                    </Button>
-                  </a>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </DialogPrimitive.Content>
-      </DialogPortal>
-    </Dialog>
-  );
 }
 
 function TaskDraftDialog({

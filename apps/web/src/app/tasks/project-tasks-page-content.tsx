@@ -33,6 +33,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
+import { PageTitle } from "@/components/ui/page-title";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { buildFolderNameMap, findFolderName } from "@/lib/folder-utils";
@@ -295,7 +296,7 @@ function ProjectTasksContent({
   if (!canViewTasks) {
     return (
       <div className="space-y-5">
-        <TasksTitle />
+        <PageTitle category="Taches" title="Gestion du travail" />
         <Card className="rounded-lg">
           <CardContent className="p-5">
             <p className="font-medium">Taches indisponibles</p>
@@ -311,7 +312,7 @@ function ProjectTasksContent({
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <TasksTitle />
+        <PageTitle category="Taches" title="Gestion du travail" />
         {canEditTasks ? (
           <Button type="button" className="gap-2" onClick={() => setCreateDialogOpen(true)}>
             <Plus className="size-4" />
@@ -419,7 +420,6 @@ function ProjectTasksContent({
           )}
           <FormErrorAlert error={updateTask.error ? getErrorMessage(updateTask.error) : null} className="mt-3" />
           <FormErrorAlert error={deleteTask.error ? getErrorMessage(deleteTask.error) : null} className="mt-3" />
-          ) : null}
         </CardContent>
       </Card>
 
@@ -490,14 +490,6 @@ function ProjectTasksContent({
 }
 
 
-function TasksTitle() {
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase text-muted-foreground">Taches</p>
-      <h1 className="mt-1 text-2xl font-semibold">Gestion du travail</h1>
-    </div>
-  );
-}
 
 function TaskFormDialog({
   mode,

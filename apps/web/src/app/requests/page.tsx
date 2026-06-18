@@ -5,13 +5,15 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, CheckCircle2, Clock, ExternalLink, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { EntryDetailBody } from "@/components/ui/entry-detail-body";
+import { PageTitle } from "@/components/ui/page-title";
 import {
   Dialog,
   DialogClose,
@@ -21,6 +23,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
@@ -73,6 +76,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [viewingRequest, setViewingRequest] = useState<ExpenseRequest | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -173,7 +177,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
 
   const openDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
-    onSuccess: (data) => window.open(data.url, "_blank"),
+    onSuccess: (data) => setPreviewDocument(data),
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
@@ -212,10 +216,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase text-muted-foreground">Remboursements</p>
-          <h1 className="mt-1 text-2xl font-semibold">Demandes de remboursement</h1>
-        </div>
+        <PageTitle category="Remboursements" title="Demandes de remboursement" />
         {canEdit ? (
           <Button type="button" className="gap-2" onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
@@ -420,6 +421,11 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingRequest(null)}
+      />
+
+      <DocumentPreviewModal
+        document={previewDocument}
+        onClose={() => setPreviewDocument(null)}
       />
     </div>
   );
@@ -646,61 +652,16 @@ function ExpenseRequestDetailDialog({
               </div>
             </div>
 
-            {request.category ? (
-              <div>
-                <p className="text-xs text-muted-foreground">Categorie</p>
-                <p className="font-medium">{request.category}</p>
-              </div>
-            ) : null}
-
-            {request.description ? (
-              <div>
-                <p className="text-xs text-muted-foreground">Description</p>
-                <p className="text-sm">{request.description}</p>
-              </div>
-            ) : null}
-
-            {request.task_name || request.folder ? (
-              <div>
-                <p className="text-xs text-muted-foreground">Cible</p>
-                {request.task_name ? (
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <ListTodo className="size-4 text-sky-600" />
-                    <span>{request.task_name}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <Folder className="size-4 text-amber-500" />
-                    <span>{findFolderName(folders, request.folder) ?? `Dossier #${request.folder}`}</span>
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {(request.documents_info ?? []).length > 0 ? (
-              <div>
-                <p className="mb-1.5 text-xs text-muted-foreground">Documents</p>
-                <div className="flex flex-col gap-1.5">
-                  {(request.documents_info ?? []).map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                      <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate">{doc.name ?? `Document #${doc.id}`}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 gap-1.5"
-                        disabled={isOpeningDocument}
-                        onClick={() => onOpenDocument(doc.id)}
-                      >
-                        <ExternalLink className="size-3.5" />
-                        Ouvrir
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+            <EntryDetailBody
+              category={request.category}
+              description={request.description}
+              task_name={request.task_name}
+              folder={request.folder}
+              documents_info={request.documents_info}
+              folders={folders}
+              isOpeningDocument={isOpeningDocument}
+              onOpenDocument={onOpenDocument}
+            />
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               {request.requested_by_name ? (

@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, ExternalLink, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
+import { Calendar, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -13,6 +13,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { EntryDetailBody } from "@/components/ui/entry-detail-body";
+import { PageTitle } from "@/components/ui/page-title";
 import {
   Dialog,
   DialogClose,
@@ -22,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
@@ -73,6 +76,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
   const [viewingEntry, setViewingEntry] = useState<FinancialEntry | null>(null);
+  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -157,7 +161,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
 
   const openDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
-    onSuccess: (data) => window.open(data.url, "_blank"),
+    onSuccess: (data) => setPreviewDocument(data),
     onError: (err) => setFormError(getErrorMessage(err)),
   });
 
@@ -196,10 +200,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase text-muted-foreground">Finances</p>
-          <h1 className="mt-1 text-2xl font-semibold">Gestion financiere</h1>
-        </div>
+        <PageTitle category="Finances" title="Gestion financiere" />
         {canEditFinance ? (
           <Button type="button" className="gap-2" onClick={() => { setFormError(null); setCreateOpen(true); }}>
             <Plus className="size-4" />
@@ -389,6 +390,11 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingEntry(null)}
+      />
+
+      <DocumentPreviewModal
+        document={previewDocument}
+        onClose={() => setPreviewDocument(null)}
       />
     </div>
   );
@@ -616,61 +622,16 @@ function FinancialEntryDetailDialog({
               </span>
             </div>
 
-            {entry.category ? (
-              <div>
-                <p className="text-xs text-muted-foreground">Categorie</p>
-                <p className="font-medium">{entry.category}</p>
-              </div>
-            ) : null}
-
-            {entry.description ? (
-              <div>
-                <p className="text-xs text-muted-foreground">Description</p>
-                <p className="text-sm">{entry.description}</p>
-              </div>
-            ) : null}
-
-            {entry.task_name || entry.folder ? (
-              <div>
-                <p className="text-xs text-muted-foreground">Cible</p>
-                {entry.task_name ? (
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <ListTodo className="size-4 text-sky-600" />
-                    <span>{entry.task_name}</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 text-sm">
-                    <Folder className="size-4 text-amber-500" />
-                    <span>{findFolderName(folders, entry.folder) ?? `Dossier #${entry.folder}`}</span>
-                  </div>
-                )}
-              </div>
-            ) : null}
-
-            {(entry.documents_info ?? []).length > 0 ? (
-              <div>
-                <p className="mb-1.5 text-xs text-muted-foreground">Documents</p>
-                <div className="flex flex-col gap-1.5">
-                  {(entry.documents_info ?? []).map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
-                      <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate">{doc.name ?? `Document #${doc.id}`}</span>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="shrink-0 gap-1.5"
-                        disabled={isOpeningDocument}
-                        onClick={() => onOpenDocument(doc.id)}
-                      >
-                        <ExternalLink className="size-3.5" />
-                        Ouvrir
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
+            <EntryDetailBody
+              category={entry.category}
+              description={entry.description}
+              task_name={entry.task_name}
+              folder={entry.folder}
+              documents_info={entry.documents_info}
+              folders={folders}
+              isOpeningDocument={isOpeningDocument}
+              onOpenDocument={onOpenDocument}
+            />
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               {entry.time_entry_user_name ? (

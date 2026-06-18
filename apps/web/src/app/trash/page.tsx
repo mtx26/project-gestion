@@ -6,6 +6,7 @@ import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, RotateCcw } from "lucide-react";
+import { PageTitle } from "@/components/ui/page-title";
 import { formatBytes } from "@/lib/task-utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -132,8 +133,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-xs font-medium uppercase text-muted-foreground">Corbeille</p>
-        <h1 className="mt-1 text-2xl font-semibold">Elements supprimes</h1>
+        <PageTitle category="Corbeille" title="Elements supprimes" />
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
