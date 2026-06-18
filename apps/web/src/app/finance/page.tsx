@@ -9,10 +9,10 @@ import { Calendar, ExternalLink, FileText, Folder, ListTodo, Pencil, Plus, Trash
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import {
   Dialog,
   DialogClose,
@@ -22,17 +22,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
 import { formatMoney } from "@/lib/task-utils";
+import { parseIdParam, setOptionalParam } from "@/lib/url-params";
 
 function buildFinanceHref(projectId: number | string, params: URLSearchParams) {
   return `/finance?project=${projectId}`;
@@ -216,19 +219,12 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
             <SelectItem value="refund">Remboursements</SelectItem>
           </SelectContent>
         </Select>
-        {members.length > 0 ? (
-          <Select value={userFilterId != null ? String(userFilterId) : "all"} onValueChange={(v) => updateUrlFilter({ member: v === "all" ? null : Number(v) })}>
-            <SelectTrigger className="w-full bg-background sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les membres</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m.id} value={String(m.user)}>{m.user_display_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
+        <MemberFilterSelect
+          members={members}
+          value={userFilterId}
+          className="sm:w-48"
+          onChange={(id) => updateUrlFilter({ member: id })}
+        />
         <div className="w-full sm:w-48">
           <TreePickerDialog
             mode="folder"
@@ -266,11 +262,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
       </div>
 
       {entriesQuery.isLoading ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 5 }, (_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-lg" />
-          ))}
-        </div>
+        <SkeletonLoader count={5} />
       ) : entries.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Aucune entree financiere.</p>
       ) : (
@@ -382,27 +374,13 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         onSubmit={(payload) => editingEntry && updateEntry.mutate({ id: editingEntry.id, payload })}
       />
 
-      <Dialog open={deletingEntryId != null} onOpenChange={(open) => { if (!open) setDeletingEntryId(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Supprimer l&apos;entree</DialogTitle>
-            <DialogDescription>Cette action est reversible depuis la corbeille.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">Annuler</Button>
-            </DialogClose>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleteEntry.isPending}
-              onClick={() => deletingEntryId != null && deleteEntry.mutate(deletingEntryId)}
-            >
-              Supprimer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDeleteDialog
+        open={deletingEntryId != null}
+        title="Supprimer l'entree"
+        isPending={deleteEntry.isPending}
+        onConfirm={() => deletingEntryId != null && deleteEntry.mutate(deletingEntryId)}
+        onClose={() => setDeletingEntryId(null)}
+      />
 
       <FinancialEntryDetailDialog
         entry={viewingEntry}
@@ -592,17 +570,8 @@ function FinancialEntryFormDialog({
             onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
           />
 
-          {uploadError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{uploadError}</AlertDescription>
-            </Alert>
-          ) : null}
-
-          {error ? (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
+          <FormErrorAlert error={uploadError} />
+          <FormErrorAlert error={error} />
         </form>
 
         <DialogFooter>
@@ -784,13 +753,3 @@ function parseTypeFilter(value: string | null): "all" | "expense" | "refund" {
   return "all";
 }
 
-function parseIdParam(value: string | null): number | null {
-  if (!value) return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function setOptionalParam(params: URLSearchParams, key: string, value: string | "all") {
-  if (value && value !== "all") params.set(key, value);
-  else params.delete(key);
-}

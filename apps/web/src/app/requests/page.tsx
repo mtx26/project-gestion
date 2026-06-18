@@ -9,9 +9,9 @@ import { Calendar, CheckCircle2, Clock, ExternalLink, FileText, Folder, ListTodo
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import {
   Dialog,
   DialogClose,
@@ -21,17 +21,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
 import { formatMoney } from "@/lib/task-utils";
+import { parseIdParam } from "@/lib/url-params";
 
 function buildRequestsHref(projectId: number | string) {
   return `/requests?project=${projectId}`;
@@ -233,19 +236,12 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
             <SelectItem value="rejected">Refuse</SelectItem>
           </SelectContent>
         </Select>
-        {members.length > 0 ? (
-          <Select value={userFilterId != null ? String(userFilterId) : "all"} onValueChange={(v) => updateUrlFilter({ member: v === "all" ? null : Number(v) })}>
-            <SelectTrigger className="w-full bg-background sm:w-48">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les membres</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m.id} value={String(m.user)}>{m.user_display_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
+        <MemberFilterSelect
+          members={members}
+          value={userFilterId}
+          className="sm:w-48"
+          onChange={(id) => updateUrlFilter({ member: id })}
+        />
         <div className="w-full sm:w-48">
           <TreePickerDialog
             mode="folder"
@@ -276,18 +272,10 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         </Button>
       </div>
 
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
+      <FormErrorAlert error={actionError} />
 
       {requestsQuery.isLoading ? (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 4 }, (_, i) => (
-            <Skeleton key={i} className="h-16 w-full rounded-lg" />
-          ))}
-        </div>
+        <SkeletonLoader count={4} className="h-16 w-full rounded-lg" />
       ) : requests.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">Aucune demande de remboursement.</p>
       ) : (
@@ -417,27 +405,13 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}
       />
 
-      <Dialog open={deletingId != null} onOpenChange={(open) => { if (!open) setDeletingId(null); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Supprimer la demande</DialogTitle>
-            <DialogDescription>Cette action est reversible depuis la corbeille.</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">Annuler</Button>
-            </DialogClose>
-            <Button
-              type="button"
-              variant="destructive"
-              disabled={deleteRequest.isPending}
-              onClick={() => deletingId != null && deleteRequest.mutate(deletingId)}
-            >
-              Supprimer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDeleteDialog
+        open={deletingId != null}
+        title="Supprimer la demande"
+        isPending={deleteRequest.isPending}
+        onConfirm={() => deletingId != null && deleteRequest.mutate(deletingId)}
+        onClose={() => setDeletingId(null)}
+      />
 
       <ExpenseRequestDetailDialog
         request={viewingRequest}
@@ -626,11 +600,7 @@ function ExpenseRequestFormDialog({
             onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
           />
 
-          {formError ? (
-            <Alert variant="destructive">
-              <AlertDescription>{formError}</AlertDescription>
-            </Alert>
-          ) : null}
+          <FormErrorAlert error={formError} />
         </form>
 
         <DialogFooter>
@@ -791,8 +761,3 @@ function parseStatusFilter(value: string | null): "all" | "pending" | "approved"
   return "all";
 }
 
-function parseIdParam(value: string | null): number | null {
-  if (!value) return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}

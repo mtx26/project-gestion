@@ -32,10 +32,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { buildFolderNameMap, findFolderName } from "@/lib/folder-utils";
 import { formatTaskDate, getPriorityClassName, getPriorityLabel, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
+import { parseIdParam, setOptionalParam } from "@/lib/url-params";
 
 type StatusFilter = "all" | Task["status"];
 type PriorityFilter = "all" | Task["priority"];
@@ -345,19 +347,12 @@ function ProjectTasksContent({
             <SelectItem value="high">Haute</SelectItem>
           </SelectContent>
         </Select>
-        {members.length > 0 ? (
-          <Select value={createdByFilter != null ? String(createdByFilter) : "all"} onValueChange={(v) => updateUrlFilter({ member: v === "all" ? null : Number(v) })}>
-            <SelectTrigger className="w-full bg-background sm:w-44">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tous les membres</SelectItem>
-              {members.map((m) => (
-                <SelectItem key={m.id} value={String(m.user)}>{m.user_display_name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
+        <MemberFilterSelect
+          members={members}
+          value={createdByFilter}
+          className="sm:w-44"
+          onChange={(id) => updateUrlFilter({ member: id })}
+        />
         {canViewFiles ? (
           <div className="w-full sm:w-44">
             <TreePickerDialog
@@ -810,19 +805,6 @@ function getFolderId(value: FolderFilter) {
   return null;
 }
 
-function parseIdParam(value: string | null): number | null {
-  if (!value) return null;
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function setOptionalParam(params: URLSearchParams, key: string, value: string) {
-  if (value === "all") {
-    params.delete(key);
-    return;
-  }
-  params.set(key, value);
-}
 
 async function invalidateTasks(queryClient: ProjectWorkspaceState["queryClient"], projectId: number) {
   await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });

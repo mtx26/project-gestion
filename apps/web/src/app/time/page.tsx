@@ -45,6 +45,7 @@ import {
   getTargetValueFromEntry,
 } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { parseBooleanParam } from "@/lib/url-params";
 
 type UserFilter = "mine" | "all" | `member-${number}`;
 type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
@@ -436,7 +437,6 @@ function ProjectTimeContent({
                 key={periodRange.startDate}
                 entries={visibleTimeEntries}
                 isLoading={timeEntriesQuery.isLoading}
-                currentUserId={user?.id ?? null}
                 userNameById={userNameById}
                 folderNameById={folderNameById}
                 taskTitleById={taskTitleById}
@@ -446,7 +446,6 @@ function ProjectTimeContent({
               <TimeEntryList
                 entries={visibleTimeEntries}
                 isLoading={timeEntriesQuery.isLoading}
-                currentUserId={user?.id ?? null}
                 userNameById={userNameById}
                 folderNameById={folderNameById}
                 taskTitleById={taskTitleById}
@@ -782,7 +781,6 @@ function TimePeriodToolbar({
   includeUnpaidOutsideMonth,
   folders,
   onSelectFolder,
-  onClearTargetFilter,
   onClearAllFilters,
   onPeriodPresetChange,
   onPaymentStatusFilterChange,
@@ -799,7 +797,6 @@ function TimePeriodToolbar({
   includeUnpaidOutsideMonth: boolean;
   folders: FolderTreeNode[];
   onSelectFolder: (folderId: number | null) => void;
-  onClearTargetFilter: () => void;
   onClearAllFilters: () => void;
   onPeriodPresetChange: (value: PeriodPreset) => void;
   onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
@@ -879,7 +876,6 @@ function TimePeriodToolbar({
 function TimeEntryList({
   entries,
   isLoading,
-  currentUserId,
   userNameById,
   folderNameById,
   taskTitleById,
@@ -893,7 +889,6 @@ function TimeEntryList({
 }: {
   entries: TimeEntry[];
   isLoading: boolean;
-  currentUserId: number | null;
   userNameById: Map<number, string>;
   folderNameById: Map<number, string>;
   taskTitleById: Map<number, string>;
@@ -950,7 +945,6 @@ function TimeEntryList({
 function TimeCalendarView({
   entries,
   isLoading,
-  currentUserId,
   userNameById,
   folderNameById,
   taskTitleById,
@@ -958,7 +952,6 @@ function TimeCalendarView({
 }: {
   entries: TimeEntry[];
   isLoading: boolean;
-  currentUserId: number | null;
   userNameById: Map<number, string>;
   folderNameById: Map<number, string>;
   taskTitleById: Map<number, string>;
@@ -1411,9 +1404,6 @@ function parseTargetFilter(value: string | null) {
   return null;
 }
 
-function parseBooleanParam(value: string | null) {
-  return value === "1" || value === "true";
-}
 
 function getPeriodRange(period: PeriodPreset): { startDate?: string; endDate?: string } {
   const now = new Date();
