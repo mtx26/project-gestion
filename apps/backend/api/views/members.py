@@ -75,16 +75,15 @@ class ProjectMemberListView(generics.ListAPIView):
 
 
 def _build_owner_entry(project):
-    owner = project.owner
-    full_name = (owner.get_full_name() or "").strip()
-    display_name = full_name or owner.username or owner.email
+    from ..utils import get_user_display_name
+    display_name = get_user_display_name(project.owner)
     now = timezone.now().isoformat()
     return {
         "id": 0,
         "project": project.id,
-        "user": owner.id,
+        "user": project.owner_id,
         "user_display_name": display_name,
-        "user_email": owner.email,
+        "user_email": project.owner.email,
         "role": 0,
         "role_name": "Proprietaire",
         "role_deleted": False,

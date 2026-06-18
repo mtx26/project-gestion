@@ -321,6 +321,11 @@ class FinancialEntry(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
     document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True)
+    documents = models.ManyToManyField(
+        Document,
+        blank=True,
+        related_name="financial_entries_docs",
+    )
     time_entry = models.ForeignKey(
         TimeEntry,
         on_delete=models.SET_NULL,
@@ -398,6 +403,11 @@ class ExpenseRequest(BaseModel):
     description = models.TextField(blank=True, null=True)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
     document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
+    documents = models.ManyToManyField(
+        Document,
+        blank=True,
+        related_name="expense_requests_docs",
+    )
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="expense_requests_made")

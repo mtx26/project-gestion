@@ -799,6 +799,10 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
     document_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    documents_info = serializers.SerializerMethodField()
+    documents = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Document.objects.all(), required=False, write_only=True,
+    )
 
     class Meta:
         model = FinancialEntry
@@ -808,6 +812,8 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "folder",
             "document",
             "document_name",
+            "documents",
+            "documents_info",
             "time_entry",
             "task",
             "task_name",
@@ -828,6 +834,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "document_name",
             "task_name",
             "created_by_name",
+            "documents_info",
         ]
 
     def get_document_name(self, obj):
@@ -839,7 +846,19 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _get_user_display_name(obj.created_by)
 
+    def get_documents_info(self, obj):
+        seen = set()
+        result = []
+        if obj.document_id:
+            seen.add(obj.document_id)
+            result.append({"id": obj.document_id, "name": obj.document.file_name if obj.document else None})
+        for doc in obj.documents.all():
+            if doc.id not in seen:
+                result.append({"id": doc.id, "name": doc.file_name})
+        return result
+
     def create(self, validated_data):
+        documents = validated_data.pop("documents", [])
         financial_entry = FinancialEntry(**validated_data)
 
         try:
@@ -848,9 +867,12 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         financial_entry.save()
+        if documents:
+            financial_entry.documents.set(documents)
         return financial_entry
 
     def update(self, instance, validated_data):
+        documents = validated_data.pop("documents", None)
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
@@ -860,6 +882,8 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         instance.save()
+        if documents is not None:
+            instance.documents.set(documents)
         return instance
 
 
@@ -867,6 +891,10 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
     document_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     requested_by_name = serializers.SerializerMethodField()
+    documents_info = serializers.SerializerMethodField()
+    documents = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Document.objects.all(), required=False, write_only=True,
+    )
 
     class Meta:
         model = ExpenseRequest
@@ -880,6 +908,8 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "folder",
             "document",
             "document_name",
+            "documents",
+            "documents_info",
             "task",
             "task_name",
             "status",
@@ -901,6 +931,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "document_name",
             "task_name",
             "requested_by_name",
+            "documents_info",
         ]
 
     def get_document_name(self, obj):
@@ -912,7 +943,19 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
     def get_requested_by_name(self, obj):
         return _get_user_display_name(obj.requested_by)
 
+    def get_documents_info(self, obj):
+        seen = set()
+        result = []
+        if obj.document_id:
+            seen.add(obj.document_id)
+            result.append({"id": obj.document_id, "name": obj.document.file_name if obj.document else None})
+        for doc in obj.documents.all():
+            if doc.id not in seen:
+                result.append({"id": doc.id, "name": doc.file_name})
+        return result
+
     def create(self, validated_data):
+        documents = validated_data.pop("documents", [])
         expense_request = ExpenseRequest(**validated_data)
 
         try:
@@ -921,9 +964,12 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         expense_request.save()
+        if documents:
+            expense_request.documents.set(documents)
         return expense_request
 
     def update(self, instance, validated_data):
+        documents = validated_data.pop("documents", None)
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
@@ -933,6 +979,8 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         instance.save()
+        if documents is not None:
+            instance.documents.set(documents)
         return instance
 
 

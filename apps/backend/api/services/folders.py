@@ -40,16 +40,12 @@ def build_task_tree_node(task):
 
 
 def build_folder_tree(folders, documents=None, tasks=None):
+    from ..utils import get_user_display_name
     folder_nodes = {}
     roots = []
 
     for folder in folders:
-        created_by = getattr(folder, "created_by", None)
-        if created_by is not None:
-            full_name = (created_by.get_full_name() or "").strip()
-            created_by_name = full_name or created_by.username or created_by.email
-        else:
-            created_by_name = None
+        created_by_name = get_user_display_name(getattr(folder, "created_by", None))
         folder_nodes[folder.id] = {
             "type": "folder",
             "id": folder.id,

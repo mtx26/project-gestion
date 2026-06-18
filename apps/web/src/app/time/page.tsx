@@ -678,6 +678,22 @@ function TimeEntryForm({
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const durationMinutes = Number(hours) * 60 + Number(minutes);
+  const durationHours = durationMinutes / 60;
+  const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
+  const [totalDraft, setTotalDraft] = useState<string | null>(null);
+  const totalValue = totalDraft ?? computedTotal;
+
+  function handleTotalChange(value: string) {
+    setTotalDraft(value);
+    const total = Number(value);
+    if (durationHours > 0 && total >= 0 && value !== "") {
+      onHourlyRateChange((total / durationHours).toFixed(2));
+    }
+  }
+
+  function handleTotalBlur() {
+    setTotalDraft(null);
+  }
 
   return (
     <>
@@ -698,9 +714,23 @@ function TimeEntryForm({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="time-rate">Taux horaire</Label>
-            <Input id="time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="time-rate">Taux horaire</Label>
+              <Input id="time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="time-total">Total</Label>
+              <Input
+                id="time-total"
+                type="number"
+                min="0"
+                step="0.01"
+                value={totalValue}
+                onChange={(event) => handleTotalChange(event.target.value)}
+                onBlur={handleTotalBlur}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">

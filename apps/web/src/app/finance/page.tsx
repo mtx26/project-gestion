@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
+import { Calendar, ExternalLink, Eye, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -22,7 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DocumentAttachmentField } from "@/components/ui/document-attachment-field";
+import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,6 +69,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const [createOpen, setCreateOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
+  const [viewingEntry, setViewingEntry] = useState<FinancialEntry | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -149,6 +150,12 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setDeletingEntryId(null);
     },
+  });
+
+  const openDocument = useMutation({
+    mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
+    onSuccess: (data) => window.open(data.url, "_blank"),
+    onError: (err) => setFormError(getErrorMessage(err)),
   });
 
   if (!selectedProject) {
@@ -317,6 +324,14 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                 </div>
               </div>
               <div className="flex shrink-0 gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setViewingEntry(entry)}
+                >
+                  <Eye className="size-4" />
+                </Button>
                 {canEditFinance ? (
                   <Button
                     type="button"
@@ -389,6 +404,14 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <FinancialEntryDetailDialog
+        entry={viewingEntry}
+        folders={folders}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
+        onClose={() => setViewingEntry(null)}
+      />
     </div>
   );
 }
@@ -420,13 +443,29 @@ function FinancialEntryFormDialog({
     ? `folder-${entry.folder}`
     : "project";
 
+  function buildInitialDocs() {
+    const seen = new Set<number>();
+    const docs: Array<{ id: number; name: string | null }> = [];
+    if (entry?.document != null) {
+      seen.add(entry.document);
+      docs.push({ id: entry.document, name: entry.document_name ?? null });
+    }
+    for (const d of entry?.documents_info ?? []) {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        docs.push({ id: d.id, name: d.name });
+      }
+    }
+    return docs;
+  }
+
   const [type, setType] = useState<"expense" | "refund">(entry?.type ?? "expense");
   const [amount, setAmount] = useState(entry?.amount ?? "");
   const [category, setCategory] = useState(entry?.category ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [targetValue, setTargetValue] = useState(initialTarget);
-  const [documentId, setDocumentId] = useState<number | null>(entry?.document ?? null);
-  const [documentFile, setDocumentFile] = useState<globalThis.File | null>(null);
+  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>(buildInitialDocs);
+  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -440,8 +479,8 @@ function FinancialEntryFormDialog({
       setCategory(entry?.category ?? "");
       setDescription(entry?.description ?? "");
       setTargetValue(initialTarget);
-      setDocumentId(entry?.document ?? null);
-      setDocumentFile(null);
+      setExistingDocs(buildInitialDocs());
+      setPendingFiles([]);
       setUploadError(null);
     }
     onOpenChange(next);
@@ -451,18 +490,20 @@ function FinancialEntryFormDialog({
     e.preventDefault();
     setUploadError(null);
 
-    let resolvedDocumentId = documentId;
+    const newDocIds: number[] = [];
 
-    if (documentFile) {
+    if (pendingFiles.length > 0) {
       setUploading(true);
       const { folder } = getTargetPayload(targetValue);
       try {
-        const uploaded: ApiFile = await api.documents.upload(projectId, {
-          file: documentFile,
-          folder: folder ?? undefined,
-          name: documentFile.name,
-        });
-        resolvedDocumentId = uploaded.id;
+        for (const file of pendingFiles) {
+          const uploaded: ApiFile = await api.documents.upload(projectId, {
+            file,
+            folder: folder ?? undefined,
+            name: file.name,
+          });
+          newDocIds.push(uploaded.id);
+        }
       } catch (err) {
         setUploadError(getErrorMessage(err));
         setUploading(false);
@@ -479,7 +520,7 @@ function FinancialEntryFormDialog({
       description: description.trim() || null,
       folder,
       task,
-      document: resolvedDocumentId,
+      documents: [...existingDocs.map((d) => d.id), ...newDocIds],
     });
   }
 
@@ -556,12 +597,12 @@ function FinancialEntryFormDialog({
             />
           </div>
 
-          <DocumentAttachmentField
-            documentId={documentId}
-            documentName={entry?.document_name}
-            selectedFile={documentFile}
-            onFileChange={setDocumentFile}
-            onClearDocument={() => setDocumentId(null)}
+          <MultiDocumentAttachmentField
+            existingDocs={existingDocs}
+            pendingFiles={pendingFiles}
+            onRemoveDoc={(id) => setExistingDocs((prev) => prev.filter((d) => d.id !== id))}
+            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
+            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
           />
 
           {uploadError ? (
@@ -584,6 +625,120 @@ function FinancialEntryFormDialog({
           <Button type="submit" form="finance-form" disabled={isSubmitting}>
             {uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FinancialEntryDetailDialog({
+  entry,
+  folders,
+  isOpeningDocument,
+  onOpenDocument,
+  onClose,
+}: {
+  entry: FinancialEntry | null;
+  folders: FolderTreeNode[];
+  isOpeningDocument: boolean;
+  onOpenDocument: (documentId: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={entry != null} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Detail de l&apos;entree</DialogTitle>
+        </DialogHeader>
+        {entry && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <EntryTypeBadge type={entry.type} />
+              <span className="text-2xl font-semibold tabular-nums">
+                {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
+              </span>
+            </div>
+
+            {entry.category ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Categorie</p>
+                <p className="font-medium">{entry.category}</p>
+              </div>
+            ) : null}
+
+            {entry.description ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Description</p>
+                <p className="text-sm">{entry.description}</p>
+              </div>
+            ) : null}
+
+            {entry.task_name || entry.folder ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Cible</p>
+                {entry.task_name ? (
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <ListTodo className="size-4 text-sky-600" />
+                    <span>{entry.task_name}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <Folder className="size-4 text-amber-500" />
+                    <span>{findFolderName(folders, entry.folder) ?? `Dossier #${entry.folder}`}</span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {entry.documents_info.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Documents</p>
+                <div className="flex flex-col gap-1.5">
+                  {entry.documents_info.map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">{doc.name ?? `Document #${doc.id}`}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-1.5"
+                        disabled={isOpeningDocument}
+                        onClick={() => onOpenDocument(doc.id)}
+                      >
+                        <ExternalLink className="size-3.5" />
+                        Ouvrir
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {entry.created_by_name ? (
+                <div>
+                  <p className="text-xs text-muted-foreground">Cree par</p>
+                  <div className="flex items-center gap-1.5">
+                    <UserRound className="size-3.5 text-muted-foreground" />
+                    <span>{entry.created_by_name}</span>
+                  </div>
+                </div>
+              ) : null}
+              <div>
+                <p className="text-xs text-muted-foreground">Date</p>
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="size-3.5 text-muted-foreground" />
+                  <span>{new Date(entry.created_at).toLocaleDateString("fr-BE")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Fermer</Button>
+          </DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -284,6 +284,7 @@ export type FinancialEntry = {
   folder: ID | null;
   document: ID | null;
   document_name: string | null;
+  documents_info: Array<{ id: ID; name: string | null }>;
   time_entry: ID | null;
   task: ID | null;
   task_name: string | null;
@@ -307,6 +308,7 @@ export type FinancialEntryPayload = {
   folder?: ID | null;
   document?: ID | null;
   task?: ID | null;
+  documents?: ID[];
 };
 
 export type ExpenseRequest = {
@@ -319,6 +321,7 @@ export type ExpenseRequest = {
   folder: ID | null;
   document: ID | null;
   document_name: string | null;
+  documents_info: Array<{ id: ID; name: string | null }>;
   task: ID | null;
   task_name: string | null;
   status: "pending" | "approved" | "rejected";
@@ -340,6 +343,7 @@ export type ExpenseRequestPayload = {
   folder?: ID | null;
   document?: ID | null;
   task?: ID | null;
+  documents?: ID[];
 };
 
 export type FinancialEntryChartTotals = {

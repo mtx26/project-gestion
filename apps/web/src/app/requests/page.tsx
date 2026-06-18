@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
+import { Calendar, CheckCircle2, Clock, ExternalLink, Eye, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -21,7 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DocumentAttachmentField } from "@/components/ui/document-attachment-field";
+import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -69,6 +69,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const [createOpen, setCreateOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [viewingRequest, setViewingRequest] = useState<ExpenseRequest | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -164,6 +165,12 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
     },
+    onError: (err) => setActionError(getErrorMessage(err)),
+  });
+
+  const openDocument = useMutation({
+    mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
+    onSuccess: (data) => window.open(data.url, "_blank"),
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
@@ -333,6 +340,14 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                 </div>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setViewingRequest(req)}
+                >
+                  <Eye className="size-4" />
+                </Button>
                 {canApprove && req.status === "pending" ? (
                   <>
                     <Button
@@ -429,6 +444,14 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ExpenseRequestDetailDialog
+        request={viewingRequest}
+        folders={folders}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
+        onClose={() => setViewingRequest(null)}
+      />
     </div>
   );
 }
@@ -458,13 +481,29 @@ function ExpenseRequestFormDialog({
     ? `folder-${request.folder}`
     : "project";
 
+  function buildInitialDocs() {
+    const seen = new Set<number>();
+    const docs: Array<{ id: number; name: string | null }> = [];
+    if (request?.document != null) {
+      seen.add(request.document);
+      docs.push({ id: request.document, name: request.document_name ?? null });
+    }
+    for (const d of request?.documents_info ?? []) {
+      if (!seen.has(d.id)) {
+        seen.add(d.id);
+        docs.push({ id: d.id, name: d.name });
+      }
+    }
+    return docs;
+  }
+
   const [title, setTitle] = useState(request?.title ?? "");
   const [amount, setAmount] = useState(request?.amount ?? "");
   const [category, setCategory] = useState(request?.category ?? "");
   const [description, setDescription] = useState(request?.description ?? "");
   const [targetValue, setTargetValue] = useState(initialTarget);
-  const [documentId, setDocumentId] = useState<number | null>(request?.document ?? null);
-  const [documentFile, setDocumentFile] = useState<globalThis.File | null>(null);
+  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>(buildInitialDocs);
+  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -478,8 +517,8 @@ function ExpenseRequestFormDialog({
       setCategory(request?.category ?? "");
       setDescription(request?.description ?? "");
       setTargetValue(initialTarget);
-      setDocumentId(request?.document ?? null);
-      setDocumentFile(null);
+      setExistingDocs(buildInitialDocs());
+      setPendingFiles([]);
       setFormError(null);
     }
     onOpenChange(next);
@@ -489,18 +528,20 @@ function ExpenseRequestFormDialog({
     e.preventDefault();
     setFormError(null);
 
-    let resolvedDocumentId = documentId;
+    const newDocIds: number[] = [];
 
-    if (documentFile) {
+    if (pendingFiles.length > 0) {
       setUploading(true);
       const { folder } = getTargetPayload(targetValue);
       try {
-        const uploaded: ApiFile = await api.documents.upload(projectId, {
-          file: documentFile,
-          folder: folder ?? undefined,
-          name: documentFile.name,
-        });
-        resolvedDocumentId = uploaded.id;
+        for (const file of pendingFiles) {
+          const uploaded: ApiFile = await api.documents.upload(projectId, {
+            file,
+            folder: folder ?? undefined,
+            name: file.name,
+          });
+          newDocIds.push(uploaded.id);
+        }
       } catch (err) {
         setFormError(getErrorMessage(err));
         setUploading(false);
@@ -517,7 +558,7 @@ function ExpenseRequestFormDialog({
       description: description.trim() || null,
       folder,
       task,
-      document: resolvedDocumentId,
+      documents: [...existingDocs.map((d) => d.id), ...newDocIds],
     });
   }
 
@@ -595,12 +636,12 @@ function ExpenseRequestFormDialog({
             />
           </div>
 
-          <DocumentAttachmentField
-            documentId={documentId}
-            documentName={request?.document_name}
-            selectedFile={documentFile}
-            onFileChange={setDocumentFile}
-            onClearDocument={() => setDocumentId(null)}
+          <MultiDocumentAttachmentField
+            existingDocs={existingDocs}
+            pendingFiles={pendingFiles}
+            onRemoveDoc={(id) => setExistingDocs((prev) => prev.filter((d) => d.id !== id))}
+            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
+            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
           />
 
           {formError ? (
@@ -617,6 +658,121 @@ function ExpenseRequestFormDialog({
           <Button type="submit" form="request-form" disabled={isSubmitting}>
             {uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ExpenseRequestDetailDialog({
+  request,
+  folders,
+  isOpeningDocument,
+  onOpenDocument,
+  onClose,
+}: {
+  request: ExpenseRequest | null;
+  folders: FolderTreeNode[];
+  isOpeningDocument: boolean;
+  onOpenDocument: (documentId: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={request != null} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Detail de la demande</DialogTitle>
+        </DialogHeader>
+        {request && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <RequestStatusBadge status={request.status} />
+              <div>
+                <p className="font-semibold">{request.title}</p>
+                <p className="text-lg font-semibold tabular-nums">{formatMoney(request.amount)}</p>
+              </div>
+            </div>
+
+            {request.category ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Categorie</p>
+                <p className="font-medium">{request.category}</p>
+              </div>
+            ) : null}
+
+            {request.description ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Description</p>
+                <p className="text-sm">{request.description}</p>
+              </div>
+            ) : null}
+
+            {request.task_name || request.folder ? (
+              <div>
+                <p className="text-xs text-muted-foreground">Cible</p>
+                {request.task_name ? (
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <ListTodo className="size-4 text-sky-600" />
+                    <span>{request.task_name}</span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-sm">
+                    <Folder className="size-4 text-amber-500" />
+                    <span>{findFolderName(folders, request.folder) ?? `Dossier #${request.folder}`}</span>
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {request.documents_info.length > 0 ? (
+              <div>
+                <p className="mb-1.5 text-xs text-muted-foreground">Documents</p>
+                <div className="flex flex-col gap-1.5">
+                  {request.documents_info.map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                      <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate">{doc.name ?? `Document #${doc.id}`}</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-1.5"
+                        disabled={isOpeningDocument}
+                        onClick={() => onOpenDocument(doc.id)}
+                      >
+                        <ExternalLink className="size-3.5" />
+                        Ouvrir
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              {request.requested_by_name ? (
+                <div>
+                  <p className="text-xs text-muted-foreground">Demande par</p>
+                  <div className="flex items-center gap-1.5">
+                    <UserRound className="size-3.5 text-muted-foreground" />
+                    <span>{request.requested_by_name}</span>
+                  </div>
+                </div>
+              ) : null}
+              <div>
+                <p className="text-xs text-muted-foreground">Date</p>
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="size-3.5 text-muted-foreground" />
+                  <span>{new Date(request.created_at).toLocaleDateString("fr-BE")}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Fermer</Button>
+          </DialogClose>
         </DialogFooter>
       </DialogContent>
     </Dialog>

@@ -209,6 +209,13 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     },
     onError: (error) => setActionError(getErrorMessage(error)),
   });
+  const moveFolder = useMutation({
+    mutationFn: ({ folderId, newParentId }: { folderId: number; newParentId: number | null }) =>
+      api.folders.update(selectedProject!.id, folderId, { parent_folder: newParentId }),
+    onMutate: () => setActionError(null),
+    onSuccess: async () => treeQuery.refetch(),
+    onError: (error) => setActionError(getErrorMessage(error)),
+  });
   const createTask = useMutation({
     mutationFn: () =>
       api.tasks.create(selectedProject!.id, {
@@ -392,6 +399,15 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     createTimeEntry.mutate();
   }
 
+  function handleMoveFolder(folderId: number, newParentId: number | null) {
+    const tree = treeQuery.data ?? [];
+    if (newParentId !== null && isFolderDescendantOf(tree, folderId, newParentId)) {
+      setActionError("Impossible de deplacer un dossier dans l'un de ses sous-dossiers.");
+      return;
+    }
+    moveFolder.mutate({ folderId, newParentId });
+  }
+
   function buildFolderTimeHref(folderId: number) {
     const params = new URLSearchParams({
       project: String(selectedProjectId),
@@ -572,12 +588,17 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
                     onToggleFolder={toggleFolderExpanded}
                     onSelectFolder={setSelectedFolderId}
                     onOpenDocument={(documentId) => openDocument.mutate(documentId)}
+                    onOpenTask={(taskId) => {
+                      const task = normalizeApiList(previewTasksQuery.data).find((t) => t.id === taskId);
+                      if (task) setViewingTask(task);
+                    }}
                     onDraftFolderChange={(name) => setDraftFolder((draft) => (draft ? { ...draft, name } : draft))}
                     onCommitDraftFolder={onCommitDraftFolder}
                     onCancelDraftFolder={onCancelDraftFolder}
                     onOpenContextMenu={setContextTarget}
                     onRequestRename={requestRename}
                     onRequestDelete={requestDelete}
+                    onMoveFolder={canEditFiles ? handleMoveFolder : undefined}
                   />
                 ) : null}
               </CardContent>
@@ -940,6 +961,26 @@ function FolderPreviewPanel({
   );
 }
 
+function isFolderDescendantOf(nodes: FolderTreeNode[], ancestorId: number, candidateId: number): boolean {
+  for (const node of nodes) {
+    if (node.type !== "folder") continue;
+    if (node.id === ancestorId) {
+      return node.id === candidateId || containsFolderId(node.children ?? [], candidateId);
+    }
+    if (isFolderDescendantOf(node.children ?? [], ancestorId, candidateId)) return true;
+  }
+  return false;
+}
+
+function containsFolderId(nodes: FolderTreeNode[], id: number): boolean {
+  for (const node of nodes) {
+    if (node.type !== "folder") continue;
+    if (node.id === id) return true;
+    if (containsFolderId(node.children ?? [], id)) return true;
+  }
+  return false;
+}
+
 function getDocumentPreviewKind(doc: PreviewDocument): "image" | "pdf" | "none" {
   const mime = doc.mime_type ?? "";
   const ext = (doc.file_name.split(".").pop() ?? "").toLowerCase();
@@ -1225,12 +1266,14 @@ function Tree({
   onToggleFolder,
   onSelectFolder,
   onOpenDocument,
+  onOpenTask,
   onDraftFolderChange,
   onCommitDraftFolder,
   onCancelDraftFolder,
   onOpenContextMenu,
   onRequestRename,
   onRequestDelete,
+  onMoveFolder,
 }: {
   nodes: FolderTreeNode[];
   canEdit: boolean;
@@ -1242,13 +1285,17 @@ function Tree({
   onToggleFolder: (folderId: number) => void;
   onSelectFolder: (folderId: number | null) => void;
   onOpenDocument: (documentId: number) => void;
+  onOpenTask: (taskId: number) => void;
   onDraftFolderChange: (name: string) => void;
   onCommitDraftFolder: () => void;
   onCancelDraftFolder: () => void;
   onOpenContextMenu: (target: FileActionTarget) => void;
   onRequestRename: (target: FileActionTarget) => void;
   onRequestDelete: (target: FileActionTarget) => void;
+  onMoveFolder?: (folderId: number, newParentId: number | null) => void;
 }) {
+  const [draggedFolderId, setDraggedFolderId] = useState<number | null>(null);
+
   if (nodes.length === 0) {
     if (draftFolder?.parentFolder === null) {
       return (
@@ -1294,15 +1341,20 @@ function Tree({
           expandedFolderIds={expandedFolderIds}
           selectedFolderId={selectedFolderId}
           openingDocumentId={openingDocumentId}
+          draggedFolderId={draggedFolderId}
           onToggleFolder={onToggleFolder}
           onSelectFolder={onSelectFolder}
           onOpenDocument={onOpenDocument}
+          onOpenTask={onOpenTask}
           onDraftFolderChange={onDraftFolderChange}
           onCommitDraftFolder={onCommitDraftFolder}
           onCancelDraftFolder={onCancelDraftFolder}
           onOpenContextMenu={onOpenContextMenu}
           onRequestRename={onRequestRename}
           onRequestDelete={onRequestDelete}
+          onDragStart={setDraggedFolderId}
+          onDragEnd={() => setDraggedFolderId(null)}
+          onDropOnFolder={onMoveFolder}
         />
       ))}
     </div>
@@ -1318,15 +1370,20 @@ function TreeNode({
   expandedFolderIds,
   selectedFolderId,
   openingDocumentId,
+  draggedFolderId,
   onToggleFolder,
   onSelectFolder,
   onOpenDocument,
+  onOpenTask,
   onDraftFolderChange,
   onCommitDraftFolder,
   onCancelDraftFolder,
   onOpenContextMenu,
   onRequestRename,
   onRequestDelete,
+  onDragStart,
+  onDragEnd,
+  onDropOnFolder,
 }: {
   node: FolderTreeNode;
   depth: number;
@@ -1336,15 +1393,20 @@ function TreeNode({
   expandedFolderIds: Set<number>;
   selectedFolderId: number | null;
   openingDocumentId: number | null | undefined;
+  draggedFolderId: number | null;
   onToggleFolder: (folderId: number) => void;
   onSelectFolder: (folderId: number | null) => void;
   onOpenDocument: (documentId: number) => void;
+  onOpenTask: (taskId: number) => void;
   onDraftFolderChange: (name: string) => void;
   onCommitDraftFolder: () => void;
   onCancelDraftFolder: () => void;
   onOpenContextMenu: (target: FileActionTarget) => void;
   onRequestRename: (target: FileActionTarget) => void;
   onRequestDelete: (target: FileActionTarget) => void;
+  onDragStart: (folderId: number) => void;
+  onDragEnd: () => void;
+  onDropOnFolder?: (folderId: number, newParentId: number | null) => void;
 }): ReactNode {
   const isFolder = node.type === "folder";
   const isTask = node.type === "task";
@@ -1356,6 +1418,7 @@ function TreeNode({
   const isExpanded = isFolder && expandedFolderIds.has(node.id);
   const isSelected = isFolder && selectedFolderId === node.id;
   const isOpeningDocument = !isFolder && openingDocumentId === node.id;
+  const isDragTarget = isFolder && draggedFolderId != null && draggedFolderId !== node.id;
   const rowPaddingLeft = getTreeRowPadding(depth);
 
   return (
@@ -1370,8 +1433,31 @@ function TreeNode({
         className={cn(
           "group grid h-9 grid-cols-[24px_20px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md pr-2 text-sm hover:bg-muted/70",
           isSelected && "bg-primary/10 hover:bg-primary/15",
+          isDragTarget && "ring-2 ring-primary/40",
         )}
         style={{ paddingLeft: `${rowPaddingLeft}px` }}
+        draggable={isFolder && canEdit}
+        onDragStart={isFolder && canEdit ? (e) => {
+          e.stopPropagation();
+          e.dataTransfer.setData("text/plain", String(node.id));
+          e.dataTransfer.effectAllowed = "move";
+          onDragStart(node.id);
+        } : undefined}
+        onDragEnd={isFolder && canEdit ? () => onDragEnd() : undefined}
+        onDragOver={isDragTarget ? (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          e.dataTransfer.dropEffect = "move";
+        } : undefined}
+        onDrop={isDragTarget ? (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const folderId = Number(e.dataTransfer.getData("text/plain"));
+          if (folderId && folderId !== node.id) {
+            onDropOnFolder?.(folderId, node.id);
+          }
+          onDragEnd();
+        } : undefined}
         onContextMenu={() => {
           if (actionTarget) {
             onOpenContextMenu(actionTarget);
@@ -1408,6 +1494,7 @@ function TreeNode({
             }
 
             if (isTask) {
+              onOpenTask(node.id);
               return;
             }
 
@@ -1500,15 +1587,20 @@ function TreeNode({
               expandedFolderIds={expandedFolderIds}
               selectedFolderId={selectedFolderId}
               openingDocumentId={openingDocumentId}
+              draggedFolderId={draggedFolderId}
               onToggleFolder={onToggleFolder}
               onSelectFolder={onSelectFolder}
               onOpenDocument={onOpenDocument}
+              onOpenTask={onOpenTask}
               onDraftFolderChange={onDraftFolderChange}
               onCommitDraftFolder={onCommitDraftFolder}
               onCancelDraftFolder={onCancelDraftFolder}
               onOpenContextMenu={onOpenContextMenu}
               onRequestRename={onRequestRename}
               onRequestDelete={onRequestDelete}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDropOnFolder={onDropOnFolder}
             />
           ))}
         </div>
