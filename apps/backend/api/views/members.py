@@ -53,7 +53,7 @@ class ProjectMemberListView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         project = get_object_or_404(
-            get_accessible_projects(request.user).select_related("owner"),
+            get_accessible_projects(request.user).select_related("owner__profile"),
             pk=self.kwargs["project_id"],
         )
         queryset = self.filter_queryset(self.get_queryset())
@@ -78,12 +78,17 @@ def _build_owner_entry(project):
     from ..utils import get_user_display_name
     display_name = get_user_display_name(project.owner)
     now = timezone.now().isoformat()
+    try:
+        picture_url = project.owner.profile.picture_url or None
+    except AttributeError:
+        picture_url = None
     return {
         "id": 0,
         "project": project.id,
         "user": project.owner_id,
         "user_display_name": display_name,
         "user_email": project.owner.email,
+        "user_picture_url": picture_url,
         "role": 0,
         "role_name": "Proprietaire",
         "role_deleted": False,

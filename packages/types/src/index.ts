@@ -71,6 +71,7 @@ export type ProjectMember = {
   user: ID;
   user_display_name: string;
   user_email: string;
+  user_picture_url: string | null;
   role: ID;
   role_name: string | null;
   role_deleted: boolean;
@@ -282,8 +283,6 @@ export type FinancialEntry = {
   id: ID;
   project: ID;
   folder: ID | null;
-  document: ID | null;
-  document_name: string | null;
   documents_info: Array<{ id: ID; name: string | null }>;
   time_entry: ID | null;
   task: ID | null;
@@ -306,7 +305,6 @@ export type FinancialEntryPayload = {
   category?: string | null;
   description?: string | null;
   folder?: ID | null;
-  document?: ID | null;
   task?: ID | null;
   documents?: ID[];
 };
@@ -319,8 +317,6 @@ export type ExpenseRequest = {
   category: string | null;
   description: string | null;
   folder: ID | null;
-  document: ID | null;
-  document_name: string | null;
   documents_info: Array<{ id: ID; name: string | null }>;
   task: ID | null;
   task_name: string | null;
@@ -341,7 +337,6 @@ export type ExpenseRequestPayload = {
   category?: string | null;
   description?: string | null;
   folder?: ID | null;
-  document?: ID | null;
   task?: ID | null;
   documents?: ID[];
 };

@@ -402,7 +402,6 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
   function handleMoveFolder(folderId: number, newParentId: number | null) {
     const tree = treeQuery.data ?? [];
     if (newParentId !== null && isFolderDescendantOf(tree, folderId, newParentId)) {
-      setActionError("Impossible de deplacer un dossier dans l'un de ses sous-dossiers.");
       return;
     }
     moveFolder.mutate({ folderId, newParentId });
@@ -1433,7 +1432,7 @@ function TreeNode({
         className={cn(
           "group grid h-9 grid-cols-[24px_20px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md pr-2 text-sm hover:bg-muted/70",
           isSelected && "bg-primary/10 hover:bg-primary/15",
-          isDragTarget && "ring-2 ring-primary/40",
+          isDragTarget && "bg-primary/5",
         )}
         style={{ paddingLeft: `${rowPaddingLeft}px` }}
         draggable={isFolder && canEdit}

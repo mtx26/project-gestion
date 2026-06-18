@@ -175,6 +175,7 @@ class RoleSerializer(serializers.ModelSerializer):
 class ProjectMemberSerializer(serializers.ModelSerializer):
     user_display_name = serializers.SerializerMethodField()
     user_email = serializers.EmailField(source="user.email", read_only=True)
+    user_picture_url = serializers.SerializerMethodField()
     role_name = serializers.SerializerMethodField()
     role_deleted = serializers.SerializerMethodField()
 
@@ -186,6 +187,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
             "user",
             "user_display_name",
             "user_email",
+            "user_picture_url",
             "role",
             "role_name",
             "role_deleted",
@@ -198,6 +200,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
             "project",
             "user_display_name",
             "user_email",
+            "user_picture_url",
             "role_name",
             "role_deleted",
         ]
@@ -205,6 +208,12 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
     def get_user_display_name(self, member):
         full_name = member.user.get_full_name().strip()
         return full_name or member.user.username or member.user.email
+
+    def get_user_picture_url(self, member):
+        try:
+            return member.user.profile.picture_url or None
+        except AttributeError:
+            return None
 
     def get_role_name(self, member):
         if member.role.deleted_at is not None:
@@ -761,7 +770,7 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
     def create(self, validated_data):
         time_entry = self.context["time_entry"]
         request = self.context["request"]
-        description = validated_data.get("description") or f"Paiement temps #{time_entry.id}"
+        description = validated_data.get("description") or f"Pour {_get_user_display_name(time_entry.user)}"
 
         financial_entry = FinancialEntry.objects.create(
             project=time_entry.project,
@@ -796,7 +805,6 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):
-    document_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     documents_info = serializers.SerializerMethodField()
@@ -810,8 +818,6 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "id",
             "project",
             "folder",
-            "document",
-            "document_name",
             "documents",
             "documents_info",
             "time_entry",
@@ -831,14 +837,10 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
             "created_by",
-            "document_name",
             "task_name",
             "created_by_name",
             "documents_info",
         ]
-
-    def get_document_name(self, obj):
-        return obj.document.file_name if obj.document_id else None
 
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None
@@ -847,15 +849,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         return _get_user_display_name(obj.created_by)
 
     def get_documents_info(self, obj):
-        seen = set()
-        result = []
-        if obj.document_id:
-            seen.add(obj.document_id)
-            result.append({"id": obj.document_id, "name": obj.document.file_name if obj.document else None})
-        for doc in obj.documents.all():
-            if doc.id not in seen:
-                result.append({"id": doc.id, "name": doc.file_name})
-        return result
+        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
 
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
@@ -888,7 +882,6 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
 
 class ExpenseRequestSerializer(serializers.ModelSerializer):
-    document_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     requested_by_name = serializers.SerializerMethodField()
     documents_info = serializers.SerializerMethodField()
@@ -906,8 +899,6 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "category",
             "description",
             "folder",
-            "document",
-            "document_name",
             "documents",
             "documents_info",
             "task",
@@ -928,14 +919,10 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "status",
             "approved_at",
             "approved_by",
-            "document_name",
             "task_name",
             "requested_by_name",
             "documents_info",
         ]
-
-    def get_document_name(self, obj):
-        return obj.document.file_name if obj.document_id else None
 
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None
@@ -944,15 +931,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
         return _get_user_display_name(obj.requested_by)
 
     def get_documents_info(self, obj):
-        seen = set()
-        result = []
-        if obj.document_id:
-            seen.add(obj.document_id)
-            result.append({"id": obj.document_id, "name": obj.document.file_name if obj.document else None})
-        for doc in obj.documents.all():
-            if doc.id not in seen:
-                result.append({"id": doc.id, "name": doc.file_name})
-        return result
+        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
 
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])

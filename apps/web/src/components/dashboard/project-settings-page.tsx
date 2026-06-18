@@ -413,45 +413,53 @@ function ProjectSettingsContent({
                           }`}
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{member.user_display_name}</p>
-                              {canManageMembers ? (
-                                <Select
-                                  value={member.role_deleted ? undefined : String(member.role)}
-                                  onValueChange={(value) =>
-                                    updateMemberRole.mutate({
-                                      memberId: member.id,
-                                      roleId: Number(value),
-                                    })
-                                  }
-                                >
-                                  <SelectTrigger className="mt-2 h-8 w-full bg-background sm:w-48">
-                                    <SelectValue placeholder={member.role_deleted ? "Aucun role actif" : "Role"} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {roles.map((role) => (
-                                      <SelectItem key={role.id} value={String(role.id)}>
-                                        {role.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              ) : (
-                                <p className={`mt-1 truncate text-xs ${member.role_deleted ? "text-red-700" : "text-muted-foreground"}`}>
-                                  {member.role_deleted ? "Aucun role actif" : member.role_name}
-                                </p>
-                              )}
-                              {member.role_deleted ? (
-                                <p className="mt-2 text-xs font-medium text-red-700">
-                                  Probleme: ce membre n&apos;a plus de role actif.
-                                </p>
-                              ) : null}
+                            <div className="flex min-w-0 items-start gap-2.5">
+                              <MemberAvatar
+                                name={member.user_display_name}
+                                pictureUrl={member.user_picture_url}
+                              />
+                              <div className="min-w-0">
+                                <p className="truncate font-medium">{member.user_display_name}</p>
+                                {member.user === selectedProject.owner ? (
+                                  <p className="mt-1 truncate text-xs text-muted-foreground">Proprietaire</p>
+                                ) : canManageMembers ? (
+                                  <Select
+                                    value={member.role_deleted ? undefined : String(member.role)}
+                                    onValueChange={(value) =>
+                                      updateMemberRole.mutate({
+                                        memberId: member.id,
+                                        roleId: Number(value),
+                                      })
+                                    }
+                                  >
+                                    <SelectTrigger className="mt-2 h-8 w-full bg-background sm:w-48">
+                                      <SelectValue placeholder={member.role_deleted ? "Aucun role actif" : "Role"} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {roles.map((role) => (
+                                        <SelectItem key={role.id} value={String(role.id)}>
+                                          {role.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  <p className={`mt-1 truncate text-xs ${member.role_deleted ? "text-red-700" : "text-muted-foreground"}`}>
+                                    {member.role_deleted ? "Aucun role actif" : member.role_name}
+                                  </p>
+                                )}
+                                {member.role_deleted ? (
+                                  <p className="mt-2 text-xs font-medium text-red-700">
+                                    Probleme: ce membre n&apos;a plus de role actif.
+                                  </p>
+                                ) : null}
+                              </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
                               <Badge
-                                variant={member.role_deleted ? "destructive" : "secondary"}
+                                variant={member.user === selectedProject.owner ? "default" : member.role_deleted ? "destructive" : "secondary"}
                               >
-                                {member.role_deleted ? "Sans role" : "Membre"}
+                                {member.user === selectedProject.owner ? "Proprietaire" : member.role_deleted ? "Sans role" : "Membre"}
                               </Badge>
                               {canManageMembers && member.user !== selectedProject.owner ? (
                                 <Button
@@ -869,6 +877,24 @@ function DangerSettingsCard({
         <FormError message={error} />
       </CardContent>
     </Card>
+  );
+}
+
+function MemberAvatar({ name, pictureUrl }: { name: string; pictureUrl: string | null }) {
+  const initial = name.charAt(0).toUpperCase();
+  if (pictureUrl) {
+    return (
+      <img
+        src={pictureUrl}
+        alt={name}
+        className="size-8 shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+      {initial}
+    </div>
   );
 }
 

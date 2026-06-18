@@ -20,6 +20,8 @@
 
     faire un chat par projet
 
+    rajoute truc a pyer pour un personne dasn temps
+
 <!-- 
 non range les filtre de achs, temps, financez et reboursment , il dois etre aligner et coerent
 arrage partout au member liste est utilise pour bien afficher dasn parametre que c'est l proprio et qu'on puisse pas modif le role etc , 

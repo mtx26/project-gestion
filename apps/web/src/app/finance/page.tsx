@@ -305,10 +305,11 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
                       {findFolderName(folders, entry.folder) ?? `Dossier #${entry.folder}`}
                     </span>
                   ) : null}
-                  {entry.document ? (
+                  {(entry.documents_info ?? []).length > 0 ? (
                     <span className="inline-flex items-center gap-1">
                       <FileText className="size-3" />
-                      {entry.document_name ?? `Document #${entry.document}`}
+                      {entry.documents_info[0].name ?? `Document #${entry.documents_info[0].id}`}
+                      {entry.documents_info.length > 1 ? ` +${entry.documents_info.length - 1}` : ""}
                     </span>
                   ) : null}
                   {entry.created_by_name ? (
@@ -444,19 +445,7 @@ function FinancialEntryFormDialog({
     : "project";
 
   function buildInitialDocs() {
-    const seen = new Set<number>();
-    const docs: Array<{ id: number; name: string | null }> = [];
-    if (entry?.document != null) {
-      seen.add(entry.document);
-      docs.push({ id: entry.document, name: entry.document_name ?? null });
-    }
-    for (const d of entry?.documents_info ?? []) {
-      if (!seen.has(d.id)) {
-        seen.add(d.id);
-        docs.push({ id: d.id, name: d.name });
-      }
-    }
-    return docs;
+    return (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name }));
   }
 
   const [type, setType] = useState<"expense" | "refund">(entry?.type ?? "expense");
@@ -690,11 +679,11 @@ function FinancialEntryDetailDialog({
               </div>
             ) : null}
 
-            {entry.documents_info.length > 0 ? (
+            {(entry.documents_info ?? []).length > 0 ? (
               <div>
                 <p className="mb-1.5 text-xs text-muted-foreground">Documents</p>
                 <div className="flex flex-col gap-1.5">
-                  {entry.documents_info.map((doc) => (
+                  {(entry.documents_info ?? []).map((doc) => (
                     <div key={doc.id} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
                       <FileText className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">{doc.name ?? `Document #${doc.id}`}</span>

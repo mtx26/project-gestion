@@ -322,10 +322,11 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                       {findFolderName(folders, req.folder) ?? `Dossier #${req.folder}`}
                     </span>
                   ) : null}
-                  {req.document ? (
+                  {(req.documents_info ?? []).length > 0 ? (
                     <span className="inline-flex items-center gap-1">
                       <FileText className="size-3" />
-                      {req.document_name ?? `Document #${req.document}`}
+                      {req.documents_info[0].name ?? `Document #${req.documents_info[0].id}`}
+                      {req.documents_info.length > 1 ? ` +${req.documents_info.length - 1}` : ""}
                     </span>
                   ) : null}
                   {req.requested_by_name ? (
@@ -482,19 +483,7 @@ function ExpenseRequestFormDialog({
     : "project";
 
   function buildInitialDocs() {
-    const seen = new Set<number>();
-    const docs: Array<{ id: number; name: string | null }> = [];
-    if (request?.document != null) {
-      seen.add(request.document);
-      docs.push({ id: request.document, name: request.document_name ?? null });
-    }
-    for (const d of request?.documents_info ?? []) {
-      if (!seen.has(d.id)) {
-        seen.add(d.id);
-        docs.push({ id: d.id, name: d.name });
-      }
-    }
-    return docs;
+    return (request?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name }));
   }
 
   const [title, setTitle] = useState(request?.title ?? "");
@@ -724,11 +713,11 @@ function ExpenseRequestDetailDialog({
               </div>
             ) : null}
 
-            {request.documents_info.length > 0 ? (
+            {(request.documents_info ?? []).length > 0 ? (
               <div>
                 <p className="mb-1.5 text-xs text-muted-foreground">Documents</p>
                 <div className="flex flex-col gap-1.5">
-                  {request.documents_info.map((doc) => (
+                  {(request.documents_info ?? []).map((doc) => (
                     <div key={doc.id} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2 text-sm">
                       <FileText className="size-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1 truncate">{doc.name ?? `Document #${doc.id}`}</span>

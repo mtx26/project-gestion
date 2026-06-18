@@ -320,7 +320,6 @@ class FinancialEntry(BaseModel):
 
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
-    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True)
     documents = models.ManyToManyField(
         Document,
         blank=True,
@@ -345,9 +344,6 @@ class FinancialEntry(BaseModel):
 
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.financial_entry.folder_project_mismatch")
-
-        if self.document and self.document.project_id != self.project_id:
-            raise ValidationError("errors.financial_entry.document_project_mismatch")
 
         if self.time_entry and self.time_entry.project_id != self.project_id:
             raise ValidationError("errors.financial_entry.time_entry_project_mismatch")
@@ -402,7 +398,6 @@ class ExpenseRequest(BaseModel):
     category = models.CharField(max_length=100, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
-    document = models.ForeignKey(Document, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
     documents = models.ManyToManyField(
         Document,
         blank=True,
@@ -419,9 +414,6 @@ class ExpenseRequest(BaseModel):
 
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.expense_request.folder_project_mismatch")
-
-        if self.document and self.document.project_id != self.project_id:
-            raise ValidationError("errors.expense_request.document_project_mismatch")
 
         if self.folder and self.task:
             raise ValidationError("errors.expense_request.multiple_targets")

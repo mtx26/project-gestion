@@ -387,6 +387,11 @@ function ProjectTimeContent({
             updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })
           }
           onClearTargetFilter={() => updateUrlFilter({ target: null })}
+          onClearAllFilters={() => {
+            if (!selectedProject) return;
+            const params = new URLSearchParams({ project: String(selectedProject.id) });
+            router.replace(`/time?${params.toString()}`, { scroll: false });
+          }}
           onPeriodPresetChange={onPeriodPresetChange}
           onPaymentStatusFilterChange={onPaymentStatusFilterChange}
           onUserFilterChange={onUserFilterChange}
@@ -778,6 +783,7 @@ function TimePeriodToolbar({
   folders,
   onSelectFolder,
   onClearTargetFilter,
+  onClearAllFilters,
   onPeriodPresetChange,
   onPaymentStatusFilterChange,
   onUserFilterChange,
@@ -794,6 +800,7 @@ function TimePeriodToolbar({
   folders: FolderTreeNode[];
   onSelectFolder: (folderId: number | null) => void;
   onClearTargetFilter: () => void;
+  onClearAllFilters: () => void;
   onPeriodPresetChange: (value: PeriodPreset) => void;
   onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
   onUserFilterChange: (value: UserFilter) => void;
@@ -816,15 +823,6 @@ function TimePeriodToolbar({
           <SelectItem value="all">Tout</SelectItem>
         </SelectContent>
       </Select>
-      <div className="w-full sm:w-52">
-        <FolderTreePickerDialog
-          folders={folders}
-          selectedFolderId={targetFolderId}
-          buttonLabel={folderPickerLabel}
-          description="Filtrer les entrees de temps par dossier."
-          onSelect={onSelectFolder}
-        />
-      </div>
       {canViewAllTime ? (
         <Select value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
           <SelectTrigger className="w-full bg-background sm:w-56">
@@ -841,6 +839,15 @@ function TimePeriodToolbar({
           </SelectContent>
         </Select>
       ) : null}
+      <div className="w-full sm:w-52">
+        <FolderTreePickerDialog
+          folders={folders}
+          selectedFolderId={targetFolderId}
+          buttonLabel={folderPickerLabel}
+          description="Filtrer les entrees de temps par dossier."
+          onSelect={onSelectFolder}
+        />
+      </div>
       <Select value={paymentStatusFilter} onValueChange={(value) => onPaymentStatusFilterChange(value as PaymentStatusFilter)}>
         <SelectTrigger className="w-full bg-background sm:w-48">
           <SelectValue />
@@ -861,11 +868,9 @@ function TimePeriodToolbar({
       >
         Impayes inclus
       </Button>
-      {targetFilterLabel ? (
-        <Button type="button" variant="ghost" size="sm" className="sm:w-auto" onClick={onClearTargetFilter}>
-          Effacer filtre
-        </Button>
-      ) : null}
+      <Button type="button" variant="ghost" size="sm" className="sm:w-auto" onClick={onClearAllFilters}>
+        Effacer filtres
+      </Button>
     </div>
   );
 }
