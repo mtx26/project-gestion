@@ -463,6 +463,12 @@ class TaskSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         assigned_to = validated_data.pop("assigned_to", None)
 
+        new_status = validated_data.get("status")
+        if new_status == "done" and instance.status != "done":
+            validated_data.setdefault("completed_at", timezone.now())
+        elif new_status and new_status != "done" and instance.status == "done":
+            validated_data["completed_at"] = None
+
         with transaction.atomic():
             for field, value in validated_data.items():
                 setattr(instance, field, value)

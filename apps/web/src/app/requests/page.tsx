@@ -181,6 +181,18 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     onError: (err) => setActionError(getErrorMessage(err)),
   });
 
+  const createFolder = useMutation({
+    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
+      api.folders.create(projectId!, { name, parent_folder: parentId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) });
+    },
+  });
+
+  async function handleCreateFolder(name: string, parentId: number | null) {
+    await createFolder.mutateAsync({ name, parentId });
+  }
+
   if (!selectedProject) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
@@ -251,6 +263,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
             buttonLabel={folderFilterName ?? "Tous dossiers"}
             description="Filtrer les demandes par dossier."
             onSelect={(id) => updateUrlFilter({ folder: id })}
+            onCreateFolder={canEdit ? handleCreateFolder : undefined}
           />
         </div>
         <Input

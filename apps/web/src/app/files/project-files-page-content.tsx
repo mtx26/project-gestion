@@ -374,6 +374,10 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     setTimeDescription("");
   }
 
+  async function handleCreateFolder(name: string, parentId: number | null) {
+    await createFolder.mutateAsync({ name, parentFolder: parentId });
+  }
+
   function submitTaskDraft() {
     if (!canEditTasks || !taskTitle.trim()) {
       return;
@@ -692,6 +696,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
         onPriorityChange={setTaskPriority}
         onDueDateChange={setTaskDueDate}
         onSubmit={submitTaskDraft}
+        onCreateFolder={canEditFiles ? handleCreateFolder : undefined}
       />
       <TimeDraftDialog
         open={timeDraftFolderId != null}
@@ -966,6 +971,7 @@ function TaskDraftDialog({
   onPriorityChange,
   onDueDateChange,
   onSubmit,
+  onCreateFolder,
 }: {
   open: boolean;
   folderName: string | null;
@@ -983,6 +989,7 @@ function TaskDraftDialog({
   onPriorityChange: (value: Task["priority"]) => void;
   onDueDateChange: (value: string) => void;
   onSubmit: () => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1003,6 +1010,7 @@ function TaskDraftDialog({
               buttonLabel={folderName ?? "Projet"}
               description="Selectionne le dossier qui recevra la tache."
               onSelect={onFolderChange}
+              onCreateFolder={onCreateFolder}
             />
           </div>
           <div className="space-y-2">

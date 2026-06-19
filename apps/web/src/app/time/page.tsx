@@ -237,6 +237,17 @@ function ProjectTimeContent({
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
   });
+  const createFolder = useMutation({
+    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
+      api.folders.create(selectedProject!.id, { name, parent_folder: parentId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(selectedProject!.id) });
+    },
+  });
+
+  async function handleCreateFolder(name: string, parentId: number | null) {
+    await createFolder.mutateAsync({ name, parentId });
+  }
 
   function onSubmitTimeEntry(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -395,6 +406,7 @@ function ProjectTimeContent({
           onPaymentStatusFilterChange={onPaymentStatusFilterChange}
           onUserFilterChange={onUserFilterChange}
           onIncludeUnpaidOutsideMonthChange={onIncludeUnpaidOutsideMonthChange}
+          onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
         />
       ) : null}
 
@@ -767,6 +779,7 @@ function TimePeriodToolbar({
   onPaymentStatusFilterChange,
   onUserFilterChange,
   onIncludeUnpaidOutsideMonthChange,
+  onCreateFolder,
 }: {
   canViewAllTime: boolean;
   members: Array<{ id: number; user: number; user_display_name: string }>;
@@ -783,6 +796,7 @@ function TimePeriodToolbar({
   onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
   onUserFilterChange: (value: UserFilter) => void;
   onIncludeUnpaidOutsideMonthChange: (value: boolean) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
   const folderPickerLabel = targetFilterLabel ?? "Tous dossiers";
 
@@ -825,6 +839,7 @@ function TimePeriodToolbar({
           buttonLabel={folderPickerLabel}
           description="Filtrer les entrees de temps par dossier."
           onSelect={onSelectFolder}
+          onCreateFolder={onCreateFolder}
         />
       </div>
       <Select value={paymentStatusFilter} onValueChange={(value) => onPaymentStatusFilterChange(value as PaymentStatusFilter)}>

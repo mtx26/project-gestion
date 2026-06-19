@@ -23,6 +23,7 @@ import {
 export function TaskDetailModal({
   task,
   folderNameById,
+  members,
   canEdit,
   canDelete,
   deletingId,
@@ -32,6 +33,7 @@ export function TaskDetailModal({
 }: {
   task: Task | null;
   folderNameById: Map<number, string>;
+  members: { user: number; user_display_name: string }[];
   canEdit: boolean;
   canDelete: boolean;
   deletingId?: number | null;
@@ -71,6 +73,20 @@ export function TaskDetailModal({
                 <p className="text-xs font-medium uppercase text-muted-foreground">Echeance</p>
                 <p className="mt-1 text-sm">{task.due_date ? formatTaskDate(task.due_date) : "—"}</p>
               </div>
+              <div>
+                <p className="text-xs font-medium uppercase text-muted-foreground">Cree par</p>
+                <p className="mt-1 text-sm">{task.created_by_name ?? "—"}</p>
+              </div>
+              {task.assigned_to.length > 0 ? (
+                <div className="sm:col-span-2">
+                  <p className="text-xs font-medium uppercase text-muted-foreground">Assignes</p>
+                  <p className="mt-1 text-sm">
+                    {task.assigned_to
+                      .map((uid) => members.find((m) => m.user === uid)?.user_display_name ?? `#${uid}`)
+                      .join(", ")}
+                  </p>
+                </div>
+              ) : null}
               <div>
                 <p className="text-xs font-medium uppercase text-muted-foreground">Creation</p>
                 <p className="mt-1 text-sm">{formatTaskDate(task.created_at)}</p>

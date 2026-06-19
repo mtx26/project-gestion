@@ -165,6 +165,18 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
     onError: (err) => setFormError(getErrorMessage(err)),
   });
 
+  const createFolder = useMutation({
+    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
+      api.folders.create(projectId!, { name, parent_folder: parentId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) });
+    },
+  });
+
+  async function handleCreateFolder(name: string, parentId: number | null) {
+    await createFolder.mutateAsync({ name, parentId });
+  }
+
   if (!selectedProject) {
     return (
       <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
@@ -234,6 +246,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
             buttonLabel={folderFilterName ?? "Tous dossiers"}
             description="Filtrer les entrees par dossier."
             onSelect={(id) => updateUrlFilter({ folder: id })}
+            onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
           />
         </div>
         <Input

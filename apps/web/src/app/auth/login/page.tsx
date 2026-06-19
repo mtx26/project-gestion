@@ -89,7 +89,7 @@ export default function LoginPage() {
             </Button>
           </form>
           <div className="flex items-center justify-between text-sm">
-            <Link className="text-slate-600 hover:text-teal-700" href="/auth/forgot-password">
+            <Link className="text-muted-foreground hover:text-foreground" href="/auth/forgot-password">
               Mot de passe oublie
             </Link>
             <Link className="font-medium text-teal-700" href="/auth/register">

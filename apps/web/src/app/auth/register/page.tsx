@@ -79,7 +79,7 @@ export default function RegisterPage() {
               Creer le compte
             </Button>
           </form>
-          <p className="mt-4 text-center text-sm text-slate-600">
+          <p className="mt-4 text-center text-sm text-muted-foreground">
             Deja inscrit ?{" "}
             <Link className="font-medium text-teal-700" href="/auth/login">
               Se connecter

@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronUp, ChevronsUpDown, Pencil, Plus, Trash2, UserCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { type FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -95,6 +95,8 @@ function ProjectTasksContent({
   const [editStatus, setEditStatus] = useState<Task["status"]>("todo");
   const [editPriority, setEditPriority] = useState<Task["priority"]>("normal");
   const [editDueDate, setEditDueDate] = useState("");
+  const [newTaskAssignees, setNewTaskAssignees] = useState<number[]>([]);
+  const [editAssignees, setEditAssignees] = useState<number[]>([]);
 
   const createdByFilter = parseIdParam(searchParams.get("member"));
   const folderId = getFolderId(folderFilter);
@@ -172,6 +174,7 @@ function ProjectTasksContent({
         priority: newTaskPriority,
         status: "todo",
         due_date: dueDate || null,
+        assigned_to: newTaskAssignees,
       }),
     onSuccess: async () => {
       setTitle("");
@@ -179,6 +182,7 @@ function ProjectTasksContent({
       setNewTaskFolder(folderFilter);
       setNewTaskPriority("normal");
       setDueDate("");
+      setNewTaskAssignees([]);
       setCreateDialogOpen(false);
       await invalidateTasks(queryClient, selectedProject!.id);
     },
@@ -197,6 +201,17 @@ function ProjectTasksContent({
       await invalidateTasks(queryClient, selectedProject!.id);
     },
   });
+  const createFolder = useMutation({
+    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
+      api.folders.create(selectedProject!.id, { name, parent_folder: parentId }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(selectedProject!.id) });
+    },
+  });
+
+  async function handleCreateFolder(name: string, parentId: number | null): Promise<void> {
+    await createFolder.mutateAsync({ name, parentId });
+  }
 
   function updateUrlFilter(changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; includeCompleted: boolean; member: number | null }>) {
     if (!selectedProject) {
@@ -254,6 +269,7 @@ function ProjectTasksContent({
     setEditStatus(task.status);
     setEditPriority(task.priority);
     setEditDueDate(task.due_date ?? "");
+    setEditAssignees(task.assigned_to ?? []);
   }
 
   function submitEditTask(event: FormEvent<HTMLFormElement>) {
@@ -271,6 +287,7 @@ function ProjectTasksContent({
         status: editStatus,
         priority: editPriority,
         due_date: editDueDate || null,
+        assigned_to: editAssignees,
       },
     });
   }
@@ -359,6 +376,7 @@ function ProjectTasksContent({
               buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
               description="Filtrer les taches par dossier."
               onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
+              onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
             />
           </div>
         ) : null}
@@ -386,6 +404,52 @@ function ProjectTasksContent({
         </Button>
       </div>
 
+      {user && (() => {
+        const myTasks = sortedTasks.filter((t) => t.assigned_to.includes(user.id));
+        if (myTasks.length === 0) return null;
+        return (
+          <Card className="rounded-lg">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <UserCheck className="size-4" />
+                Mes taches assignees
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Tache</TableHead>
+                    <TableHead>Dossier</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead>Priorite</TableHead>
+                    <TableHead>Echeance</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {myTasks.map((task) => {
+                    const folderName = task.folder == null ? "Projet" : folderNameById.get(task.folder) ?? `Dossier #${task.folder}`;
+                    return (
+                      <TableRow key={task.id} className="cursor-pointer" onClick={() => setViewingTask(task)}>
+                        <TableCell className="font-medium">{task.title}</TableCell>
+                        <TableCell className="text-muted-foreground">{folderName}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getStatusClassName(task.status)}>{getStatusLabel(task.status)}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getPriorityClassName(task.priority)}>{getPriorityLabel(task.priority)}</Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">{task.due_date ? formatTaskDate(task.due_date) : "-"}</TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       <Card className="rounded-lg">
         <CardHeader>
           <CardTitle>Taches</CardTitle>
@@ -408,6 +472,7 @@ function ProjectTasksContent({
             <TaskTable
               tasks={showCompleted ? sortedTasks : sortedTasks.filter((t) => t.status !== "done")}
               folderNameById={folderNameById}
+              members={members}
               sortConfig={sortConfig}
               canEdit={canEditTasks}
               canDelete={canDeleteTasks}
@@ -416,6 +481,9 @@ function ProjectTasksContent({
               onOpenDetail={setViewingTask}
               onEdit={openEditTask}
               onDelete={(task) => deleteTask.mutate(task.id)}
+              onStatusChange={(task, status) =>
+                updateTask.mutate({ taskId: task.id, payload: { status } })
+              }
             />
           )}
           <FormErrorAlert error={updateTask.error ? getErrorMessage(updateTask.error) : null} className="mt-3" />
@@ -428,6 +496,8 @@ function ProjectTasksContent({
         open={createDialogOpen}
         canViewFiles={canViewFiles}
         folders={foldersQuery.data ?? []}
+        members={members}
+        assignees={newTaskAssignees}
         title={title}
         description={description}
         folder={newTaskFolder}
@@ -441,13 +511,17 @@ function ProjectTasksContent({
         onFolderChange={setNewTaskFolder}
         onPriorityChange={setNewTaskPriority}
         onDueDateChange={setDueDate}
+        onAssigneesChange={setNewTaskAssignees}
         onSubmit={onCreateTask}
+        onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
       />
       <TaskFormDialog
         mode="edit"
         task={editingTask}
         canViewFiles={canViewFiles}
         folders={foldersQuery.data ?? []}
+        members={members}
+        assignees={editAssignees}
         title={editTitle}
         description={editDescription}
         folder={editFolder}
@@ -467,11 +541,14 @@ function ProjectTasksContent({
         onStatusChange={setEditStatus}
         onPriorityChange={setEditPriority}
         onDueDateChange={setEditDueDate}
+        onAssigneesChange={setEditAssignees}
         onSubmit={submitEditTask}
+        onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
       />
       <TaskDetailModal
         task={viewingTask}
         folderNameById={folderNameById}
+        members={members}
         canEdit={canEditTasks}
         canDelete={canDeleteTasks}
         deletingId={deleteTask.isPending ? deleteTask.variables : null}
@@ -497,6 +574,8 @@ function TaskFormDialog({
   task,
   canViewFiles,
   folders,
+  members,
+  assignees,
   title,
   description,
   folder,
@@ -512,6 +591,8 @@ function TaskFormDialog({
   onStatusChange,
   onPriorityChange,
   onDueDateChange,
+  onAssigneesChange,
+  onCreateFolder,
   onSubmit,
 }: {
   mode: "create" | "edit";
@@ -519,6 +600,8 @@ function TaskFormDialog({
   task?: Task | null;
   canViewFiles: boolean;
   folders: FolderTreeNode[];
+  members: { id: number; user: number; user_display_name: string }[];
+  assignees: number[];
   title: string;
   description: string;
   folder: FolderFilter;
@@ -534,10 +617,25 @@ function TaskFormDialog({
   onStatusChange?: (value: Task["status"]) => void;
   onPriorityChange: (value: Task["priority"]) => void;
   onDueDateChange: (value: string) => void;
+  onAssigneesChange: (ids: number[]) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 }) {
   const isOpen = mode === "create" ? (open ?? false) : task != null;
   const folderId = getFolderId(folder);
+
+  const [memberSearch, setMemberSearch] = useState("");
+  const filteredMembers = members.filter((m) =>
+    m.user_display_name.toLowerCase().includes(memberSearch.toLowerCase())
+  );
+
+  function toggleAssignee(userId: number) {
+    if (assignees.includes(userId)) {
+      onAssigneesChange(assignees.filter((id) => id !== userId));
+    } else {
+      onAssigneesChange([...assignees, userId]);
+    }
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -567,6 +665,7 @@ function TaskFormDialog({
                   buttonLabel={folderId == null ? "Projet" : (findFolderName(folders, folderId) ?? "Dossier")}
                   description="Selectionne le dossier qui recevra la tache."
                   onSelect={(id) => onFolderChange(id == null ? "all" : `folder-${id}`)}
+                  onCreateFolder={onCreateFolder}
                 />
               </div>
             ) : null}
@@ -622,6 +721,53 @@ function TaskFormDialog({
             </div>
           )}
 
+          {members.length > 0 ? (
+            <div className="space-y-2">
+              <Label>Assignes</Label>
+              <Input
+                placeholder="Rechercher un membre..."
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+              />
+              {memberSearch.trim() ? (
+                <div className="rounded-md border bg-background p-1">
+                  {filteredMembers.length === 0 ? (
+                    <p className="px-2 py-1.5 text-sm text-muted-foreground">Aucun resultat</p>
+                  ) : filteredMembers.map((member) => {
+                    const selected = assignees.includes(member.user);
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        className={`flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm transition-colors ${selected ? "bg-primary/10 font-medium text-primary" : "hover:bg-muted/50"}`}
+                        onClick={() => toggleAssignee(member.user)}
+                      >
+                        {member.user_display_name}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : assignees.length > 0 ? (
+                <div className="flex flex-wrap gap-1">
+                  {assignees.map((uid) => {
+                    const m = members.find((m) => m.user === uid);
+                    return (
+                      <Badge
+                        key={uid}
+                        variant="secondary"
+                        className="cursor-pointer gap-1"
+                        onClick={() => toggleAssignee(uid)}
+                      >
+                        {m?.user_display_name ?? `#${uid}`}
+                        <span className="text-xs">×</span>
+                      </Badge>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label htmlFor="task-form-description">Description</Label>
             <Textarea id="task-form-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
@@ -675,6 +821,7 @@ function SortableTableHead({
 function TaskTable({
   tasks,
   folderNameById,
+  members,
   sortConfig,
   canEdit,
   canDelete,
@@ -683,9 +830,11 @@ function TaskTable({
   onOpenDetail,
   onEdit,
   onDelete,
+  onStatusChange,
 }: {
   tasks: Task[];
   folderNameById: Map<number, string>;
+  members: { id: number; user: number; user_display_name: string }[];
   sortConfig: { column: SortColumn; direction: SortDirection } | null;
   canEdit: boolean;
   canDelete: boolean;
@@ -694,7 +843,14 @@ function TaskTable({
   onOpenDetail: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
+  onStatusChange: (task: Task, status: Task["status"]) => void;
 }) {
+  const userDisplayMap = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const m of members) map.set(m.user, m.user_display_name);
+    return map;
+  }, [members]);
+
   return (
     <Table>
       <TableHeader>
@@ -704,26 +860,43 @@ function TaskTable({
           <SortableTableHead column="status" sortConfig={sortConfig} onSort={onSort}>Statut</SortableTableHead>
           <SortableTableHead column="priority" sortConfig={sortConfig} onSort={onSort}>Priorite</SortableTableHead>
           <SortableTableHead column="due_date" sortConfig={sortConfig} onSort={onSort}>Echeance</SortableTableHead>
-          <TableHead className="hidden sm:table-cell">Cree par</TableHead>
+          <TableHead className="hidden sm:table-cell">Assignes</TableHead>
           <TableHead className="w-24 text-right">Actions</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
         {tasks.map((task) => {
           const folderName = task.folder == null ? "Projet" : folderNameById.get(task.folder) ?? `Dossier #${task.folder}`;
+          const assigneeNames = task.assigned_to.map((uid) => userDisplayMap.get(uid) ?? `#${uid}`).join(", ");
 
           return (
             <TableRow key={task.id} className="cursor-pointer" onClick={() => onOpenDetail(task)}>
               <TableCell className="font-medium">{task.title}</TableCell>
               <TableCell className="text-muted-foreground">{folderName}</TableCell>
-              <TableCell>
-                <Badge variant="outline" className={getStatusClassName(task.status)}>{getStatusLabel(task.status)}</Badge>
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                {canEdit ? (
+                  <Select
+                    value={task.status}
+                    onValueChange={(v) => onStatusChange(task, v as Task["status"])}
+                  >
+                    <SelectTrigger className={`h-7 w-32 border px-2 text-xs font-medium ${getStatusClassName(task.status)}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todo">A faire</SelectItem>
+                      <SelectItem value="in_progress">En cours</SelectItem>
+                      <SelectItem value="done">Termine</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Badge variant="outline" className={getStatusClassName(task.status)}>{getStatusLabel(task.status)}</Badge>
+                )}
               </TableCell>
               <TableCell>
                 <Badge variant="outline" className={getPriorityClassName(task.priority)}>{getPriorityLabel(task.priority)}</Badge>
               </TableCell>
               <TableCell className="text-muted-foreground">{task.due_date ? formatTaskDate(task.due_date) : "-"}</TableCell>
-              <TableCell className="hidden text-muted-foreground sm:table-cell">{task.created_by_name ?? "-"}</TableCell>
+              <TableCell className="hidden max-w-30 truncate text-muted-foreground sm:table-cell">{assigneeNames || "-"}</TableCell>
               <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
                 <div className="flex justify-end gap-1">
                   {canEdit ? (
