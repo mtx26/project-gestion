@@ -191,3 +191,69 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
         expense_request.save()
         serializer = self.get_serializer(expense_request)
         return Response(serializer.data)
+
+
+@extend_schema(tags=["expense-requests"])
+@extend_schema_view(
+    get=extend_schema(
+        summary="Lister les demandes de remboursement supprimees",
+        description="Retourne les demandes de remboursement en corbeille.\nPermission requise : `expense_request.restore`.",
+    )
+)
+class ExpenseRequestTrashListView(generics.ListAPIView):
+    serializer_class = ExpenseRequestSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+
+    def get_permissions(self):
+        self.permission_code = "expense_request.restore"
+        return super().get_permissions()
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ExpenseRequest.deleted_objects.none()
+
+        return ExpenseRequest.deleted_objects.filter(
+            project_id=self.kwargs["project_id"],
+            project__in=get_accessible_projects(self.request.user),
+        ).select_related(
+            "project",
+            "folder",
+            "task",
+            "requested_by",
+            "approved_by",
+        ).prefetch_related("documents").order_by("-created_at", "-id")
+
+
+@extend_schema(tags=["expense-requests"])
+@extend_schema_view(
+    post=extend_schema(
+        summary="Restaurer une demande de remboursement",
+        description="Restaure une demande de remboursement supprimee.\nPermission requise : `expense_request.restore`.",
+        request=None,
+    )
+)
+class ExpenseRequestRestoreView(generics.GenericAPIView):
+    serializer_class = ExpenseRequestSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "expense_request.restore"
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return ExpenseRequest.deleted_objects.none()
+
+        return ExpenseRequest.deleted_objects.filter(
+            project_id=self.kwargs["project_id"],
+            project__in=get_accessible_projects(self.request.user),
+        ).select_related(
+            "project",
+            "folder",
+            "task",
+            "requested_by",
+            "approved_by",
+        ).prefetch_related("documents")
+
+    def post(self, request, project_id, pk):
+        expense_request = self.get_object()
+        expense_request.restore()
+        serializer = self.get_serializer(expense_request)
+        return Response(serializer.data)

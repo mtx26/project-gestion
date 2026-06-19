@@ -3320,7 +3320,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(entry["cost_amount"], "67.50")
         self.assertEqual(entry["paid_amount"], "45.00")
         self.assertEqual(entry["remaining_amount"], "22.50")
-        self.assertFalse(entry["is_paid"])
 
     def test_list_marks_time_entry_as_paid_when_expenses_cover_cost(self):
         FinancialEntry.objects.create(
@@ -3341,7 +3340,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(entry["cost_amount"], "67.50")
         self.assertEqual(entry["paid_amount"], "67.50")
         self.assertEqual(entry["remaining_amount"], "0.00")
-        self.assertTrue(entry["is_paid"])
 
     def test_list_subtracts_time_entry_refunds_from_paid_amount(self):
         FinancialEntry.objects.create(
@@ -3371,7 +3369,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(entry["cost_amount"], "67.50")
         self.assertEqual(entry["paid_amount"], "47.50")
         self.assertEqual(entry["remaining_amount"], "20.00")
-        self.assertFalse(entry["is_paid"])
 
     # TESTS POST
     def test_anonymous_cannot_create_time_entry(self):
@@ -4042,7 +4039,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(time_entry_data["cost_amount"], "50.00")
         self.assertEqual(time_entry_data["paid_amount"], "25.00")
         self.assertEqual(time_entry_data["remaining_amount"], "25.00")
-        self.assertFalse(time_entry_data["is_paid"])
 
     def test_create_rejects_time_entry_overpayment(self):
         FinancialEntry.objects.create(
@@ -4511,7 +4507,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
         time_entry_data = self.response_data(time_response)
         self.assertEqual(time_entry_data["paid_amount"], "40.00")
         self.assertEqual(time_entry_data["remaining_amount"], "10.00")
-        self.assertFalse(time_entry_data["is_paid"])
 
     # TESTS DELETE
     def test_owner_can_soft_delete_financial_entry(self):
@@ -4558,7 +4553,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
         paid_data = self.response_data(paid_response)
         self.assertEqual(paid_data["paid_amount"], "50.00")
         self.assertEqual(paid_data["remaining_amount"], "0.00")
-        self.assertTrue(paid_data["is_paid"])
 
         delete_response = self.api_delete(finance_url)
         self.assert_no_content(delete_response)
@@ -4568,7 +4562,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
         unpaid_data = self.response_data(unpaid_response)
         self.assertEqual(unpaid_data["paid_amount"], "0.00")
         self.assertEqual(unpaid_data["remaining_amount"], "50.00")
-        self.assertFalse(unpaid_data["is_paid"])
 
         restore_response = self.api_post(restore_url, {})
         self.assert_ok(restore_response)
@@ -4578,7 +4571,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
         restored_data = self.response_data(restored_response)
         self.assertEqual(restored_data["paid_amount"], "50.00")
         self.assertEqual(restored_data["remaining_amount"], "0.00")
-        self.assertTrue(restored_data["is_paid"])
 
 
 class FinancialEntryTrashRoutePermissionTests(ProjectApiTestCase):

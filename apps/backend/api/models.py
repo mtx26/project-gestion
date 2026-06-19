@@ -290,6 +290,11 @@ class TimeEntry(BaseModel):
     duration_minutes = models.PositiveIntegerField()
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     description = models.TextField(blank=True, null=True)
+    documents = models.ManyToManyField(
+        Document,
+        blank=True,
+        related_name="time_entries",
+    )
 
     def clean(self):
         super().clean()

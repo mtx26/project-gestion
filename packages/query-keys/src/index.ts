@@ -48,6 +48,7 @@ export const queryKeys = {
         folder: query.folder ?? "all",
         requestedBy: query.requestedBy ?? "all",
       }] as const,
+    trash: (projectId: number) => ["projects", projectId, "expense-requests", "trash"] as const,
   },
   tasks: {
     list: (

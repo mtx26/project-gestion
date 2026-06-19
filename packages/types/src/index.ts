@@ -251,7 +251,7 @@ export type TimeEntry = {
   cost_amount: string;
   paid_amount: string;
   remaining_amount: string;
-  is_paid: boolean;
+  documents_info: Array<{ id: ID; name: string | null }>;
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -266,6 +266,7 @@ export type TimeEntryPayload = {
   duration_minutes: number;
   hourly_rate?: string;
   description?: string | null;
+  documents?: ID[];
 };
 
 export type TimeEntryPaymentPayload = {

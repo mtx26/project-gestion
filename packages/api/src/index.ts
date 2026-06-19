@@ -511,6 +511,15 @@ export function createApiClient({
           `/api/projects/${projectId}/expense-requests/${id}/reject/`,
           { method: "POST" },
         ),
+      trash: (projectId: number) =>
+        request<ExpenseRequest[] | PaginatedResponse<ExpenseRequest>>(
+          `/api/projects/${projectId}/expense-requests/trash/`,
+        ),
+      restore: (projectId: number, id: number) =>
+        request<ExpenseRequest>(
+          `/api/projects/${projectId}/expense-requests/${id}/restore/`,
+          { method: "POST" },
+        ),
     },
   };
 }

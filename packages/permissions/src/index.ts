@@ -28,6 +28,7 @@
   expenseRequestEdit: "expense_request.edit",
   expenseRequestDelete: "expense_request.delete",
   expenseRequestApprove: "expense_request.approve",
+  expenseRequestRestore: "expense_request.restore",
 } as const;
 
 export type PermissionCode = (typeof permissionCodes)[keyof typeof permissionCodes];
@@ -84,6 +85,7 @@ export const permissionDependencyCodes: Partial<Record<PermissionCode, Permissio
   [permissionCodes.expenseRequestEdit]: [permissionCodes.expenseRequestView],
   [permissionCodes.expenseRequestDelete]: [permissionCodes.expenseRequestView],
   [permissionCodes.expenseRequestApprove]: [permissionCodes.expenseRequestView],
+  [permissionCodes.expenseRequestRestore]: [permissionCodes.expenseRequestView],
 };
 
 export type PermissionScope = keyof typeof permissionScopeLabels;

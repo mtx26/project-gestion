@@ -1,13 +1,13 @@
 "use client";
 
-import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
+import type { File as ApiFile, FolderTreeNode, TimeEntry } from "@project-gestion/types";
 import { TreePickerDialog } from "@/components/ui/tree-picker";
 import { TargetIcon, TargetPickerDialog } from "@/components/ui/target-tree-picker";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CreditCard, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CreditCard, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -48,6 +48,7 @@ import {
 } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { parseBooleanParam } from "@/lib/url-params";
+import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { PageTitle } from "@/components/ui/page-title";
 
 type UserFilter = "mine" | "all" | `member-${number}`;
@@ -103,6 +104,7 @@ function ProjectTimeContent({
   const [editHourlyRate, setEditHourlyRate] = useState("0");
   const [editDescription, setEditDescription] = useState("");
   const [editTargetValue, setEditTargetValue] = useState("project");
+  const [detailEntry, setDetailEntry] = useState<TimeEntry | null>(null);
   const defaultUserFilter: UserFilter = canViewAllTime && canPayTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
@@ -165,7 +167,7 @@ function ProjectTimeContent({
     return collectTaskFolderIds(targetTree);
   }, [targetTree]);
   const userNameById = useMemo(() => {
-    return new Map(members.map((member) => [member.user, member.user_display_name]));
+    return new Map(members.map((member): [number, string] => [member.user, member.user_display_name]));
   }, [members]);
   const descendantFolderIds = useMemo(() => {
     if (!targetFilter?.startsWith("folder-")) return null;
@@ -182,7 +184,7 @@ function ProjectTimeContent({
   const durationMinutes = Number(hours) * 60 + Number(minutes);
 
   const createTimeEntry = useMutation({
-    mutationFn: () =>
+    mutationFn: (documentIds: number[]) =>
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
         duration_minutes: durationMinutes,
@@ -190,6 +192,7 @@ function ProjectTimeContent({
         description: description.trim() || null,
         folder: getTargetPayload(targetValue).folder,
         task: getTargetPayload(targetValue).task,
+        documents: documentIds,
       }),
     onSuccess: async () => {
       setHours("1");
@@ -224,13 +227,14 @@ function ProjectTimeContent({
     },
   });
   const updateTimeEntry = useMutation({
-    mutationFn: () =>
+    mutationFn: (documentIds: number[]) =>
       api.timeEntries.update(selectedProject!.id, editingEntry!.id, {
         duration_minutes: Number(editHours) * 60 + Number(editMinutes),
         hourly_rate: editHourlyRate === "" ? undefined : editHourlyRate,
         description: editDescription.trim() || null,
         folder: getTargetPayload(editTargetValue).folder,
         task: getTargetPayload(editTargetValue).task,
+        documents: documentIds,
       }),
     onSuccess: async () => {
       setEditingEntry(null);
@@ -241,7 +245,10 @@ function ProjectTimeContent({
     mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
       api.folders.create(selectedProject!.id, { name, parent_folder: parentId }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(selectedProject!.id) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(selectedProject!.id) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(selectedProject!.id) }),
+      ]);
     },
   });
 
@@ -249,14 +256,14 @@ function ProjectTimeContent({
     await createFolder.mutateAsync({ name, parentId });
   }
 
-  function onSubmitTimeEntry(event: FormEvent<HTMLFormElement>) {
+  function onSubmitTimeEntry(event: FormEvent<HTMLFormElement>, documentIds: number[]) {
     event.preventDefault();
 
     if (!selectedProject || !user || !canRecordTime || durationMinutes <= 0) {
       return;
     }
 
-    createTimeEntry.mutate();
+    createTimeEntry.mutate(documentIds);
   }
 
   function openPaymentDialog(entry: TimeEntry) {
@@ -465,6 +472,7 @@ function ProjectTimeContent({
                 deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
                 onPay={openPaymentDialog}
                 onEdit={openEditDialog}
+                onDetail={setDetailEntry}
                 onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
               />
             )}
@@ -511,6 +519,7 @@ function ProjectTimeContent({
           </DialogHeader>
           <TimeEntryForm
             canRecordTime={canRecordTime}
+            projectId={selectedProject?.id ?? 0}
             hours={hours}
             minutes={minutes}
             hourlyRate={hourlyRate}
@@ -525,6 +534,7 @@ function ProjectTimeContent({
             onHourlyRateChange={setHourlyRateDraft}
             onDescriptionChange={setDescription}
             onTargetValueChange={setTargetValue}
+            onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
             onSubmit={onSubmitTimeEntry}
           />
         </DialogContent>
@@ -547,6 +557,7 @@ function ProjectTimeContent({
       />
       <EditTimeEntryDialog
         entry={editingEntry}
+        projectId={selectedProject?.id ?? 0}
         hours={editHours}
         minutes={editMinutes}
         hourlyRate={editHourlyRate}
@@ -561,12 +572,27 @@ function ProjectTimeContent({
         onHourlyRateChange={setEditHourlyRate}
         onDescriptionChange={setEditDescription}
         onTargetValueChange={setEditTargetValue}
+        onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
         onOpenChange={(open) => {
           if (!open) {
             setEditingEntry(null);
           }
         }}
-        onSubmit={() => updateTimeEntry.mutate()}
+        onSubmit={(documentIds) => updateTimeEntry.mutate(documentIds)}
+      />
+      <TimeEntryDetailDialog
+        entry={detailEntry}
+        folderNameById={folderNameById}
+        taskTitleById={taskTitleById}
+        userNameById={userNameById}
+        canEdit={canRecordTime}
+        canPay={canPayTime}
+        canDelete={canDeleteTime}
+        deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
+        onClose={() => setDetailEntry(null)}
+        onEdit={(entry) => { setDetailEntry(null); openEditDialog(entry); }}
+        onPay={(entry) => { setDetailEntry(null); openPaymentDialog(entry); }}
+        onDelete={(entry) => { setDetailEntry(null); deleteTimeEntry.mutate(entry.id); }}
       />
     </div>
   );
@@ -645,6 +671,7 @@ function TimeTotalsPanel({
 
 function TimeEntryForm({
   canRecordTime,
+  projectId,
   hours,
   minutes,
   hourlyRate,
@@ -659,9 +686,11 @@ function TimeEntryForm({
   onHourlyRateChange,
   onDescriptionChange,
   onTargetValueChange,
+  onCreateFolder,
   onSubmit,
 }: {
   canRecordTime: boolean;
+  projectId: number;
   hours: string;
   minutes: string;
   hourlyRate: string;
@@ -676,13 +705,17 @@ function TimeEntryForm({
   onHourlyRateChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onTargetValueChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onSubmit: (event: FormEvent<HTMLFormElement>, documentIds: number[]) => void;
 }) {
   const durationMinutes = Number(hours) * 60 + Number(minutes);
   const durationHours = durationMinutes / 60;
   const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
   const [totalDraft, setTotalDraft] = useState<string | null>(null);
   const totalValue = totalDraft ?? computedTotal;
+  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   function handleTotalChange(value: string) {
     setTotalDraft(value);
@@ -696,6 +729,34 @@ function TimeEntryForm({
     setTotalDraft(null);
   }
 
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setUploadError(null);
+    const newDocIds: number[] = [];
+    if (pendingFiles.length > 0) {
+      setUploading(true);
+      const { folder } = getTargetPayload(targetValue);
+      try {
+        for (const file of pendingFiles) {
+          const uploaded: ApiFile = await api.documents.upload(projectId, {
+            file,
+            folder: folder ?? undefined,
+            name: file.name,
+          });
+          newDocIds.push(uploaded.id);
+        }
+      } catch (err) {
+        setUploadError(getErrorMessage(err));
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+    onSubmit(event, newDocIds);
+  }
+
+  const isSubmitting = uploading || isPending;
+
   return (
     <>
       {!canRecordTime ? (
@@ -703,7 +764,7 @@ function TimeEntryForm({
           <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
         </Alert>
       ) : (
-        <form className="space-y-4" onSubmit={onSubmit}>
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-2">
               <Label htmlFor="time-hours">Heures</Label>
@@ -741,6 +802,7 @@ function TimeEntryForm({
               selectedValue={targetValue}
               selectedLabel={selectedTargetLabel}
               onSelect={onTargetValueChange}
+              onCreateFolder={onCreateFolder}
             />
           </div>
 
@@ -749,12 +811,20 @@ function TimeEntryForm({
             <Textarea id="time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
           </div>
 
-          <FormErrorAlert error={error} />
+          <MultiDocumentAttachmentField
+            existingDocs={[]}
+            pendingFiles={pendingFiles}
+            onRemoveDoc={() => {}}
+            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
+            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+          />
+
+          <FormErrorAlert error={uploadError ?? error} />
 
           <DialogFooter>
-            <Button type="submit" disabled={durationMinutes <= 0 || isPending}>
+            <Button type="submit" disabled={durationMinutes <= 0 || isSubmitting}>
               <Clock3 className="size-4" />
-              {isPending ? "Enregistrement..." : "Enregistrer"}
+              {isSubmitting ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </DialogFooter>
         </form>
@@ -881,6 +951,7 @@ function TimeEntryList({
   deletingId,
   onPay,
   onEdit,
+  onDetail,
   onDelete,
 }: {
   entries: TimeEntry[];
@@ -894,6 +965,7 @@ function TimeEntryList({
   deletingId: number | null | undefined;
   onPay: (entry: TimeEntry) => void;
   onEdit: (entry: TimeEntry) => void;
+  onDetail: (entry: TimeEntry) => void;
   onDelete: (entry: TimeEntry) => void;
 }) {
   if (isLoading) {
@@ -929,6 +1001,7 @@ function TimeEntryList({
           isDeleting={deletingId === entry.id}
           onPay={() => onPay(entry)}
           onEdit={() => onEdit(entry)}
+          onDetail={() => onDetail(entry)}
           onDelete={() => onDelete(entry)}
         />
       ))}
@@ -1046,6 +1119,7 @@ function TimeEntryRow({
   isDeleting,
   onPay,
   onEdit,
+  onDetail,
   onDelete,
 }: {
   entry: TimeEntry;
@@ -1057,58 +1131,44 @@ function TimeEntryRow({
   isDeleting: boolean;
   onPay: () => void;
   onEdit: () => void;
+  onDetail: () => void;
   onDelete: () => void;
 }) {
   const paymentStatus = getPaymentStatus(entry);
   const targetType = entry.task != null ? "task" : entry.folder != null ? "folder" : "project";
-  const paidRatio = Number(entry.cost_amount) > 0 ? Math.min(100, (Number(entry.paid_amount) / Number(entry.cost_amount)) * 100) : 100;
 
   return (
     <div className={getTimeEntryCardClassName(paymentStatus)}>
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 space-y-2">
+      <div className="flex items-center gap-3">
+        <div className="min-w-0 flex-1 cursor-pointer space-y-1" onClick={onDetail}>
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="outline" className={getPaymentBadgeClassName(paymentStatus)}>
               {getPaymentStatusLabel(paymentStatus)}
             </Badge>
             <p className="min-w-0 font-medium">{entry.description || "Temps enregistre"}</p>
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>{displayName}</span>
             <span>{formatDateTime(entry.created_at)}</span>
             <span className="inline-flex max-w-full items-center gap-1">
               <TargetIcon type={targetType} />
               <span className="min-w-0 truncate">{targetLabel}</span>
             </span>
+            <span className="font-medium text-foreground">{formatDuration(entry.duration_minutes)}</span>
+            <span className="font-medium text-foreground">{formatMoney(entry.cost_amount)}</span>
           </div>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-            <TimeEntryMetric value={formatDuration(entry.duration_minutes)} />
-            <TimeEntryMetric value={`${formatMoney(entry.hourly_rate)}/h`} />
-            <TimeEntryMetric value={`Total ${formatMoney(entry.cost_amount)}`} />
-            {paymentStatus === "paid" ? (
-              <TimeEntryMetric value="Solde OK" tone="paid" />
-            ) : (
-              <TimeEntryMetric value={`Reste ${formatMoney(entry.remaining_amount)}`} tone="unpaid" />
-            )}
-          </div>
-          {paymentStatus !== "paid" ? (
-            <div className="flex max-w-sm items-center gap-2">
-              <Progress value={paidRatio} className="h-1.5" />
-              <span className="shrink-0 text-xs text-muted-foreground">{Math.round(paidRatio)}%</span>
-            </div>
-          ) : null}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 xl:justify-end">
-          {Number(entry.paid_amount) > 0 ? (
-            <span className="text-xs text-muted-foreground">{formatMoney(entry.paid_amount)} paye</span>
-          ) : null}
-          {canPay && !entry.is_paid ? (
+        <div className="flex shrink-0 items-center gap-1">
+          {canPay && paymentStatus !== "paid" ? (
             <Button type="button" variant="outline" size="sm" onClick={onPay}>
               <CreditCard className="size-4" />
               Payer
             </Button>
           ) : null}
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="Voir les details" onClick={onDetail}>
+            <Eye className="size-4" />
+          </Button>
           {canEdit ? (
             <Button type="button" variant="ghost" size="icon-sm" aria-label="Modifier cette entree" onClick={onEdit}>
               <Pencil className="size-4" />
@@ -1127,6 +1187,7 @@ function TimeEntryRow({
 
 function EditTimeEntryDialog({
   entry,
+  projectId,
   hours,
   minutes,
   hourlyRate,
@@ -1141,10 +1202,12 @@ function EditTimeEntryDialog({
   onHourlyRateChange,
   onDescriptionChange,
   onTargetValueChange,
+  onCreateFolder,
   onOpenChange,
   onSubmit,
 }: {
   entry: TimeEntry | null;
+  projectId: number;
   hours: string;
   minutes: string;
   hourlyRate: string;
@@ -1159,10 +1222,66 @@ function EditTimeEntryDialog({
   onHourlyRateChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onTargetValueChange: (value: string) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onOpenChange: (open: boolean) => void;
-  onSubmit: () => void;
+  onSubmit: (documentIds: number[]) => void;
 }) {
   const durationMinutes = Number(hours) * 60 + Number(minutes);
+  const durationHours = durationMinutes / 60;
+  const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
+  const [totalDraft, setTotalDraft] = useState<string | null>(null);
+  const totalValue = totalDraft ?? computedTotal;
+  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>([]);
+  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const prevEntryRef = useState<TimeEntry | null>(null);
+  if (prevEntryRef[0] !== entry) {
+    prevEntryRef[1](entry);
+    setExistingDocs((entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })));
+    setPendingFiles([]);
+    setUploadError(null);
+  }
+
+  function handleTotalChange(value: string) {
+    setTotalDraft(value);
+    const total = Number(value);
+    if (durationHours > 0 && total >= 0 && value !== "") {
+      onHourlyRateChange((total / durationHours).toFixed(2));
+    }
+  }
+
+  function handleTotalBlur() {
+    setTotalDraft(null);
+  }
+
+  async function handleSubmit() {
+    setUploadError(null);
+    const newDocIds: number[] = [];
+    if (pendingFiles.length > 0) {
+      setUploading(true);
+      const { folder } = getTargetPayload(targetValue);
+      try {
+        for (const file of pendingFiles) {
+          const uploaded: ApiFile = await api.documents.upload(projectId, {
+            file,
+            folder: folder ?? undefined,
+            name: file.name,
+          });
+          newDocIds.push(uploaded.id);
+        }
+      } catch (err) {
+        setUploadError(getErrorMessage(err));
+        setUploading(false);
+        return;
+      }
+      setUploading(false);
+    }
+    onSubmit([...existingDocs.map((d) => d.id), ...newDocIds]);
+  }
+
+  const isSubmitting = uploading || isPending;
 
   return (
     <Dialog open={entry != null} onOpenChange={onOpenChange}>
@@ -1186,9 +1305,23 @@ function EditTimeEntryDialog({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-time-rate">Taux horaire</Label>
-            <Input id="edit-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label htmlFor="edit-time-rate">Taux horaire</Label>
+              <Input id="edit-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit-time-total">Total</Label>
+              <Input
+                id="edit-time-total"
+                type="number"
+                min="0"
+                step="0.01"
+                value={totalValue}
+                onChange={(event) => handleTotalChange(event.target.value)}
+                onBlur={handleTotalBlur}
+              />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -1198,6 +1331,7 @@ function EditTimeEntryDialog({
               selectedValue={targetValue}
               selectedLabel={selectedTargetLabel}
               onSelect={onTargetValueChange}
+              onCreateFolder={onCreateFolder}
             />
           </div>
 
@@ -1206,7 +1340,15 @@ function EditTimeEntryDialog({
             <Textarea id="edit-time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
           </div>
 
-          <FormErrorAlert error={error} />
+          <MultiDocumentAttachmentField
+            existingDocs={existingDocs}
+            pendingFiles={pendingFiles}
+            onRemoveDoc={(id) => setExistingDocs((prev) => prev.filter((d) => d.id !== id))}
+            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
+            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+          />
+
+          <FormErrorAlert error={uploadError ?? error} />
         </div>
 
         <DialogFooter>
@@ -1215,10 +1357,139 @@ function EditTimeEntryDialog({
               Annuler
             </Button>
           </DialogClose>
-          <Button type="button" disabled={durationMinutes <= 0 || isPending} onClick={onSubmit}>
+          <Button type="button" disabled={durationMinutes <= 0 || isSubmitting} onClick={handleSubmit}>
             <Pencil className="size-4" />
-            {isPending ? "Modification..." : "Enregistrer"}
+            {isSubmitting ? "Modification..." : "Enregistrer"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function TimeEntryDetailDialog({
+  entry,
+  folderNameById,
+  taskTitleById,
+  userNameById,
+  canEdit,
+  canPay,
+  canDelete,
+  deletingId,
+  onClose,
+  onEdit,
+  onPay,
+  onDelete,
+}: {
+  entry: TimeEntry | null;
+  folderNameById: Map<number, string>;
+  taskTitleById: Map<number, string>;
+  userNameById: Map<number, string>;
+  canEdit: boolean;
+  canPay: boolean;
+  canDelete: boolean;
+  deletingId: number | null | undefined;
+  onClose: () => void;
+  onEdit: (entry: TimeEntry) => void;
+  onPay: (entry: TimeEntry) => void;
+  onDelete: (entry: TimeEntry) => void;
+}) {
+  if (!entry) return null;
+
+  const paymentStatus = getPaymentStatus(entry);
+  const targetLabel = getEntryTargetLabel(entry, folderNameById, taskTitleById);
+  const displayName = userNameById.get(entry.user) ?? entry.user_display_name;
+  const paidRatio = Number(entry.cost_amount) > 0
+    ? Math.min(100, (Number(entry.paid_amount) / Number(entry.cost_amount)) * 100)
+    : 100;
+
+  return (
+    <Dialog open={entry != null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="pr-6">{entry.description || "Temps enregistre"}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="outline" className={getPaymentBadgeClassName(paymentStatus)}>
+              {getPaymentStatusLabel(paymentStatus)}
+            </Badge>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Utilisateur</p>
+              <p className="mt-1 text-sm">{displayName}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Date</p>
+              <p className="mt-1 text-sm">{formatDateTime(entry.created_at)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Cible</p>
+              <p className="mt-1 text-sm">{targetLabel}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Duree</p>
+              <p className="mt-1 text-sm">{formatDuration(entry.duration_minutes)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Taux horaire</p>
+              <p className="mt-1 text-sm">{formatMoney(entry.hourly_rate)}/h</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Total</p>
+              <p className="mt-1 text-sm font-semibold">{formatMoney(entry.cost_amount)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Paye</p>
+              <p className="mt-1 text-sm text-emerald-700">{formatMoney(entry.paid_amount)}</p>
+            </div>
+            <div>
+              <p className="text-xs font-medium uppercase text-muted-foreground">Reste</p>
+              <p className={`mt-1 text-sm ${paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 font-medium"}`}>
+                {paymentStatus === "paid" ? "—" : formatMoney(entry.remaining_amount)}
+              </p>
+            </div>
+          </div>
+          {paymentStatus !== "paid" ? (
+            <div className="flex items-center gap-2">
+              <Progress value={paidRatio} className="h-2" />
+              <span className="shrink-0 text-xs text-muted-foreground">{Math.round(paidRatio)}%</span>
+            </div>
+          ) : null}
+        </div>
+        <DialogFooter className="flex-row items-center justify-between sm:justify-between">
+          {canDelete ? (
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              disabled={deletingId === entry.id}
+              onClick={() => onDelete(entry)}
+            >
+              <Trash2 className="size-4" />
+              {deletingId === entry.id ? "Suppression..." : "Supprimer"}
+            </Button>
+          ) : (
+            <span />
+          )}
+          <div className="flex gap-2">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" size="sm">Fermer</Button>
+            </DialogClose>
+            {canPay && paymentStatus !== "paid" ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => onPay(entry)}>
+                <CreditCard className="size-4" />
+                Payer
+              </Button>
+            ) : null}
+            {canEdit ? (
+              <Button type="button" size="sm" onClick={() => onEdit(entry)}>
+                <Pencil className="size-4" />
+                Modifier
+              </Button>
+            ) : null}
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -1313,18 +1584,6 @@ function TimeSummary({ label, value }: { label: string; value: string }) {
       <p className="text-sm text-muted-foreground">{label}</p>
       <p className="mt-2 text-xl font-semibold">{value}</p>
     </div>
-  );
-}
-
-function TimeEntryMetric({ value, tone = "default" }: { value: string; tone?: "default" | "paid" | "unpaid" }) {
-  const toneClassName = tone === "paid"
-    ? "text-emerald-700"
-    : tone === "unpaid"
-      ? "text-orange-700"
-      : "text-foreground";
-
-  return (
-    <span className={`font-medium ${toneClassName}`}>{value}</span>
   );
 }
 
@@ -1480,7 +1739,7 @@ function filterTimeEntriesByTarget(
 }
 
 function getPaymentStatus(entry: TimeEntry): Exclude<PaymentStatusFilter, "all"> {
-  if (entry.is_paid || Number(entry.remaining_amount) <= 0) {
+  if (Number(entry.remaining_amount) <= 0) {
     return "paid";
   }
 

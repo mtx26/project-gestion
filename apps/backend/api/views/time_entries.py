@@ -70,6 +70,7 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
             "user",
         ).prefetch_related(
             "financial_entries",
+            "documents",
         ).order_by("-created_at", "-id")
 
         if not has_project_permission(self.request.user, project, "time_entry.view_all"):
@@ -191,6 +192,7 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
             "user",
         ).prefetch_related(
             "financial_entries",
+            "documents",
         )
 
         if self.request.method == "GET":
@@ -239,6 +241,7 @@ class TimeEntryPaymentView(generics.GenericAPIView):
             "user",
         ).prefetch_related(
             "financial_entries",
+            "documents",
         )
 
     def get_serializer_context(self):
@@ -294,6 +297,7 @@ class TimeEntryTrashListView(generics.ListAPIView):
             "user",
         ).prefetch_related(
             "financial_entries",
+            "documents",
         ).order_by("-created_at", "-id")
 
         folder_id_str = self.request.query_params.get("folder")
@@ -336,6 +340,7 @@ class TimeEntryRestoreView(generics.GenericAPIView):
             "user",
         ).prefetch_related(
             "financial_entries",
+            "documents",
         )
 
     def post(self, request, project_id, pk):

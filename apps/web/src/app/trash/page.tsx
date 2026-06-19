@@ -1,20 +1,19 @@
 "use client";
 
-import type { File as ApiFile, Folder, Project, Task, TimeEntry } from "@project-gestion/types";
+import type { ExpenseRequest, File as ApiFile, FinancialEntry, Folder, Project, Task, TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, RotateCcw } from "lucide-react";
+import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, Receipt, RotateCcw, Wallet } from "lucide-react";
 import { PageTitle } from "@/components/ui/page-title";
-import { formatBytes } from "@/lib/task-utils";
+import { formatBytes, formatDuration, formatMoney } from "@/lib/task-utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { formatDuration } from "@/lib/task-utils";
 
 function buildTrashHref(projectId: number | string, params: URLSearchParams) {
   const next = new URLSearchParams({ project: String(projectId) });
@@ -48,6 +47,8 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
   const canRestoreFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileRestore);
   const canRestoreTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskRestore);
   const canRestoreTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryRestore);
+  const canRestoreFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeRestore);
+  const canRestoreExpenseRequests = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestRestore);
 
   function setTab(value: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -121,11 +122,39 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
     },
   });
 
+  const financialEntriesTrashQuery = useQuery({
+    queryKey: projectId ? queryKeys.financialEntries.trash(projectId) : ["financial-entries", "trash", "disabled"],
+    queryFn: () => api.financialEntries.trash(projectId!),
+    enabled: Boolean(projectId && canRestoreFinance),
+  });
+  const restoreFinancialEntry = useMutation({
+    mutationFn: (entryId: number) => api.financialEntries.restore(projectId!, entryId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.trash(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
+    },
+  });
+
+  const expenseRequestsTrashQuery = useQuery({
+    queryKey: projectId ? queryKeys.expenseRequests.trash(projectId) : ["expense-requests", "trash", "disabled"],
+    queryFn: () => api.expenseRequests.trash(projectId!),
+    enabled: Boolean(projectId && canRestoreExpenseRequests),
+  });
+  const restoreExpenseRequest = useMutation({
+    mutationFn: (id: number) => api.expenseRequests.restore(projectId!, id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.trash(projectId!) });
+      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
+    },
+  });
+
   const deletedProjects = normalizeApiList(projectsTrashQuery.data);
   const folders = normalizeApiList(foldersTrashQuery.data);
   const documents = normalizeApiList(documentsTrashQuery.data);
   const tasks = normalizeApiList(tasksTrashQuery.data);
   const timeEntries = normalizeApiList(timeEntriesTrashQuery.data);
+  const financialEntries = normalizeApiList(financialEntriesTrashQuery.data);
+  const expenseRequests = normalizeApiList(expenseRequestsTrashQuery.data);
 
   const lockedMsg = <p className="py-8 text-center text-sm text-muted-foreground">Vous n&apos;avez pas acces a cet onglet.</p>;
   const noProjectMsg = <p className="py-8 text-center text-sm text-muted-foreground">Selectionnez un projet pour voir cet onglet.</p>;
@@ -186,6 +215,28 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
             Temps
             {timeEntries.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{timeEntries.length}</span>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="finance" className="gap-2">
+            {selectedProject && !canRestoreFinance ? (
+              <Lock className="size-4 text-muted-foreground" />
+            ) : (
+              <Wallet className="size-4" />
+            )}
+            Finance
+            {financialEntries.length > 0 ? (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{financialEntries.length}</span>
+            ) : null}
+          </TabsTrigger>
+          <TabsTrigger value="requests" className="gap-2">
+            {selectedProject && !canRestoreExpenseRequests ? (
+              <Lock className="size-4 text-muted-foreground" />
+            ) : (
+              <Receipt className="size-4" />
+            )}
+            Remboursements
+            {expenseRequests.length > 0 ? (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{expenseRequests.length}</span>
             ) : null}
           </TabsTrigger>
         </TabsList>
@@ -255,6 +306,36 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
               onRestore={(e) => restoreTimeEntry.mutate(e.id)}
               isRestoring={restoreTimeEntry.isPending}
               emptyText="Aucune entree de temps supprimee."
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="finance" className="mt-4">
+          {!selectedProject ? noProjectMsg : !canRestoreFinance ? lockedMsg : (
+            <TrashSection<FinancialEntry>
+              isLoading={financialEntriesTrashQuery.isLoading}
+              canRestore={canRestoreFinance}
+              items={financialEntries}
+              getName={(e) => e.description || e.category || formatMoney(e.amount)}
+              getSubtitle={(e) => `${e.type === "expense" ? "Depense" : "Remboursement"} · ${formatMoney(e.amount)} · ${formatDeletedAt(e.deleted_at)}`}
+              onRestore={(e) => restoreFinancialEntry.mutate(e.id)}
+              isRestoring={restoreFinancialEntry.isPending}
+              emptyText="Aucune entree financiere supprimee."
+            />
+          )}
+        </TabsContent>
+
+        <TabsContent value="requests" className="mt-4">
+          {!selectedProject ? noProjectMsg : !canRestoreExpenseRequests ? lockedMsg : (
+            <TrashSection<ExpenseRequest>
+              isLoading={expenseRequestsTrashQuery.isLoading}
+              canRestore={canRestoreExpenseRequests}
+              items={expenseRequests}
+              getName={(e) => e.title}
+              getSubtitle={(e) => `${formatMoney(e.amount)} · ${formatDeletedAt(e.deleted_at)}`}
+              onRestore={(e) => restoreExpenseRequest.mutate(e.id)}
+              isRestoring={restoreExpenseRequest.isPending}
+              emptyText="Aucune demande de remboursement supprimee."
             />
           )}
         </TabsContent>

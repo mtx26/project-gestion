@@ -185,7 +185,10 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
       api.folders.create(projectId!, { name, parent_folder: parentId }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
+      ]);
     },
   });
 
@@ -405,6 +408,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         projectId={projectId!}
         targetFolders={targetFolders}
         isPending={createRequest.isPending}
+        onCreateFolder={canEdit ? handleCreateFolder : undefined}
         onSubmit={(payload) => createRequest.mutate(payload)}
       />
 
@@ -417,6 +421,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         projectId={projectId!}
         targetFolders={targetFolders}
         isPending={updateRequest.isPending}
+        onCreateFolder={canEdit ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}
       />
 
@@ -452,6 +457,7 @@ function ExpenseRequestFormDialog({
   projectId,
   targetFolders,
   isPending,
+  onCreateFolder,
   onSubmit,
 }: {
   mode: "create" | "edit";
@@ -461,6 +467,7 @@ function ExpenseRequestFormDialog({
   projectId: number;
   targetFolders: FolderTreeNode[];
   isPending: boolean;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: ExpenseRequestPayload) => void;
 }) {
   const initialTarget = request?.task != null
@@ -609,6 +616,7 @@ function ExpenseRequestFormDialog({
               selectedValue={targetValue}
               selectedLabel={targetLabel}
               onSelect={setTargetValue}
+              onCreateFolder={onCreateFolder}
             />
           </div>
 

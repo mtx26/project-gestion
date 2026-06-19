@@ -2,8 +2,8 @@
 
 import type { TargetTreeNode } from "@/lib/target-utils";
 import { getTargetTypeFromValue } from "@/lib/target-utils";
-import { ChevronDown, ChevronRight, Folder, ListTodo } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, ChevronRight, Folder, FolderPlus, ListTodo } from "lucide-react";
+import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,15 +21,18 @@ export function TargetPickerDialog({
   selectedValue,
   selectedLabel,
   onSelect,
+  onCreateFolder,
 }: {
   targetTree: TargetTreeNode;
   selectedValue: string;
   selectedLabel: string;
   onSelect: (value: string) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [expandedValues, setExpandedValues] = useState<Set<string>>(() => new Set(["project"]));
   const [includeCompleted, setIncludeCompleted] = useState(false);
+  const [creatingInNode, setCreatingInNode] = useState<string | null>(null);
 
   function toggleNode(value: string) {
     setExpandedValues((current) => {
@@ -45,10 +48,15 @@ export function TargetPickerDialog({
     setOpen(false);
   }
 
+  function startCreate(nodeValue: string) {
+    setExpandedValues((prev) => new Set([...prev, nodeValue]));
+    setCreatingInNode(nodeValue);
+  }
+
   const selectedType = getTargetTypeFromValue(selectedValue);
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setCreatingInNode(null); }}>
       <Button
         type="button"
         variant="outline"
@@ -83,8 +91,12 @@ export function TargetPickerDialog({
             selectedValue={selectedValue}
             expandedValues={expandedValues}
             includeCompleted={includeCompleted}
+            creatingInNode={creatingInNode}
             onToggle={toggleNode}
             onSelect={selectTarget}
+            onStartCreate={onCreateFolder ? startCreate : undefined}
+            onConfirmCreate={onCreateFolder}
+            onCancelCreate={() => setCreatingInNode(null)}
           />
         </div>
 
@@ -103,32 +115,39 @@ function TargetTreeRow({
   selectedValue,
   expandedValues,
   includeCompleted,
+  creatingInNode,
   onToggle,
   onSelect,
+  onStartCreate,
+  onConfirmCreate,
+  onCancelCreate,
 }: {
   node: TargetTreeNode;
   selectedValue: string;
   expandedValues: Set<string>;
   includeCompleted: boolean;
+  creatingInNode: string | null;
   onToggle: (value: string) => void;
   onSelect: (value: string) => void;
+  onStartCreate?: (nodeValue: string) => void;
+  onConfirmCreate?: (name: string, parentId: number | null) => Promise<void>;
+  onCancelCreate: () => void;
 }) {
   if (node.type === "task" && !includeCompleted && node.status === "done") return null;
 
   const isExpanded = expandedValues.has(node.value);
-  const visibleChildren = node.children.filter(
-    (c) => c.type !== "task" || includeCompleted || c.status !== "done",
-  );
-  const hasChildren = visibleChildren.length > 0;
+  const showInlineCreate = creatingInNode === node.value;
+  const hasAnyChildren = node.children.length > 0;
   const isSelected = selectedValue === node.value;
+  const folderId = node.type === "project" ? null : Number(node.value.replace(`${node.type}-`, ""));
 
   return (
     <div>
       <div
-        className="grid h-9 grid-cols-[24px_minmax(0,1fr)] items-center gap-2 rounded-md pr-2 hover:bg-muted/70"
+        className="group grid h-9 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-md pr-2 hover:bg-muted/70"
         style={{ paddingLeft: `${node.depth * 22}px` }}
       >
-        {hasChildren || node.children.length > 0 ? (
+        {hasAnyChildren || showInlineCreate ? (
           <button
             type="button"
             className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -154,9 +173,22 @@ function TargetTreeRow({
             <TaskStatusBadge status={node.status} />
           ) : null}
         </button>
+
+        {onStartCreate && node.type !== "task" ? (
+          <button
+            type="button"
+            className="flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+            aria-label="Nouveau sous-dossier"
+            onClick={() => onStartCreate(node.value)}
+          >
+            <FolderPlus className="size-3.5" />
+          </button>
+        ) : (
+          <span className="size-6" />
+        )}
       </div>
 
-      {(hasChildren || node.children.length > 0) && isExpanded ? (
+      {(hasAnyChildren || showInlineCreate) && isExpanded ? (
         <div>
           {node.children.map((child) => (
             <TargetTreeRow
@@ -165,12 +197,76 @@ function TargetTreeRow({
               selectedValue={selectedValue}
               expandedValues={expandedValues}
               includeCompleted={includeCompleted}
+              creatingInNode={creatingInNode}
               onToggle={onToggle}
               onSelect={onSelect}
+              onStartCreate={onStartCreate}
+              onConfirmCreate={onConfirmCreate}
+              onCancelCreate={onCancelCreate}
             />
           ))}
+          {showInlineCreate ? (
+            <InlineFolderInput
+              depth={node.depth + 1}
+              parentId={folderId}
+              onConfirm={onConfirmCreate!}
+              onCancel={onCancelCreate}
+            />
+          ) : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function InlineFolderInput({
+  depth,
+  parentId,
+  onConfirm,
+  onCancel,
+}: {
+  depth: number;
+  parentId: number | null;
+  onConfirm: (name: string, parentId: number | null) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
+
+  async function submit() {
+    const trimmed = name.trim();
+    if (!trimmed || submittingRef.current) return;
+    submittingRef.current = true;
+    setSaving(true);
+    try {
+      await onConfirm(trimmed, parentId);
+      onCancel();
+    } finally {
+      submittingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      className="flex h-9 items-center gap-2 pr-2"
+      style={{ paddingLeft: `${depth * 22 + 32}px` }}
+    >
+      <Folder className="size-4 shrink-0 text-amber-500" />
+      <input
+        autoFocus
+        className="h-7 flex-1 rounded-md border border-teal-500 bg-background px-2 text-sm outline-none ring-1 ring-teal-500/40 placeholder:text-muted-foreground"
+        placeholder="Nom du dossier"
+        value={name}
+        disabled={saving}
+        onChange={(e) => setName(e.target.value)}
+        onBlur={() => { if (!submittingRef.current) onCancel(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); submit(); }
+          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+        }}
+      />
     </div>
   );
 }

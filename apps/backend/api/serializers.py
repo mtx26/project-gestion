@@ -619,9 +619,12 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     cost_amount = serializers.SerializerMethodField()
     paid_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
-    is_paid = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     user_display_name = serializers.SerializerMethodField()
+    documents_info = serializers.SerializerMethodField()
+    documents = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Document.objects.all(), required=False, write_only=True,
+    )
 
     class Meta:
         model = TimeEntry
@@ -638,7 +641,8 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "cost_amount",
             "paid_amount",
             "remaining_amount",
-            "is_paid",
+            "documents",
+            "documents_info",
             "description",
             "created_at",
             "updated_at",
@@ -650,9 +654,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "cost_amount",
             "paid_amount",
             "remaining_amount",
-            "is_paid",
             "task_name",
             "user_display_name",
+            "documents_info",
         ]
 
     def get_task_name(self, obj):
@@ -661,7 +665,11 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     def get_user_display_name(self, obj):
         return _get_user_display_name(obj.user)
 
+    def get_documents_info(self, obj):
+        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
+
     def create(self, validated_data):
+        documents = validated_data.pop("documents", [])
         time_entry = TimeEntry(**validated_data)
 
         if "hourly_rate" not in validated_data:
@@ -679,9 +687,12 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         time_entry.save()
+        if documents:
+            time_entry.documents.set(documents)
         return time_entry
 
     def update(self, instance, validated_data):
+        documents = validated_data.pop("documents", None)
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
@@ -691,6 +702,8 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(exc.message_dict) from exc
 
         instance.save()
+        if documents is not None:
+            instance.documents.set(documents)
         return instance
 
     @extend_schema_field(OpenApiTypes.STR)
@@ -705,10 +718,6 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     def get_remaining_amount(self, time_entry):
         remaining_amount = self._get_cost_amount(time_entry) - self._get_paid_amount(time_entry)
         return self._money(max(remaining_amount, Decimal("0.00")))
-
-    @extend_schema_field(OpenApiTypes.BOOL)
-    def get_is_paid(self, time_entry):
-        return self._get_paid_amount(time_entry) >= self._get_cost_amount(time_entry)
 
     def _get_cost_amount(self, time_entry):
         return Decimal(time_entry.duration_minutes) * time_entry.hourly_rate / Decimal("60")

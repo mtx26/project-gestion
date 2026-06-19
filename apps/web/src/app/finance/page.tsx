@@ -169,7 +169,10 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
     mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
       api.folders.create(projectId!, { name, parent_folder: parentId }),
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
+      ]);
     },
   });
 
@@ -373,6 +376,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         targetFolders={targetFolders}
         error={formError}
         isPending={createEntry.isPending}
+        onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
         onSubmit={(payload) => createEntry.mutate(payload)}
       />
 
@@ -386,6 +390,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         targetFolders={targetFolders}
         error={formError}
         isPending={updateEntry.isPending}
+        onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingEntry && updateEntry.mutate({ id: editingEntry.id, payload })}
       />
 
@@ -422,6 +427,7 @@ function FinancialEntryFormDialog({
   targetFolders,
   error,
   isPending,
+  onCreateFolder,
   onSubmit,
 }: {
   mode: "create" | "edit";
@@ -432,6 +438,7 @@ function FinancialEntryFormDialog({
   targetFolders: FolderTreeNode[];
   error: string | null;
   isPending: boolean;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: FinancialEntryPayload) => void;
 }) {
   const initialTarget = entry?.task != null
@@ -579,6 +586,7 @@ function FinancialEntryFormDialog({
               selectedValue={targetValue}
               selectedLabel={targetLabel}
               onSelect={setTargetValue}
+              onCreateFolder={onCreateFolder}
             />
           </div>
 

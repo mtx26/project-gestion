@@ -48,6 +48,7 @@ type TargetProps = {
   selectedValue: string;
   selectedLabel: string;
   onSelect: (value: string) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 };
 
 type CommonProps = {
@@ -63,7 +64,7 @@ export function TreePickerDialog(props: TreePickerProps) {
   const [includeCompleted, setIncludeCompleted] = useState(false);
   const [creatingInNode, setCreatingInNode] = useState<string | null>(null);
 
-  const onCreateFolder = props.mode === "folder" ? props.onCreateFolder : undefined;
+  const onCreateFolder = props.onCreateFolder;
 
   const targetTree = buildTargetTree(props.folders);
 
@@ -208,7 +209,7 @@ function TreeRow({
   const isSelected = selectedValue === node.value;
   const showInlineCreate = creatingInNode === node.value;
 
-  const folderId = node.type === "project" ? null : node.id;
+  const folderId = node.type === "project" ? null : Number(node.value.replace(`${node.type}-`, ""));
 
   return (
     <div>
@@ -243,7 +244,7 @@ function TreeRow({
           ) : null}
         </button>
 
-        {onStartCreate && mode === "folder" && node.type !== "task" ? (
+        {onStartCreate && node.type !== "task" ? (
           <button
             type="button"
             className="flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
