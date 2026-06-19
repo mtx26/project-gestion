@@ -32,6 +32,9 @@ services:
 
   minio-init:
     image: minio/mc:latest
+    deploy:
+      restart_policy:
+        condition: none
     depends_on:
       - minio
     entrypoint: >
@@ -44,7 +47,7 @@ services:
 
   # ── Django backend ──────────────────────────────────────────────────────────
   backend:
-    image: project-gestion-backend:latest
+    image: ghcr.io/mtx26/project-gestion-backend:latest
     deploy:
       restart_policy:
         condition: any
@@ -80,7 +83,7 @@ services:
 
   # ── Next.js frontend ────────────────────────────────────────────────────────
   frontend:
-    image: project-gestion-frontend:latest
+    image: ghcr.io/mtx26/project-gestion-frontend:latest
     deploy:
       restart_policy:
         condition: any
