@@ -357,8 +357,8 @@ SOCIALACCOUNT_PROVIDERS = {
 }
 
 SPECTACULAR_SETTINGS = {
-    "TITLE": "API d'Authentification JWT",
-    "DESCRIPTION": "API avec authentification JWT utilisant DRF + Spectacular",
+    "TITLE": "Project Gestion API",
+    "DESCRIPTION": "API de gestion de projets avec authentification JWT.",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     #"POSTPROCESSING_HOOKS": [

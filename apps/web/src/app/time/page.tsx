@@ -105,7 +105,8 @@ function ProjectTimeContent({
   const [editDescription, setEditDescription] = useState("");
   const [editTargetValue, setEditTargetValue] = useState("project");
   const [detailEntry, setDetailEntry] = useState<TimeEntry | null>(null);
-  const defaultUserFilter: UserFilter = canViewAllTime && canPayTime ? "all" : "mine";
+  const [createFormKey, setCreateFormKey] = useState(0);
+  const defaultUserFilter: UserFilter = canViewAllTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
   const periodPreset = parsePeriodPreset(searchParams.get("period"));
@@ -381,7 +382,7 @@ function ProjectTimeContent({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageTitle category="Temps" title="Suivi du travail" />
         {canRecordTime ? (
-          <Button type="button" className="gap-2" onClick={() => setTimeFormOpen(true)}>
+          <Button type="button" className="gap-2" onClick={() => { setCreateFormKey(k => k + 1); setTimeFormOpen(true); }}>
             <Plus className="size-4" />
             Ajouter
           </Button>
@@ -518,6 +519,7 @@ function ProjectTimeContent({
             <DialogDescription>Encode une duree et lie-la au projet, a un dossier ou a une tache.</DialogDescription>
           </DialogHeader>
           <TimeEntryForm
+            key={createFormKey}
             canRecordTime={canRecordTime}
             projectId={selectedProject?.id ?? 0}
             hours={hours}
@@ -556,6 +558,7 @@ function ProjectTimeContent({
         onSubmit={() => payTimeEntry.mutate()}
       />
       <EditTimeEntryDialog
+        key={editingEntry?.id ?? "none"}
         entry={editingEntry}
         projectId={selectedProject?.id ?? 0}
         hours={editHours}
@@ -1231,18 +1234,12 @@ function EditTimeEntryDialog({
   const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
   const [totalDraft, setTotalDraft] = useState<string | null>(null);
   const totalValue = totalDraft ?? computedTotal;
-  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>([]);
+  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>(
+    () => (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
+  );
   const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  const prevEntryRef = useState<TimeEntry | null>(null);
-  if (prevEntryRef[0] !== entry) {
-    prevEntryRef[1](entry);
-    setExistingDocs((entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })));
-    setPendingFiles([]);
-    setUploadError(null);
-  }
 
   function handleTotalChange(value: string) {
     setTotalDraft(value);
