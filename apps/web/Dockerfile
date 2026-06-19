@@ -12,9 +12,12 @@ RUN pnpm install --frozen-lockfile
 # --- builder: build the Next.js app ---
 FROM base AS builder
 WORKDIR /repo
+# Copie node_modules depuis deps (inclut le store pnpm + symlinks)
 COPY --from=deps /repo/node_modules ./node_modules
 COPY --from=deps /repo/apps/web/node_modules ./apps/web/node_modules
-COPY packages/ ./packages/
+# Copie les packages depuis deps pour avoir leurs node_modules installés
+COPY --from=deps /repo/packages ./packages/
+# Copie le source de l'app
 COPY apps/web/ ./apps/web/
 COPY pnpm-workspace.yaml package.json turbo.json ./
 
@@ -32,7 +35,6 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
 
-# Standalone output mirrors monorepo structure
 COPY --from=builder /repo/apps/web/.next/standalone ./
 COPY --from=builder /repo/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder /repo/apps/web/public ./apps/web/public
