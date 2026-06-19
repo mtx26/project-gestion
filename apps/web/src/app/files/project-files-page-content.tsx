@@ -726,6 +726,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
       <TaskDetailModal
         task={viewingTask}
         folderNameById={folderNameById}
+        members={[]}
         canEdit={false}
         canDelete={false}
         onClose={() => setViewingTask(null)}

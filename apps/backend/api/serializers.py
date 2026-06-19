@@ -494,6 +494,7 @@ class TaskSerializer(serializers.ModelSerializer):
 class InvitationSerializer(serializers.ModelSerializer):
     status = serializers.SerializerMethodField()
     user_exists = serializers.SerializerMethodField()
+    role_name = serializers.CharField(source="role.name", read_only=True)
 
     class Meta:
         model = Invitation
@@ -502,6 +503,7 @@ class InvitationSerializer(serializers.ModelSerializer):
             "project",
             "email",
             "role",
+            "role_name",
             "invited_by",
             "token",
             "expires_at",

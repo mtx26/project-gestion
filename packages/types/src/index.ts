@@ -86,6 +86,7 @@ export type Invitation = {
   project: ID;
   email: string;
   role: ID;
+  role_name: string;
   invited_by: ID;
   token: string;
   expires_at: string;

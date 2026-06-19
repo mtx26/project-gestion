@@ -420,9 +420,7 @@ function ProjectSettingsContent({
                               />
                               <div className="min-w-0">
                                 <p className="truncate font-medium">{member.user_display_name}</p>
-                                {member.user === selectedProject.owner ? (
-                                  <p className="mt-1 truncate text-xs text-muted-foreground">Proprietaire</p>
-                                ) : canManageMembers ? (
+                                {member.user === selectedProject.owner ? null : canManageMembers ? (
                                   <Select
                                     value={member.role_deleted ? undefined : String(member.role)}
                                     onValueChange={(value) =>
@@ -478,8 +476,6 @@ function ProjectSettingsContent({
                         </div>
                       ))}
                       {invitations.map((invitation) => {
-                        const roleName = roles.find((role) => role.id === invitation.role)?.name ?? "Role";
-
                         return (
                           <div key={`invitation-${invitation.id}`} className="rounded-md border bg-muted/30 p-3 text-sm">
                             <div className="flex items-start justify-between gap-3">
@@ -507,7 +503,7 @@ function ProjectSettingsContent({
                                     </SelectContent>
                                   </Select>
                                 ) : (
-                                  <p className="mt-1 truncate text-xs text-muted-foreground">{roleName}</p>
+                                  <p className="mt-1 truncate text-xs text-muted-foreground">{invitation.role_name}</p>
                                 )}
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
@@ -883,13 +879,8 @@ function DangerSettingsCard({
 function MemberAvatar({ name, pictureUrl }: { name: string; pictureUrl: string | null }) {
   const initial = name.charAt(0).toUpperCase();
   if (pictureUrl) {
-    return (
-      <img
-        src={pictureUrl}
-        alt={name}
-        className="size-8 shrink-0 rounded-full object-cover"
-      />
-    );
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={pictureUrl} alt={name} className="size-8 shrink-0 rounded-full object-cover" />;
   }
   return (
     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">

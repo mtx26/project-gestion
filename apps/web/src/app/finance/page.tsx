@@ -40,7 +40,7 @@ import { findFolderName } from "@/lib/folder-utils";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 import { parseIdParam, setOptionalParam } from "@/lib/url-params";
 
-function buildFinanceHref(projectId: number | string, params: URLSearchParams) {
+function buildFinanceHref(projectId: number | string) {
   return `/finance?project=${projectId}`;
 }
 
@@ -52,8 +52,8 @@ export default function FinancePage() {
     <ProjectWorkspaceShell
       activeItem="finance"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildFinanceHref(id, searchParams))}
-      onProjectCreated={(project) => router.push(buildFinanceHref(project.id, searchParams))}
+      onProjectSelected={(id) => router.push(buildFinanceHref(id))}
+      onProjectCreated={(project) => router.push(buildFinanceHref(project.id))}
     >
       {(state) => <FinancePageContent {...state} />}
     </ProjectWorkspaceShell>

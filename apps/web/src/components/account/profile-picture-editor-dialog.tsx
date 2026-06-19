@@ -4,7 +4,7 @@ import type { Area } from "react-easy-crop";
 import Cropper from "react-easy-crop";
 
 import { Crop, RotateCcw } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { FormError } from "@/components/form-error";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,19 +39,22 @@ export function ProfilePictureEditorDialog({
   onConfirm,
   onOpenChange,
 }: ProfilePictureEditorDialogProps) {
-  const imageUrl = useMemo(() => (file ? URL.createObjectURL(file) : ""), [file]);
+  const [imageUrl, setImageUrl] = useState("");
   const [crop, setCrop] = useState(DEFAULT_CROP);
   const [zoom, setZoom] = useState(1);
   const [croppedArea, setCroppedArea] = useState<ProfilePictureCrop | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImageUrl(url);
     return () => {
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
-      }
+      URL.revokeObjectURL(url);
+      setImageUrl("");
     };
-  }, [imageUrl]);
+  }, [file]);
 
   const hasImage = Boolean(file && imageUrl && open);
 

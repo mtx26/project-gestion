@@ -28,6 +28,7 @@ function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState(true);
   React.useEffect(() => {
     const mql = window.matchMedia("(max-width: 1023px)");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMobile(mql.matches);
     const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
     mql.addEventListener("change", handler);

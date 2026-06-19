@@ -155,27 +155,38 @@ export function ActiveProjectDashboard({
               {members.length} membre(s), {invitations.length} invitation(s).
             </p>
             <div className="mt-4 grid gap-2">
-              {visibleMembers.map((member) => (
-                <div key={member.id} className="rounded-md border bg-muted/30 p-3 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-medium">{member.user_display_name}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">
-                        {member.role_deleted ? "Aucun role actif" : member.role_name}
-                      </p>
+              {visibleMembers.map((member) => {
+                const isOwner = member.user === project.owner;
+                return (
+                  <div key={member.id} className="rounded-md border bg-muted/30 p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex min-w-0 items-start gap-2.5">
+                        <DashboardMemberAvatar
+                          name={member.user_display_name}
+                          pictureUrl={member.user_picture_url}
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{member.user_display_name}</p>
+                          {!isOwner ? (
+                            <p className="mt-1 truncate text-xs text-muted-foreground">
+                              {member.role_deleted ? "Aucun role actif" : member.role_name}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                      <Badge variant={isOwner ? "default" : member.role_deleted ? "destructive" : "secondary"}>
+                        {isOwner ? "Proprietaire" : member.role_deleted ? "Sans role" : "Membre"}
+                      </Badge>
                     </div>
-                    <Badge variant={member.role_deleted ? "destructive" : "secondary"}>
-                      {member.role_deleted ? "Sans role" : "Membre"}
-                    </Badge>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {visibleInvitations.map((invitation) => (
                 <div key={`invitation-${invitation.id}`} className="rounded-md border bg-muted/30 p-3 text-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{invitation.email}</p>
-                      <p className="mt-1 truncate text-xs text-muted-foreground">Invitation en cours</p>
+                      <p className="mt-1 truncate text-xs text-muted-foreground">{invitation.role_name}</p>
                     </div>
                     <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
                       Invitation
@@ -469,6 +480,19 @@ function EmptyProjectState({ onCreateProject }: { onCreateProject: () => void })
         </Button>
       </EmptyContent>
     </Empty>
+  );
+}
+
+function DashboardMemberAvatar({ name, pictureUrl }: { name: string; pictureUrl: string | null }) {
+  const initial = name.charAt(0).toUpperCase();
+  if (pictureUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={pictureUrl} alt={name} className="size-8 shrink-0 rounded-full object-cover" />;
+  }
+  return (
+    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
+      {initial}
+    </div>
   );
 }
 
