@@ -3,7 +3,9 @@ services:
   # ── PostgreSQL ──────────────────────────────────────────────────────────────
   db:
     image: postgres:16-alpine
-    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: any
     environment:
       POSTGRES_DB: project_gestion
       POSTGRES_USER: project_gestion
@@ -12,16 +14,13 @@ services:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U project_gestion"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
   # ── MinIO (stockage S3) ─────────────────────────────────────────────────────
   minio:
     image: minio/minio:latest
-    restart: unless-stopped
+    deploy:
+      restart_policy:
+        condition: any
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
@@ -31,19 +30,14 @@ services:
     ports:
       - "9000:9000"
       - "9001:9001"
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
 
-  # Crée les buckets au démarrage si ils n'existent pas
   minio-init:
     image: minio/mc:latest
     depends_on:
       - minio
     entrypoint: >
       /bin/sh -c "
+        sleep 5;
         mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin};
         mc mb --ignore-existing local/${S3_BUCKET_NAME:-project-documents};
         mc mb --ignore-existing local/${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures};
@@ -51,9 +45,10 @@ services:
 
   # ── Django backend ──────────────────────────────────────────────────────────
   backend:
-    build:
-      context: ./apps/backend
-    restart: unless-stopped
+    image: project-gestion-backend:latest
+    deploy:
+      restart_policy:
+        condition: any
     depends_on:
       - db
       - minio-init
@@ -86,12 +81,10 @@ services:
 
   # ── Next.js frontend ────────────────────────────────────────────────────────
   frontend:
-    build:
-      context: .
-      dockerfile: apps/web/Dockerfile
-      args:
-        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
-    restart: unless-stopped
+    image: project-gestion-frontend:latest
+    deploy:
+      restart_policy:
+        condition: any
     depends_on:
       - backend
     ports:
