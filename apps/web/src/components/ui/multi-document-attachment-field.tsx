@@ -8,19 +8,21 @@ import { Label } from "@/components/ui/label";
 
 type ExistingDoc = { id: number; name: string | null };
 
+interface MultiDocumentAttachmentFieldProps {
+  existingDocs: ExistingDoc[];
+  pendingFiles: globalThis.File[];
+  onRemoveDoc: (id: number) => void;
+  onAddFiles: (files: globalThis.File[]) => void;
+  onRemoveFile: (index: number) => void;
+}
+
 export function MultiDocumentAttachmentField({
   existingDocs,
   pendingFiles,
   onRemoveDoc,
   onAddFiles,
   onRemoveFile,
-}: {
-  existingDocs: ExistingDoc[];
-  pendingFiles: globalThis.File[];
-  onRemoveDoc: (id: number) => void;
-  onAddFiles: (files: globalThis.File[]) => void;
-  onRemoveFile: (index: number) => void;
-}) {
+}: MultiDocumentAttachmentFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (

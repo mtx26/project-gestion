@@ -20,6 +20,18 @@ import {
   getStatusLabel,
 } from "@/lib/task-utils";
 
+interface TaskDetailModalProps {
+  task: Task | null;
+  folderNameById: Map<number, string>;
+  members: { user: number; user_display_name: string }[];
+  canEdit: boolean;
+  canDelete: boolean;
+  deletingId?: number | null;
+  onClose: () => void;
+  onEdit?: (task: Task) => void;
+  onDelete?: (task: Task) => void;
+}
+
 export function TaskDetailModal({
   task,
   folderNameById,
@@ -30,17 +42,7 @@ export function TaskDetailModal({
   onClose,
   onEdit,
   onDelete,
-}: {
-  task: Task | null;
-  folderNameById: Map<number, string>;
-  members: { user: number; user_display_name: string }[];
-  canEdit: boolean;
-  canDelete: boolean;
-  deletingId?: number | null;
-  onClose: () => void;
-  onEdit?: (task: Task) => void;
-  onDelete?: (task: Task) => void;
-}) {
+}: TaskDetailModalProps) {
   const folderName =
     task == null
       ? null

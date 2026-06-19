@@ -5,17 +5,19 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 type Member = { id: number; user: number; user_display_name: string };
 
+interface MemberFilterSelectProps {
+  members: Member[];
+  value: number | null;
+  className?: string;
+  onChange: (memberId: number | null) => void;
+}
+
 export function MemberFilterSelect({
   members,
   value,
   className,
   onChange,
-}: {
-  members: Member[];
-  value: number | null;
-  className?: string;
-  onChange: (memberId: number | null) => void;
-}) {
+}: MemberFilterSelectProps) {
   if (members.length === 0) return null;
   return (
     <Select

@@ -7,6 +7,17 @@ import { findFolderName } from "@/lib/folder-utils";
 
 type DocInfo = { id: number; name: string | null };
 
+interface EntryDetailBodyProps {
+  category?: string | null;
+  description?: string | null;
+  task_name?: string | null;
+  folder?: number | null;
+  documents_info?: DocInfo[];
+  folders: FolderTreeNode[];
+  isOpeningDocument: boolean;
+  onOpenDocument: (documentId: number) => void;
+}
+
 export function EntryDetailBody({
   category,
   description,
@@ -16,16 +27,7 @@ export function EntryDetailBody({
   folders,
   isOpeningDocument,
   onOpenDocument,
-}: {
-  category?: string | null;
-  description?: string | null;
-  task_name?: string | null;
-  folder?: number | null;
-  documents_info?: DocInfo[];
-  folders: FolderTreeNode[];
-  isOpeningDocument: boolean;
-  onOpenDocument: (documentId: number) => void;
-}) {
+}: EntryDetailBodyProps) {
   return (
     <>
       {category ? (

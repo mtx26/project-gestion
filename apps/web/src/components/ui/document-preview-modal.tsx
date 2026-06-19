@@ -19,13 +19,15 @@ function getDocumentPreviewKind(doc: PreviewDocument): "image" | "pdf" | "none" 
   return "none";
 }
 
+interface DocumentPreviewModalProps {
+  document: PreviewDocument | null;
+  onClose: () => void;
+}
+
 export function DocumentPreviewModal({
   document: doc,
   onClose,
-}: {
-  document: PreviewDocument | null;
-  onClose: () => void;
-}) {
+}: DocumentPreviewModalProps) {
   const kind = doc ? getDocumentPreviewKind(doc) : "none";
 
   return (

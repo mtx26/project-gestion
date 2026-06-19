@@ -20,9 +20,5 @@
     "turbo": "^2.9.18"
   },
   "private": true,
-  "pnpm": {
-    "overrides": {
-      "zod": "4.0.17"
-    }
-  }
+  "pnpm": {}
 }

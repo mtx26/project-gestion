@@ -16,19 +16,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+interface TargetPickerDialogProps {
+  targetTree: TargetTreeNode;
+  selectedValue: string;
+  selectedLabel: string;
+  onSelect: (value: string) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+}
+
 export function TargetPickerDialog({
   targetTree,
   selectedValue,
   selectedLabel,
   onSelect,
   onCreateFolder,
-}: {
-  targetTree: TargetTreeNode;
-  selectedValue: string;
-  selectedLabel: string;
-  onSelect: (value: string) => void;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
-}) {
+}: TargetPickerDialogProps) {
   const [open, setOpen] = useState(false);
   const [expandedValues, setExpandedValues] = useState<Set<string>>(() => new Set(["project"]));
   const [includeCompleted, setIncludeCompleted] = useState(false);

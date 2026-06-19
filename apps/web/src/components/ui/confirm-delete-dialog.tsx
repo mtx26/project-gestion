@@ -11,6 +11,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
+interface ConfirmDeleteDialogProps {
+  open: boolean;
+  title: string;
+  description?: string;
+  isPending?: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}
+
 export function ConfirmDeleteDialog({
   open,
   title,
@@ -18,14 +27,7 @@ export function ConfirmDeleteDialog({
   isPending,
   onConfirm,
   onClose,
-}: {
-  open: boolean;
-  title: string;
-  description?: string;
-  isPending?: boolean;
-  onConfirm: () => void;
-  onClose: () => void;
-}) {
+}: ConfirmDeleteDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogContent>
