@@ -512,7 +512,7 @@ function ProjectTimeContent({
         ) : null}
       </div>
 
-      <Dialog open={timeFormOpen} onOpenChange={setTimeFormOpen}>
+      <Dialog open={timeFormOpen} onOpenChange={(open) => { setTimeFormOpen(open); if (!open) createTimeEntry.reset(); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Nouvelle entree</DialogTitle>
@@ -553,6 +553,7 @@ function ProjectTimeContent({
         onOpenChange={(open) => {
           if (!open) {
             setPaymentTarget(null);
+            payTimeEntry.reset();
           }
         }}
         onSubmit={() => payTimeEntry.mutate()}
@@ -579,6 +580,7 @@ function ProjectTimeContent({
         onOpenChange={(open) => {
           if (!open) {
             setEditingEntry(null);
+            updateTimeEntry.reset();
           }
         }}
         onSubmit={(documentIds) => updateTimeEntry.mutate(documentIds)}

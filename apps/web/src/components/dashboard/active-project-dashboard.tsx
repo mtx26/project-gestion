@@ -6,6 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
 import { CheckCircle2, Clock3, Plus, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
+import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
+import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -249,22 +251,25 @@ function FinanceLoadingState() {
   );
 }
 
+const dashboardChartConfig = {
+  expenses: { label: "Depenses", color: "var(--destructive)" },
+  refunds: { label: "Remboursements", color: "oklch(0.6 0.15 150)" },
+};
+
 function FinanceTimelineChart({
   points,
 }: {
   points: Array<{ period: string; expenses: string; refunds: string; balance: string }>;
 }) {
-  const visiblePoints = points.slice(-8);
-  const rawMaxValue = Math.max(
-    ...visiblePoints.flatMap((point) => [Number(point.expenses), Number(point.refunds)]),
-    1,
-  );
-  const maxValue = getChartScaleMax(rawMaxValue);
-  const middleValue = maxValue / 2;
+  const data = points.slice(-8).map((p) => ({
+    period: p.period,
+    expenses: Number(p.expenses),
+    refunds: Number(p.refunds),
+  }));
 
-  if (visiblePoints.length === 0) {
+  if (data.length === 0) {
     return (
-      <Empty className="h-40 rounded-md border">
+      <Empty className="h-44 rounded-md border">
         <EmptyHeader>
           <EmptyMedia variant="icon">
             <WalletCards className="size-4" />
@@ -277,60 +282,29 @@ function FinanceTimelineChart({
   }
 
   return (
-    <div className="rounded-md border bg-muted/20 p-3">
-      <div className="grid h-40 grid-cols-[56px_1fr] gap-2">
-        <div className="flex h-32 flex-col justify-between text-right text-[11px] text-muted-foreground">
-          <span>{formatCompactMoney(maxValue)}</span>
-          <span>{formatCompactMoney(middleValue)}</span>
-          <span>0</span>
-        </div>
-        <div className="min-w-0">
-          <div className="relative h-32 border-l border-border/70">
-            <div className="absolute inset-x-0 top-0 border-t border-border/70" />
-            <div className="absolute inset-x-0 top-1/2 border-t border-dashed border-border/70" />
-            <div className="absolute inset-x-0 bottom-0 border-t border-border/70" />
-            <div className="relative z-10 flex h-full items-end gap-2 pl-2">
-              {visiblePoints.map((point) => {
-                const expensesHeight = getChartBarHeight(Number(point.expenses), maxValue);
-                const refundsHeight = getChartBarHeight(Number(point.refunds), maxValue);
-
-                return (
-                  <div key={point.period} className="flex h-full min-w-0 flex-1 flex-col justify-end">
-                    <div className="flex h-full items-end justify-center gap-1">
-                      <div
-                        className="w-3 rounded-t-sm bg-primary"
-                        title={`Depenses ${formatMoney(point.expenses)}`}
-                        style={{ height: expensesHeight }}
-                      />
-                      <div
-                        className="w-3 rounded-t-sm bg-muted-foreground/45"
-                        title={`Remboursements ${formatMoney(point.refunds)}`}
-                        style={{ height: refundsHeight }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          <div className="mt-2 flex gap-2 pl-2">
-            {visiblePoints.map((point) => (
-              <div key={point.period} className="min-w-0 flex-1">
-                <p className="truncate text-center text-[11px] text-muted-foreground">
-                  {formatFinancePeriod(point.period)}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <span className="size-2 rounded-sm bg-primary" />
+    <div>
+      <ChartContainer config={dashboardChartConfig} className="h-44 w-full">
+        <BarChart data={data} barCategoryGap="35%">
+          <CartesianGrid vertical={false} />
+          <XAxis
+            dataKey="period"
+            tickLine={false}
+            axisLine={false}
+            tickMargin={8}
+            tickFormatter={formatFinancePeriod}
+          />
+          <ChartTooltip content={<DashboardFinanceTooltip />} />
+          <Bar dataKey="expenses" fill="var(--color-expenses)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+          <Bar dataKey="refunds" fill="var(--color-refunds)" radius={[3, 3, 0, 0]} maxBarSize={28} />
+        </BarChart>
+      </ChartContainer>
+      <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-[2px] bg-destructive" />
           Depenses
         </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="size-2 rounded-sm bg-muted-foreground/45" />
+        <span className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-[2px]" style={{ backgroundColor: "oklch(0.6 0.15 150)" }} />
           Remboursements
         </span>
       </div>
@@ -338,21 +312,34 @@ function FinanceTimelineChart({
   );
 }
 
-function getChartScaleMax(value: number) {
-  if (value <= 0) {
-    return 1;
-  }
-
-  const magnitude = 10 ** Math.floor(Math.log10(value));
-  return Math.ceil(value / magnitude) * magnitude;
-}
-
-function getChartBarHeight(value: number, maxValue: number) {
-  if (value <= 0) {
-    return "0%";
-  }
-
-  return `${Math.max(4, (value / maxValue) * 100)}%`;
+function DashboardFinanceTooltip({
+  active,
+  payload,
+  label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; name: string; color: string }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="border-border/50 bg-background grid min-w-[9rem] gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl">
+      <p className="font-medium">{formatFinancePeriod(label ?? "")}</p>
+      <div className="grid gap-1">
+        {payload.map((item, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ backgroundColor: item.color }} />
+            <div className="flex flex-1 items-center justify-between gap-3">
+              <span className="text-muted-foreground">
+                {item.name === "expenses" ? "Depenses" : "Remboursements"}
+              </span>
+              <span className="font-mono font-medium tabular-nums">{formatMoney(item.value)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function FinanceLine({ label, value }: { label: string; value: string }) {
@@ -383,17 +370,6 @@ function formatDuration(totalMinutes: number) {
   }
 
   return `${hours}h ${minutes}m`;
-}
-
-function formatCompactMoney(value: number | string) {
-  const amount = typeof value === "number" ? value : Number(value);
-
-  return new Intl.NumberFormat("fr-BE", {
-    notation: "compact",
-    maximumFractionDigits: 1,
-    style: "currency",
-    currency: "EUR",
-  }).format(Number.isFinite(amount) ? amount : 0);
 }
 
 function formatFinancePeriod(period: string) {
