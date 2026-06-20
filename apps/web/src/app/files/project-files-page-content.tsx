@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/dialog";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TreePickerDialog } from "@/components/ui/tree-picker";
@@ -1033,8 +1034,8 @@ function TaskDraftDialog({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="project-task-due-date">Echeance</Label>
-              <Input id="project-task-due-date" type="date" value={dueDate} onChange={(event) => onDueDateChange(event.target.value)} />
+              <Label>Echeance</Label>
+              <DatePicker value={dueDate} onChange={onDueDateChange} />
             </div>
           </div>
           <div className="space-y-2">

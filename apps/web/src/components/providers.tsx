@@ -3,6 +3,8 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useEffect, useState, type ReactNode } from "react";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { createQueryClient } from "@/lib/query-client";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -16,8 +18,11 @@ export function Providers({ children }: { children: ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
-      <ReactQueryDevtools initialIsOpen={false} />
+      <TooltipProvider>
+        {children}
+        <Toaster />
+        <ReactQueryDevtools initialIsOpen={false} />
+      </TooltipProvider>
     </QueryClientProvider>
   );
 }

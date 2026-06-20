@@ -6,18 +6,15 @@ import { Banknote, Bell, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, La
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
-  SidebarGroupAction,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -25,6 +22,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 
 type Theme = "light" | "dark";
 
@@ -163,47 +161,65 @@ export function DashboardSidebar({
 
       <SidebarContent>
         <SidebarGroup>
-          <div className="flex items-center justify-between gap-2 px-2 group-data-[state=collapsed]/sidebar:lg:justify-center">
-            <SidebarGroupLabel className="px-0 normal-case">
-              Projet
-            </SidebarGroupLabel>
-            <SidebarGroupAction onClick={onCreateProject} aria-label="Ajouter un projet">
-              <Plus className="size-4" />
-            </SidebarGroupAction>
-          </div>
-
-          <SidebarGroupContent className="group-data-[state=collapsed]/sidebar:lg:hidden">
-            <Select
-              value={selectedProjectId}
-              onValueChange={(value) => onSelectProject(Number(value))}
-              disabled={isLoading || projects.length === 0}
-            >
-              <SelectTrigger className="h-9 w-full bg-background">
-                <SelectValue placeholder={isLoading ? "Chargement..." : "Choisir un projet"} />
-              </SelectTrigger>
-              <SelectContent>
-                {projects.map((project) => {
-                  const isShared = userId !== null && project.owner !== userId;
-
-                  return (
-                    <SelectItem key={project.id} value={String(project.id)}>
-                      <span className="flex min-w-0 items-center gap-2">
-                        <span className="truncate">{project.name}</span>
-                        {isShared ? (
-                          <Badge variant="secondary" className="h-4 shrink-0 px-1.5 text-[10px]">
-                            Partage par {project.owner_display_name}
-                          </Badge>
-                        ) : null}
-                      </span>
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      className="h-12 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                      aria-label="Selectionner un projet"
+                    >
+                      <ProjectAvatar name={isLoading ? "" : (selectedProject?.name ?? "")} isLoading={isLoading} />
+                      <div className="grid min-w-0 flex-1 text-left text-sm leading-tight group-data-[state=collapsed]/sidebar:lg:hidden">
+                        <span className="truncate font-medium">
+                          {isLoading ? "Chargement..." : (selectedProject?.name ?? "Aucun projet")}
+                        </span>
+                        <span className="truncate text-xs text-muted-foreground">
+                          {selectedProject && userId !== null && selectedProject.owner !== userId
+                            ? `Partage par ${selectedProject.owner_display_name}`
+                            : "Mon projet"}
+                        </span>
+                      </div>
+                      <ChevronsUpDown className="ml-auto size-4 shrink-0 group-data-[state=collapsed]/sidebar:lg:hidden" />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className="w-[--radix-dropdown-menu-trigger-width] min-w-56 rounded-lg"
+                    side="bottom"
+                    align="start"
+                  >
+                    <DropdownMenuLabel>Projets</DropdownMenuLabel>
+                    <DropdownMenuGroup>
+                      {projects.map((project, index) => (
+                        <DropdownMenuItem
+                          key={project.id}
+                          className="gap-2 p-2"
+                          onClick={() => onSelectProject(project.id)}
+                        >
+                          <ProjectAvatar name={project.name} />
+                          <span className="truncate">{project.name}</span>
+                          {index < 9 ? (
+                            <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                          ) : null}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="gap-2 p-2" onClick={onCreateProject}>
+                      <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+                        <Plus className="size-4" />
+                      </div>
+                      <span className="text-muted-foreground">Ajouter un projet</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
-      <Separator className="my-6" />
+        <Separator className="my-2" />
 
         <SidebarGroup>
           <SidebarGroupContent>
@@ -276,6 +292,20 @@ export function DashboardSidebar({
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+function ProjectAvatar({ name, isLoading = false }: { name: string; isLoading?: boolean }) {
+  const initial = name.trim() ? name.trim().charAt(0).toUpperCase() : "?";
+  return (
+    <div
+      className={cn(
+        "flex size-7 shrink-0 items-center justify-center rounded-md border text-xs font-semibold",
+        isLoading ? "animate-pulse bg-muted text-transparent" : "bg-primary/10 text-primary",
+      )}
+    >
+      {initial}
+    </div>
   );
 }
 

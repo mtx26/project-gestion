@@ -5,7 +5,16 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, ChevronsUpDown, Pencil, Plus, Trash2, UserCheck } from "lucide-react";
+import {
+  type ColumnDef,
+  type SortingState,
+  type VisibilityState,
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table";
+import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Pencil, Plus, Trash2, UserCheck, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { type FormEvent } from "react";
 import { useMemo, useState } from "react";
@@ -14,6 +23,11 @@ import { Badge } from "@/components/ui/badge";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { DatePicker } from "@/components/ui/date-picker";
+import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+
 import {
   Dialog,
   DialogClose,
@@ -43,8 +57,6 @@ import { parseBooleanParam, parseIdParam, setOptionalParam } from "@/lib/url-par
 type StatusFilter = "all" | Task["status"];
 type PriorityFilter = "all" | Task["priority"];
 type FolderFilter = "all" | `folder-${number}`;
-type SortColumn = "title" | "folder" | "status" | "priority" | "due_date";
-type SortDirection = "asc" | "desc";
 
 export function ProjectTasksPageContent() {
   const router = useRouter();
@@ -80,13 +92,15 @@ function ProjectTasksContent({
   const priorityFilter = parsePriorityFilter(searchParams.get("priority"));
   const includeCompleted = parseBooleanParam(searchParams.get("include_completed"));
   const showCompleted = includeCompleted || statusFilter === "done";
+
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [newTaskFolder, setNewTaskFolder] = useState<FolderFilter>(folderFilter);
   const [newTaskPriority, setNewTaskPriority] = useState<Task["priority"]>("normal");
   const [dueDate, setDueDate] = useState("");
+  const [newTaskAssignees, setNewTaskAssignees] = useState<number[]>([]);
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
-  const [sortConfig, setSortConfig] = useState<{ column: SortColumn; direction: SortDirection } | null>(null);
+
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -95,11 +109,11 @@ function ProjectTasksContent({
   const [editStatus, setEditStatus] = useState<Task["status"]>("todo");
   const [editPriority, setEditPriority] = useState<Task["priority"]>("normal");
   const [editDueDate, setEditDueDate] = useState("");
-  const [newTaskAssignees, setNewTaskAssignees] = useState<number[]>([]);
   const [editAssignees, setEditAssignees] = useState<number[]>([]);
 
   const createdByFilter = parseIdParam(searchParams.get("member"));
   const folderId = getFolderId(folderFilter);
+
   const tasksQuery = useQuery({
     queryKey: selectedProject
       ? queryKeys.tasks.list(selectedProject.id, {
@@ -128,42 +142,10 @@ function ProjectTasksContent({
     queryFn: () => api.members.list(selectedProject!.id),
     enabled: Boolean(selectedProject && canViewTasks),
   });
+
   const folderNameById = useMemo(() => buildFolderNameMap(foldersQuery.data ?? []), [foldersQuery.data]);
   const tasks = normalizeApiList(tasksQuery.data);
   const members = normalizeApiList(membersQuery.data);
-  const sortedTasks = useMemo(() => {
-    if (!sortConfig) {
-      return tasks;
-    }
-
-    const STATUS_ORDER: Record<Task["status"], number> = { todo: 0, in_progress: 1, done: 2 };
-    const PRIORITY_ORDER: Record<Task["priority"], number> = { low: 0, normal: 1, high: 2 };
-    const multiplier = sortConfig.direction === "asc" ? 1 : -1;
-
-    return [...tasks].sort((a, b) => {
-      switch (sortConfig.column) {
-        case "title":
-          return multiplier * a.title.localeCompare(b.title, "fr");
-        case "folder": {
-          const aName = a.folder == null ? "" : (folderNameById.get(a.folder) ?? "");
-          const bName = b.folder == null ? "" : (folderNameById.get(b.folder) ?? "");
-          return multiplier * aName.localeCompare(bName, "fr");
-        }
-        case "status":
-          return multiplier * (STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
-        case "priority":
-          return multiplier * (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
-        case "due_date": {
-          if (!a.due_date && !b.due_date) return 0;
-          if (!a.due_date) return 1;
-          if (!b.due_date) return -1;
-          return multiplier * a.due_date.localeCompare(b.due_date);
-        }
-        default:
-          return 0;
-      }
-    });
-  }, [tasks, sortConfig, folderNameById]);
 
   const createTask = useMutation({
     mutationFn: () =>
@@ -214,51 +196,27 @@ function ProjectTasksContent({
   }
 
   function updateUrlFilter(changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; includeCompleted: boolean; member: number | null }>) {
-    if (!selectedProject) {
-      return;
-    }
-
+    if (!selectedProject) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("project", String(selectedProject.id));
-    if (changes.folder !== undefined) {
-      setOptionalParam(params, "folder", changes.folder);
-    }
-    if (changes.status !== undefined) {
-      setOptionalParam(params, "status", changes.status);
-    }
-    if (changes.priority !== undefined) {
-      setOptionalParam(params, "priority", changes.priority);
-    }
+    if (changes.folder !== undefined) setOptionalParam(params, "folder", changes.folder);
+    if (changes.status !== undefined) setOptionalParam(params, "status", changes.status);
+    if (changes.priority !== undefined) setOptionalParam(params, "priority", changes.priority);
     if (changes.includeCompleted !== undefined) {
-      if (changes.includeCompleted) {
-        params.set("include_completed", "1");
-      } else {
-        params.delete("include_completed");
-      }
+      if (changes.includeCompleted) params.set("include_completed", "1");
+      else params.delete("include_completed");
     }
     if ("member" in changes) {
       if (changes.member != null) params.set("member", String(changes.member));
       else params.delete("member");
     }
-
     router.replace(`/tasks?${params.toString()}`, { scroll: false });
   }
 
   function onCreateTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedProject || !canEditTasks || !title.trim()) {
-      return;
-    }
+    if (!selectedProject || !canEditTasks || !title.trim()) return;
     createTask.mutate();
-  }
-
-  function toggleSort(column: SortColumn) {
-    setSortConfig((current) => {
-      if (current?.column === column) {
-        return { column, direction: current.direction === "asc" ? "desc" : "asc" };
-      }
-      return { column, direction: "asc" };
-    });
   }
 
   function openEditTask(task: Task) {
@@ -274,10 +232,7 @@ function ProjectTasksContent({
 
   function submitEditTask(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!editingTask || !editTitle.trim()) {
-      return;
-    }
-
+    if (!editingTask || !editTitle.trim()) return;
     updateTask.mutate({
       taskId: editingTask.id,
       payload: {
@@ -292,9 +247,7 @@ function ProjectTasksContent({
     });
   }
 
-  if (projectsQuery.isLoading) {
-    return <Skeleton className="h-72 rounded-lg" />;
-  }
+  if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
 
   if (!selectedProject) {
     return (
@@ -325,6 +278,8 @@ function ProjectTasksContent({
       </div>
     );
   }
+
+  const myTasks = user ? tasks.filter((t) => t.assigned_to.includes(user.id)) : [];
 
   return (
     <div className="space-y-5">
@@ -404,51 +359,33 @@ function ProjectTasksContent({
         </Button>
       </div>
 
-      {user && (() => {
-        const myTasks = sortedTasks.filter((t) => t.assigned_to.includes(user.id));
-        if (myTasks.length === 0) return null;
-        return (
-          <Card className="rounded-lg">
-            <CardHeader className="pb-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <UserCheck className="size-4" />
-                Mes taches assignees
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tache</TableHead>
-                    <TableHead>Dossier</TableHead>
-                    <TableHead>Statut</TableHead>
-                    <TableHead>Priorite</TableHead>
-                    <TableHead>Echeance</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {myTasks.map((task) => {
-                    const folderName = task.folder == null ? "Projet" : folderNameById.get(task.folder) ?? `Dossier #${task.folder}`;
-                    return (
-                      <TableRow key={task.id} className="cursor-pointer" onClick={() => setViewingTask(task)}>
-                        <TableCell className="font-medium">{task.title}</TableCell>
-                        <TableCell className="text-muted-foreground">{folderName}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={getStatusClassName(task.status)}>{getStatusLabel(task.status)}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={getPriorityClassName(task.priority)}>{getPriorityLabel(task.priority)}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{task.due_date ? formatTaskDate(task.due_date) : "-"}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        );
-      })()}
+      {myTasks.length > 0 ? (
+        <Card className="rounded-lg">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserCheck className="size-4" />
+              Mes taches assignees
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <TaskTable
+              tasks={myTasks}
+              folderNameById={folderNameById}
+              members={members}
+              canEdit={canEditTasks}
+              canDelete={canDeleteTasks}
+              deletingId={deleteTask.isPending ? deleteTask.variables : null}
+              defaultVisibility={{ assignees: false }}
+              onOpenDetail={setViewingTask}
+              onEdit={openEditTask}
+              onDelete={(task) => deleteTask.mutate(task.id)}
+              onStatusChange={(task, status) =>
+                updateTask.mutate({ taskId: task.id, payload: { status } })
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card className="rounded-lg">
         <CardHeader>
@@ -470,14 +407,12 @@ function ProjectTasksContent({
             </Empty>
           ) : (
             <TaskTable
-              tasks={showCompleted ? sortedTasks : sortedTasks.filter((t) => t.status !== "done")}
+              tasks={showCompleted ? tasks : tasks.filter((t) => t.status !== "done")}
               folderNameById={folderNameById}
               members={members}
-              sortConfig={sortConfig}
               canEdit={canEditTasks}
               canDelete={canDeleteTasks}
               deletingId={deleteTask.isPending ? deleteTask.variables : null}
-              onSort={toggleSort}
               onOpenDetail={setViewingTask}
               onEdit={openEditTask}
               onDelete={(task) => deleteTask.mutate(task.id)}
@@ -530,11 +465,7 @@ function ProjectTasksContent({
         dueDate={editDueDate}
         isPending={updateTask.isPending}
         error={updateTask.error ? getErrorMessage(updateTask.error) : null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setEditingTask(null);
-          }
-        }}
+        onOpenChange={(open) => { if (!open) setEditingTask(null); }}
         onTitleChange={setEditTitle}
         onDescriptionChange={setEditDescription}
         onFolderChange={setEditFolder}
@@ -553,20 +484,12 @@ function ProjectTasksContent({
         canDelete={canDeleteTasks}
         deletingId={deleteTask.isPending ? deleteTask.variables : null}
         onClose={() => setViewingTask(null)}
-        onEdit={(task) => {
-          setViewingTask(null);
-          openEditTask(task);
-        }}
-        onDelete={(task) => {
-          setViewingTask(null);
-          deleteTask.mutate(task.id);
-        }}
+        onEdit={(task) => { setViewingTask(null); openEditTask(task); }}
+        onDelete={(task) => { setViewingTask(null); deleteTask.mutate(task.id); }}
       />
     </div>
   );
 }
-
-
 
 function TaskFormDialog({
   mode,
@@ -623,19 +546,6 @@ function TaskFormDialog({
 }) {
   const isOpen = mode === "create" ? (open ?? false) : task != null;
   const folderId = getFolderId(folder);
-
-  const [memberSearch, setMemberSearch] = useState("");
-  const filteredMembers = members.filter((m) =>
-    m.user_display_name.toLowerCase().includes(memberSearch.toLowerCase())
-  );
-
-  function toggleAssignee(userId: number) {
-    if (assignees.includes(userId)) {
-      onAssigneesChange(assignees.filter((id) => id !== userId));
-    } else {
-      onAssigneesChange([...assignees, userId]);
-    }
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
@@ -710,61 +620,21 @@ function TaskFormDialog({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="task-form-due-date">Echeance</Label>
-                <Input id="task-form-due-date" type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} />
+                <Label>Echeance</Label>
+                <DatePicker value={dueDate} onChange={onDueDateChange} />
               </div>
             </div>
           ) : (
             <div className="space-y-2">
-              <Label htmlFor="task-form-due-date">Echeance</Label>
-              <Input id="task-form-due-date" type="date" value={dueDate} onChange={(e) => onDueDateChange(e.target.value)} />
+              <Label>Echeance</Label>
+              <DatePicker value={dueDate} onChange={onDueDateChange} />
             </div>
           )}
 
           {members.length > 0 ? (
             <div className="space-y-2">
               <Label>Assignes</Label>
-              <Input
-                placeholder="Rechercher un membre..."
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-              />
-              {memberSearch.trim() ? (
-                <div className="rounded-md border bg-background p-1">
-                  {filteredMembers.length === 0 ? (
-                    <p className="px-2 py-1.5 text-sm text-muted-foreground">Aucun resultat</p>
-                  ) : filteredMembers.map((member) => {
-                    const selected = assignees.includes(member.user);
-                    return (
-                      <button
-                        key={member.id}
-                        type="button"
-                        className={`flex w-full items-center rounded-sm px-2 py-1.5 text-left text-sm transition-colors ${selected ? "bg-primary/10 font-medium text-primary" : "hover:bg-muted/50"}`}
-                        onClick={() => toggleAssignee(member.user)}
-                      >
-                        {member.user_display_name}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : assignees.length > 0 ? (
-                <div className="flex flex-wrap gap-1">
-                  {assignees.map((uid) => {
-                    const m = members.find((m) => m.user === uid);
-                    return (
-                      <Badge
-                        key={uid}
-                        variant="secondary"
-                        className="cursor-pointer gap-1"
-                        onClick={() => toggleAssignee(uid)}
-                      >
-                        {m?.user_display_name ?? `#${uid}`}
-                        <span className="text-xs">×</span>
-                      </Badge>
-                    );
-                  })}
-                </div>
-              ) : null}
+              <MemberCombobox members={members} value={assignees} onChange={onAssigneesChange} />
             </div>
           ) : null}
 
@@ -789,44 +659,109 @@ function TaskFormDialog({
   );
 }
 
-function SortableTableHead({
-  column,
-  sortConfig,
-  onSort,
-  children,
+function MemberCombobox({
+  members,
+  value,
+  onChange,
 }: {
-  column: SortColumn;
-  sortConfig: { column: SortColumn; direction: SortDirection } | null;
-  onSort: (column: SortColumn) => void;
-  children: React.ReactNode;
+  members: { id: number; user: number; user_display_name: string }[];
+  value: number[];
+  onChange: (ids: number[]) => void;
 }) {
-  const isActive = sortConfig?.column === column;
-  const Icon = isActive
-    ? sortConfig!.direction === "asc" ? ChevronUp : ChevronDown
-    : ChevronsUpDown;
+  const [search, setSearch] = useState("");
+  const [open, setOpen] = useState(false);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  const filtered = search.trim()
+    ? members.filter((m) => m.user_display_name.toLowerCase().includes(search.toLowerCase()))
+    : members;
+
+  function toggle(userId: number) {
+    onChange(value.includes(userId) ? value.filter((id) => id !== userId) : [...value, userId]);
+    setSearch("");
+    inputRef.current?.focus();
+  }
 
   return (
-    <TableHead
-      className="cursor-pointer select-none hover:bg-muted/50"
-      onClick={() => onSort(column)}
-    >
-      <div className="flex items-center gap-1">
-        {children}
-        <Icon className={`size-3.5 ${isActive ? "text-foreground" : "text-muted-foreground/50"}`} />
-      </div>
-    </TableHead>
+    <Popover open={open} onOpenChange={(o) => { setOpen(o); if (!o) setSearch(""); }}>
+      <PopoverAnchor asChild>
+        <div
+          className="flex min-h-8 flex-wrap items-center gap-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 cursor-text"
+          onClick={() => { setOpen(true); inputRef.current?.focus(); }}
+        >
+          {value.map((uid) => {
+            const member = members.find((m) => m.user === uid);
+            if (!member) return null;
+            return (
+              <span
+                key={uid}
+                className="flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground"
+              >
+                {member.user_display_name}
+                <button
+                  type="button"
+                  aria-label={`Retirer ${member.user_display_name}`}
+                  className="opacity-50 hover:opacity-100 focus:outline-none"
+                  onClick={(e) => { e.stopPropagation(); toggle(uid); }}
+                >
+                  <X className="size-3" />
+                </button>
+              </span>
+            );
+          })}
+          <input
+            ref={inputRef}
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onFocus={() => setOpen(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Backspace" && !search && value.length > 0) onChange(value.slice(0, -1));
+              if (e.key === "Escape") setOpen(false);
+            }}
+            placeholder={value.length === 0 ? "Assigner des membres..." : ""}
+            className="min-w-16 flex-1 bg-transparent outline-none"
+          />
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        className="w-[var(--radix-popover-trigger-width)] gap-0 p-1"
+        align="start"
+        sideOffset={4}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        {filtered.length === 0 ? (
+          <p className="py-2 text-center text-sm text-muted-foreground">Aucun membre trouve.</p>
+        ) : (
+          filtered.map((m) => (
+            <button
+              key={m.user}
+              type="button"
+              className="relative flex w-full cursor-default items-center gap-2 rounded-md py-1 pl-1.5 pr-8 text-sm hover:bg-accent hover:text-accent-foreground"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => toggle(m.user)}
+            >
+              <span className="flex-1 text-left">{m.user_display_name}</span>
+              {value.includes(m.user) ? <Check className="absolute right-2 size-4" /> : null}
+            </button>
+          ))
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
+
+type TaskMember = { id: number; user: number; user_display_name: string };
 
 function TaskTable({
   tasks,
   folderNameById,
   members,
-  sortConfig,
   canEdit,
   canDelete,
   deletingId,
-  onSort,
+  defaultVisibility = {},
   onOpenDetail,
   onEdit,
   onDelete,
@@ -834,90 +769,252 @@ function TaskTable({
 }: {
   tasks: Task[];
   folderNameById: Map<number, string>;
-  members: { id: number; user: number; user_display_name: string }[];
-  sortConfig: { column: SortColumn; direction: SortDirection } | null;
+  members: TaskMember[];
   canEdit: boolean;
   canDelete: boolean;
   deletingId: number | null | undefined;
-  onSort: (column: SortColumn) => void;
+  defaultVisibility?: VisibilityState;
   onOpenDetail: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   onStatusChange: (task: Task, status: Task["status"]) => void;
 }) {
+  "use no memo";
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultVisibility);
+
   const userDisplayMap = useMemo(() => {
     const map = new Map<number, string>();
     for (const m of members) map.set(m.user, m.user_display_name);
     return map;
   }, [members]);
 
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <SortableTableHead column="title" sortConfig={sortConfig} onSort={onSort}>Tache</SortableTableHead>
-          <SortableTableHead column="folder" sortConfig={sortConfig} onSort={onSort}>Dossier</SortableTableHead>
-          <SortableTableHead column="status" sortConfig={sortConfig} onSort={onSort}>Statut</SortableTableHead>
-          <SortableTableHead column="priority" sortConfig={sortConfig} onSort={onSort}>Priorite</SortableTableHead>
-          <SortableTableHead column="due_date" sortConfig={sortConfig} onSort={onSort}>Echeance</SortableTableHead>
-          <TableHead className="hidden sm:table-cell">Assignes</TableHead>
-          <TableHead className="w-24 text-right">Actions</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {tasks.map((task) => {
-          const folderName = task.folder == null ? "Projet" : folderNameById.get(task.folder) ?? `Dossier #${task.folder}`;
-          const assigneeNames = task.assigned_to.map((uid) => userDisplayMap.get(uid) ?? `#${uid}`).join(", ");
-
-          return (
-            <TableRow key={task.id} className="cursor-pointer" onClick={() => onOpenDetail(task)}>
-              <TableCell className="font-medium">{task.title}</TableCell>
-              <TableCell className="text-muted-foreground">{folderName}</TableCell>
-              <TableCell onClick={(e) => e.stopPropagation()}>
-                {canEdit ? (
-                  <Select
-                    value={task.status}
-                    onValueChange={(v) => onStatusChange(task, v as Task["status"])}
+  const columns = useMemo<ColumnDef<Task>[]>(
+    () => [
+      {
+        accessorKey: "title",
+        header: ({ column }) => <SortButton column={column}>Tache</SortButton>,
+        cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
+      },
+      {
+        id: "folder",
+        accessorFn: (row) => row.folder == null ? "" : (folderNameById.get(row.folder) ?? ""),
+        header: ({ column }) => <SortButton column={column}>Dossier</SortButton>,
+        cell: ({ row }) => {
+          const name = row.original.folder == null ? "Projet" : (folderNameById.get(row.original.folder) ?? `Dossier #${row.original.folder}`);
+          return <span className="text-muted-foreground">{name}</span>;
+        },
+        sortingFn: "alphanumeric",
+      },
+      {
+        id: "status",
+        accessorFn: (row) => ({ todo: 0, in_progress: 1, done: 2 }[row.status]),
+        header: ({ column }) => <SortButton column={column}>Statut</SortButton>,
+        cell: ({ row }) => (
+          <div onClick={(e) => e.stopPropagation()}>
+            {canEdit ? (
+              <Select
+                value={row.original.status}
+                onValueChange={(v) => onStatusChange(row.original, v as Task["status"])}
+              >
+                <SelectTrigger className={`h-7 w-32 border px-2 text-xs font-medium ${getStatusClassName(row.original.status)}`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">A faire</SelectItem>
+                  <SelectItem value="in_progress">En cours</SelectItem>
+                  <SelectItem value="done">Termine</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Badge variant="outline" className={getStatusClassName(row.original.status)}>
+                {getStatusLabel(row.original.status)}
+              </Badge>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "priority",
+        accessorFn: (row) => ({ low: 0, normal: 1, high: 2 }[row.priority]),
+        header: ({ column }) => <SortButton column={column}>Priorite</SortButton>,
+        cell: ({ row }) => (
+          <Badge variant="outline" className={getPriorityClassName(row.original.priority)}>
+            {getPriorityLabel(row.original.priority)}
+          </Badge>
+        ),
+      },
+      {
+        id: "due_date",
+        accessorKey: "due_date",
+        header: ({ column }) => <SortButton column={column}>Echeance</SortButton>,
+        cell: ({ row }) => (
+          <span className="text-muted-foreground">
+            {row.original.due_date ? formatTaskDate(row.original.due_date) : "-"}
+          </span>
+        ),
+        sortUndefined: "last",
+      },
+      {
+        id: "assignees",
+        header: () => <span>Assignes</span>,
+        cell: ({ row }) => {
+          const names = row.original.assigned_to.map((uid) => userDisplayMap.get(uid) ?? `#${uid}`).join(", ");
+          return <span className="max-w-30 truncate text-muted-foreground">{names || "-"}</span>;
+        },
+        enableSorting: false,
+      },
+      {
+        id: "actions",
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+            {canEdit ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Modifier"
+                    onClick={() => onEdit(row.original)}
                   >
-                    <SelectTrigger className={`h-7 w-32 border px-2 text-xs font-medium ${getStatusClassName(task.status)}`}>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todo">A faire</SelectItem>
-                      <SelectItem value="in_progress">En cours</SelectItem>
-                      <SelectItem value="done">Termine</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <Badge variant="outline" className={getStatusClassName(task.status)}>{getStatusLabel(task.status)}</Badge>
-                )}
-              </TableCell>
-              <TableCell>
-                <Badge variant="outline" className={getPriorityClassName(task.priority)}>{getPriorityLabel(task.priority)}</Badge>
-              </TableCell>
-              <TableCell className="text-muted-foreground">{task.due_date ? formatTaskDate(task.due_date) : "-"}</TableCell>
-              <TableCell className="hidden max-w-30 truncate text-muted-foreground sm:table-cell">{assigneeNames || "-"}</TableCell>
-              <TableCell className="text-right" onClick={(event) => event.stopPropagation()}>
-                <div className="flex justify-end gap-1">
-                  {canEdit ? (
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Modifier cette tache" onClick={() => onEdit(task)}>
-                      <Pencil className="size-4" />
-                    </Button>
-                  ) : null}
-                  {canDelete ? (
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Supprimer cette tache" disabled={deletingId === task.id} onClick={() => onDelete(task)}>
-                      <Trash2 className="size-4" />
-                    </Button>
-                  ) : null}
-                </div>
-              </TableCell>
+                    <Pencil className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Modifier</TooltipContent>
+              </Tooltip>
+            ) : null}
+            {canDelete ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Supprimer"
+                    disabled={deletingId === row.original.id}
+                    onClick={() => onDelete(row.original)}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Supprimer</TooltipContent>
+              </Tooltip>
+            ) : null}
+          </div>
+        ),
+        enableSorting: false,
+      },
+    ],
+    [folderNameById, userDisplayMap, canEdit, canDelete, deletingId, onEdit, onDelete, onStatusChange],
+  );
+
+  const table = useReactTable({
+    data: tasks,
+    columns,
+    state: { sorting, columnVisibility },
+    onSortingChange: setSorting,
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
+  const columnLabels: Record<string, string> = {
+    title: "Tache",
+    folder: "Dossier",
+    status: "Statut",
+    priority: "Priorite",
+    due_date: "Echeance",
+    assignees: "Assignes",
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-end">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm" className="gap-2">
+              <Columns3 className="size-4" />
+              Colonnes
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel>Afficher / masquer</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {table
+              .getAllColumns()
+              .filter((col) => col.getCanHide())
+              .map((col) => (
+                <DropdownMenuCheckboxItem
+                  key={col.id}
+                  checked={col.getIsVisible()}
+                  onCheckedChange={(value) => col.toggleVisibility(!!value)}
+                >
+                  {columnLabels[col.id] ?? col.id}
+                </DropdownMenuCheckboxItem>
+              ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <Table>
+        <TableHeader>
+          {table.getHeaderGroups().map((headerGroup) => (
+            <TableRow key={headerGroup.id}>
+              {headerGroup.headers.map((header) => (
+                <TableHead key={header.id} className={header.id === "actions" ? "w-20 text-right" : header.id === "assignees" ? "hidden sm:table-cell" : undefined}>
+                  {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                </TableHead>
+              ))}
             </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow key={row.id} className="cursor-pointer" onClick={() => onOpenDetail(row.original)}>
+              {row.getVisibleCells().map((cell) => (
+                <TableCell
+                  key={cell.id}
+                  className={cell.column.id === "actions" ? "text-right" : cell.column.id === "assignees" ? "hidden sm:table-cell" : undefined}
+                >
+                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
+
+function SortButton({
+  column,
+  children,
+}: {
+  column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (asc: boolean) => void; getCanSort: () => boolean };
+  children: React.ReactNode;
+}) {
+  const sorted = column.getIsSorted();
+  if (!column.getCanSort()) return <span>{children}</span>;
+  return (
+    <button
+      className="flex items-center gap-1 hover:text-foreground"
+      onClick={() => column.toggleSorting(sorted === "asc")}
+    >
+      {children}
+      {sorted === "asc" ? (
+        <ChevronUp className="size-3.5" />
+      ) : sorted === "desc" ? (
+        <ChevronDown className="size-3.5" />
+      ) : (
+        <ChevronsUpDown className="size-3.5 text-muted-foreground/50" />
+      )}
+    </button>
+  );
+}
+
 function buildTasksHref(projectId: number, searchParams: URLSearchParams) {
   const params = new URLSearchParams(searchParams.toString());
   params.set("project", String(projectId));
@@ -932,28 +1029,20 @@ function parseFolderFilter(value: string | null): FolderFilter {
 }
 
 function parseStatusFilter(value: string | null): StatusFilter {
-  if (value === "todo" || value === "in_progress" || value === "done") {
-    return value;
-  }
+  if (value === "todo" || value === "in_progress" || value === "done") return value;
   return "all";
 }
 
 function parsePriorityFilter(value: string | null): PriorityFilter {
-  if (value === "low" || value === "normal" || value === "high") {
-    return value;
-  }
+  if (value === "low" || value === "normal" || value === "high") return value;
   return "all";
 }
 
 function getFolderId(value: FolderFilter) {
-  if (value.startsWith("folder-")) {
-    return Number(value.replace("folder-", ""));
-  }
+  if (value.startsWith("folder-")) return Number(value.replace("folder-", ""));
   return null;
 }
-
 
 async function invalidateTasks(queryClient: ProjectWorkspaceState["queryClient"], projectId: number) {
   await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });
 }
-
