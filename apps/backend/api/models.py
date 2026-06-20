@@ -295,15 +295,6 @@ class TimeEntry(BaseModel):
         if self.task and self.task.project_id != self.project_id:
             raise ValidationError("errors.time_entry.task_project_mismatch")
 
-        from .services.members import get_project_assignable_users
-
-        user_is_assignable = get_project_assignable_users(self.project).filter(
-            pk=self.user_id,
-        ).exists()
-        if self.user_id and not user_is_assignable:
-            raise ValidationError({
-                "user": "errors.time_entry.user_not_project_member"
-            })
 
 class FinancialEntry(BaseModel):
     class FinancialType(models.TextChoices):

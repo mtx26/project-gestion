@@ -672,6 +672,15 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "documents_info",
         ]
 
+    def validate_user(self, user):
+        from .services.members import get_project_assignable_users
+        project = self.context.get("project")
+        if project is None or user is None:
+            return user
+        if not get_project_assignable_users(project).filter(pk=user.pk).exists():
+            raise serializers.ValidationError("errors.time_entry.user_not_project_member")
+        return user
+
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None
 

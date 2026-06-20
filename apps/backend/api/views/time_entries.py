@@ -137,6 +137,19 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
             date_filter | Q(filter_paid_amount__lt=F("filter_cost_amount"))
         )
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+
+        if getattr(self, "swagger_fake_view", False):
+            return context
+
+        project = get_object_or_404(
+            get_accessible_projects(self.request.user),
+            pk=self.kwargs["project_id"],
+        )
+        context["project"] = project
+        return context
+
     def perform_create(self, serializer):
         project = get_object_or_404(
             get_accessible_projects(self.request.user),
@@ -204,6 +217,19 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
                 queryset = queryset.filter(user=self.request.user)
 
         return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+
+        if getattr(self, "swagger_fake_view", False):
+            return context
+
+        project = get_object_or_404(
+            get_accessible_projects(self.request.user),
+            pk=self.kwargs["project_id"],
+        )
+        context["project"] = project
+        return context
 
     def perform_destroy(self, instance):
         instance.soft_delete(self.request.user)
