@@ -21,8 +21,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 type RoleFormDialogProps = {
@@ -102,15 +104,15 @@ export function RoleFormDialog({
             }
           }}
         >
-          <div className="space-y-2">
-            <Label htmlFor="role-name">Nom du role</Label>
+          <Field>
+            <FieldLabel htmlFor="role-name">Nom du role</FieldLabel>
             <Input
               id="role-name"
               placeholder="Ex. Contributeur"
               value={roleName}
               onChange={(event) => onRoleNameChange(event.target.value)}
             />
-          </div>
+          </Field>
 
           <Separator />
 
@@ -133,7 +135,8 @@ export function RoleFormDialog({
             Les actions dependent de la lecture: cocher une action ajoute automatiquement les droits necessaires.
           </p>
 
-          <div className="max-h-[45vh] space-y-3 overflow-y-auto pr-1">
+          <ScrollArea className="max-h-[45vh] pr-1">
+          <div className="space-y-3">
             {permissionGroups.map((group) => {
               const groupIds = group.permissions.map((permission) => permission.id);
               const groupFullySelected = groupIds.every((id) => rolePermissionIds.includes(id));
@@ -174,6 +177,7 @@ export function RoleFormDialog({
               );
             })}
           </div>
+          </ScrollArea>
 
           {!canSubmit ? (
             <p className="text-xs text-muted-foreground">

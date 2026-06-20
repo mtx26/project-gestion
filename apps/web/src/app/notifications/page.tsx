@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -80,7 +81,7 @@ function NotificationsContent() {
 
       <Card className="rounded-lg">
         <CardHeader>
-          <CardTitle>Liste</CardTitle>
+          <CardTitle>Liste des notifications</CardTitle>
         </CardHeader>
         <CardContent>
           {notifications.length === 0 && !notificationsQuery.isLoading ? (
@@ -94,7 +95,7 @@ function NotificationsContent() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <div className="divide-y rounded-md border">
+            <ItemGroup>
               {notifications.map((notification) => (
                 <NotificationRow
                   key={notification.id}
@@ -103,7 +104,7 @@ function NotificationsContent() {
                   onMarkRead={() => markRead.mutate(notification.id)}
                 />
               ))}
-            </div>
+            </ItemGroup>
           )}
         </CardContent>
       </Card>

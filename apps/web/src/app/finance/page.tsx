@@ -5,7 +5,7 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound } from "lucide-react";
+import { Banknote, Calendar, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
@@ -28,6 +28,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
@@ -37,6 +39,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
@@ -136,6 +139,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const createEntry = useMutation({
     mutationFn: (payload: FinancialEntryPayload) => api.financialEntries.create(projectId!, payload),
     onSuccess: () => {
+      toast.success("Entree creee");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setCreateOpen(false);
       setFormError(null);
@@ -147,6 +151,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
     mutationFn: ({ id, payload }: { id: number; payload: Partial<FinancialEntryPayload> }) =>
       api.financialEntries.update(projectId!, id, payload),
     onSuccess: () => {
+      toast.success("Entree mise a jour");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setEditingEntry(null);
       setFormError(null);
@@ -157,6 +162,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
   const deleteEntry = useMutation({
     mutationFn: (id: number) => api.financialEntries.remove(projectId!, id),
     onSuccess: () => {
+      toast.success("Entree supprimee");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setDeletingEntryId(null);
     },
@@ -185,17 +191,25 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
 
   if (!selectedProject) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-        <p>Selectionnez un projet pour voir les finances.</p>
-      </div>
+      <Empty className="border bg-card py-12">
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><Banknote className="size-4" /></EmptyMedia>
+          <EmptyTitle>Aucun projet selectionne</EmptyTitle>
+          <EmptyDescription>Selectionnez un projet pour voir les finances.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
   if (!canViewFinance) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-        <p>Vous n&apos;avez pas acces aux finances de ce projet.</p>
-      </div>
+      <Empty className="border bg-card py-12">
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><Lock className="size-4" /></EmptyMedia>
+          <EmptyTitle>Acces restreint</EmptyTitle>
+          <EmptyDescription>Vous n&apos;avez pas acces aux finances de ce projet.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
@@ -287,7 +301,12 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
       {entriesQuery.isLoading ? (
         <SkeletonLoader count={5} />
       ) : entries.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">Aucune entree financiere.</p>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>Aucune entree financiere</EmptyTitle>
+            <EmptyDescription>Aucune entree ne correspond aux filtres selectionnes.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="flex flex-col gap-2">
           {entries.map((entry) => (
@@ -535,8 +554,8 @@ function FinancialEntryFormDialog({
 
         <form id="finance-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="entry-type">Type</Label>
+            <Field>
+              <FieldLabel htmlFor="entry-type">Type</FieldLabel>
               <Select value={type} onValueChange={(v) => setType(v as "expense" | "refund")}>
                 <SelectTrigger id="entry-type">
                   <SelectValue />
@@ -546,9 +565,9 @@ function FinancialEntryFormDialog({
                   <SelectItem value="refund">Remboursement</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="entry-amount">Montant (€)</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="entry-amount">Montant (€)</FieldLabel>
               <Input
                 id="entry-amount"
                 type="text"
@@ -558,11 +577,11 @@ function FinancialEntryFormDialog({
                 onChange={(e) => setAmount(e.target.value)}
                 required
               />
-            </div>
+            </Field>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="entry-category">Categorie</Label>
+          <Field>
+            <FieldLabel htmlFor="entry-category">Categorie</FieldLabel>
             <Input
               id="entry-category"
               type="text"
@@ -570,10 +589,10 @@ function FinancialEntryFormDialog({
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             />
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="entry-description">Description</Label>
+          <Field>
+            <FieldLabel htmlFor="entry-description">Description</FieldLabel>
             <Textarea
               id="entry-description"
               rows={2}
@@ -581,10 +600,10 @@ function FinancialEntryFormDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-2">
-            <Label>Cible (optionnel)</Label>
+          <Field>
+            <FieldLabel>Cible (optionnel)</FieldLabel>
             <TreePickerDialog
               mode="target"
               folders={targetFolders}
@@ -593,7 +612,7 @@ function FinancialEntryFormDialog({
               onSelect={setTargetValue}
               onCreateFolder={onCreateFolder}
             />
-          </div>
+          </Field>
 
           <MultiDocumentAttachmentField
             existingDocs={existingDocs}

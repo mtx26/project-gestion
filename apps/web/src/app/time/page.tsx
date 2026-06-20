@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -34,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getDescendantFolderIds } from "@/lib/folder-utils";
@@ -196,6 +198,7 @@ function ProjectTimeContent({
         documents: documentIds,
       }),
     onSuccess: async () => {
+      toast.success("Temps enregistre");
       setHours("1");
       setMinutes("0");
       setHourlyRateDraft(null);
@@ -208,6 +211,7 @@ function ProjectTimeContent({
   const deleteTimeEntry = useMutation({
     mutationFn: (timeEntryId: number) => api.timeEntries.remove(selectedProject!.id, timeEntryId),
     onSuccess: async () => {
+      toast.success("Entree supprimee");
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
   });
@@ -218,6 +222,7 @@ function ProjectTimeContent({
         amount: paymentMode === "partial" ? paymentAmount : undefined,
       }),
     onSuccess: async () => {
+      toast.success("Paiement enregistre");
       setPaymentTarget(null);
       setPaymentMode("full");
       setPaymentAmount("");
@@ -238,6 +243,7 @@ function ProjectTimeContent({
         documents: documentIds,
       }),
     onSuccess: async () => {
+      toast.success("Temps mis a jour");
       setEditingEntry(null);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
@@ -771,23 +777,23 @@ function TimeEntryForm({
       ) : (
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="time-hours">Heures</Label>
+            <Field>
+              <FieldLabel htmlFor="time-hours">Heures</FieldLabel>
               <Input id="time-hours" type="number" min="0" value={hours} onChange={(event) => onHoursChange(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="time-minutes">Minutes</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="time-minutes">Minutes</FieldLabel>
               <Input id="time-minutes" type="number" min="0" max="59" value={minutes} onChange={(event) => onMinutesChange(event.target.value)} />
-            </div>
+            </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="time-rate">Taux horaire</Label>
+            <Field>
+              <FieldLabel htmlFor="time-rate">Taux horaire</FieldLabel>
               <Input id="time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="time-total">Total</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="time-total">Total</FieldLabel>
               <Input
                 id="time-total"
                 type="number"
@@ -797,11 +803,11 @@ function TimeEntryForm({
                 onChange={(event) => handleTotalChange(event.target.value)}
                 onBlur={handleTotalBlur}
               />
-            </div>
+            </Field>
           </div>
 
-          <div className="space-y-2">
-            <Label>Cible</Label>
+          <Field>
+            <FieldLabel>Cible</FieldLabel>
             <TargetPickerDialog
               targetTree={targetTree}
               selectedValue={targetValue}
@@ -809,12 +815,12 @@ function TimeEntryForm({
               onSelect={onTargetValueChange}
               onCreateFolder={onCreateFolder}
             />
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="time-description">Description</Label>
+          <Field>
+            <FieldLabel htmlFor="time-description">Description</FieldLabel>
             <Textarea id="time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
-          </div>
+          </Field>
 
           <MultiDocumentAttachmentField
             existingDocs={[]}
@@ -1294,23 +1300,23 @@ function EditTimeEntryDialog({
 
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="edit-time-hours">Heures</Label>
+            <Field>
+              <FieldLabel htmlFor="edit-time-hours">Heures</FieldLabel>
               <Input id="edit-time-hours" type="number" min="0" value={hours} onChange={(event) => onHoursChange(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-time-minutes">Minutes</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="edit-time-minutes">Minutes</FieldLabel>
               <Input id="edit-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(event) => onMinutesChange(event.target.value)} />
-            </div>
+            </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="edit-time-rate">Taux horaire</Label>
+            <Field>
+              <FieldLabel htmlFor="edit-time-rate">Taux horaire</FieldLabel>
               <Input id="edit-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-time-total">Total</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="edit-time-total">Total</FieldLabel>
               <Input
                 id="edit-time-total"
                 type="number"
@@ -1320,11 +1326,11 @@ function EditTimeEntryDialog({
                 onChange={(event) => handleTotalChange(event.target.value)}
                 onBlur={handleTotalBlur}
               />
-            </div>
+            </Field>
           </div>
 
-          <div className="space-y-2">
-            <Label>Cible</Label>
+          <Field>
+            <FieldLabel>Cible</FieldLabel>
             <TargetPickerDialog
               targetTree={targetTree}
               selectedValue={targetValue}
@@ -1332,12 +1338,12 @@ function EditTimeEntryDialog({
               onSelect={onTargetValueChange}
               onCreateFolder={onCreateFolder}
             />
-          </div>
+          </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="edit-time-description">Description</Label>
+          <Field>
+            <FieldLabel htmlFor="edit-time-description">Description</FieldLabel>
             <Textarea id="edit-time-description" rows={4} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
-          </div>
+          </Field>
 
           <MultiDocumentAttachmentField
             existingDocs={existingDocs}

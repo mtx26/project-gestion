@@ -13,6 +13,7 @@ import { CreateProjectDialog } from "@/components/dashboard/create-project-dialo
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProtectedRoute } from "@/components/protected-route";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/auth-store";
@@ -71,6 +72,7 @@ export function ProjectWorkspaceShell({
   const createProject = useMutation({
     mutationFn: api.projects.create,
     onSuccess: async (project) => {
+      toast.success("Projet cree");
       form.reset();
       setManualSelectedProjectId(String(project.id));
       setCreateDialogOpen(false);

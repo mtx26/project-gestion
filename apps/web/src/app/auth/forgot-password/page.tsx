@@ -10,8 +10,8 @@ import { FormError } from "@/components/form-error";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -44,11 +44,11 @@ export default function ForgotPasswordPage() {
             </Alert>
           ) : null}
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
               <Input id="email" type="email" {...form.register("email")} />
-              <FormError message={form.formState.errors.email?.message} />
-            </div>
+              <FieldError errors={[form.formState.errors.email]} />
+            </Field>
             <FormError message={serverError} />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Envoyer le lien

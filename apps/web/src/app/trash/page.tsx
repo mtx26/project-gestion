@@ -11,6 +11,8 @@ import { formatBytes, formatDuration, formatMoney } from "@/lib/task-utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
@@ -156,8 +158,23 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
   const financialEntries = normalizeApiList(financialEntriesTrashQuery.data);
   const expenseRequests = normalizeApiList(expenseRequestsTrashQuery.data);
 
-  const lockedMsg = <p className="py-8 text-center text-sm text-muted-foreground">Vous n&apos;avez pas acces a cet onglet.</p>;
-  const noProjectMsg = <p className="py-8 text-center text-sm text-muted-foreground">Selectionnez un projet pour voir cet onglet.</p>;
+  const lockedMsg = (
+    <Empty>
+      <EmptyHeader>
+        <EmptyMedia variant="icon"><Lock className="size-4" /></EmptyMedia>
+        <EmptyTitle>Acces restreint</EmptyTitle>
+        <EmptyDescription>Vous n&apos;avez pas acces a cet onglet.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
+  const noProjectMsg = (
+    <Empty>
+      <EmptyHeader>
+        <EmptyTitle>Aucun projet selectionne</EmptyTitle>
+        <EmptyDescription>Selectionnez un projet pour voir cet onglet.</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
+  );
 
   return (
     <div className="space-y-5">
@@ -377,38 +394,45 @@ function DocumentTrashSection({
   }
 
   if (items.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">Aucun document supprime.</p>;
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>Aucun document supprime.</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <ItemGroup>
       {items.map((doc) => (
-        <div key={doc.id} className="flex items-center gap-3 rounded-lg border bg-card px-4 py-3">
+        <Item key={doc.id} variant="outline">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-muted">
             <FileText className="size-5 text-muted-foreground" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{doc.name}</p>
+          <ItemContent>
+            <ItemTitle>{doc.name}</ItemTitle>
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-xs text-muted-foreground">
               <span>{getFileTypeLabel(doc.mime_type, doc.file_name)}</span>
               {doc.file_size ? <span>{formatBytes(doc.file_size)}</span> : null}
               <span>{formatDeletedAt(doc.deleted_at)}</span>
             </div>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="shrink-0 gap-2"
-            onClick={() => onRestore(doc)}
-            disabled={isRestoring}
-          >
-            <RotateCcw className="size-3.5" />
-            Restaurer
-          </Button>
-        </div>
+          </ItemContent>
+          <ItemActions>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onRestore(doc)}
+              disabled={isRestoring}
+            >
+              <RotateCcw className="size-3.5" />
+              Restaurer
+            </Button>
+          </ItemActions>
+        </Item>
       ))}
-    </div>
+    </ItemGroup>
   );
 }
 
@@ -438,36 +462,40 @@ function TrashSection<T extends { id: number }>({
   }
 
   if (items.length === 0) {
-    return <p className="py-8 text-center text-sm text-muted-foreground">{emptyText}</p>;
+    return (
+      <Empty>
+        <EmptyHeader>
+          <EmptyTitle>{emptyText}</EmptyTitle>
+        </EmptyHeader>
+      </Empty>
+    );
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <ItemGroup>
       {items.map((item) => (
-        <div
-          key={item.id}
-          className="flex items-center justify-between gap-4 rounded-lg border bg-card px-4 py-3"
-        >
-          <div className="min-w-0">
-            <p className="truncate font-medium">{getName(item)}</p>
-            <p className="truncate text-xs text-muted-foreground">{getSubtitle(item)}</p>
-          </div>
+        <Item key={item.id} variant="outline">
+          <ItemContent>
+            <ItemTitle>{getName(item)}</ItemTitle>
+            <ItemDescription>{getSubtitle(item)}</ItemDescription>
+          </ItemContent>
           {canRestore ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="shrink-0 gap-2"
-              onClick={() => onRestore(item)}
-              disabled={isRestoring}
-            >
-              <RotateCcw className="size-3.5" />
-              Restaurer
-            </Button>
+            <ItemActions>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onRestore(item)}
+                disabled={isRestoring}
+              >
+                <RotateCcw className="size-3.5" />
+                Restaurer
+              </Button>
+            </ItemActions>
           ) : null}
-        </div>
+        </Item>
       ))}
-    </div>
+    </ItemGroup>
   );
 }
 

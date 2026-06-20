@@ -11,8 +11,8 @@ import { FormError } from "@/components/form-error";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { getErrorMessage, getFieldError } from "@/lib/errors";
 
@@ -49,31 +49,31 @@ export default function RegisterPage() {
         <CardContent className="pt-6">
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="first_name">Prenom</Label>
+              <Field>
+                <FieldLabel htmlFor="first_name">Prenom</FieldLabel>
                 <Input id="first_name" {...form.register("first_name")} />
-                <FormError message={form.formState.errors.first_name?.message} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="last_name">Nom</Label>
+                <FieldError errors={[form.formState.errors.first_name]} />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="last_name">Nom</FieldLabel>
                 <Input id="last_name" {...form.register("last_name")} />
-                <FormError message={form.formState.errors.last_name?.message} />
-              </div>
+                <FieldError errors={[form.formState.errors.last_name]} />
+              </Field>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
               <Input id="email" type="email" autoComplete="email" {...form.register("email")} />
-              <FormError message={form.formState.errors.email?.message} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
+              <FieldError errors={[form.formState.errors.email]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
               <PasswordInput
                 id="password"
                 autoComplete="new-password"
                 {...form.register("password")}
               />
-              <FormError message={form.formState.errors.password?.message} />
-            </div>
+              <FieldError errors={[form.formState.errors.password]} />
+            </Field>
             <FormError message={serverError} />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Creer le compte

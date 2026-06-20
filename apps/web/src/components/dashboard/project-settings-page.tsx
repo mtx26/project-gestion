@@ -28,12 +28,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -152,6 +154,7 @@ function ProjectSettingsContent({
         description: values.description?.trim() || null,
       }),
     onSuccess: async () => {
+      toast.success("Projet mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
     },
   });
@@ -172,6 +175,7 @@ function ProjectSettingsContent({
         role: Number(inviteRoleId),
       }),
     onSuccess: async () => {
+      toast.success("Invitation envoyee");
       setInviteEmail("");
       setInviteRoleId("");
       await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject!.id) });
@@ -180,6 +184,7 @@ function ProjectSettingsContent({
   const removeInvitation = useMutation({
     mutationFn: (invitationId: number) => api.invitations.remove(selectedProject!.id, invitationId),
     onSuccess: async () => {
+      toast.success("Invitation annulee");
       await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject!.id) });
     },
   });
@@ -187,12 +192,14 @@ function ProjectSettingsContent({
     mutationFn: ({ invitationId, roleId }: { invitationId: number; roleId: number }) =>
       api.invitations.update(selectedProject!.id, invitationId, { role: roleId }),
     onSuccess: async () => {
+      toast.success("Role mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject!.id) });
     },
   });
   const removeMember = useMutation({
     mutationFn: (memberId: number) => api.members.remove(selectedProject!.id, memberId),
     onSuccess: async () => {
+      toast.success("Membre retire");
       await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject!.id) });
     },
   });
@@ -200,6 +207,7 @@ function ProjectSettingsContent({
     mutationFn: ({ memberId, roleId }: { memberId: number; roleId: number }) =>
       api.members.update(selectedProject!.id, memberId, { role: roleId }),
     onSuccess: async () => {
+      toast.success("Role mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject!.id) });
     },
   });
@@ -211,6 +219,7 @@ function ProjectSettingsContent({
         buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)),
       ),
     onSuccess: async () => {
+      toast.success("Role cree");
       resetRoleDialog();
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject!.id) });
     },
@@ -224,6 +233,7 @@ function ProjectSettingsContent({
         buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)),
       ),
     onSuccess: async () => {
+      toast.success("Role mis a jour");
       resetRoleDialog();
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject!.id) });
     },
@@ -231,6 +241,7 @@ function ProjectSettingsContent({
   const deleteRole = useMutation({
     mutationFn: (roleId: number) => api.roles.remove(selectedProject!.id, roleId),
     onSuccess: async () => {
+      toast.success("Role supprime");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject!.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject!.id) }),
@@ -756,14 +767,14 @@ function GeneralSettingsCard({
         ) : null}
 
         <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-          <div className="space-y-2">
-            <Label htmlFor="project-settings-name">Nom du projet</Label>
+          <Field>
+            <FieldLabel htmlFor="project-settings-name">Nom du projet</FieldLabel>
             <Input id="project-settings-name" disabled={!canEdit} {...form.register("name")} />
-            <FormError message={form.formState.errors.name?.message} />
-          </div>
+            <FieldError errors={[form.formState.errors.name]} />
+          </Field>
 
-          <div className="space-y-2">
-            <Label htmlFor="project-settings-description">Description</Label>
+          <Field>
+            <FieldLabel htmlFor="project-settings-description">Description</FieldLabel>
             <Textarea
               id="project-settings-description"
               rows={5}
@@ -771,7 +782,7 @@ function GeneralSettingsCard({
               disabled={!canEdit}
               {...form.register("description")}
             />
-          </div>
+          </Field>
 
           <FormError message={error} />
 

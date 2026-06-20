@@ -13,8 +13,8 @@ import { PasswordInput } from "@/components/password-input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { getErrorMessage, getFieldError, isEmailVerificationRequired } from "@/lib/errors";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -69,20 +69,20 @@ export default function LoginPage() {
             </Alert>
           ) : null}
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="space-y-2">
-              <Label htmlFor="identifier">Email ou nom d&apos;utilisateur</Label>
+            <Field>
+              <FieldLabel htmlFor="identifier">Email ou nom d&apos;utilisateur</FieldLabel>
               <Input id="identifier" autoComplete="username" {...form.register("identifier")} />
-              <FormError message={form.formState.errors.identifier?.message} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
+              <FieldError errors={[form.formState.errors.identifier]} />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Mot de passe</FieldLabel>
               <PasswordInput
                 id="password"
                 autoComplete="current-password"
                 {...form.register("password")}
               />
-              <FormError message={form.formState.errors.password?.message} />
-            </div>
+              <FieldError errors={[form.formState.errors.password]} />
+            </Field>
             <FormError message={serverError} />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Se connecter

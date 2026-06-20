@@ -26,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { DatePicker } from "@/components/ui/date-picker";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import {
@@ -48,6 +49,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { PageTitle } from "@/components/ui/page-title";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { buildFolderNameMap, findFolderName } from "@/lib/folder-utils";
@@ -159,6 +161,7 @@ function ProjectTasksContent({
         assigned_to: newTaskAssignees,
       }),
     onSuccess: async () => {
+      toast.success("Tache creee");
       setTitle("");
       setDescription("");
       setNewTaskFolder(folderFilter);
@@ -173,6 +176,7 @@ function ProjectTasksContent({
     mutationFn: ({ taskId, payload }: { taskId: number; payload: Partial<TaskPayload> }) =>
       api.tasks.update(selectedProject!.id, taskId, payload),
     onSuccess: async () => {
+      toast.success("Tache mise a jour");
       setEditingTask(null);
       await invalidateTasks(queryClient, selectedProject!.id);
     },
@@ -180,6 +184,7 @@ function ProjectTasksContent({
   const deleteTask = useMutation({
     mutationFn: (taskId: number) => api.tasks.remove(selectedProject!.id, taskId),
     onSuccess: async () => {
+      toast.success("Tache supprimee");
       await invalidateTasks(queryClient, selectedProject!.id);
     },
   });
@@ -559,15 +564,15 @@ function TaskFormDialog({
           </DialogDescription>
         </DialogHeader>
         <form className="space-y-4" onSubmit={onSubmit}>
-          <div className="space-y-2">
-            <Label htmlFor="task-form-title">Titre</Label>
+          <Field>
+            <FieldLabel htmlFor="task-form-title">Titre</FieldLabel>
             <Input id="task-form-title" value={title} onChange={(e) => onTitleChange(e.target.value)} />
-          </div>
+          </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
             {canViewFiles ? (
-              <div className="space-y-2">
-                <Label>Dossier</Label>
+              <Field>
+                <FieldLabel>Dossier</FieldLabel>
                 <TreePickerDialog
                   mode="folder"
                   folders={folders}
@@ -577,11 +582,11 @@ function TaskFormDialog({
                   onSelect={(id) => onFolderChange(id == null ? "all" : `folder-${id}`)}
                   onCreateFolder={onCreateFolder}
                 />
-              </div>
+              </Field>
             ) : null}
             {mode === "edit" && status !== undefined && onStatusChange ? (
-              <div className="space-y-2">
-                <Label>Statut</Label>
+              <Field>
+                <FieldLabel>Statut</FieldLabel>
                 <Select value={status} onValueChange={(v) => onStatusChange(v as Task["status"])}>
                   <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -590,10 +595,10 @@ function TaskFormDialog({
                     <SelectItem value="done">Termine</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
             ) : mode === "create" ? (
-              <div className="space-y-2">
-                <Label>Priorite</Label>
+              <Field>
+                <FieldLabel>Priorite</FieldLabel>
                 <Select value={priority} onValueChange={(v) => onPriorityChange(v as Task["priority"])}>
                   <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -602,14 +607,14 @@ function TaskFormDialog({
                     <SelectItem value="high">Haute</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
+              </Field>
             ) : null}
           </div>
 
           {mode === "edit" ? (
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Priorite</Label>
+              <Field>
+                <FieldLabel>Priorite</FieldLabel>
                 <Select value={priority} onValueChange={(v) => onPriorityChange(v as Task["priority"])}>
                   <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -618,30 +623,30 @@ function TaskFormDialog({
                     <SelectItem value="high">Haute</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Echeance</Label>
+              </Field>
+              <Field>
+                <FieldLabel>Echeance</FieldLabel>
                 <DatePicker value={dueDate} onChange={onDueDateChange} />
-              </div>
+              </Field>
             </div>
           ) : (
-            <div className="space-y-2">
-              <Label>Echeance</Label>
+            <Field>
+              <FieldLabel>Echeance</FieldLabel>
               <DatePicker value={dueDate} onChange={onDueDateChange} />
-            </div>
+            </Field>
           )}
 
           {members.length > 0 ? (
-            <div className="space-y-2">
-              <Label>Assignes</Label>
+            <Field>
+              <FieldLabel>Assignes</FieldLabel>
               <MemberCombobox members={members} value={assignees} onChange={onAssigneesChange} />
-            </div>
+            </Field>
           ) : null}
 
-          <div className="space-y-2">
-            <Label htmlFor="task-form-description">Description</Label>
+          <Field>
+            <FieldLabel htmlFor="task-form-description">Description</FieldLabel>
             <Textarea id="task-form-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
-          </div>
+          </Field>
 
           <FormErrorAlert error={error} />
 

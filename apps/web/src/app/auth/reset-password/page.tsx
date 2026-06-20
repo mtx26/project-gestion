@@ -15,7 +15,7 @@ import { FormError } from "@/components/form-error";
 import { PasswordInput } from "@/components/password-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { api, webTokenStore } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -50,15 +50,15 @@ function ResetPasswordContent() {
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
             <input type="hidden" {...form.register("uid")} />
             <input type="hidden" {...form.register("token")} />
-            <div className="space-y-2">
-              <Label htmlFor="new_password">Nouveau mot de passe</Label>
+            <Field>
+              <FieldLabel htmlFor="new_password">Nouveau mot de passe</FieldLabel>
               <PasswordInput
                 id="new_password"
                 autoComplete="new-password"
                 {...form.register("new_password")}
               />
-              <FormError message={form.formState.errors.new_password?.message} />
-            </div>
+              <FieldError errors={[form.formState.errors.new_password]} />
+            </Field>
             <FormError
               message={
                 form.formState.errors.uid?.message ??

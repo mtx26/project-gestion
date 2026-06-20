@@ -5,13 +5,15 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, CheckCircle2, Clock, FileText, Folder, ListTodo, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
+import { Calendar, CheckCircle2, ClipboardList, Clock, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { EntryDetailBody } from "@/components/ui/entry-detail-body";
 import { PageTitle } from "@/components/ui/page-title";
 import {
@@ -33,6 +35,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
@@ -136,6 +139,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const createRequest = useMutation({
     mutationFn: (payload: ExpenseRequestPayload) => api.expenseRequests.create(projectId!, payload),
     onSuccess: () => {
+      toast.success("Remboursement cree");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setCreateOpen(false);
     },
@@ -145,6 +149,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
     mutationFn: ({ id, payload }: { id: number; payload: Partial<ExpenseRequestPayload> }) =>
       api.expenseRequests.update(projectId!, id, payload),
     onSuccess: () => {
+      toast.success("Remboursement mis a jour");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setEditingRequest(null);
     },
@@ -153,6 +158,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const deleteRequest = useMutation({
     mutationFn: (id: number) => api.expenseRequests.remove(projectId!, id),
     onSuccess: () => {
+      toast.success("Remboursement supprime");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setDeletingId(null);
     },
@@ -161,6 +167,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const approveRequest = useMutation({
     mutationFn: (id: number) => api.expenseRequests.approve(projectId!, id),
     onSuccess: () => {
+      toast.success("Remboursement approuve");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
     },
@@ -170,6 +177,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const rejectRequest = useMutation({
     mutationFn: (id: number) => api.expenseRequests.reject(projectId!, id),
     onSuccess: () => {
+      toast.success("Remboursement rejete");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
     },
     onError: (err) => setActionError(getErrorMessage(err)),
@@ -198,17 +206,25 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
 
   if (!selectedProject) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-        <p>Selectionnez un projet pour voir les demandes.</p>
-      </div>
+      <Empty className="border bg-card py-12">
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><ClipboardList className="size-4" /></EmptyMedia>
+          <EmptyTitle>Aucun projet selectionne</EmptyTitle>
+          <EmptyDescription>Selectionnez un projet pour voir les demandes.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
   if (!canView) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center text-muted-foreground">
-        <p>Vous n&apos;avez pas acces aux demandes de remboursement de ce projet.</p>
-      </div>
+      <Empty className="border bg-card py-12">
+        <EmptyHeader>
+          <EmptyMedia variant="icon"><Lock className="size-4" /></EmptyMedia>
+          <EmptyTitle>Acces restreint</EmptyTitle>
+          <EmptyDescription>Vous n&apos;avez pas acces aux demandes de remboursement de ce projet.</EmptyDescription>
+        </EmptyHeader>
+      </Empty>
     );
   }
 
@@ -295,7 +311,12 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       {requestsQuery.isLoading ? (
         <SkeletonLoader count={4} className="h-16 w-full rounded-lg" />
       ) : requests.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">Aucune demande de remboursement.</p>
+        <Empty>
+          <EmptyHeader>
+            <EmptyTitle>Aucune demande de remboursement</EmptyTitle>
+            <EmptyDescription>Aucune demande ne correspond aux filtres selectionnes.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <div className="flex flex-col gap-2">
           {requests.map((req) => (
@@ -560,8 +581,8 @@ function ExpenseRequestFormDialog({
         </DialogHeader>
 
         <form id="request-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="req-title">Titre</Label>
+          <Field>
+            <FieldLabel htmlFor="req-title">Titre</FieldLabel>
             <Input
               id="req-title"
               type="text"
@@ -570,11 +591,11 @@ function ExpenseRequestFormDialog({
               onChange={(e) => setTitle(e.target.value)}
               required
             />
-          </div>
+          </Field>
 
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="req-amount">Montant (€)</Label>
+            <Field>
+              <FieldLabel htmlFor="req-amount">Montant (€)</FieldLabel>
               <Input
                 id="req-amount"
                 type="text"
@@ -584,9 +605,9 @@ function ExpenseRequestFormDialog({
                 onChange={(e) => setAmount(e.target.value)}
                 required
               />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="req-category">Categorie</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="req-category">Categorie</FieldLabel>
               <Input
                 id="req-category"
                 type="text"
@@ -594,11 +615,11 @@ function ExpenseRequestFormDialog({
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
               />
-            </div>
+            </Field>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="req-description">Description</Label>
+          <Field>
+            <FieldLabel htmlFor="req-description">Description</FieldLabel>
             <Textarea
               id="req-description"
               rows={2}
@@ -606,10 +627,10 @@ function ExpenseRequestFormDialog({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
-          </div>
+          </Field>
 
-          <div className="flex flex-col gap-2">
-            <Label>Cible (optionnel)</Label>
+          <Field>
+            <FieldLabel>Cible (optionnel)</FieldLabel>
             <TreePickerDialog
               mode="target"
               folders={targetFolders}
@@ -618,7 +639,7 @@ function ExpenseRequestFormDialog({
               onSelect={setTargetValue}
               onCreateFolder={onCreateFolder}
             />
-          </div>
+          </Field>
 
           <MultiDocumentAttachmentField
             existingDocs={existingDocs}

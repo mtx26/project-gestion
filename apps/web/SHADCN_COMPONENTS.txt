@@ -1,5 +1,5 @@
 shadcn/ui component inventory
-Last checked: 2026-06-14
+Last checked: 2026-06-20
 Source: https://ui.shadcn.com/docs/components
 
 Rule for new UI work:
@@ -9,22 +9,34 @@ Rule for new UI work:
 
 Installed in this project:
 - Alert
+- Alert Dialog (ConfirmDeleteDialog + inline destructive confirmations)
+- Avatar (account profile picture)
 - Badge
+- Breadcrumb (sidebar navigation)
 - Button
 - Card
 - Checkbox
 - Context Menu
+- Date Picker (task due dates, time entries)
 - Dialog
-- Empty
+- Dropdown Menu (task column visibility toggle)
+- Empty (empty states: no project, no access, no items)
+- Field / FieldLabel / FieldError (all form fields)
 - Input
+- Item / ItemGroup (trash sections, notification rows)
 - Label
+- Popover (task assignee picker)
 - Progress
+- Scroll Area (role-form-dialog permissions list)
 - Select
 - Separator
+- Sidebar (main navigation)
 - Skeleton
+- Sonner (success toasts on all mutations)
 - Table
 - Tabs
 - Textarea
+- Tooltip (all icon-only buttons)
 
 Official shadcn components list:
 - Accordion
@@ -92,5 +104,9 @@ Frontend audit notes:
 - Prefer Empty for empty states instead of repeated dashed sections.
 - Prefer Context Menu for right-click actions instead of manual x/y menu positioning.
 - Keep native hidden file inputs when they are only an implementation detail behind a shadcn Button.
-- Consider adding Alert Dialog before the next destructive confirmation refactor.
-- Consider adding Field before a broader form refactor; current forms already use Input, Label, Select, Textarea and Button.
+- Use AlertDialog for all destructive confirmations (delete, remove). AlertDialogAction/Cancel wrap Button internally — no asChild needed.
+- Use Field/FieldLabel inside all form groups. Use FieldError for per-field validation (accepts errors array). Keep Label for non-field-group uses (checkboxes, permission group headers).
+- Use Tooltip wrapping icon-only buttons. TooltipProvider with delayDuration=0 is in providers.tsx.
+- Use Item/ItemGroup for list rows with media + content + actions layout. Use ItemGroup for vertical lists, keep grid layout for 2-column card grids.
+- Use toast.success("...") from sonner in all mutation onSuccess callbacks.
+- Consider Input Group for money (€) and rate (€/h) input fields with suffix/prefix labels.

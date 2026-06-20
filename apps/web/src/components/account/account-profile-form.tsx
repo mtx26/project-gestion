@@ -9,8 +9,10 @@ import { ProfilePictureEditorDialog } from "@/components/account/profile-picture
 import { FormError } from "@/components/form-error";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useAuthStore } from "@/stores/auth-store";
@@ -50,6 +52,7 @@ export function AccountProfileForm({
         },
       }),
     onSuccess: (updatedUser) => {
+      toast.success("Profil mis a jour");
       useAuthStore.setState({ user: updatedUser });
       setProfileDraft(getAccountProfileValues(updatedUser));
       onProfileSaved?.();
@@ -60,6 +63,7 @@ export function AccountProfileForm({
     mutationFn: (file: File) => api.auth.uploadProfilePicture(file),
     onMutate: () => setPictureError(null),
     onSuccess: (updatedUser) => {
+      toast.success("Photo de profil mise a jour");
       useAuthStore.setState({ user: updatedUser });
       onPictureSaved?.();
     },
@@ -122,36 +126,36 @@ export function AccountProfileForm({
       </div>
 
       {showEmail ? <InfoBlock label="Email" value={user?.email || "-"} /> : null}
-      <div className="space-y-2">
-        <Label htmlFor="account-username">Identifiant</Label>
+      <Field>
+        <FieldLabel htmlFor="account-username">Identifiant</FieldLabel>
         <Input
           id="account-username"
           value={profileValues.username}
           onChange={(event) => setProfileDraft({ ...profileValues, username: event.target.value })}
         />
-      </div>
+      </Field>
       {showNameFields ? (
         <>
-          <div className="space-y-2">
-            <Label htmlFor="account-first-name">Prenom</Label>
+          <Field>
+            <FieldLabel htmlFor="account-first-name">Prenom</FieldLabel>
             <Input
               id="account-first-name"
               value={profileValues.first_name}
               onChange={(event) => setProfileDraft({ ...profileValues, first_name: event.target.value })}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="account-last-name">Nom</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="account-last-name">Nom</FieldLabel>
             <Input
               id="account-last-name"
               value={profileValues.last_name}
               onChange={(event) => setProfileDraft({ ...profileValues, last_name: event.target.value })}
             />
-          </div>
+          </Field>
         </>
       ) : null}
-      <div className="space-y-2 sm:col-span-2">
-        <Label htmlFor="account-default-rate">Taux horaire par defaut</Label>
+      <Field className="sm:col-span-2">
+        <FieldLabel htmlFor="account-default-rate">Taux horaire par defaut</FieldLabel>
         <Input
           id="account-default-rate"
           type="number"
@@ -160,7 +164,7 @@ export function AccountProfileForm({
           value={profileValues.default_hourly_rate}
           onChange={(event) => setProfileDraft({ ...profileValues, default_hourly_rate: event.target.value })}
         />
-      </div>
+      </Field>
       <div className="sm:col-span-2">
         <FormError message={updateProfile.error ? getErrorMessage(updateProfile.error) : null} />
         <Button type="submit" disabled={updateProfile.isPending}>

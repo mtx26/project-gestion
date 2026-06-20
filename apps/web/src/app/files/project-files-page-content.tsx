@@ -39,6 +39,16 @@ import {
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogClose,
   DialogContent,
@@ -50,17 +60,19 @@ import {
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { DatePicker } from "@/components/ui/date-picker";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { TreePickerDialog } from "@/components/ui/tree-picker";
 import { TaskDetailModal } from "@/components/ui/task-detail-modal";
 import { buildFolderNameMap, findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
 import { formatDuration, formatMoney, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PageTitle } from "@/components/ui/page-title";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -145,7 +157,10 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
         name,
         parent_folder: parentFolder,
       }),
-    onSuccess: () => treeQuery.refetch(),
+    onSuccess: () => {
+      toast.success("Dossier cree");
+      treeQuery.refetch();
+    },
   });
   const uploadDocument = useMutation({
     mutationFn: ({ file, folder }: { file: File; folder: number | null }) =>
@@ -153,7 +168,10 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
         file,
         folder,
       }),
-    onSuccess: () => treeQuery.refetch(),
+    onSuccess: () => {
+      toast.success("Document uploade");
+      treeQuery.refetch();
+    },
   });
   const openDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.download(selectedProject!.id, documentId),
@@ -167,6 +185,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     mutationFn: (folderId: number) => api.folders.remove(selectedProject!.id, folderId),
     onMutate: () => setActionError(null),
     onSuccess: async (_data, folderId) => {
+      toast.success("Dossier supprime");
       setItemToDelete(null);
       setSelectedFolderState((current) =>
         current.projectId === selectedProjectId && current.id === folderId
@@ -181,6 +200,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     mutationFn: (documentId: number) => api.documents.remove(selectedProject!.id, documentId),
     onMutate: () => setActionError(null),
     onSuccess: async () => {
+      toast.success("Document supprime");
       setItemToDelete(null);
       await treeQuery.refetch();
     },
@@ -196,6 +216,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     },
     onMutate: () => setActionError(null),
     onSuccess: async () => {
+      toast.success("Element renomme");
       setItemToRename(null);
       setRenameValue("");
       await treeQuery.refetch();
@@ -221,6 +242,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
       }),
     onMutate: () => setActionError(null),
     onSuccess: async () => {
+      toast.success("Tache creee");
       setTaskDraftFolderId(null);
       setTaskTitle("");
       setTaskDescription("");
@@ -244,6 +266,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
       }),
     onMutate: () => setActionError(null),
     onSuccess: async () => {
+      toast.success("Temps enregistre");
       setTimeDraftFolderId(null);
       setTimeHours("1");
       setTimeMinutes("0");
@@ -495,41 +518,61 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
               <div className="flex flex-wrap items-center gap-3">
                 {canEditFiles ? (
                   <div className="flex items-center gap-1">
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label="Nouvelle section"
-                    onClick={() => onCreateSection(selectedFolderId)}
-                  >
-                    <FolderPlus className="size-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="icon-sm"
-                    aria-label="Importer un fichier"
-                    onClick={() => onPickFile(selectedFolderId)}
-                  >
-                    <Upload className="size-4" />
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Nouvelle section"
+                        onClick={() => onCreateSection(selectedFolderId)}
+                      >
+                        <FolderPlus className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Nouvelle section</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="icon-sm"
+                        aria-label="Importer un fichier"
+                        onClick={() => onPickFile(selectedFolderId)}
+                      >
+                        <Upload className="size-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Importer un fichier</TooltipContent>
+                  </Tooltip>
                   {selectedFolderId != null && selectedFolderName ? (
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      aria-label="Renommer le dossier selectionne"
-                      onClick={() => requestRename({ type: "folder", id: selectedFolderId, name: selectedFolderName })}
-                    >
-                      <Pencil className="size-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label="Renommer le dossier selectionne"
+                          onClick={() => requestRename({ type: "folder", id: selectedFolderId, name: selectedFolderName })}
+                        >
+                          <Pencil className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Renommer</TooltipContent>
+                    </Tooltip>
                   ) : null}
                   {canDeleteFiles && selectedFolderId != null && selectedFolderName ? (
-                    <Button
-                      variant="outline"
-                      size="icon-sm"
-                      aria-label="Supprimer le dossier selectionne"
-                      onClick={() => requestDelete({ type: "folder", id: selectedFolderId, name: selectedFolderName })}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label="Supprimer le dossier selectionne"
+                          onClick={() => requestDelete({ type: "folder", id: selectedFolderId, name: selectedFolderName })}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Supprimer</TooltipContent>
+                    </Tooltip>
                   ) : null}
                   </div>
                 ) : null}
@@ -741,8 +784,8 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
               Modifie le nom affiche dans l&apos;arborescence.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="rename-file-item">Nom</Label>
+          <Field>
+            <FieldLabel htmlFor="rename-file-item">Nom</FieldLabel>
             <Input
               id="rename-file-item"
               value={renameValue}
@@ -754,7 +797,7 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
                 }
               }}
             />
-          </div>
+          </Field>
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">
@@ -768,31 +811,26 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
         </DialogContent>
       </Dialog>
 
-      <Dialog open={itemToDelete != null} onOpenChange={(open) => !open && setItemToDelete(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Supprimer cet element ?</DialogTitle>
-            <DialogDescription>
+      <AlertDialog open={itemToDelete != null} onOpenChange={(open) => !open && setItemToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer cet element ?</AlertDialogTitle>
+            <AlertDialogDescription>
               <span className="font-medium text-foreground">{itemToDelete?.name}</span> sera deplace vers la corbeille.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Annuler
-              </Button>
-            </DialogClose>
-            <Button
-              type="button"
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
               variant="destructive"
               disabled={deleteFolder.isPending || deleteDocument.isPending}
               onClick={confirmDelete}
             >
               {deleteFolder.isPending || deleteDocument.isPending ? "Suppression..." : "Supprimer"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -1003,8 +1041,8 @@ function TaskDraftDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Dossier</Label>
+          <Field>
+            <FieldLabel>Dossier</FieldLabel>
             <TreePickerDialog
               mode="folder"
               folders={folders}
@@ -1014,14 +1052,14 @@ function TaskDraftDialog({
               onSelect={onFolderChange}
               onCreateFolder={onCreateFolder}
             />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="project-task-title">Titre</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="project-task-title">Titre</FieldLabel>
             <Input id="project-task-title" value={title} onChange={(event) => onTitleChange(event.target.value)} />
-          </div>
+          </Field>
           <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Priorite</Label>
+            <Field>
+              <FieldLabel>Priorite</FieldLabel>
               <Select value={priority} onValueChange={(value) => onPriorityChange(value as Task["priority"])}>
                 <SelectTrigger className="bg-background">
                   <SelectValue />
@@ -1032,16 +1070,16 @@ function TaskDraftDialog({
                   <SelectItem value="high">Haute</SelectItem>
                 </SelectContent>
               </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Echeance</Label>
+            </Field>
+            <Field>
+              <FieldLabel>Echeance</FieldLabel>
               <DatePicker value={dueDate} onChange={onDueDateChange} />
-            </div>
+            </Field>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="project-task-description">Description</Label>
+          <Field>
+            <FieldLabel htmlFor="project-task-description">Description</FieldLabel>
             <Textarea id="project-task-description" rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
-          </div>
+          </Field>
         </div>
         <DialogFooter>
           <DialogClose asChild>
@@ -1100,23 +1138,23 @@ function TimeDraftDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="project-time-hours">Heures</Label>
+            <Field>
+              <FieldLabel htmlFor="project-time-hours">Heures</FieldLabel>
               <Input id="project-time-hours" type="number" min="0" value={hours} onChange={(event) => onHoursChange(event.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="project-time-minutes">Minutes</Label>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="project-time-minutes">Minutes</FieldLabel>
               <Input id="project-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(event) => onMinutesChange(event.target.value)} />
-            </div>
+            </Field>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="project-time-rate">Taux horaire</Label>
+          <Field>
+            <FieldLabel htmlFor="project-time-rate">Taux horaire</FieldLabel>
             <Input id="project-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(event) => onHourlyRateChange(event.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="project-time-description">Description</Label>
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="project-time-description">Description</FieldLabel>
             <Textarea id="project-time-description" rows={3} value={description} onChange={(event) => onDescriptionChange(event.target.value)} />
-          </div>
+          </Field>
         </div>
         <DialogFooter>
           <DialogClose asChild>
@@ -1420,32 +1458,42 @@ function TreeNode({
         {!isTask && (canEdit || canDelete) ? (
           <div className="flex items-center justify-end gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
             {canEdit ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`Renommer ${node.name}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRequestRename(actionTarget!);
-                }}
-              >
-                <Pencil className="size-3" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Renommer ${node.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRequestRename(actionTarget!);
+                    }}
+                  >
+                    <Pencil className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Renommer</TooltipContent>
+              </Tooltip>
             ) : null}
             {canDelete ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-xs"
-                aria-label={`Supprimer ${node.name}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onRequestDelete(actionTarget!);
-                }}
-              >
-                <Trash2 className="size-3" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Supprimer ${node.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onRequestDelete(actionTarget!);
+                    }}
+                  >
+                    <Trash2 className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Supprimer</TooltipContent>
+              </Tooltip>
             ) : null}
           </div>
         ) : null}
