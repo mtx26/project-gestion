@@ -207,6 +207,7 @@ function ProjectTimeContent({
       setTimeFormOpen(false);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const deleteTimeEntry = useMutation({
     mutationFn: (timeEntryId: number) => api.timeEntries.remove(selectedProject!.id, timeEntryId),
@@ -214,6 +215,7 @@ function ProjectTimeContent({
       toast.success("Entree supprimee");
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const payTimeEntry = useMutation({
     mutationFn: () =>
@@ -231,6 +233,7 @@ function ProjectTimeContent({
         queryClient.invalidateQueries({ queryKey: ["projects", selectedProject!.id, "financial-entries"] }),
       ]);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const updateTimeEntry = useMutation({
     mutationFn: (documentIds: number[]) =>
@@ -247,6 +250,7 @@ function ProjectTimeContent({
       setEditingEntry(null);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const createFolder = useMutation({
     mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
@@ -257,6 +261,7 @@ function ProjectTimeContent({
         queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(selectedProject!.id) }),
       ]);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   async function handleCreateFolder(name: string, parentId: number | null) {
@@ -484,7 +489,6 @@ function ProjectTimeContent({
               />
             )}
 
-            <FormErrorAlert error={deleteTimeEntry.error ? getErrorMessage(deleteTimeEntry.error) : null} className="mt-3" />
           </CardContent>
         </Card>
         ) : null}

@@ -108,7 +108,7 @@ export type Notification = {
   id: ID;
   user: ID;
   project: ID | null;
-  created_by: ID;
+  created_by: ID | null;
   title: string;
   message: string;
   type: string;
@@ -214,7 +214,7 @@ export type Task = {
   id: ID;
   project: ID;
   folder: ID | null;
-  created_by: ID;
+  created_by: ID | null;
   created_by_name: string | null;
   assigned_to: ID[];
   title: string;
@@ -245,7 +245,7 @@ export type TimeEntry = {
   folder: ID | null;
   task: ID | null;
   task_name: string | null;
-  user: ID;
+  user: ID | null;
   user_display_name: string;
   duration_minutes: number;
   hourly_rate: string;
@@ -290,8 +290,9 @@ export type FinancialEntry = {
   time_entry_user_name: string | null;
   task: ID | null;
   task_name: string | null;
-  created_by: ID;
+  created_by: ID | null;
   created_by_name: string | null;
+  date: string | null;
   amount: string;
   type: "expense" | "refund";
   category: string | null;
@@ -303,6 +304,7 @@ export type FinancialEntry = {
 };
 
 export type FinancialEntryPayload = {
+  date?: string | null;
   amount: string;
   type: "expense" | "refund";
   category?: string | null;
@@ -324,7 +326,7 @@ export type ExpenseRequest = {
   task: ID | null;
   task_name: string | null;
   status: "pending" | "approved" | "rejected";
-  requested_by: ID;
+  requested_by: ID | null;
   requested_by_name: string | null;
   approved_at: string | null;
   approved_by: ID | null;

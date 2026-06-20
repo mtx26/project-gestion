@@ -137,4 +137,16 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
         return context
 
     def perform_destroy(self, instance):
+        from ..models import Task, TimeEntry, FinancialEntry, ExpenseRequest
+        user_id = instance.user_id
+        project_id = instance.project_id
+
+        Task.all_objects.filter(project_id=project_id, created_by_id=user_id).update(created_by=None)
+        TimeEntry.all_objects.filter(project_id=project_id, user_id=user_id).update(user=None)
+        FinancialEntry.all_objects.filter(project_id=project_id, created_by_id=user_id).update(created_by=None)
+        ExpenseRequest.all_objects.filter(project_id=project_id, requested_by_id=user_id).update(requested_by=None)
+
+        TaskUser = Task._meta.get_field("assigned_to").remote_field.through
+        TaskUser.objects.filter(task__project_id=project_id, user_id=user_id).delete()
+
         instance.soft_delete(self.request.user)

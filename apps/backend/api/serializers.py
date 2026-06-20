@@ -439,6 +439,17 @@ class TaskSerializer(serializers.ModelSerializer):
     def get_created_by_name(self, obj):
         return _get_user_display_name(obj.created_by)
 
+    def validate_assigned_to(self, value):
+        from .services.members import get_project_assignable_users
+        project = self.context.get("project")
+        if project is None:
+            return value
+        assignable_ids = set(get_project_assignable_users(project).values_list("pk", flat=True))
+        for user in value:
+            if user.pk not in assignable_ids:
+                raise serializers.ValidationError("errors.task.assigned_user_not_project_member")
+        return value
+
     def create(self, validated_data):
         assigned_to = validated_data.pop("assigned_to", [])
 
@@ -844,6 +855,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "task_name",
             "created_by",
             "created_by_name",
+            "date",
             "amount",
             "type",
             "category",

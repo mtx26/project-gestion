@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { DatePicker } from "@/components/ui/date-picker";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -166,12 +167,13 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
       setDeletingEntryId(null);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const openDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
     onSuccess: (data) => setPreviewDocument(data),
-    onError: (err) => setFormError(getErrorMessage(err)),
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const createFolder = useMutation({
@@ -183,6 +185,7 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
       ]);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   async function handleCreateFolder(name: string, parentId: number | null) {
@@ -477,6 +480,7 @@ function FinancialEntryFormDialog({
 
   const [type, setType] = useState<"expense" | "refund">(entry?.type ?? "expense");
   const [amount, setAmount] = useState(entry?.amount ?? "");
+  const [date, setDate] = useState(entry?.date ?? new Date().toISOString().split("T")[0]);
   const [category, setCategory] = useState(entry?.category ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [targetValue, setTargetValue] = useState(initialTarget);
@@ -492,6 +496,7 @@ function FinancialEntryFormDialog({
     if (!next) {
       setType(entry?.type ?? "expense");
       setAmount(entry?.amount ?? "");
+      setDate(entry?.date ?? new Date().toISOString().split("T")[0]);
       setCategory(entry?.category ?? "");
       setDescription(entry?.description ?? "");
       setTargetValue(initialTarget);
@@ -530,6 +535,7 @@ function FinancialEntryFormDialog({
 
     const { folder, task } = getTargetPayload(targetValue);
     onSubmit({
+      date: date || null,
       type,
       amount: amount.replace(",", "."),
       category: category.trim() || null,
@@ -579,6 +585,11 @@ function FinancialEntryFormDialog({
               />
             </Field>
           </div>
+
+          <Field>
+            <FieldLabel>Date</FieldLabel>
+            <DatePicker value={date} onChange={setDate} />
+          </Field>
 
           <Field>
             <FieldLabel htmlFor="entry-category">Categorie</FieldLabel>

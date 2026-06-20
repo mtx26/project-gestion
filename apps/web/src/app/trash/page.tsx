@@ -15,7 +15,9 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { getErrorMessage } from "@/lib/errors";
 
 function buildTrashHref(projectId: number | string, params: URLSearchParams) {
   const next = new URLSearchParams({ project: String(projectId) });
@@ -68,6 +70,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.trash() });
       queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const foldersTrashQuery = useQuery({
@@ -81,6 +84,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
       queryClient.invalidateQueries({ queryKey: queryKeys.folders.trash(projectId!) });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "folders", "tree"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const documentsTrashQuery = useQuery({
@@ -95,6 +99,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
       queryClient.invalidateQueries({ queryKey: queryKeys.documents.list(projectId!) });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "folders", "tree"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const tasksTrashQuery = useQuery({
@@ -109,6 +114,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "folders", "tree"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const timeEntriesTrashQuery = useQuery({
@@ -122,6 +128,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
       queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.trash(projectId!) });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "time-entries"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const financialEntriesTrashQuery = useQuery({
@@ -135,6 +142,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
       queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.trash(projectId!) });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const expenseRequestsTrashQuery = useQuery({
@@ -148,6 +156,7 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.trash(projectId!) });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const deletedProjects = normalizeApiList(projectsTrashQuery.data);

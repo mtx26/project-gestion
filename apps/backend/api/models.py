@@ -176,7 +176,7 @@ class Document(BaseModel):
 class Task(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="tasks_created")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="tasks_created")
     assigned_to = models.ManyToManyField(
         User,
         blank=True,
@@ -194,19 +194,6 @@ class Task(BaseModel):
 
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.task.folder_project_mismatch")
-
-        if not self.pk:
-            return
-
-        from .services.members import get_project_assignable_users
-
-        has_invalid_assignee = self.assigned_to.exclude(
-            pk__in=get_project_assignable_users(self.project)
-        ).exists()
-        if has_invalid_assignee:
-            raise ValidationError({
-                "assigned_to": "errors.task.assigned_user_not_project_member"
-            })
 
 class Invitation(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
@@ -237,8 +224,8 @@ class Invitation(BaseModel):
 
 class Notification(BaseModel):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=True)
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="notifications_created")
+    project = models.ForeignKey(Project, on_delete=models.SET_NULL, null=True, blank=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="notifications_created")
     title = models.CharField(max_length=255)
     message = models.TextField()
     type = models.CharField(max_length=100)
@@ -286,7 +273,7 @@ class TimeEntry(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     duration_minutes = models.PositiveIntegerField()
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     description = models.TextField(blank=True, null=True)
@@ -338,7 +325,8 @@ class FinancialEntry(BaseModel):
         related_name="financial_entries",
     )
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="financial_entries")
-    created_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="financial_entries_created")
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="financial_entries_created")
+    date = models.DateField(null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=FinancialType.choices)
     category = models.CharField(max_length=100, blank=True, null=True)
@@ -410,7 +398,7 @@ class ExpenseRequest(BaseModel):
     )
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
-    requested_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name="expense_requests_made")
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_made")
     approved_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_approved")
 

@@ -80,7 +80,6 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [viewingRequest, setViewingRequest] = useState<ExpenseRequest | null>(null);
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
   function updateUrlFilter(changes: { status?: string; folder?: number | null; member?: number | null }) {
@@ -143,6 +142,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setCreateOpen(false);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const updateRequest = useMutation({
@@ -153,6 +153,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setEditingRequest(null);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const deleteRequest = useMutation({
@@ -162,6 +163,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       setDeletingId(null);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const approveRequest = useMutation({
@@ -171,7 +173,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
     },
-    onError: (err) => setActionError(getErrorMessage(err)),
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const rejectRequest = useMutation({
@@ -180,13 +182,13 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
       toast.success("Remboursement rejete");
       queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
     },
-    onError: (err) => setActionError(getErrorMessage(err)),
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const openDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
     onSuccess: (data) => setPreviewDocument(data),
-    onError: (err) => setActionError(getErrorMessage(err)),
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const createFolder = useMutation({
@@ -198,6 +200,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
       ]);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   async function handleCreateFolder(name: string, parentId: number | null) {
@@ -306,8 +309,6 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         </Button>
       </div>
 
-      <FormErrorAlert error={actionError} />
-
       {requestsQuery.isLoading ? (
         <SkeletonLoader count={4} className="h-16 w-full rounded-lg" />
       ) : requests.length === 0 ? (
@@ -377,7 +378,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                       size="sm"
                       className="gap-1.5"
                       disabled={approveRequest.isPending || rejectRequest.isPending}
-                      onClick={(e) => { e.stopPropagation(); setActionError(null); approveRequest.mutate(req.id); }}
+                      onClick={(e) => { e.stopPropagation(); approveRequest.mutate(req.id); }}
                     >
                       <CheckCircle2 className="size-3.5" />
                       Approuver
@@ -388,7 +389,7 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
                       size="sm"
                       className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700"
                       disabled={approveRequest.isPending || rejectRequest.isPending}
-                      onClick={(e) => { e.stopPropagation(); setActionError(null); rejectRequest.mutate(req.id); }}
+                      onClick={(e) => { e.stopPropagation(); rejectRequest.mutate(req.id); }}
                     >
                       <XCircle className="size-3.5" />
                       Refuser

@@ -148,6 +148,8 @@ function ProjectTasksContent({
   const folderNameById = useMemo(() => buildFolderNameMap(foldersQuery.data ?? []), [foldersQuery.data]);
   const tasks = normalizeApiList(tasksQuery.data);
   const members = normalizeApiList(membersQuery.data);
+  const visibleTasks = showCompleted ? tasks : tasks.filter((t) => t.status !== "done");
+  const myTasks = user ? visibleTasks.filter((t) => t.assigned_to.includes(user.id)) : [];
 
   const createTask = useMutation({
     mutationFn: () =>
@@ -180,6 +182,7 @@ function ProjectTasksContent({
       setEditingTask(null);
       await invalidateTasks(queryClient, selectedProject!.id);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const deleteTask = useMutation({
     mutationFn: (taskId: number) => api.tasks.remove(selectedProject!.id, taskId),
@@ -187,6 +190,7 @@ function ProjectTasksContent({
       toast.success("Tache supprimee");
       await invalidateTasks(queryClient, selectedProject!.id);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const createFolder = useMutation({
     mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
@@ -194,6 +198,7 @@ function ProjectTasksContent({
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(selectedProject!.id) });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   async function handleCreateFolder(name: string, parentId: number | null): Promise<void> {
@@ -284,7 +289,6 @@ function ProjectTasksContent({
     );
   }
 
-  const myTasks = user ? tasks.filter((t) => t.assigned_to.includes(user.id)) : [];
 
   return (
     <div className="space-y-5">
@@ -403,7 +407,7 @@ function ProjectTasksContent({
               <Skeleton className="h-20 rounded-md" />
               <Skeleton className="h-20 rounded-md" />
             </div>
-          ) : tasks.length === 0 ? (
+          ) : visibleTasks.length === 0 ? (
             <Empty className="border p-8">
               <EmptyHeader>
                 <EmptyTitle>Aucune tache</EmptyTitle>
@@ -412,7 +416,7 @@ function ProjectTasksContent({
             </Empty>
           ) : (
             <TaskTable
-              tasks={showCompleted ? tasks : tasks.filter((t) => t.status !== "done")}
+              tasks={visibleTasks}
               folderNameById={folderNameById}
               members={members}
               canEdit={canEditTasks}
@@ -426,8 +430,6 @@ function ProjectTasksContent({
               }
             />
           )}
-          <FormErrorAlert error={updateTask.error ? getErrorMessage(updateTask.error) : null} className="mt-3" />
-          <FormErrorAlert error={deleteTask.error ? getErrorMessage(deleteTask.error) : null} className="mt-3" />
         </CardContent>
       </Card>
 

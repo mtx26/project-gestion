@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -35,12 +36,14 @@ function NotificationsContent() {
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const markAllRead = useMutation({
     mutationFn: api.notifications.markAllRead,
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
 
   const notifications = normalizeApiList(notificationsQuery.data);

@@ -26,6 +26,7 @@ def get_project_invitations(user, project_id):
     ).filter(
         project_id=project_id,
         project__in=get_accessible_projects(user),
+        accepted_at__isnull=True,
     ).order_by("-created_at", "-id")
 
 
