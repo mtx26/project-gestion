@@ -28,7 +28,7 @@ import type { ComponentType, ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
-import { Badge } from "@/components/ui/badge";
+import { TaskStatusBadge } from "@/components/ui/task-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -65,7 +65,7 @@ import { Input } from "@/components/ui/input";
 import { TreePickerDialog } from "@/components/ui/tree-picker";
 import { TaskDetailModal } from "@/components/ui/task-detail-modal";
 import { buildFolderNameMap, findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
-import { formatDuration, formatMoney, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
+import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -931,7 +931,7 @@ function FolderPreviewPanel({
                   onClick={() => onOpenTask(task)}
                 >
                   <span className="truncate">{task.title}</span>
-                  <Badge variant="outline" className={cn("shrink-0 text-[10px]", getStatusClassName(task.status))}>{getStatusLabel(task.status)}</Badge>
+                  <TaskStatusBadge status={task.status} className="shrink-0 text-[10px]" />
                 </button>
               ))}
               {tasks.length > 5 ? (
@@ -1163,13 +1163,7 @@ function TimeDraftDialog({
   );
 }
 
-function TaskTreeBadge({ status }: { status?: FolderTreeNode["status"] }) {
-  return (
-    <Badge variant="outline" className={status === "in_progress" ? "border-sky-200 bg-sky-50 text-sky-700" : "border-muted bg-background text-muted-foreground"}>
-      {status === "in_progress" ? "En cours" : "A faire"}
-    </Badge>
-  );
-}
+
 
 function Tree({
   nodes,
@@ -1440,7 +1434,7 @@ function TreeNode({
             {node.name}
           </span>
           {isTask ? (
-            <TaskTreeBadge status={node.status} />
+            <TaskStatusBadge status={node.status} />
           ) : !isFolder && node.file_size ? (
             <span className="shrink-0 text-xs text-muted-foreground">{formatFileSize(node.file_size)}</span>
           ) : (

@@ -19,8 +19,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import React, { type FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Badge } from "@/components/ui/badge";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { TaskPriorityBadge } from "@/components/ui/task-priority-badge";
+import { TaskStatusBadge } from "@/components/ui/task-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -48,12 +49,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
+import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
 import { PageTitle } from "@/components/ui/page-title";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { buildFolderNameMap, findFolderName } from "@/lib/folder-utils";
-import { formatTaskDate, getPriorityClassName, getPriorityLabel, getStatusClassName, getStatusLabel } from "@/lib/task-utils";
+import { formatTaskDate, getStatusClassName } from "@/lib/task-utils";
 import { parseBooleanParam, parseIdParam, setOptionalParam } from "@/lib/url-params";
 
 type StatusFilter = "all" | Task["status"];
@@ -302,29 +304,19 @@ function ProjectTasksContent({
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-nowrap sm:items-center">
-        <Select value={statusFilter} onValueChange={(value) => updateUrlFilter({ status: value as StatusFilter })}>
-          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous statuts</SelectItem>
-            <SelectItem value="todo">A faire</SelectItem>
-            <SelectItem value="in_progress">En cours</SelectItem>
-            <SelectItem value="done">Termine</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={priorityFilter} onValueChange={(value) => updateUrlFilter({ priority: value as PriorityFilter })}>
-          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Toutes priorites</SelectItem>
-            <SelectItem value="low">Basse</SelectItem>
-            <SelectItem value="normal">Normale</SelectItem>
-            <SelectItem value="high">Haute</SelectItem>
-          </SelectContent>
-        </Select>
+      <FilterBar>
+        <FilterSelect value={statusFilter} onValueChange={(value) => updateUrlFilter({ status: value as StatusFilter })}>
+          <SelectItem value="all">Tous statuts</SelectItem>
+          <SelectItem value="todo">À faire</SelectItem>
+          <SelectItem value="in_progress">En cours</SelectItem>
+          <SelectItem value="done">Terminé</SelectItem>
+        </FilterSelect>
+        <FilterSelect value={priorityFilter} onValueChange={(value) => updateUrlFilter({ priority: value as PriorityFilter })}>
+          <SelectItem value="all">Toutes priorités</SelectItem>
+          <SelectItem value="low">Basse</SelectItem>
+          <SelectItem value="normal">Normale</SelectItem>
+          <SelectItem value="high">Haute</SelectItem>
+        </FilterSelect>
         <MemberFilterSelect
           members={members}
           value={createdByFilter}
@@ -332,41 +324,23 @@ function ProjectTasksContent({
           onChange={(id) => updateUrlFilter({ member: id })}
         />
         {canViewFiles ? (
-          <div className="w-full sm:flex-1 sm:min-w-0">
-            <TreePickerDialog
-              mode="folder"
-              folders={foldersQuery.data ?? []}
-              selectedFolderId={folderId}
-              buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
-              description="Filtrer les taches par dossier."
-              onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
-              onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
-            />
-          </div>
+          <FilterFolderPicker
+            folders={foldersQuery.data ?? []}
+            selectedFolderId={folderId}
+            buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
+            description="Filtrer les tâches par dossier."
+            onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
+            onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
+          />
         ) : null}
-        <Button
-          type="button"
-          variant={showCompleted ? "default" : "outline"}
-          size="sm"
-          className="shrink-0"
-          onClick={() => updateUrlFilter({ includeCompleted: !showCompleted })}
+        <FilterToggle
+          pressed={showCompleted}
+          onPressedChange={(pressed) => updateUrlFilter({ includeCompleted: pressed })}
         >
-          Inclure terminees
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={() => {
-            if (!selectedProject) return;
-            const params = new URLSearchParams({ project: String(selectedProject.id) });
-            router.replace(`/tasks?${params.toString()}`, { scroll: false });
-          }}
-        >
-          Effacer filtres
-        </Button>
-      </div>
+          Inclure terminées
+        </FilterToggle>
+        <FilterClear path="/tasks" removeKeys={["folder", "status", "priority", "member", "include_completed"]} />
+      </FilterBar>
 
       {myTasks.length > 0 ? (
         <Card className="rounded-lg">
@@ -834,9 +808,7 @@ function TaskTable({
                 </SelectContent>
               </Select>
             ) : (
-              <Badge variant="outline" className={getStatusClassName(row.original.status)}>
-                {getStatusLabel(row.original.status)}
-              </Badge>
+              <TaskStatusBadge status={row.original.status} />
             )}
           </div>
         ),
@@ -846,9 +818,7 @@ function TaskTable({
         accessorFn: (row) => ({ low: 0, normal: 1, high: 2 }[row.priority]),
         header: ({ column }) => <SortButton column={column}>Priorite</SortButton>,
         cell: ({ row }) => (
-          <Badge variant="outline" className={getPriorityClassName(row.original.priority)}>
-            {getPriorityLabel(row.original.priority)}
-          </Badge>
+          <TaskPriorityBadge priority={row.original.priority} />
         ),
       },
       {

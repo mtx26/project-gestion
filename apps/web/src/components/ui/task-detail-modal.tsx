@@ -2,7 +2,6 @@
 
 import type { Task } from "@project-gestion/types";
 import { Pencil, Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,13 +11,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  formatTaskDate,
-  getPriorityClassName,
-  getPriorityLabel,
-  getStatusClassName,
-  getStatusLabel,
-} from "@/lib/task-utils";
+import { TaskPriorityBadge } from "@/components/ui/task-priority-badge";
+import { TaskStatusBadge } from "@/components/ui/task-status-badge";
+import { formatTaskDate } from "@/lib/task-utils";
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -59,12 +54,8 @@ export function TaskDetailModal({
         {task ? (
           <div className="space-y-4">
             <div className="flex flex-wrap gap-2">
-              <Badge variant="outline" className={getStatusClassName(task.status)}>
-                {getStatusLabel(task.status)}
-              </Badge>
-              <Badge variant="outline" className={getPriorityClassName(task.priority)}>
-                {getPriorityLabel(task.priority)}
-              </Badge>
+              <TaskStatusBadge status={task.status} />
+              <TaskPriorityBadge priority={task.priority} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div>

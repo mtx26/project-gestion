@@ -1,3 +1,14 @@
+export function buildClearParams(
+  searchParams: { toString(): string },
+  removeKeys: string[],
+): URLSearchParams {
+  const params = new URLSearchParams(searchParams.toString());
+  for (const key of removeKeys) {
+    params.delete(key);
+  }
+  return params;
+}
+
 export function parseIdParam(value: string | null): number | null {
   if (!value) return null;
   const n = Number(value);

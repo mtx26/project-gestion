@@ -5,11 +5,11 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, CheckCircle2, ClipboardList, Clock, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
+import { Calendar, CheckCircle2, ClipboardList, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Badge } from "@/components/ui/badge";
+import { RequestStatusBadge } from "@/components/ui/request-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -28,6 +28,7 @@ import {
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
+import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -259,55 +260,30 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-nowrap sm:items-center">
-        <Select value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v })}>
-          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous statuts</SelectItem>
-            <SelectItem value="pending">En attente</SelectItem>
-            <SelectItem value="approved">Approuve</SelectItem>
-            <SelectItem value="rejected">Refuse</SelectItem>
-          </SelectContent>
-        </Select>
+      <FilterBar>
+        <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v })}>
+          <SelectItem value="all">Tous statuts</SelectItem>
+          <SelectItem value="pending">En attente</SelectItem>
+          <SelectItem value="approved">Approuvé</SelectItem>
+          <SelectItem value="rejected">Refusé</SelectItem>
+        </FilterSelect>
         <MemberFilterSelect
           members={members}
           value={userFilterId}
           className="sm:flex-1 sm:min-w-0"
           onChange={(id) => updateUrlFilter({ member: id })}
         />
-        <div className="w-full sm:flex-1 sm:min-w-0">
-          <TreePickerDialog
-            mode="folder"
-            folders={folders}
-            selectedFolderId={folderFilterId}
-            buttonLabel={folderFilterName ?? "Tous dossiers"}
-            description="Filtrer les demandes par dossier."
-            onSelect={(id) => updateUrlFilter({ folder: id })}
-            onCreateFolder={canEdit ? handleCreateFolder : undefined}
-          />
-        </div>
-        <Input
-          className="w-full bg-background sm:flex-1 sm:min-w-0"
-          placeholder="Rechercher…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+        <FilterFolderPicker
+          folders={folders}
+          selectedFolderId={folderFilterId}
+          buttonLabel={folderFilterName ?? "Tous dossiers"}
+          description="Filtrer les demandes par dossier."
+          onSelect={(id) => updateUrlFilter({ folder: id })}
+          onCreateFolder={canEdit ? handleCreateFolder : undefined}
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={() => {
-            setSearchQuery("");
-            const params = new URLSearchParams({ project: String(selectedProject.id) });
-            router.replace(`/requests?${params.toString()}`, { scroll: false });
-          }}
-        >
-          Effacer filtres
-        </Button>
-      </div>
+        <FilterSearch value={searchQuery} onChange={setSearchQuery} />
+        <FilterClear path="/requests" removeKeys={["status", "folder", "member"]} onClick={() => setSearchQuery("")} />
+      </FilterBar>
 
       {requestsQuery.isLoading ? (
         <SkeletonLoader count={4} className="h-16 w-full rounded-lg" />
@@ -736,30 +712,6 @@ function ExpenseRequestDetailDialog({
   );
 }
 
-function RequestStatusBadge({ status }: { status: ExpenseRequest["status"] }) {
-  if (status === "approved") {
-    return (
-      <Badge variant="outline" className="shrink-0 gap-1 border-emerald-200 bg-emerald-50 text-emerald-700">
-        <CheckCircle2 className="size-3" />
-        Approuve
-      </Badge>
-    );
-  }
-  if (status === "rejected") {
-    return (
-      <Badge variant="outline" className="shrink-0 gap-1 border-red-200 bg-red-50 text-red-700">
-        <XCircle className="size-3" />
-        Refuse
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="shrink-0 gap-1 border-yellow-200 bg-yellow-50 text-yellow-700">
-      <Clock className="size-3" />
-      En attente
-    </Badge>
-  );
-}
 
 function parseStatusFilter(value: string | null): "all" | "pending" | "approved" | "rejected" {
   if (value === "pending" || value === "approved" || value === "rejected") return value;

@@ -1,7 +1,7 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SelectItem } from "@/components/ui/select";
+import { FilterSelect } from "@/components/ui/filter-bar";
 
 type Member = { id: number; user: number; user_display_name: string };
 
@@ -12,27 +12,20 @@ interface MemberFilterSelectProps {
   onChange: (memberId: number | null) => void;
 }
 
-export function MemberFilterSelect({
-  members,
-  value,
-  className,
-  onChange,
-}: MemberFilterSelectProps) {
+export function MemberFilterSelect({ members, value, className, onChange }: MemberFilterSelectProps) {
   if (members.length === 0) return null;
   return (
-    <Select
+    <FilterSelect
       value={value != null ? String(value) : "all"}
       onValueChange={(v) => onChange(v === "all" ? null : Number(v))}
+      className={className}
     >
-      <SelectTrigger className={cn("w-full bg-background", className)}>
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        <SelectItem value="all">Tous les membres</SelectItem>
-        {members.map((m) => (
-          <SelectItem key={m.id} value={String(m.user)}>{m.user_display_name}</SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+      <SelectItem value="all">Tous les membres</SelectItem>
+      {members.map((m) => (
+        <SelectItem key={m.id} value={String(m.user)}>
+          {m.user_display_name}
+        </SelectItem>
+      ))}
+    </FilterSelect>
   );
 }

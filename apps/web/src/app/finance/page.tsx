@@ -10,7 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Badge } from "@/components/ui/badge";
+import { EntryTypeBadge } from "@/components/ui/entry-type-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
@@ -33,6 +33,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { Field, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
+import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -244,54 +245,29 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
         ) : null}
       </div>
 
-      <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-nowrap sm:items-center">
-        <Select value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
-          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Tous types</SelectItem>
-            <SelectItem value="expense">Depenses</SelectItem>
-            <SelectItem value="refund">Remboursements</SelectItem>
-          </SelectContent>
-        </Select>
+      <FilterBar>
+        <FilterSelect value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
+          <SelectItem value="all">Tous types</SelectItem>
+          <SelectItem value="expense">Dépenses</SelectItem>
+          <SelectItem value="refund">Remboursements</SelectItem>
+        </FilterSelect>
         <MemberFilterSelect
           members={members}
           value={userFilterId}
           className="sm:flex-1 sm:min-w-0"
           onChange={(id) => updateUrlFilter({ member: id })}
         />
-        <div className="w-full sm:flex-1 sm:min-w-0">
-          <TreePickerDialog
-            mode="folder"
-            folders={folders}
-            selectedFolderId={folderFilterId}
-            buttonLabel={folderFilterName ?? "Tous dossiers"}
-            description="Filtrer les entrees par dossier."
-            onSelect={(id) => updateUrlFilter({ folder: id })}
-            onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
-          />
-        </div>
-        <Input
-          className="w-full bg-background sm:flex-1 sm:min-w-0"
-          placeholder="Rechercher…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
+        <FilterFolderPicker
+          folders={folders}
+          selectedFolderId={folderFilterId}
+          buttonLabel={folderFilterName ?? "Tous dossiers"}
+          description="Filtrer les entrées par dossier."
+          onSelect={(id) => updateUrlFilter({ folder: id })}
+          onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
         />
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          className="shrink-0"
-          onClick={() => {
-            setSearchQuery("");
-            const params = new URLSearchParams({ project: String(selectedProject.id) });
-            router.replace(`/finance?${params.toString()}`, { scroll: false });
-          }}
-        >
-          Effacer filtres
-        </Button>
-      </div>
+        <FilterSearch value={searchQuery} onChange={setSearchQuery} />
+        <FilterClear path="/finance" removeKeys={["type", "folder", "member"]} onClick={() => setSearchQuery("")} />
+      </FilterBar>
 
       <FinanceBarChart entries={entries} isLoading={entriesQuery.isLoading} />
 
@@ -740,20 +716,6 @@ function SummaryCard({ label, value, className }: { label: string; value: string
   );
 }
 
-function EntryTypeBadge({ type }: { type: "expense" | "refund" }) {
-  if (type === "expense") {
-    return (
-      <Badge variant="outline" className="shrink-0 border-red-200 bg-red-50 text-red-700">
-        Depense
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700">
-      Remboursement
-    </Badge>
-  );
-}
 
 function computeTotals(entries: FinancialEntry[]) {
   let expenses = 0;

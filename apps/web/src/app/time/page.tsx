@@ -1,7 +1,6 @@
 "use client";
 
 import type { File as ApiFile, FolderTreeNode, TimeEntry } from "@project-gestion/types";
-import { TreePickerDialog } from "@/components/ui/tree-picker";
 import { TargetIcon, TargetPickerDialog } from "@/components/ui/target-tree-picker";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
@@ -12,7 +11,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Badge } from "@/components/ui/badge";
+import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/dialog";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -416,11 +416,6 @@ function ProjectTimeContent({
           onSelectFolder={(folderId) =>
             updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })
           }
-          onClearAllFilters={() => {
-            if (!selectedProject) return;
-            const params = new URLSearchParams({ project: String(selectedProject.id) });
-            router.replace(`/time?${params.toString()}`, { scroll: false });
-          }}
           onPeriodPresetChange={onPeriodPresetChange}
           onPaymentStatusFilterChange={onPaymentStatusFilterChange}
           onUserFilterChange={onUserFilterChange}
@@ -859,7 +854,6 @@ function TimePeriodToolbar({
   includeUnpaidOutsideMonth,
   folders,
   onSelectFolder,
-  onClearAllFilters,
   onPeriodPresetChange,
   onPaymentStatusFilterChange,
   onUserFilterChange,
@@ -876,7 +870,6 @@ function TimePeriodToolbar({
   includeUnpaidOutsideMonth: boolean;
   folders: FolderTreeNode[];
   onSelectFolder: (folderId: number | null) => void;
-  onClearAllFilters: () => void;
   onPeriodPresetChange: (value: PeriodPreset) => void;
   onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
   onUserFilterChange: (value: UserFilter) => void;
@@ -886,71 +879,48 @@ function TimePeriodToolbar({
   const folderPickerLabel = targetFilterLabel ?? "Tous dossiers";
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border bg-card p-3 sm:flex-row sm:flex-nowrap sm:items-center">
-      <Select value={periodPreset} onValueChange={(value) => onPeriodPresetChange(value as PeriodPreset)}>
-        <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="this-week">Cette semaine</SelectItem>
-          <SelectItem value="this-month">Ce mois</SelectItem>
-          <SelectItem value="last-month">Mois dernier</SelectItem>
-          <SelectItem value="last-30-days">30 derniers jours</SelectItem>
-          <SelectItem value="this-year">Cette annee</SelectItem>
-          <SelectItem value="all">Tout</SelectItem>
-        </SelectContent>
-      </Select>
+    <FilterBar>
+      <FilterSelect value={periodPreset} onValueChange={(value) => onPeriodPresetChange(value as PeriodPreset)}>
+        <SelectItem value="this-week">Cette semaine</SelectItem>
+        <SelectItem value="this-month">Ce mois</SelectItem>
+        <SelectItem value="last-month">Mois dernier</SelectItem>
+        <SelectItem value="last-30-days">30 derniers jours</SelectItem>
+        <SelectItem value="this-year">Cette année</SelectItem>
+        <SelectItem value="all">Tout</SelectItem>
+      </FilterSelect>
       {canViewAllTime ? (
-        <Select value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
-          <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="mine">Mes heures</SelectItem>
-            <SelectItem value="all">Toute l&apos;equipe</SelectItem>
-            {members.map((member) => (
-              <SelectItem key={member.id} value={`member-${member.user}`}>
-                {member.user_display_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <FilterSelect value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
+          <SelectItem value="mine">Mes heures</SelectItem>
+          <SelectItem value="all">Tous les membres</SelectItem>
+          {members.map((member) => (
+            <SelectItem key={member.id} value={`member-${member.user}`}>
+              {member.user_display_name}
+            </SelectItem>
+          ))}
+        </FilterSelect>
       ) : null}
-      <div className="w-full sm:flex-1 sm:min-w-0">
-        <TreePickerDialog
-          mode="folder"
-          folders={folders}
-          selectedFolderId={targetFolderId}
-          buttonLabel={folderPickerLabel}
-          description="Filtrer les entrees de temps par dossier."
-          onSelect={onSelectFolder}
-          onCreateFolder={onCreateFolder}
-        />
-      </div>
-      <Select value={paymentStatusFilter} onValueChange={(value) => onPaymentStatusFilterChange(value as PaymentStatusFilter)}>
-        <SelectTrigger className="w-full bg-background sm:flex-1 sm:min-w-0">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">Tous statuts paiement</SelectItem>
-          <SelectItem value="unpaid">Non paye</SelectItem>
-          <SelectItem value="partial">Partiel</SelectItem>
-          <SelectItem value="paid">Paye</SelectItem>
-        </SelectContent>
-      </Select>
-      <Button
-        type="button"
-        variant={includeUnpaidOutsideMonth ? "default" : "outline"}
-        size="sm"
-        className="shrink-0"
-        onClick={() => onIncludeUnpaidOutsideMonthChange(!includeUnpaidOutsideMonth)}
+      <FilterFolderPicker
+        folders={folders}
+        selectedFolderId={targetFolderId}
+        buttonLabel={folderPickerLabel}
+        description="Filtrer les entrées de temps par dossier."
+        onSelect={onSelectFolder}
+        onCreateFolder={onCreateFolder}
+      />
+      <FilterSelect value={paymentStatusFilter} onValueChange={(value) => onPaymentStatusFilterChange(value as PaymentStatusFilter)}>
+        <SelectItem value="all">Tous statuts</SelectItem>
+        <SelectItem value="unpaid">À payer</SelectItem>
+        <SelectItem value="partial">Partiel</SelectItem>
+        <SelectItem value="paid">Payé</SelectItem>
+      </FilterSelect>
+      <FilterToggle
+        pressed={includeUnpaidOutsideMonth}
+        onPressedChange={onIncludeUnpaidOutsideMonthChange}
       >
-        Impayes inclus
-      </Button>
-      <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={onClearAllFilters}>
-        Effacer filtres
-      </Button>
-    </div>
+        Impayés inclus
+      </FilterToggle>
+      <FilterClear path="/time" removeKeys={["period", "user", "payment", "target", "include_unpaid"]} />
+    </FilterBar>
   );
 }
 
@@ -1157,9 +1127,7 @@ function TimeEntryRow({
       <div className="flex items-center gap-3">
         <div className="min-w-0 flex-1 cursor-pointer space-y-1" onClick={onDetail}>
           <div className="flex flex-wrap items-center gap-2">
-            <Badge variant="outline" className={getPaymentBadgeClassName(paymentStatus)}>
-              {getPaymentStatusLabel(paymentStatus)}
-            </Badge>
+            <PaymentStatusBadge status={paymentStatus} />
             <p className="min-w-0 font-medium">{entry.description || "Temps enregistre"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
@@ -1420,9 +1388,7 @@ function TimeEntryDetailDialog({
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="outline" className={getPaymentBadgeClassName(paymentStatus)}>
-              {getPaymentStatusLabel(paymentStatus)}
-            </Badge>
+            <PaymentStatusBadge status={paymentStatus} />
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -1769,15 +1735,6 @@ function getPaymentStatusLabel(status: Exclude<PaymentStatusFilter, "all">) {
   return "A payer";
 }
 
-function getPaymentBadgeClassName(status: Exclude<PaymentStatusFilter, "all">) {
-  if (status === "paid") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  }
-  if (status === "partial") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  }
-  return "border-orange-200 bg-orange-50 text-orange-700";
-}
 
 function getTimeEntryCardClassName(status: Exclude<PaymentStatusFilter, "all">) {
   const baseClassName = "rounded-md border bg-card p-4 text-sm";
@@ -1799,7 +1756,7 @@ function getTotalsLabel(
   targetLabel: string | null,
 ) {
   const userLabel = userFilter === "all"
-    ? "toute l'equipe"
+    ? "tous les membres"
     : userFilter === "mine"
       ? "mes heures"
       : members.find((member) => member.user === getSelectedUserId(userFilter, currentUserId))?.user_display_name ?? "membre";
