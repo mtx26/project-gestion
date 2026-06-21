@@ -101,7 +101,7 @@ export function TimeCalendarView({
                       <span className="shrink-0">{formatTimeOnly(entry.created_at)}</span>
                     </div>
                     <div className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                      {userNameById.get(entry.user) ?? entry.user_display_name}
+                      {(entry.user != null ? userNameById.get(entry.user) : null) ?? entry.user_display_name}
                     </div>
                   </div>
                 ))}

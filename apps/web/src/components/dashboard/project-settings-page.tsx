@@ -59,9 +59,8 @@ export function ProjectSettingsPage() {
   const searchParams = useSearchParams();
   const initialSection = getSettingsSection(searchParams.get("tab"));
   const buildSettingsHref = (projectId: number) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams.toString());
     params.set("project", String(projectId));
-    if (initialSection !== "general") params.set("tab", initialSection);
     return `/settings?${params.toString()}`;
   };
 

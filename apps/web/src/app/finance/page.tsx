@@ -5,15 +5,17 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Banknote, Calendar, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound } from "lucide-react";
+import { Banknote, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
+import { AccessDeniedState } from "@/components/ui/access-denied-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { EntryMetadataRow } from "@/components/ui/entry-metadata-row";
 import { EntryTypeBadge } from "@/components/ui/entry-type-badge";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
@@ -24,9 +26,9 @@ import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { findFolderName } from "@/lib/folder-utils";
-import { formatDate, formatMoney } from "@/lib/task-utils";
-import { parseIdParam, setOptionalParam } from "@/lib/url-params";
+import { buildFolderNameMap } from "@/lib/folder-utils";
+import { formatMoney } from "@/lib/task-utils";
+import { buildFilterParams, parseIdParam } from "@/lib/url-params";
 import { FinanceBarChart } from "./components/finance-bar-chart";
 import { FinancialEntryDetailDialog, FinancialEntryFormDialog } from "./components/finance-entry-dialogs";
 import { buildFinanceHref, computeTotals, parseTypeFilter } from "./lib/finance-utils";
@@ -79,19 +81,9 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
   const [formError, setFormError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  function updateUrlFilter(changes: { type?: string; folder?: number | null; member?: number | null }) {
+  function updateUrlFilter(changes: Record<string, string | number | boolean | null | undefined>) {
     if (!selectedProject) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("project", String(selectedProject.id));
-    if ("type" in changes) setOptionalParam(params, "type", changes.type ?? "all");
-    if ("folder" in changes) {
-      if (changes.folder != null) params.set("folder", String(changes.folder));
-      else params.delete("folder");
-    }
-    if ("member" in changes) {
-      if (changes.member != null) params.set("member", String(changes.member));
-      else params.delete("member");
-    }
+    const params = buildFilterParams(searchParams, selectedProject.id, changes);
     router.replace(`/finance?${params.toString()}`, { scroll: false });
   }
 
@@ -189,21 +181,14 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
   }
 
   if (!canViewFinance) {
-    return (
-      <Empty className="border bg-card py-12">
-        <EmptyHeader>
-          <EmptyMedia variant="icon"><Lock className="size-4" /></EmptyMedia>
-          <EmptyTitle>Acces restreint</EmptyTitle>
-          <EmptyDescription>Vous n&apos;avez pas acces aux finances de ce projet.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
+    return <AccessDeniedState description="Vous n'avez pas acces aux finances de ce projet." />;
   }
 
   const allEntries = normalizeApiList(entriesQuery.data);
   const folders = foldersQuery.data ?? [];
   const targetFolders = targetTreeQuery.data ?? [];
   const members = normalizeApiList(membersQuery.data);
+  const folderNameById = useMemo(() => buildFolderNameMap(folders), [folders]);
   const search = searchQuery.trim().toLowerCase();
   const entries = search
     ? allEntries.filter(
@@ -215,7 +200,7 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
       )
     : allEntries;
   const totals = computeTotals(entries);
-  const folderFilterName = folderFilterId != null ? (findFolderName(folders, folderFilterId) ?? "Dossier") : null;
+  const folderFilterName = folderFilterId != null ? (folderNameById.get(folderFilterId) ?? "Dossier") : null;
 
   return (
     <div className="space-y-5">
@@ -295,41 +280,17 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
                 {entry.description ? (
                   <p className="truncate text-sm text-muted-foreground">{entry.description}</p>
                 ) : null}
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                  {entry.task_name ? (
-                    <span className="inline-flex items-center gap-1">
-                      <ListTodo className="size-3 text-sky-600" />
-                      {entry.task_name}
-                    </span>
-                  ) : entry.folder ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Folder className="size-3 text-amber-500" />
-                      {findFolderName(folders, entry.folder) ?? `Dossier #${entry.folder}`}
-                    </span>
-                  ) : null}
-                  {(entry.documents_info ?? []).length > 0 ? (
-                    <span className="inline-flex items-center gap-1">
-                      <FileText className="size-3" />
-                      {entry.documents_info[0].name ?? `Document #${entry.documents_info[0].id}`}
-                      {entry.documents_info.length > 1 ? ` +${entry.documents_info.length - 1}` : ""}
-                    </span>
-                  ) : null}
-                  {entry.time_entry_user_name ? (
-                    <span className="inline-flex items-center gap-1">
-                      <UserRound className="size-3 text-violet-500" />
-                      Pour {entry.time_entry_user_name}
-                    </span>
-                  ) : entry.created_by_name ? (
-                    <span className="inline-flex items-center gap-1">
-                      <UserRound className="size-3" />
-                      {entry.created_by_name}
-                    </span>
-                  ) : null}
-                  <span className="ml-auto inline-flex items-center gap-1">
-                    <Calendar className="size-3" />
-                    {formatDate(entry.created_at)}
-                  </span>
-                </div>
+                <EntryMetadataRow
+                  taskName={entry.task_name}
+                  folderId={entry.folder}
+                  folderName={entry.folder ? (folderNameById.get(entry.folder) ?? `Dossier #${entry.folder}`) : null}
+                  documents={entry.documents_info}
+                  userName={entry.time_entry_user_name ?? entry.created_by_name}
+                  userIconClassName={entry.time_entry_user_name ? "text-violet-500" : undefined}
+                  userPrefix={entry.time_entry_user_name ? "Pour " : undefined}
+                  date={entry.created_at}
+                  showDateIcon
+                />
               </div>
               <div className="flex shrink-0 gap-1">
                 {canEditFinance ? (

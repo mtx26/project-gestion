@@ -1,4 +1,5 @@
 import type { FinancialEntry } from "@project-gestion/types";
+import { parseEnumParam } from "@/lib/url-params";
 
 export const financeChartConfig = {
   expenses: { label: "Depenses", color: "var(--destructive)" },
@@ -9,9 +10,10 @@ export function buildFinanceHref(projectId: number | string): string {
   return `/finance?project=${projectId}`;
 }
 
+const FINANCE_TYPE_VALUES = ["all", "expense", "refund"] as const;
+
 export function parseTypeFilter(value: string | null): "all" | "expense" | "refund" {
-  if (value === "expense" || value === "refund") return value;
-  return "all";
+  return parseEnumParam(value, FINANCE_TYPE_VALUES, "all");
 }
 
 export function computeTotals(entries: FinancialEntry[]): { expenses: number; refunds: number; balance: number } {

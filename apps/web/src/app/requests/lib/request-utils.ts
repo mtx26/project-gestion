@@ -1,14 +1,14 @@
+import { parseEnumParam } from "@/lib/url-params";
+
 export type RequestStatusFilter = "all" | "pending" | "approved" | "rejected";
+
+const REQUEST_STATUS_VALUES = ["all", "pending", "approved", "rejected"] as const;
 
 export function buildRequestsHref(projectId: number | string): string {
   return `/requests?project=${projectId}`;
 }
 
 export function parseStatusFilter(value: string | null): RequestStatusFilter {
-  if (value === "pending" || value === "approved" || value === "rejected") return value;
-  return "all";
+  return parseEnumParam(value, REQUEST_STATUS_VALUES, "all");
 }
 
-export function parseShowRejected(value: string | null): boolean {
-  return value === "1";
-}

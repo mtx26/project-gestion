@@ -26,7 +26,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { buildFolderNameMap } from "@/lib/folder-utils";
-import { parseBooleanParam, parseIdParam, setOptionalParam } from "@/lib/url-params";
+import { buildFilterParams, parseBooleanParam, parseIdParam } from "@/lib/url-params";
 import { TaskFormDialog } from "./components/task-form-dialog";
 import { TaskTable } from "./components/task-table";
 import {
@@ -186,22 +186,10 @@ function ProjectTasksContent({
   }
 
   function updateUrlFilter(
-    changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; includeCompleted: boolean; member: number | null }>,
+    changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; include_completed: boolean; member: number | null }>,
   ) {
     if (!selectedProject) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("project", String(selectedProject.id));
-    if (changes.folder !== undefined) setOptionalParam(params, "folder", changes.folder);
-    if (changes.status !== undefined) setOptionalParam(params, "status", changes.status);
-    if (changes.priority !== undefined) setOptionalParam(params, "priority", changes.priority);
-    if (changes.includeCompleted !== undefined) {
-      if (changes.includeCompleted) params.set("include_completed", "1");
-      else params.delete("include_completed");
-    }
-    if ("member" in changes) {
-      if (changes.member != null) params.set("member", String(changes.member));
-      else params.delete("member");
-    }
+    const params = buildFilterParams(searchParams, selectedProject.id, changes);
     router.replace(`/tasks?${params.toString()}`, { scroll: false });
   }
 
@@ -306,7 +294,7 @@ function ProjectTasksContent({
         ) : null}
         <FilterToggle
           pressed={showCompleted}
-          onPressedChange={(pressed) => updateUrlFilter({ includeCompleted: pressed })}
+          onPressedChange={(pressed) => updateUrlFilter({ include_completed: pressed })}
         >
           Inclure terminées
         </FilterToggle>

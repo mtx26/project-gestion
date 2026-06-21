@@ -1,6 +1,6 @@
 "use client";
 
-import type { File as ApiFile, TimeEntry } from "@project-gestion/types";
+import type { TimeEntry } from "@project-gestion/types";
 import { CheckCircle2, CreditCard, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -24,10 +24,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TargetPickerDialog } from "@/components/ui/target-tree-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/date-utils";
-import { getErrorMessage } from "@/lib/errors";
 import { type TargetTreeNode, getTargetPayload } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
-import { api } from "@/lib/api";
+import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
 
 export function EditTimeEntryDialog({
@@ -76,12 +75,9 @@ export function EditTimeEntryDialog({
   const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
   const [totalDraft, setTotalDraft] = useState<string | null>(null);
   const totalValue = totalDraft ?? computedTotal;
-  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>(
-    () => (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
+  const docs = useDocumentAttachment(
+    (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
   );
-  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
 
   function handleTotalChange(value: string) {
     setTotalDraft(value);
@@ -92,31 +88,13 @@ export function EditTimeEntryDialog({
   }
 
   async function handleSubmit() {
-    setUploadError(null);
-    const newDocIds: number[] = [];
-    if (pendingFiles.length > 0) {
-      setUploading(true);
-      const { folder } = getTargetPayload(targetValue);
-      try {
-        for (const file of pendingFiles) {
-          const uploaded: ApiFile = await api.documents.upload(projectId, {
-            file,
-            folder: folder ?? undefined,
-            name: file.name,
-          });
-          newDocIds.push(uploaded.id);
-        }
-      } catch (err) {
-        setUploadError(getErrorMessage(err));
-        setUploading(false);
-        return;
-      }
-      setUploading(false);
-    }
-    onSubmit([...existingDocs.map((d) => d.id), ...newDocIds]);
+    const { folder } = getTargetPayload(targetValue);
+    const newDocIds = await docs.uploadPending(projectId, folder);
+    if (newDocIds === null) return;
+    onSubmit(docs.getAllDocIds(newDocIds));
   }
 
-  const isSubmitting = uploading || isPending;
+  const isSubmitting = docs.uploading || isPending;
 
   return (
     <Dialog open={entry != null} onOpenChange={onOpenChange}>
@@ -174,14 +152,14 @@ export function EditTimeEntryDialog({
           </Field>
 
           <MultiDocumentAttachmentField
-            existingDocs={existingDocs}
-            pendingFiles={pendingFiles}
-            onRemoveDoc={(id) => setExistingDocs((prev) => prev.filter((d) => d.id !== id))}
-            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
-            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+            existingDocs={docs.existingDocs}
+            pendingFiles={docs.pendingFiles}
+            onRemoveDoc={docs.removeExistingDoc}
+            onAddFiles={docs.addPendingFiles}
+            onRemoveFile={docs.removePendingFile}
           />
 
-          <FormErrorAlert error={uploadError ?? error} />
+          <FormErrorAlert error={docs.uploadError ?? error} />
         </div>
 
         <DialogFooter>
@@ -229,7 +207,7 @@ export function TimeEntryDetailDialog({
 
   const paymentStatus = getPaymentStatus(entry);
   const targetLabel = getEntryTargetLabel(entry, folderNameById, taskTitleById);
-  const displayName = userNameById.get(entry.user) ?? entry.user_display_name;
+  const displayName = (entry.user != null ? userNameById.get(entry.user) : null) ?? entry.user_display_name;
   const paidRatio =
     Number(entry.cost_amount) > 0
       ? Math.min(100, (Number(entry.paid_amount) / Number(entry.cost_amount)) * 100)

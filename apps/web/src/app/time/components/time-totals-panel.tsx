@@ -30,7 +30,7 @@ export function TimeTotalsPanel({
   const userBreakdown = useMemo(() => {
     const byUser = new Map<number, number>();
     for (const entry of entries) {
-      byUser.set(entry.user, (byUser.get(entry.user) ?? 0) + entry.duration_minutes);
+      if (entry.user != null) byUser.set(entry.user, (byUser.get(entry.user) ?? 0) + entry.duration_minutes);
     }
     return Array.from(byUser.entries())
       .map(([userId, minutes]) => ({

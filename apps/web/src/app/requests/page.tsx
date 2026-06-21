@@ -5,14 +5,16 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ClipboardList, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
+import { AccessDeniedState } from "@/components/ui/access-denied-state";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { EntryMetadataRow } from "@/components/ui/entry-metadata-row";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { NoProjectState } from "@/components/ui/no-project-state";
@@ -23,11 +25,11 @@ import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { findFolderName } from "@/lib/folder-utils";
-import { formatDate, formatMoney } from "@/lib/task-utils";
-import { parseIdParam } from "@/lib/url-params";
+import { buildFolderNameMap } from "@/lib/folder-utils";
+import { formatMoney } from "@/lib/task-utils";
+import { buildFilterParams, parseIdParam, parseBooleanParam } from "@/lib/url-params";
 import { ExpenseRequestDetailDialog, ExpenseRequestFormDialog } from "./components/request-dialogs";
-import { buildRequestsHref, parseShowRejected, parseStatusFilter } from "./lib/request-utils";
+import { buildRequestsHref, parseStatusFilter } from "./lib/request-utils";
 
 export default function RequestsPage() {
   const router = useRouter();
@@ -55,7 +57,7 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
   const projectId = selectedProject?.id ?? null;
 
   const statusFilter = parseStatusFilter(searchParams.get("status"));
-  const showRejected = parseShowRejected(searchParams.get("show_rejected"));
+  const showRejected = parseBooleanParam(searchParams.get("show_rejected"));
   const folderFilterId = parseIdParam(searchParams.get("folder"));
   const userFilterId = parseIdParam(searchParams.get("member"));
 
@@ -66,22 +68,9 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  function updateUrlFilter(changes: { status?: string; folder?: number | null; member?: number | null }) {
+  function updateUrlFilter(changes: Record<string, string | number | boolean | null | undefined>) {
     if (!selectedProject) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("project", String(selectedProject.id));
-    if ("status" in changes) {
-      const v = changes.status ?? "all";
-      if (v !== "all") params.set("status", v); else params.delete("status");
-    }
-    if ("folder" in changes) {
-      if (changes.folder != null) params.set("folder", String(changes.folder));
-      else params.delete("folder");
-    }
-    if ("member" in changes) {
-      if (changes.member != null) params.set("member", String(changes.member));
-      else params.delete("member");
-    }
+    const params = buildFilterParams(searchParams, selectedProject.id, changes);
     router.replace(`/requests?${params.toString()}`, { scroll: false });
   }
 
@@ -202,21 +191,14 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
   }
 
   if (!canView) {
-    return (
-      <Empty className="border bg-card py-12">
-        <EmptyHeader>
-          <EmptyMedia variant="icon"><Lock className="size-4" /></EmptyMedia>
-          <EmptyTitle>Acces restreint</EmptyTitle>
-          <EmptyDescription>Vous n&apos;avez pas acces aux demandes de remboursement de ce projet.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
-    );
+    return <AccessDeniedState description="Vous n'avez pas acces aux demandes de remboursement de ce projet." />;
   }
 
   const allRequests = normalizeApiList(requestsQuery.data);
   const folders = foldersQuery.data ?? [];
   const targetFolders = targetTreeQuery.data ?? [];
   const members = normalizeApiList(membersQuery.data);
+  const folderNameById = useMemo(() => buildFolderNameMap(folders), [folders]);
 
   const visibleRequests =
     statusFilter === "all" && !showRejected
@@ -233,7 +215,7 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
     : visibleRequests;
 
 
-  const folderFilterName = folderFilterId != null ? (findFolderName(folders, folderFilterId) ?? "Dossier") : null;
+  const folderFilterName = folderFilterId != null ? (folderNameById.get(folderFilterId) ?? "Dossier") : null;
 
   return (
     <div className="space-y-5">
@@ -272,13 +254,7 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
         {statusFilter === "all" ? (
           <FilterToggle
             pressed={showRejected}
-            onPressedChange={(pressed) => {
-              if (!selectedProject) return;
-              const params = new URLSearchParams(searchParams.toString());
-              params.set("project", String(selectedProject.id));
-              if (pressed) params.set("show_rejected", "1"); else params.delete("show_rejected");
-              router.replace(`/requests?${params.toString()}`, { scroll: false });
-            }}
+            onPressedChange={(pressed) => updateUrlFilter({ show_rejected: pressed })}
           >
             Inclure refusés
           </FilterToggle>
@@ -316,35 +292,14 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
                     {[req.category, req.description].filter(Boolean).join(" · ")}
                   </p>
                 ) : null}
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                  {req.task_name ? (
-                    <span className="inline-flex items-center gap-1">
-                      <ListTodo className="size-3 text-sky-600" />
-                      {req.task_name}
-                    </span>
-                  ) : req.folder ? (
-                    <span className="inline-flex items-center gap-1">
-                      <Folder className="size-3 text-amber-500" />
-                      {findFolderName(folders, req.folder) ?? `Dossier #${req.folder}`}
-                    </span>
-                  ) : null}
-                  {(req.documents_info ?? []).length > 0 ? (
-                    <span className="inline-flex items-center gap-1">
-                      <FileText className="size-3" />
-                      {req.documents_info[0].name ?? `Document #${req.documents_info[0].id}`}
-                      {req.documents_info.length > 1 ? ` +${req.documents_info.length - 1}` : ""}
-                    </span>
-                  ) : null}
-                  {req.requested_by_name ? (
-                    <span className="inline-flex items-center gap-1">
-                      <UserRound className="size-3" />
-                      {req.requested_by_name}
-                    </span>
-                  ) : null}
-                  <span className="ml-auto shrink-0">
-                    {formatDate(req.created_at)}
-                  </span>
-                </div>
+                <EntryMetadataRow
+                  taskName={req.task_name}
+                  folderId={req.folder}
+                  folderName={req.folder ? (folderNameById.get(req.folder) ?? `Dossier #${req.folder}`) : null}
+                  documents={req.documents_info}
+                  userName={req.requested_by_name}
+                  date={req.created_at}
+                />
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
                 {canApprove && req.status === "pending" ? (

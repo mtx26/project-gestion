@@ -1,6 +1,6 @@
 "use client";
 
-import type { FinancialEntry, FinancialEntryPayload, File as ApiFile, FolderTreeNode } from "@project-gestion/types";
+import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
 import { Calendar, UserRound } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,7 @@ import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-att
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
-import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 export function FinancialEntryFormDialog({
@@ -56,20 +55,15 @@ export function FinancialEntryFormDialog({
       ? `folder-${entry.folder}`
       : "project";
 
-  function buildInitialDocs() {
-    return (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name }));
-  }
-
   const [type, setType] = useState<"expense" | "refund">(entry?.type ?? "expense");
   const [amount, setAmount] = useState(entry?.amount ?? "");
   const [date, setDate] = useState(entry?.date ?? new Date().toISOString().split("T")[0]);
   const [category, setCategory] = useState(entry?.category ?? "");
   const [description, setDescription] = useState(entry?.description ?? "");
   const [targetValue, setTargetValue] = useState(initialTarget);
-  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>(buildInitialDocs);
-  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const docs = useDocumentAttachment(
+    (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
+  );
 
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
@@ -82,37 +76,16 @@ export function FinancialEntryFormDialog({
       setCategory(entry?.category ?? "");
       setDescription(entry?.description ?? "");
       setTargetValue(initialTarget);
-      setExistingDocs(buildInitialDocs());
-      setPendingFiles([]);
-      setUploadError(null);
+      docs.reset();
     }
     onOpenChange(next);
   }
 
   async function handleSubmit(e: React.BaseSyntheticEvent) {
     e.preventDefault();
-    setUploadError(null);
-    const newDocIds: number[] = [];
-    if (pendingFiles.length > 0) {
-      setUploading(true);
-      const { folder } = getTargetPayload(targetValue);
-      try {
-        for (const file of pendingFiles) {
-          const uploaded: ApiFile = await api.documents.upload(projectId, {
-            file,
-            folder: folder ?? undefined,
-            name: file.name,
-          });
-          newDocIds.push(uploaded.id);
-        }
-      } catch (err) {
-        setUploadError(getErrorMessage(err));
-        setUploading(false);
-        return;
-      }
-      setUploading(false);
-    }
     const { folder, task } = getTargetPayload(targetValue);
+    const newDocIds = await docs.uploadPending(projectId, folder);
+    if (newDocIds === null) return;
     onSubmit({
       date: date || null,
       type,
@@ -121,11 +94,11 @@ export function FinancialEntryFormDialog({
       description: description.trim() || null,
       folder,
       task,
-      documents: [...existingDocs.map((d) => d.id), ...newDocIds],
+      documents: docs.getAllDocIds(newDocIds),
     });
   }
 
-  const isSubmitting = uploading || isPending;
+  const isSubmitting = docs.uploading || isPending;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -203,14 +176,14 @@ export function FinancialEntryFormDialog({
           </Field>
 
           <MultiDocumentAttachmentField
-            existingDocs={existingDocs}
-            pendingFiles={pendingFiles}
-            onRemoveDoc={(id) => setExistingDocs((prev) => prev.filter((d) => d.id !== id))}
-            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
-            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+            existingDocs={docs.existingDocs}
+            pendingFiles={docs.pendingFiles}
+            onRemoveDoc={docs.removeExistingDoc}
+            onAddFiles={docs.addPendingFiles}
+            onRemoveFile={docs.removePendingFile}
           />
 
-          <FormErrorAlert error={uploadError} />
+          <FormErrorAlert error={docs.uploadError} />
           <FormErrorAlert error={error} />
         </form>
 
@@ -219,7 +192,7 @@ export function FinancialEntryFormDialog({
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <Button type="submit" form="finance-form" disabled={isSubmitting}>
-            {uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
+            {docs.uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
           </Button>
         </DialogFooter>
       </DialogContent>

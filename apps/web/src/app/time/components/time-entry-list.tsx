@@ -69,7 +69,7 @@ export function TimeEntryList({
         <TimeEntryRow
           key={entry.id}
           entry={entry}
-          displayName={userNameById.get(entry.user) ?? entry.user_display_name}
+          displayName={(entry.user != null ? userNameById.get(entry.user) : null) ?? entry.user_display_name}
           targetLabel={getEntryTargetLabel(entry, folderNameById, taskTitleById)}
           canPay={canPay}
           canEdit={canEdit}

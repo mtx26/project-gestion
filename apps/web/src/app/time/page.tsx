@@ -30,7 +30,7 @@ import {
   getTargetPayload,
   getTargetValueFromEntry,
 } from "@/lib/target-utils";
-import { parseBooleanParam } from "@/lib/url-params";
+import { buildFilterParams, parseBooleanParam } from "@/lib/url-params";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
 import { TimeCalendarView } from "./components/time-calendar-view";
 import { TimeEntryForm } from "./components/time-entry-form";
@@ -274,23 +274,10 @@ function ProjectTimeContent({
 
   function updateUrlFilter(changes: Partial<{
     user: UserFilter; payment: PaymentStatusFilter; period: PeriodPreset;
-    target: string | null; view: TimeViewMode; includeUnpaid: boolean;
+    target: string | null; view: TimeViewMode; include_unpaid: boolean;
   }>) {
     if (!selectedProject) return;
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("project", String(selectedProject.id));
-    if (changes.user) params.set("user", changes.user);
-    if (changes.payment) params.set("payment", changes.payment);
-    if (changes.period) params.set("period", changes.period);
-    if (changes.target !== undefined) {
-      if (changes.target) params.set("target", changes.target);
-      else params.delete("target");
-    }
-    if (changes.view) params.set("view", changes.view);
-    if (changes.includeUnpaid !== undefined) {
-      if (changes.includeUnpaid) params.set("include_unpaid", "1");
-      else params.delete("include_unpaid");
-    }
+    const params = buildFilterParams(searchParams, selectedProject.id, changes);
     router.replace(`/time?${params.toString()}`, { scroll: false });
   }
 
@@ -348,7 +335,7 @@ function ProjectTimeContent({
           onPeriodPresetChange={(v) => updateUrlFilter({ period: v })}
           onPaymentStatusFilterChange={(v) => updateUrlFilter({ payment: v })}
           onUserFilterChange={(v) => updateUrlFilter({ user: v })}
-          onIncludeUnpaidOutsideMonthChange={(v) => updateUrlFilter({ includeUnpaid: v })}
+          onIncludeUnpaidOutsideMonthChange={(v) => updateUrlFilter({ include_unpaid: v })}
           onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
         />
       ) : null}

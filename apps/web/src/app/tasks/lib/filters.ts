@@ -1,5 +1,6 @@
 import type { Task } from "@project-gestion/types";
 import type { QueryClient } from "@tanstack/react-query";
+import { parseEnumParam } from "@/lib/url-params";
 
 export type StatusFilter = "all" | Task["status"];
 export type PriorityFilter = "all" | Task["priority"];
@@ -12,14 +13,15 @@ export function parseFolderFilter(value: string | null): FolderFilter {
   return "all";
 }
 
+const TASK_STATUS_VALUES = ["all", "todo", "in_progress", "done"] as const;
+const TASK_PRIORITY_VALUES = ["all", "low", "normal", "high"] as const;
+
 export function parseStatusFilter(value: string | null): StatusFilter {
-  if (value === "todo" || value === "in_progress" || value === "done") return value;
-  return "all";
+  return parseEnumParam(value, TASK_STATUS_VALUES, "all");
 }
 
 export function parsePriorityFilter(value: string | null): PriorityFilter {
-  if (value === "low" || value === "normal" || value === "high") return value;
-  return "all";
+  return parseEnumParam(value, TASK_PRIORITY_VALUES, "all");
 }
 
 export function getFolderId(value: FolderFilter): number | null {

@@ -21,9 +21,8 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
 function buildTrashHref(projectId: number | string, params: URLSearchParams) {
-  const next = new URLSearchParams({ project: String(projectId) });
-  const tab = params.get("tab");
-  if (tab) next.set("tab", tab);
+  const next = new URLSearchParams(params.toString());
+  next.set("project", String(projectId));
   return `/trash?${next}`;
 }
 

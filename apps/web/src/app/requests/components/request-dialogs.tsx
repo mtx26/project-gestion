@@ -1,6 +1,6 @@
 "use client";
 
-import type { ExpenseRequest, ExpenseRequestPayload, File as ApiFile, FolderTreeNode } from "@project-gestion/types";
+import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
 import { Calendar, UserRound } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -21,8 +21,7 @@ import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-att
 import { RequestStatusBadge } from "@/components/ui/request-status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
-import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 export function ExpenseRequestFormDialog({
@@ -52,19 +51,14 @@ export function ExpenseRequestFormDialog({
       ? `folder-${request.folder}`
       : "project";
 
-  function buildInitialDocs() {
-    return (request?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name }));
-  }
-
   const [title, setTitle] = useState(request?.title ?? "");
   const [amount, setAmount] = useState(request?.amount ?? "");
   const [category, setCategory] = useState(request?.category ?? "");
   const [description, setDescription] = useState(request?.description ?? "");
   const [targetValue, setTargetValue] = useState(initialTarget);
-  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>(buildInitialDocs);
-  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
+  const docs = useDocumentAttachment(
+    (request?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
+  );
 
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
@@ -76,37 +70,16 @@ export function ExpenseRequestFormDialog({
       setCategory(request?.category ?? "");
       setDescription(request?.description ?? "");
       setTargetValue(initialTarget);
-      setExistingDocs(buildInitialDocs());
-      setPendingFiles([]);
-      setFormError(null);
+      docs.reset();
     }
     onOpenChange(next);
   }
 
   async function handleSubmit(e: React.BaseSyntheticEvent) {
     e.preventDefault();
-    setFormError(null);
-    const newDocIds: number[] = [];
-    if (pendingFiles.length > 0) {
-      setUploading(true);
-      const { folder } = getTargetPayload(targetValue);
-      try {
-        for (const file of pendingFiles) {
-          const uploaded: ApiFile = await api.documents.upload(projectId, {
-            file,
-            folder: folder ?? undefined,
-            name: file.name,
-          });
-          newDocIds.push(uploaded.id);
-        }
-      } catch (err) {
-        setFormError(getErrorMessage(err));
-        setUploading(false);
-        return;
-      }
-      setUploading(false);
-    }
     const { folder, task } = getTargetPayload(targetValue);
+    const newDocIds = await docs.uploadPending(projectId, folder);
+    if (newDocIds === null) return;
     onSubmit({
       title: title.trim(),
       amount: amount.replace(",", "."),
@@ -114,11 +87,11 @@ export function ExpenseRequestFormDialog({
       description: description.trim() || null,
       folder,
       task,
-      documents: [...existingDocs.map((d) => d.id), ...newDocIds],
+      documents: docs.getAllDocIds(newDocIds),
     });
   }
 
-  const isSubmitting = uploading || isPending;
+  const isSubmitting = docs.uploading || isPending;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -192,14 +165,14 @@ export function ExpenseRequestFormDialog({
           </Field>
 
           <MultiDocumentAttachmentField
-            existingDocs={existingDocs}
-            pendingFiles={pendingFiles}
-            onRemoveDoc={(id) => setExistingDocs((prev) => prev.filter((d) => d.id !== id))}
-            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
-            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
+            existingDocs={docs.existingDocs}
+            pendingFiles={docs.pendingFiles}
+            onRemoveDoc={docs.removeExistingDoc}
+            onAddFiles={docs.addPendingFiles}
+            onRemoveFile={docs.removePendingFile}
           />
 
-          <FormErrorAlert error={formError} />
+          <FormErrorAlert error={docs.uploadError} />
         </form>
 
         <DialogFooter>
@@ -207,7 +180,7 @@ export function ExpenseRequestFormDialog({
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <Button type="submit" form="request-form" disabled={isSubmitting}>
-            {uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
+            {docs.uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
           </Button>
         </DialogFooter>
       </DialogContent>
