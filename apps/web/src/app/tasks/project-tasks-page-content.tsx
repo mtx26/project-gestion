@@ -7,7 +7,7 @@ import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Check, Lock, UserCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type FormEvent, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -78,23 +78,9 @@ function ProjectTasksContent({
   const createdByFilter = parseIdParam(searchParams.get("member"));
   const folderId = getFolderId(folderFilter);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [newTaskFolder, setNewTaskFolder] = useState<FolderFilter>(folderFilter);
-  const [newTaskPriority, setNewTaskPriority] = useState<Task["priority"]>("normal");
-  const [dueDate, setDueDate] = useState("");
-  const [newTaskAssignees, setNewTaskAssignees] = useState<number[]>([]);
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
-
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [editTitle, setEditTitle] = useState("");
-  const [editDescription, setEditDescription] = useState("");
-  const [editFolder, setEditFolder] = useState<FolderFilter>("all");
-  const [editStatus, setEditStatus] = useState<Task["status"]>("todo");
-  const [editPriority, setEditPriority] = useState<Task["priority"]>("normal");
-  const [editDueDate, setEditDueDate] = useState("");
-  const [editAssignees, setEditAssignees] = useState<number[]>([]);
 
   const tasksQuery = useQuery({
     queryKey: selectedProject
@@ -132,27 +118,13 @@ function ProjectTasksContent({
   const myTasks = user ? visibleTasks.filter((t) => t.assigned_to.includes(user.id)) : [];
 
   const createTask = useMutation({
-    mutationFn: () =>
-      api.tasks.create(selectedProject!.id, {
-        title: title.trim(),
-        description: description.trim() || null,
-        folder: getFolderId(newTaskFolder),
-        priority: newTaskPriority,
-        status: "todo",
-        due_date: dueDate || null,
-        assigned_to: newTaskAssignees,
-      }),
+    mutationFn: (payload: TaskPayload) => api.tasks.create(selectedProject!.id, payload),
     onSuccess: async () => {
       toast.success("Tache creee");
-      setTitle("");
-      setDescription("");
-      setNewTaskFolder(folderFilter);
-      setNewTaskPriority("normal");
-      setDueDate("");
-      setNewTaskAssignees([]);
       setCreateDialogOpen(false);
       await invalidateTasks(queryClient, selectedProject!.id);
     },
+    onError: (err) => toast.error(getErrorMessage(err)),
   });
   const updateTask = useMutation({
     mutationFn: ({ taskId, payload }: { taskId: number; payload: Partial<TaskPayload> }) =>
@@ -193,39 +165,6 @@ function ProjectTasksContent({
     router.replace(`/tasks?${params.toString()}`, { scroll: false });
   }
 
-  function onCreateTask(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedProject || !canEditTasks || !title.trim()) return;
-    createTask.mutate();
-  }
-
-  function openEditTask(task: Task) {
-    setEditingTask(task);
-    setEditTitle(task.title);
-    setEditDescription(task.description ?? "");
-    setEditFolder(task.folder == null ? "all" : `folder-${task.folder}`);
-    setEditStatus(task.status);
-    setEditPriority(task.priority);
-    setEditDueDate(task.due_date ?? "");
-    setEditAssignees(task.assigned_to ?? []);
-  }
-
-  function submitEditTask(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!editingTask || !editTitle.trim()) return;
-    updateTask.mutate({
-      taskId: editingTask.id,
-      payload: {
-        title: editTitle.trim(),
-        description: editDescription.trim() || null,
-        folder: getFolderId(editFolder),
-        status: editStatus,
-        priority: editPriority,
-        due_date: editDueDate || null,
-        assigned_to: editAssignees,
-      },
-    });
-  }
 
   if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
 
@@ -319,7 +258,7 @@ function ProjectTasksContent({
               deletingId={deleteTask.isPending ? deleteTask.variables : null}
               defaultVisibility={{ assignees: false }}
               onOpenDetail={setViewingTask}
-              onEdit={openEditTask}
+              onEdit={setEditingTask}
               onDelete={(task) => deleteTask.mutate(task.id)}
               onStatusChange={(task, status) => updateTask.mutate({ taskId: task.id, payload: { status } })}
             />
@@ -351,7 +290,7 @@ function ProjectTasksContent({
               canDelete={canDeleteTasks}
               deletingId={deleteTask.isPending ? deleteTask.variables : null}
               onOpenDetail={setViewingTask}
-              onEdit={openEditTask}
+              onEdit={setEditingTask}
               onDelete={(task) => deleteTask.mutate(task.id)}
               onStatusChange={(task, status) => updateTask.mutate({ taskId: task.id, payload: { status } })}
             />
@@ -365,49 +304,25 @@ function ProjectTasksContent({
         canViewFiles={canViewFiles}
         folders={foldersQuery.data ?? []}
         members={members}
-        assignees={newTaskAssignees}
-        title={title}
-        description={description}
-        folder={newTaskFolder}
-        priority={newTaskPriority}
-        dueDate={dueDate}
+        initialFolder={folderFilter}
         isPending={createTask.isPending}
         error={createTask.error ? getErrorMessage(createTask.error) : null}
         onOpenChange={setCreateDialogOpen}
-        onTitleChange={setTitle}
-        onDescriptionChange={setDescription}
-        onFolderChange={setNewTaskFolder}
-        onPriorityChange={setNewTaskPriority}
-        onDueDateChange={setDueDate}
-        onAssigneesChange={setNewTaskAssignees}
-        onSubmit={onCreateTask}
         onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
+        onSubmit={(payload) => { if (selectedProject && canEditTasks) createTask.mutate(payload); }}
       />
       <TaskFormDialog
+        key={editingTask?.id ?? "edit-none"}
         mode="edit"
         task={editingTask}
         canViewFiles={canViewFiles}
         folders={foldersQuery.data ?? []}
         members={members}
-        assignees={editAssignees}
-        title={editTitle}
-        description={editDescription}
-        folder={editFolder}
-        status={editStatus}
-        priority={editPriority}
-        dueDate={editDueDate}
         isPending={updateTask.isPending}
         error={updateTask.error ? getErrorMessage(updateTask.error) : null}
         onOpenChange={(open) => { if (!open) setEditingTask(null); }}
-        onTitleChange={setEditTitle}
-        onDescriptionChange={setEditDescription}
-        onFolderChange={setEditFolder}
-        onStatusChange={setEditStatus}
-        onPriorityChange={setEditPriority}
-        onDueDateChange={setEditDueDate}
-        onAssigneesChange={setEditAssignees}
-        onSubmit={submitEditTask}
         onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
+        onSubmit={(payload) => editingTask && updateTask.mutate({ taskId: editingTask.id, payload })}
       />
       <TaskDetailModal
         task={viewingTask}
@@ -417,7 +332,7 @@ function ProjectTasksContent({
         canDelete={canDeleteTasks}
         deletingId={deleteTask.isPending ? deleteTask.variables : null}
         onClose={() => setViewingTask(null)}
-        onEdit={(task) => { setViewingTask(null); openEditTask(task); }}
+        onEdit={(task) => { setViewingTask(null); setEditingTask(task); }}
         onDelete={(task) => { setViewingTask(null); deleteTask.mutate(task.id); }}
       />
     </div>

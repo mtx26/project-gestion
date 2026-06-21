@@ -1,8 +1,11 @@
 "use client";
 
 import type { TimeEntry } from "@project-gestion/types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, CreditCard, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -24,74 +27,95 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TargetPickerDialog } from "@/components/ui/target-tree-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/date-utils";
-import { type TargetTreeNode, getTargetPayload } from "@/lib/target-utils";
+import { type TargetTreeNode, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
 
+const editTimeSchema = z.object({
+  hours: z.string(),
+  minutes: z.string(),
+  hourlyRate: z.string(),
+  description: z.string(),
+});
+type EditTimeFormValues = z.infer<typeof editTimeSchema>;
+
+const paymentSchema = z.object({
+  mode: z.enum(["full", "partial"]),
+  amount: z.string(),
+});
+type PaymentFormValues = z.infer<typeof paymentSchema>;
+
+export type EditTimeSubmitData = {
+  documentIds: number[];
+  durationMinutes: number;
+  hourlyRate: string | undefined;
+  description: string | null;
+  folder: number | null;
+  task: number | null;
+};
+
 export function EditTimeEntryDialog({
   entry,
   projectId,
-  hours,
-  minutes,
-  hourlyRate,
-  description,
   targetTree,
-  targetValue,
-  selectedTargetLabel,
   isPending,
   error,
-  onHoursChange,
-  onMinutesChange,
-  onHourlyRateChange,
-  onDescriptionChange,
-  onTargetValueChange,
   onCreateFolder,
   onOpenChange,
   onSubmit,
 }: {
   entry: TimeEntry | null;
   projectId: number;
-  hours: string;
-  minutes: string;
-  hourlyRate: string;
-  description: string;
   targetTree: TargetTreeNode;
-  targetValue: string;
-  selectedTargetLabel: string;
   isPending: boolean;
   error: string | null;
-  onHoursChange: (value: string) => void;
-  onMinutesChange: (value: string) => void;
-  onHourlyRateChange: (value: string) => void;
-  onDescriptionChange: (value: string) => void;
-  onTargetValueChange: (value: string) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (documentIds: number[]) => void;
+  onSubmit: (data: EditTimeSubmitData) => void;
 }) {
-  const durationMinutes = Number(hours) * 60 + Number(minutes);
-  const durationHours = durationMinutes / 60;
-  const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
+  const form = useForm<EditTimeFormValues>({
+    resolver: zodResolver(editTimeSchema),
+    defaultValues: {
+      hours: entry ? String(Math.floor(entry.duration_minutes / 60)) : "1",
+      minutes: entry ? String(entry.duration_minutes % 60) : "0",
+      hourlyRate: entry?.hourly_rate ?? "0",
+      description: entry?.description ?? "",
+    },
+  });
+  const [targetValue, setTargetValue] = useState(entry ? getTargetValueFromEntry(entry) : "project");
   const [totalDraft, setTotalDraft] = useState<string | null>(null);
-  const totalValue = totalDraft ?? computedTotal;
   const docs = useDocumentAttachment(
     (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
   );
+
+  const { hours, minutes, hourlyRate } = form.watch();
+  const durationMinutes = Number(hours) * 60 + Number(minutes);
+  const durationHours = durationMinutes / 60;
+  const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
+  const totalValue = totalDraft ?? computedTotal;
+  const selectedTargetLabel = findTargetLabel(targetTree, targetValue) ?? "Projet";
 
   function handleTotalChange(value: string) {
     setTotalDraft(value);
     const total = Number(value);
     if (durationHours > 0 && total >= 0 && value !== "") {
-      onHourlyRateChange((total / durationHours).toFixed(2));
+      form.setValue("hourlyRate", (total / durationHours).toFixed(2));
     }
   }
 
-  async function handleSubmit() {
-    const { folder } = getTargetPayload(targetValue);
+  async function handleSubmit(values: EditTimeFormValues) {
+    const { folder, task } = getTargetPayload(targetValue);
     const newDocIds = await docs.uploadPending(projectId, folder);
     if (newDocIds === null) return;
-    onSubmit(docs.getAllDocIds(newDocIds));
+    onSubmit({
+      documentIds: docs.getAllDocIds(newDocIds),
+      durationMinutes: Number(values.hours) * 60 + Number(values.minutes),
+      hourlyRate: values.hourlyRate === "" ? undefined : values.hourlyRate,
+      description: values.description.trim() || null,
+      folder,
+      task,
+    });
   }
 
   const isSubmitting = docs.uploading || isPending;
@@ -108,18 +132,18 @@ export function EditTimeEntryDialog({
           <div className="grid grid-cols-2 gap-3">
             <Field>
               <FieldLabel htmlFor="edit-time-hours">Heures</FieldLabel>
-              <Input id="edit-time-hours" type="number" min="0" value={hours} onChange={(e) => onHoursChange(e.target.value)} />
+              <Input id="edit-time-hours" type="number" min="0" {...form.register("hours")} />
             </Field>
             <Field>
               <FieldLabel htmlFor="edit-time-minutes">Minutes</FieldLabel>
-              <Input id="edit-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(e) => onMinutesChange(e.target.value)} />
+              <Input id="edit-time-minutes" type="number" min="0" max="59" {...form.register("minutes")} />
             </Field>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <Field>
               <FieldLabel htmlFor="edit-time-rate">Taux horaire</FieldLabel>
-              <Input id="edit-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(e) => onHourlyRateChange(e.target.value)} />
+              <Input id="edit-time-rate" type="number" min="0" step="0.01" {...form.register("hourlyRate")} />
             </Field>
             <Field>
               <FieldLabel htmlFor="edit-time-total">Total</FieldLabel>
@@ -141,14 +165,14 @@ export function EditTimeEntryDialog({
               targetTree={targetTree}
               selectedValue={targetValue}
               selectedLabel={selectedTargetLabel}
-              onSelect={onTargetValueChange}
+              onSelect={setTargetValue}
               onCreateFolder={onCreateFolder}
             />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="edit-time-description">Description</FieldLabel>
-            <Textarea id="edit-time-description" rows={4} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
+            <Textarea id="edit-time-description" rows={4} {...form.register("description")} />
           </Field>
 
           <MultiDocumentAttachmentField
@@ -166,7 +190,7 @@ export function EditTimeEntryDialog({
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
-          <Button type="button" disabled={durationMinutes <= 0 || isSubmitting} onClick={handleSubmit}>
+          <Button type="button" disabled={durationMinutes <= 0 || isSubmitting} onClick={form.handleSubmit(handleSubmit)}>
             <Pencil className="size-4" />
             {isSubmitting ? "Modification..." : "Enregistrer"}
           </Button>
@@ -306,26 +330,29 @@ export function TimeEntryDetailDialog({
 
 export function PaymentDialog({
   entry,
-  mode,
-  amount,
   isPending,
   error,
-  onModeChange,
-  onAmountChange,
   onOpenChange,
   onSubmit,
 }: {
   entry: TimeEntry | null;
-  mode: "full" | "partial";
-  amount: string;
   isPending: boolean;
   error: string | null;
-  onModeChange: (mode: "full" | "partial") => void;
-  onAmountChange: (value: string) => void;
   onOpenChange: (open: boolean) => void;
-  onSubmit: () => void;
+  onSubmit: (values: { mode: "full" | "partial"; amount: string }) => void;
 }) {
   const remainingAmount = Number(entry?.remaining_amount ?? 0);
+
+  const form = useForm<PaymentFormValues>({
+    resolver: zodResolver(paymentSchema),
+    defaultValues: { mode: "full", amount: entry?.remaining_amount ?? "" },
+  });
+
+  const mode = form.watch("mode");
+
+  function handleSubmit(values: PaymentFormValues) {
+    onSubmit(values);
+  }
 
   return (
     <Dialog open={entry != null} onOpenChange={onOpenChange}>
@@ -336,15 +363,21 @@ export function PaymentDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <Select value={mode} onValueChange={(value) => onModeChange(value as "full" | "partial")}>
-            <SelectTrigger className="bg-background">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="full">Payer le reste complet</SelectItem>
-              <SelectItem value="partial">Paiement partiel</SelectItem>
-            </SelectContent>
-          </Select>
+          <Controller
+            control={form.control}
+            name="mode"
+            render={({ field }) => (
+              <Select value={field.value} onValueChange={field.onChange}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="full">Payer le reste complet</SelectItem>
+                  <SelectItem value="partial">Paiement partiel</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+          />
 
           {mode === "partial" ? (
             <div className="space-y-2">
@@ -355,8 +388,7 @@ export function PaymentDialog({
                 min="0"
                 max={remainingAmount}
                 step="0.01"
-                value={amount}
-                onChange={(e) => onAmountChange(e.target.value)}
+                {...form.register("amount")}
               />
             </div>
           ) : null}
@@ -370,8 +402,8 @@ export function PaymentDialog({
           </DialogClose>
           <Button
             type="button"
-            disabled={isPending || remainingAmount <= 0 || (mode === "partial" && Number(amount) <= 0)}
-            onClick={onSubmit}
+            disabled={isPending || remainingAmount <= 0 || (mode === "partial" && Number(form.watch("amount")) <= 0)}
+            onClick={form.handleSubmit(handleSubmit)}
           >
             <CheckCircle2 className="size-4" />
             {isPending ? "Paiement..." : "Confirmer"}

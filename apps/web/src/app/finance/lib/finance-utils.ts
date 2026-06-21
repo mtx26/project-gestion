@@ -6,8 +6,10 @@ export const financeChartConfig = {
   refunds: { label: "Remboursements", color: "oklch(0.6 0.15 150)" },
 };
 
-export function buildFinanceHref(projectId: number | string): string {
-  return `/finance?project=${projectId}`;
+export function buildFinanceHref(projectId: number | string, searchParams?: { toString(): string }): string {
+  const params = new URLSearchParams(searchParams?.toString() ?? "");
+  params.set("project", String(projectId));
+  return `/finance?${params.toString()}`;
 }
 
 const FINANCE_TYPE_VALUES = ["all", "expense", "refund"] as const;

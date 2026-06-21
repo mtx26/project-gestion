@@ -39,8 +39,8 @@ export default function RequestsPage() {
     <ProjectWorkspaceShell
       activeItem="requests"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildRequestsHref(id))}
-      onProjectCreated={(project) => router.push(buildRequestsHref(project.id))}
+      onProjectSelected={(id) => router.push(buildRequestsHref(id, searchParams))}
+      onProjectCreated={(project) => router.push(buildRequestsHref(project.id, searchParams))}
     >
       {(state) => <RequestsPageContent {...state} />}
     </ProjectWorkspaceShell>

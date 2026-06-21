@@ -75,8 +75,16 @@ export function ProjectFilesPageContent() {
       activeItem="files"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
       maxWidthClassName="max-w-6xl"
-      onProjectSelected={(id) => router.push(`/files?project=${id}`)}
-      onProjectCreated={(project) => router.push(`/files?project=${project.id}`)}
+      onProjectSelected={(id) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("project", String(id));
+        router.push(`/files?${params.toString()}`);
+      }}
+      onProjectCreated={(project) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("project", String(project.id));
+        router.push(`/files?${params.toString()}`);
+      }}
     >
       {(state) => <ProjectTreeView {...state} />}
     </ProjectWorkspaceShell>

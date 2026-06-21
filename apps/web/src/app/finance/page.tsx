@@ -41,8 +41,8 @@ export default function FinancePage() {
     <ProjectWorkspaceShell
       activeItem="finance"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildFinanceHref(id))}
-      onProjectCreated={(project) => router.push(buildFinanceHref(project.id))}
+      onProjectSelected={(id) => router.push(buildFinanceHref(id, searchParams))}
+      onProjectCreated={(project) => router.push(buildFinanceHref(project.id, searchParams))}
     >
       {(state) => <FinancePageContent {...state} />}
     </ProjectWorkspaceShell>

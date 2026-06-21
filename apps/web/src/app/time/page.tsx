@@ -7,7 +7,7 @@ import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { CalendarDays, Clock3, Lock, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { FormEvent } from "react";
+
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -28,7 +28,6 @@ import {
   collectTaskFolderIds,
   findTargetLabel,
   getTargetPayload,
-  getTargetValueFromEntry,
 } from "@/lib/target-utils";
 import { buildFilterParams, parseBooleanParam } from "@/lib/url-params";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
@@ -36,7 +35,7 @@ import { TimeCalendarView } from "./components/time-calendar-view";
 import { TimeEntryForm } from "./components/time-entry-form";
 import { TimeEntryList } from "./components/time-entry-list";
 import { TimePeriodToolbar } from "./components/time-period-toolbar";
-import { EditTimeEntryDialog, PaymentDialog, TimeEntryDetailDialog } from "./components/time-dialogs";
+import { type EditTimeSubmitData, EditTimeEntryDialog, PaymentDialog, TimeEntryDetailDialog } from "./components/time-dialogs";
 import {
   type PaymentStatusFilter,
   type PeriodPreset,
@@ -108,14 +107,7 @@ function ProjectTimeContent({
   const hourlyRate = hourlyRateDraft ?? defaultHourlyRate;
   const [description, setDescription] = useState("");
   const [paymentTarget, setPaymentTarget] = useState<TimeEntry | null>(null);
-  const [paymentMode, setPaymentMode] = useState<"full" | "partial">("full");
-  const [paymentAmount, setPaymentAmount] = useState("");
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-  const [editHours, setEditHours] = useState("1");
-  const [editMinutes, setEditMinutes] = useState("0");
-  const [editHourlyRate, setEditHourlyRate] = useState("0");
-  const [editDescription, setEditDescription] = useState("");
-  const [editTargetValue, setEditTargetValue] = useState("project");
   const [detailEntry, setDetailEntry] = useState<TimeEntry | null>(null);
 
   const timeEntriesQuery = useQuery({
@@ -203,14 +195,14 @@ function ProjectTimeContent({
     onError: (err) => toast.error(getErrorMessage(err)),
   });
   const payTimeEntry = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: { mode: "full" | "partial"; amount: string }) =>
       api.timeEntries.pay(selectedProject!.id, paymentTarget!.id, {
-        pay_full: paymentMode === "full",
-        amount: paymentMode === "partial" ? paymentAmount : undefined,
+        pay_full: values.mode === "full",
+        amount: values.mode === "partial" ? values.amount : undefined,
       }),
     onSuccess: async () => {
       toast.success("Paiement enregistre");
-      setPaymentTarget(null); setPaymentMode("full"); setPaymentAmount("");
+      setPaymentTarget(null);
       await Promise.all([
         invalidateTimeQueries(queryClient, selectedProject!.id),
         queryClient.invalidateQueries({ queryKey: ["projects", selectedProject!.id, "financial-entries"] }),
@@ -219,14 +211,14 @@ function ProjectTimeContent({
     onError: (err) => toast.error(getErrorMessage(err)),
   });
   const updateTimeEntry = useMutation({
-    mutationFn: (documentIds: number[]) =>
+    mutationFn: (data: EditTimeSubmitData) =>
       api.timeEntries.update(selectedProject!.id, editingEntry!.id, {
-        duration_minutes: Number(editHours) * 60 + Number(editMinutes),
-        hourly_rate: editHourlyRate === "" ? undefined : editHourlyRate,
-        description: editDescription.trim() || null,
-        folder: getTargetPayload(editTargetValue).folder,
-        task: getTargetPayload(editTargetValue).task,
-        documents: documentIds,
+        duration_minutes: data.durationMinutes,
+        hourly_rate: data.hourlyRate,
+        description: data.description,
+        folder: data.folder,
+        task: data.task,
+        documents: data.documentIds,
       }),
     onSuccess: async () => {
       toast.success("Temps mis a jour");
@@ -251,26 +243,12 @@ function ProjectTimeContent({
     await createFolder.mutateAsync({ name, parentId });
   }
 
-  function onSubmitTimeEntry(event: FormEvent<HTMLFormElement>, documentIds: number[]) {
+  function onSubmitTimeEntry(event: React.FormEvent<HTMLFormElement>, documentIds: number[]) {
     event.preventDefault();
     if (!selectedProject || !user || !canRecordTime) return;
     createTimeEntry.mutate(documentIds);
   }
 
-  function openPaymentDialog(entry: TimeEntry) {
-    setPaymentTarget(entry);
-    setPaymentMode("full");
-    setPaymentAmount(entry.remaining_amount);
-  }
-
-  function openEditDialog(entry: TimeEntry) {
-    setEditingEntry(entry);
-    setEditHours(String(Math.floor(entry.duration_minutes / 60)));
-    setEditMinutes(String(entry.duration_minutes % 60));
-    setEditHourlyRate(entry.hourly_rate);
-    setEditDescription(entry.description ?? "");
-    setEditTargetValue(getTargetValueFromEntry(entry));
-  }
 
   function updateUrlFilter(changes: Partial<{
     user: UserFilter; payment: PaymentStatusFilter; period: PeriodPreset;
@@ -380,8 +358,8 @@ function ProjectTimeContent({
                   canEdit={canRecordTime}
                   canDelete={canDeleteTime}
                   deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
-                  onPay={openPaymentDialog}
-                  onEdit={openEditDialog}
+                  onPay={setPaymentTarget}
+                  onEdit={setEditingEntry}
                   onDetail={setDetailEntry}
                   onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
                 />
@@ -451,37 +429,23 @@ function ProjectTimeContent({
       </Dialog>
 
       <PaymentDialog
+        key={paymentTarget?.id ?? "payment-none"}
         entry={paymentTarget}
-        mode={paymentMode}
-        amount={paymentAmount}
         isPending={payTimeEntry.isPending}
         error={payTimeEntry.error ? getErrorMessage(payTimeEntry.error) : null}
-        onModeChange={setPaymentMode}
-        onAmountChange={setPaymentAmount}
         onOpenChange={(open) => { if (!open) { setPaymentTarget(null); payTimeEntry.reset(); } }}
-        onSubmit={() => payTimeEntry.mutate()}
+        onSubmit={(values) => payTimeEntry.mutate(values)}
       />
       <EditTimeEntryDialog
         key={editingEntry?.id ?? "none"}
         entry={editingEntry}
         projectId={selectedProject?.id ?? 0}
-        hours={editHours}
-        minutes={editMinutes}
-        hourlyRate={editHourlyRate}
-        description={editDescription}
         targetTree={targetTree}
-        targetValue={editTargetValue}
-        selectedTargetLabel={findTargetLabel(targetTree, editTargetValue) ?? "Projet"}
         isPending={updateTimeEntry.isPending}
         error={updateTimeEntry.error ? getErrorMessage(updateTimeEntry.error) : null}
-        onHoursChange={setEditHours}
-        onMinutesChange={setEditMinutes}
-        onHourlyRateChange={setEditHourlyRate}
-        onDescriptionChange={setEditDescription}
-        onTargetValueChange={setEditTargetValue}
         onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
         onOpenChange={(open) => { if (!open) { setEditingEntry(null); updateTimeEntry.reset(); } }}
-        onSubmit={(documentIds) => updateTimeEntry.mutate(documentIds)}
+        onSubmit={(data) => updateTimeEntry.mutate(data)}
       />
       <TimeEntryDetailDialog
         entry={detailEntry}
@@ -493,8 +457,8 @@ function ProjectTimeContent({
         canDelete={canDeleteTime}
         deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
         onClose={() => setDetailEntry(null)}
-        onEdit={(entry) => { setDetailEntry(null); openEditDialog(entry); }}
-        onPay={(entry) => { setDetailEntry(null); openPaymentDialog(entry); }}
+        onEdit={(entry) => { setDetailEntry(null); setEditingEntry(entry); }}
+        onPay={(entry) => { setDetailEntry(null); setPaymentTarget(entry); }}
         onDelete={(entry) => { setDetailEntry(null); deleteTimeEntry.mutate(entry.id); }}
       />
     </div>

@@ -1,8 +1,11 @@
 "use client";
 
-import type { FolderTreeNode, Task } from "@project-gestion/types";
+import type { FolderTreeNode, Task, TaskPayload } from "@project-gestion/types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, X } from "lucide-react";
-import React, { type FormEvent, useState } from "react";
+import React, { useState } from "react";
+import { Controller, useForm, useWatch } from "react-hook-form";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -14,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
@@ -26,6 +29,17 @@ import type { FolderFilter } from "../lib/filters";
 import { getFolderId } from "../lib/filters";
 import type { TaskMember } from "./task-table";
 
+const taskSchema = z.object({
+  title: z.string().min(1, "Le titre est requis"),
+  description: z.string(),
+  folder: z.string(),
+  status: z.enum(["todo", "in_progress", "done"]),
+  priority: z.enum(["low", "normal", "high"]),
+  dueDate: z.string(),
+  assignees: z.array(z.number()),
+});
+type TaskFormValues = z.infer<typeof taskSchema>;
+
 export function TaskFormDialog({
   mode,
   open,
@@ -33,23 +47,10 @@ export function TaskFormDialog({
   canViewFiles,
   folders,
   members,
-  assignees,
-  title,
-  description,
-  folder,
-  status,
-  priority,
-  dueDate,
+  initialFolder,
   isPending,
   error,
   onOpenChange,
-  onTitleChange,
-  onDescriptionChange,
-  onFolderChange,
-  onStatusChange,
-  onPriorityChange,
-  onDueDateChange,
-  onAssigneesChange,
   onCreateFolder,
   onSubmit,
 }: {
@@ -59,31 +60,52 @@ export function TaskFormDialog({
   canViewFiles: boolean;
   folders: FolderTreeNode[];
   members: TaskMember[];
-  assignees: number[];
-  title: string;
-  description: string;
-  folder: FolderFilter;
-  status?: Task["status"];
-  priority: Task["priority"];
-  dueDate: string;
+  initialFolder?: FolderFilter;
   isPending: boolean;
   error: string | null;
   onOpenChange: (open: boolean) => void;
-  onTitleChange: (value: string) => void;
-  onDescriptionChange: (value: string) => void;
-  onFolderChange: (value: FolderFilter) => void;
-  onStatusChange?: (value: Task["status"]) => void;
-  onPriorityChange: (value: Task["priority"]) => void;
-  onDueDateChange: (value: string) => void;
-  onAssigneesChange: (ids: number[]) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (payload: TaskPayload) => void;
 }) {
   const isOpen = mode === "create" ? (open ?? false) : task != null;
-  const folderId = getFolderId(folder);
+
+  const form = useForm<TaskFormValues>({
+    resolver: zodResolver(taskSchema),
+    defaultValues: {
+      title: task?.title ?? "",
+      description: task?.description ?? "",
+      folder: task
+        ? (task.folder == null ? "all" : `folder-${task.folder}`)
+        : (initialFolder ?? "all"),
+      status: task?.status ?? "todo",
+      priority: task?.priority ?? "normal",
+      dueDate: task?.due_date ?? "",
+      assignees: task?.assigned_to ?? [],
+    },
+  });
+
+  function handleOpenChange(next: boolean) {
+    if (!next) form.reset();
+    onOpenChange(next);
+  }
+
+  function handleSubmit(values: TaskFormValues) {
+    onSubmit({
+      title: values.title.trim(),
+      description: values.description.trim() || null,
+      folder: getFolderId(values.folder as FolderFilter),
+      status: values.status,
+      priority: values.priority,
+      due_date: values.dueDate || null,
+      assigned_to: values.assignees,
+    });
+  }
+
+  const folderValue = useWatch({ control: form.control, name: "folder" });
+  const folderId = getFolderId(folderValue as FolderFilter);
 
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{mode === "create" ? "Nouvelle tache" : "Modifier la tache"}</DialogTitle>
@@ -93,89 +115,132 @@ export function TaskFormDialog({
               : "Modifie le titre, la cible, le statut et les informations de suivi."}
           </DialogDescription>
         </DialogHeader>
-        <form className="space-y-4" onSubmit={onSubmit}>
+        <form className="space-y-4" onSubmit={form.handleSubmit(handleSubmit)}>
           <Field>
             <FieldLabel htmlFor="task-form-title">Titre</FieldLabel>
-            <Input id="task-form-title" value={title} onChange={(e) => onTitleChange(e.target.value)} />
+            <Input id="task-form-title" {...form.register("title")} />
+            <FieldError errors={[form.formState.errors.title]} />
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-2">
             {canViewFiles ? (
               <Field>
                 <FieldLabel>Dossier</FieldLabel>
-                <TreePickerDialog
-                  mode="folder"
-                  folders={folders}
-                  selectedFolderId={folderId}
-                  buttonLabel={folderId == null ? "Projet" : (findFolderName(folders, folderId) ?? "Dossier")}
-                  description="Selectionne le dossier qui recevra la tache."
-                  onSelect={(id) => onFolderChange(id == null ? "all" : `folder-${id}`)}
-                  onCreateFolder={onCreateFolder}
+                <Controller
+                  control={form.control}
+                  name="folder"
+                  render={({ field }) => (
+                    <TreePickerDialog
+                      mode="folder"
+                      folders={folders}
+                      selectedFolderId={folderId}
+                      buttonLabel={folderId == null ? "Projet" : (findFolderName(folders, folderId) ?? "Dossier")}
+                      description="Selectionne le dossier qui recevra la tache."
+                      onSelect={(id) => field.onChange(id == null ? "all" : `folder-${id}`)}
+                      onCreateFolder={onCreateFolder}
+                    />
+                  )}
                 />
               </Field>
             ) : null}
-            {mode === "edit" && status !== undefined && onStatusChange ? (
+            {mode === "edit" ? (
               <Field>
                 <FieldLabel>Statut</FieldLabel>
-                <Select value={status} onValueChange={(v) => onStatusChange(v as Task["status"])}>
-                  <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todo">A faire</SelectItem>
-                    <SelectItem value="in_progress">En cours</SelectItem>
-                    <SelectItem value="done">Termine</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={form.control}
+                  name="status"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todo">A faire</SelectItem>
+                        <SelectItem value="in_progress">En cours</SelectItem>
+                        <SelectItem value="done">Termine</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </Field>
-            ) : mode === "create" ? (
+            ) : (
               <Field>
                 <FieldLabel>Priorite</FieldLabel>
-                <Select value={priority} onValueChange={(v) => onPriorityChange(v as Task["priority"])}>
-                  <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Basse</SelectItem>
-                    <SelectItem value="normal">Normale</SelectItem>
-                    <SelectItem value="high">Haute</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Basse</SelectItem>
+                        <SelectItem value="normal">Normale</SelectItem>
+                        <SelectItem value="high">Haute</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </Field>
-            ) : null}
+            )}
           </div>
 
           {mode === "edit" ? (
             <div className="grid gap-3 sm:grid-cols-2">
               <Field>
                 <FieldLabel>Priorite</FieldLabel>
-                <Select value={priority} onValueChange={(v) => onPriorityChange(v as Task["priority"])}>
-                  <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="low">Basse</SelectItem>
-                    <SelectItem value="normal">Normale</SelectItem>
-                    <SelectItem value="high">Haute</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={form.control}
+                  name="priority"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="bg-background"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Basse</SelectItem>
+                        <SelectItem value="normal">Normale</SelectItem>
+                        <SelectItem value="high">Haute</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
               </Field>
               <Field>
                 <FieldLabel>Echeance</FieldLabel>
-                <DatePicker value={dueDate} onChange={onDueDateChange} />
+                <Controller
+                  control={form.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <DatePicker value={field.value} onChange={field.onChange} />
+                  )}
+                />
               </Field>
             </div>
           ) : (
             <Field>
               <FieldLabel>Echeance</FieldLabel>
-              <DatePicker value={dueDate} onChange={onDueDateChange} />
+              <Controller
+                control={form.control}
+                name="dueDate"
+                render={({ field }) => (
+                  <DatePicker value={field.value} onChange={field.onChange} />
+                )}
+              />
             </Field>
           )}
 
           {members.length > 0 ? (
             <Field>
               <FieldLabel>Assignes</FieldLabel>
-              <MemberCombobox members={members} value={assignees} onChange={onAssigneesChange} />
+              <Controller
+                control={form.control}
+                name="assignees"
+                render={({ field }) => (
+                  <MemberCombobox members={members} value={field.value} onChange={field.onChange} />
+                )}
+              />
             </Field>
           ) : null}
 
           <Field>
             <FieldLabel htmlFor="task-form-description">Description</FieldLabel>
-            <Textarea id="task-form-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
+            <Textarea id="task-form-description" rows={3} {...form.register("description")} />
           </Field>
 
           <FormErrorAlert error={error} />
@@ -184,7 +249,7 @@ export function TaskFormDialog({
             <DialogClose asChild>
               <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
-            <Button type="submit" disabled={!title.trim() || isPending}>
+            <Button type="submit" disabled={isPending}>
               {mode === "create" ? (isPending ? "Creation..." : "Creer") : (isPending ? "Enregistrement..." : "Enregistrer")}
             </Button>
           </DialogFooter>
@@ -260,7 +325,7 @@ function MemberCombobox({
         </div>
       </PopoverAnchor>
       <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] gap-0 p-1"
+        className="w-(--radix-popover-trigger-width) gap-0 p-1"
         align="start"
         sideOffset={4}
         onOpenAutoFocus={(e) => e.preventDefault()}

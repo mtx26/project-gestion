@@ -1,8 +1,11 @@
 "use client";
 
 import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, UserRound } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -16,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { EntryDetailBody } from "@/components/ui/entry-detail-body";
 import { EntryTypeBadge } from "@/components/ui/entry-type-badge";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
@@ -25,6 +28,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { formatDate, formatMoney } from "@/lib/task-utils";
+
+const financeSchema = z.object({
+  type: z.enum(["expense", "refund"]),
+  amount: z.string().min(1, "Le montant est requis"),
+  date: z.string(),
+  category: z.string(),
+  description: z.string(),
+});
+type FinanceFormValues = z.infer<typeof financeSchema>;
 
 export function FinancialEntryFormDialog({
   mode,
@@ -55,11 +67,16 @@ export function FinancialEntryFormDialog({
       ? `folder-${entry.folder}`
       : "project";
 
-  const [type, setType] = useState<"expense" | "refund">(entry?.type ?? "expense");
-  const [amount, setAmount] = useState(entry?.amount ?? "");
-  const [date, setDate] = useState(entry?.date ?? new Date().toISOString().split("T")[0]);
-  const [category, setCategory] = useState(entry?.category ?? "");
-  const [description, setDescription] = useState(entry?.description ?? "");
+  const form = useForm<FinanceFormValues>({
+    resolver: zodResolver(financeSchema),
+    defaultValues: {
+      type: entry?.type ?? "expense",
+      amount: String(entry?.amount ?? ""),
+      date: entry?.date ?? new Date().toISOString().split("T")[0],
+      category: entry?.category ?? "",
+      description: entry?.description ?? "",
+    },
+  });
   const [targetValue, setTargetValue] = useState(initialTarget);
   const docs = useDocumentAttachment(
     (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
@@ -70,28 +87,23 @@ export function FinancialEntryFormDialog({
 
   function handleOpenChange(next: boolean) {
     if (!next) {
-      setType(entry?.type ?? "expense");
-      setAmount(entry?.amount ?? "");
-      setDate(entry?.date ?? new Date().toISOString().split("T")[0]);
-      setCategory(entry?.category ?? "");
-      setDescription(entry?.description ?? "");
+      form.reset();
       setTargetValue(initialTarget);
       docs.reset();
     }
     onOpenChange(next);
   }
 
-  async function handleSubmit(e: React.BaseSyntheticEvent) {
-    e.preventDefault();
+  async function handleSubmit(values: FinanceFormValues) {
     const { folder, task } = getTargetPayload(targetValue);
     const newDocIds = await docs.uploadPending(projectId, folder);
     if (newDocIds === null) return;
     onSubmit({
-      date: date || null,
-      type,
-      amount: amount.replace(",", "."),
-      category: category.trim() || null,
-      description: description.trim() || null,
+      date: values.date || null,
+      type: values.type,
+      amount: values.amount.replace(",", "."),
+      category: values.category.trim() || null,
+      description: values.description.trim() || null,
       folder,
       task,
       documents: docs.getAllDocIds(newDocIds),
@@ -110,57 +122,50 @@ export function FinancialEntryFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form id="finance-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id="finance-form" onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="entry-type">Type</FieldLabel>
-              <Select value={type} onValueChange={(v) => setType(v as "expense" | "refund")}>
-                <SelectTrigger id="entry-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="expense">Depense</SelectItem>
-                  <SelectItem value="refund">Remboursement</SelectItem>
-                </SelectContent>
-              </Select>
+              <Controller
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger id="entry-type"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="expense">Depense</SelectItem>
+                      <SelectItem value="refund">Remboursement</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="entry-amount">Montant (€)</FieldLabel>
-              <Input
-                id="entry-amount"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                required
-              />
+              <Input id="entry-amount" type="text" inputMode="decimal" placeholder="0.00" {...form.register("amount")} />
+              <FieldError errors={[form.formState.errors.amount]} />
             </Field>
           </div>
 
           <Field>
             <FieldLabel>Date</FieldLabel>
-            <DatePicker value={date} onChange={setDate} />
+            <Controller
+              control={form.control}
+              name="date"
+              render={({ field }) => (
+                <DatePicker value={field.value} onChange={field.onChange} />
+              )}
+            />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="entry-category">Categorie</FieldLabel>
-            <Input
-              id="entry-category"
-              type="text"
-              placeholder="Ex: Transport, Materiel…"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            />
+            <Input id="entry-category" type="text" placeholder="Ex: Transport, Materiel…" {...form.register("category")} />
           </Field>
 
           <Field>
             <FieldLabel htmlFor="entry-description">Description</FieldLabel>
-            <Textarea
-              id="entry-description"
-              rows={2}
-              placeholder="Details optionnels…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Textarea id="entry-description" rows={2} placeholder="Details optionnels…" {...form.register("description")} />
           </Field>
 
           <Field>

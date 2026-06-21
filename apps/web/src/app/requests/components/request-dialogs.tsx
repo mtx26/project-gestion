@@ -1,8 +1,11 @@
 "use client";
 
 import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, UserRound } from "lucide-react";
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -14,7 +17,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EntryDetailBody } from "@/components/ui/entry-detail-body";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
@@ -23,6 +26,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { formatDate, formatMoney } from "@/lib/task-utils";
+
+const requestSchema = z.object({
+  title: z.string().min(1, "Le titre est requis"),
+  amount: z.string().min(1, "Le montant est requis"),
+  category: z.string(),
+  description: z.string(),
+});
+type RequestFormValues = z.infer<typeof requestSchema>;
 
 export function ExpenseRequestFormDialog({
   mode,
@@ -51,10 +62,15 @@ export function ExpenseRequestFormDialog({
       ? `folder-${request.folder}`
       : "project";
 
-  const [title, setTitle] = useState(request?.title ?? "");
-  const [amount, setAmount] = useState(request?.amount ?? "");
-  const [category, setCategory] = useState(request?.category ?? "");
-  const [description, setDescription] = useState(request?.description ?? "");
+  const form = useForm<RequestFormValues>({
+    resolver: zodResolver(requestSchema),
+    defaultValues: {
+      title: request?.title ?? "",
+      amount: String(request?.amount ?? ""),
+      category: request?.category ?? "",
+      description: request?.description ?? "",
+    },
+  });
   const [targetValue, setTargetValue] = useState(initialTarget);
   const docs = useDocumentAttachment(
     (request?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
@@ -65,26 +81,22 @@ export function ExpenseRequestFormDialog({
 
   function handleOpenChange(next: boolean) {
     if (!next) {
-      setTitle(request?.title ?? "");
-      setAmount(request?.amount ?? "");
-      setCategory(request?.category ?? "");
-      setDescription(request?.description ?? "");
+      form.reset();
       setTargetValue(initialTarget);
       docs.reset();
     }
     onOpenChange(next);
   }
 
-  async function handleSubmit(e: React.BaseSyntheticEvent) {
-    e.preventDefault();
+  async function handleSubmit(values: RequestFormValues) {
     const { folder, task } = getTargetPayload(targetValue);
     const newDocIds = await docs.uploadPending(projectId, folder);
     if (newDocIds === null) return;
     onSubmit({
-      title: title.trim(),
-      amount: amount.replace(",", "."),
-      category: category.trim() || null,
-      description: description.trim() || null,
+      title: values.title.trim(),
+      amount: values.amount.replace(",", "."),
+      category: values.category.trim() || null,
+      description: values.description.trim() || null,
       folder,
       task,
       documents: docs.getAllDocIds(newDocIds),
@@ -103,53 +115,28 @@ export function ExpenseRequestFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <form id="request-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form id="request-form" onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
           <Field>
             <FieldLabel htmlFor="req-title">Titre</FieldLabel>
-            <Input
-              id="req-title"
-              type="text"
-              placeholder="Ex: Achat materiel bureau"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
+            <Input id="req-title" type="text" placeholder="Ex: Achat materiel bureau" {...form.register("title")} />
+            <FieldError errors={[form.formState.errors.title]} />
           </Field>
 
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="req-amount">Montant (€)</FieldLabel>
-              <Input
-                id="req-amount"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                required
-              />
+              <Input id="req-amount" type="text" inputMode="decimal" placeholder="0.00" {...form.register("amount")} />
+              <FieldError errors={[form.formState.errors.amount]} />
             </Field>
             <Field>
               <FieldLabel htmlFor="req-category">Categorie</FieldLabel>
-              <Input
-                id="req-category"
-                type="text"
-                placeholder="Ex: Transport"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              />
+              <Input id="req-category" type="text" placeholder="Ex: Transport" {...form.register("category")} />
             </Field>
           </div>
 
           <Field>
             <FieldLabel htmlFor="req-description">Description</FieldLabel>
-            <Textarea
-              id="req-description"
-              rows={2}
-              placeholder="Details optionnels…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
+            <Textarea id="req-description" rows={2} placeholder="Details optionnels…" {...form.register("description")} />
           </Field>
 
           <Field>
