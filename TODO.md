@@ -25,7 +25,7 @@
 
 
 
-    reforactore les fichier, demiuer leur taille, ameliroe la structure, plus claire
+fait un audit de tout les composant etc pour limiter la duplication, je evux vriement que totu les logique els meme soit ressembler dasn un composant
 
 
 

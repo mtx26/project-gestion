@@ -1,52 +1,33 @@
 "use client";
 
-import type { ExpenseRequest, ExpenseRequestPayload, File as ApiFile, FolderTreeNode } from "@project-gestion/types";
+import type { ExpenseRequest, ExpenseRequestPayload } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Calendar, CheckCircle2, ClipboardList, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, FileText, Folder, ListTodo, Lock, Pencil, Plus, Trash2, UserRound, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { RequestStatusBadge } from "@/components/ui/request-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { NoProjectState } from "@/components/ui/no-project-state";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { EntryDetailBody } from "@/components/ui/entry-detail-body";
-import { PageTitle } from "@/components/ui/page-title";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
-import { FormErrorAlert } from "@/components/ui/form-error-alert";
-import { MemberFilterSelect } from "@/components/ui/member-filter-select";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
-import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { MemberFilterSelect } from "@/components/ui/member-filter-select";
+import { NoProjectState } from "@/components/ui/no-project-state";
+import { PageTitle } from "@/components/ui/page-title";
+import { RequestStatusBadge } from "@/components/ui/request-status-badge";
+import { SelectItem } from "@/components/ui/select";
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
-import { Textarea } from "@/components/ui/textarea";
-import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 import { parseIdParam } from "@/lib/url-params";
-
-function buildRequestsHref(projectId: number | string) {
-  return `/requests?project=${projectId}`;
-}
+import { ExpenseRequestDetailDialog, ExpenseRequestFormDialog } from "./components/request-dialogs";
+import { buildRequestsHref, parseStatusFilter } from "./lib/request-utils";
 
 export default function RequestsPage() {
   const router = useRouter();
@@ -445,275 +426,3 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
     </div>
   );
 }
-
-function ExpenseRequestFormDialog({
-  mode,
-  request,
-  open,
-  onOpenChange,
-  projectId,
-  targetFolders,
-  isPending,
-  onCreateFolder,
-  onSubmit,
-}: {
-  mode: "create" | "edit";
-  request?: ExpenseRequest;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  projectId: number;
-  targetFolders: FolderTreeNode[];
-  isPending: boolean;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
-  onSubmit: (payload: ExpenseRequestPayload) => void;
-}) {
-  const initialTarget = request?.task != null
-    ? `task-${request.task}`
-    : request?.folder != null
-    ? `folder-${request.folder}`
-    : "project";
-
-  function buildInitialDocs() {
-    return (request?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name }));
-  }
-
-  const [title, setTitle] = useState(request?.title ?? "");
-  const [amount, setAmount] = useState(request?.amount ?? "");
-  const [category, setCategory] = useState(request?.category ?? "");
-  const [description, setDescription] = useState(request?.description ?? "");
-  const [targetValue, setTargetValue] = useState(initialTarget);
-  const [existingDocs, setExistingDocs] = useState<Array<{ id: number; name: string | null }>>(buildInitialDocs);
-  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [formError, setFormError] = useState<string | null>(null);
-
-  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
-  const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
-
-  function handleOpenChange(next: boolean) {
-    if (!next) {
-      setTitle(request?.title ?? "");
-      setAmount(request?.amount ?? "");
-      setCategory(request?.category ?? "");
-      setDescription(request?.description ?? "");
-      setTargetValue(initialTarget);
-      setExistingDocs(buildInitialDocs());
-      setPendingFiles([]);
-      setFormError(null);
-    }
-    onOpenChange(next);
-  }
-
-  async function handleSubmit(e: React.BaseSyntheticEvent) {
-    e.preventDefault();
-    setFormError(null);
-
-    const newDocIds: number[] = [];
-
-    if (pendingFiles.length > 0) {
-      setUploading(true);
-      const { folder } = getTargetPayload(targetValue);
-      try {
-        for (const file of pendingFiles) {
-          const uploaded: ApiFile = await api.documents.upload(projectId, {
-            file,
-            folder: folder ?? undefined,
-            name: file.name,
-          });
-          newDocIds.push(uploaded.id);
-        }
-      } catch (err) {
-        setFormError(getErrorMessage(err));
-        setUploading(false);
-        return;
-      }
-      setUploading(false);
-    }
-
-    const { folder, task } = getTargetPayload(targetValue);
-    onSubmit({
-      title: title.trim(),
-      amount: amount.replace(",", "."),
-      category: category.trim() || null,
-      description: description.trim() || null,
-      folder,
-      task,
-      documents: [...existingDocs.map((d) => d.id), ...newDocIds],
-    });
-  }
-
-  const isSubmitting = uploading || isPending;
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Nouvelle demande" : "Modifier la demande"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Creer une demande de remboursement."
-              : "Modifier les details de cette demande."}
-          </DialogDescription>
-        </DialogHeader>
-
-        <form id="request-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Field>
-            <FieldLabel htmlFor="req-title">Titre</FieldLabel>
-            <Input
-              id="req-title"
-              type="text"
-              placeholder="Ex: Achat materiel bureau"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              required
-            />
-          </Field>
-
-          <div className="grid grid-cols-2 gap-4">
-            <Field>
-              <FieldLabel htmlFor="req-amount">Montant (€)</FieldLabel>
-              <Input
-                id="req-amount"
-                type="text"
-                inputMode="decimal"
-                placeholder="0.00"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                required
-              />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="req-category">Categorie</FieldLabel>
-              <Input
-                id="req-category"
-                type="text"
-                placeholder="Ex: Transport"
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          <Field>
-            <FieldLabel htmlFor="req-description">Description</FieldLabel>
-            <Textarea
-              id="req-description"
-              rows={2}
-              placeholder="Details optionnels…"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
-
-          <Field>
-            <FieldLabel>Cible (optionnel)</FieldLabel>
-            <TreePickerDialog
-              mode="target"
-              folders={targetFolders}
-              selectedValue={targetValue}
-              selectedLabel={targetLabel}
-              onSelect={setTargetValue}
-              onCreateFolder={onCreateFolder}
-            />
-          </Field>
-
-          <MultiDocumentAttachmentField
-            existingDocs={existingDocs}
-            pendingFiles={pendingFiles}
-            onRemoveDoc={(id) => setExistingDocs((prev) => prev.filter((d) => d.id !== id))}
-            onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
-            onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
-          />
-
-          <FormErrorAlert error={formError} />
-        </form>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Annuler</Button>
-          </DialogClose>
-          <Button type="submit" form="request-form" disabled={isSubmitting}>
-            {uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ExpenseRequestDetailDialog({
-  request,
-  folders,
-  isOpeningDocument,
-  onOpenDocument,
-  onClose,
-}: {
-  request: ExpenseRequest | null;
-  folders: FolderTreeNode[];
-  isOpeningDocument: boolean;
-  onOpenDocument: (documentId: number) => void;
-  onClose: () => void;
-}) {
-  return (
-    <Dialog open={request != null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Detail de la demande</DialogTitle>
-        </DialogHeader>
-        {request && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <RequestStatusBadge status={request.status} />
-              <div>
-                <p className="font-semibold">{request.title}</p>
-                <p className="text-lg font-semibold tabular-nums">{formatMoney(request.amount)}</p>
-              </div>
-            </div>
-
-            <EntryDetailBody
-              category={request.category}
-              description={request.description}
-              task_name={request.task_name}
-              folder={request.folder}
-              documents_info={request.documents_info}
-              folders={folders}
-              isOpeningDocument={isOpeningDocument}
-              onOpenDocument={onOpenDocument}
-            />
-
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              {request.requested_by_name ? (
-                <div>
-                  <p className="text-xs text-muted-foreground">Demande par</p>
-                  <div className="flex items-center gap-1.5">
-                    <UserRound className="size-3.5 text-muted-foreground" />
-                    <span>{request.requested_by_name}</span>
-                  </div>
-                </div>
-              ) : null}
-              <div>
-                <p className="text-xs text-muted-foreground">Date</p>
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="size-3.5 text-muted-foreground" />
-                  <span>{formatDate(request.created_at)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Fermer</Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-
-function parseStatusFilter(value: string | null): "all" | "pending" | "approved" | "rejected" {
-  if (value === "pending" || value === "approved" || value === "rejected") return value;
-  return "all";
-}
-
