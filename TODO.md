@@ -25,12 +25,6 @@
 
 
 
-fait un audit de tout les composant etc pour limiter la duplication, je evux vriement que totu les logique els meme soit ressembler dasn un composant
-
-
-
-
-
 
 rend tout les page et element bien responsive, essayle de limte le fait e de faire un coposant mobil et pc mais jsyte fait que les coposant soit bien agancer pour mobile, soit responsive
 

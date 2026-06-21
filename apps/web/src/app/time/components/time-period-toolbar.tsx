@@ -79,7 +79,7 @@ export function TimePeriodToolbar({
         pressed={includeUnpaidOutsideMonth}
         onPressedChange={onIncludeUnpaidOutsideMonthChange}
       >
-        Impayés inclus
+        Inclure impayés
       </FilterToggle>
       <FilterClear path="/time" removeKeys={["period", "user", "payment", "target", "include_unpaid"]} />
     </FilterBar>

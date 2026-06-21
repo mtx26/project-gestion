@@ -8,3 +8,7 @@ export function parseStatusFilter(value: string | null): RequestStatusFilter {
   if (value === "pending" || value === "approved" || value === "rejected") return value;
   return "all";
 }
+
+export function parseShowRejected(value: string | null): boolean {
+  return value === "1";
+}

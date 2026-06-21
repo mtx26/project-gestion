@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/ui/filter-bar";
+import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
 import { NoProjectState } from "@/components/ui/no-project-state";
 import { PageTitle } from "@/components/ui/page-title";
@@ -27,7 +27,7 @@ import { findFolderName } from "@/lib/folder-utils";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 import { parseIdParam } from "@/lib/url-params";
 import { ExpenseRequestDetailDialog, ExpenseRequestFormDialog } from "./components/request-dialogs";
-import { buildRequestsHref, parseStatusFilter } from "./lib/request-utils";
+import { buildRequestsHref, parseShowRejected, parseStatusFilter } from "./lib/request-utils";
 
 export default function RequestsPage() {
   const router = useRouter();
@@ -55,6 +55,7 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
   const projectId = selectedProject?.id ?? null;
 
   const statusFilter = parseStatusFilter(searchParams.get("status"));
+  const showRejected = parseShowRejected(searchParams.get("show_rejected"));
   const folderFilterId = parseIdParam(searchParams.get("folder"));
   const userFilterId = parseIdParam(searchParams.get("member"));
 
@@ -217,14 +218,20 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
   const targetFolders = targetTreeQuery.data ?? [];
   const members = normalizeApiList(membersQuery.data);
 
+  const visibleRequests =
+    statusFilter === "all" && !showRejected
+      ? allRequests.filter((r) => r.status !== "rejected")
+      : allRequests;
+
   const search = searchQuery.trim().toLowerCase();
   const requests = search
-    ? allRequests.filter((r) =>
+    ? visibleRequests.filter((r) =>
         r.title.toLowerCase().includes(search) ||
         (r.category ?? "").toLowerCase().includes(search) ||
         (r.description ?? "").toLowerCase().includes(search),
       )
-    : allRequests;
+    : visibleRequests;
+
 
   const folderFilterName = folderFilterId != null ? (findFolderName(folders, folderFilterId) ?? "Dossier") : null;
 
@@ -262,7 +269,21 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
           onCreateFolder={canEdit ? handleCreateFolder : undefined}
         />
         <FilterSearch value={searchQuery} onChange={setSearchQuery} />
-        <FilterClear path="/requests" removeKeys={["status", "folder", "member"]} onClick={() => setSearchQuery("")} />
+        {statusFilter === "all" ? (
+          <FilterToggle
+            pressed={showRejected}
+            onPressedChange={(pressed) => {
+              if (!selectedProject) return;
+              const params = new URLSearchParams(searchParams.toString());
+              params.set("project", String(selectedProject.id));
+              if (pressed) params.set("show_rejected", "1"); else params.delete("show_rejected");
+              router.replace(`/requests?${params.toString()}`, { scroll: false });
+            }}
+          >
+            Inclure refusés
+          </FilterToggle>
+        ) : null}
+        <FilterClear path="/requests" removeKeys={["status", "folder", "member", "show_rejected"]} onClick={() => setSearchQuery("")} />
       </FilterBar>
 
       {requestsQuery.isLoading ? (

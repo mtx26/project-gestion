@@ -98,7 +98,10 @@ export function FilterToggle({ pressed, onPressedChange, children, className }: 
       size="sm"
       pressed={pressed}
       onPressedChange={onPressedChange}
-      className={cn("shrink-0", className)}
+      className={cn(
+        "shrink-0 data-[state=on]:border-primary data-[state=on]:bg-primary data-[state=on]:text-primary-foreground",
+        className,
+      )}
     >
       {children}
     </Toggle>
