@@ -40,7 +40,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { NoProjectState } from "@/components/ui/no-project-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { TreePickerDialog } from "@/components/ui/tree-picker";
@@ -265,15 +266,11 @@ function ProjectTasksContent({
 
   if (!selectedProject) {
     return (
-      <Empty className="border bg-card p-8">
-        <EmptyHeader>
-          <EmptyTitle>Aucun projet actif</EmptyTitle>
-          <EmptyDescription>Cree ou selectionne un projet pour gerer les taches.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button onClick={openCreateProject}>Creer un projet</Button>
-        </EmptyContent>
-      </Empty>
+      <NoProjectState
+        icon={Check}
+        description="Cree ou selectionne un projet pour gerer les taches."
+        onCreateProject={openCreateProject}
+      />
     );
   }
 

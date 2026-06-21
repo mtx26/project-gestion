@@ -60,7 +60,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { NoProjectState } from "@/components/ui/no-project-state";
 import { DatePicker } from "@/components/ui/date-picker";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -463,15 +464,11 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
 
   if (!selectedProject) {
     return (
-      <Empty className="border bg-card p-8">
-        <EmptyHeader>
-          <EmptyTitle>Aucun projet actif</EmptyTitle>
-          <EmptyDescription>Cree ou selectionne un projet pour voir son arborescence.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button onClick={openCreateProject}>Creer un projet</Button>
-        </EmptyContent>
-      </Empty>
+      <NoProjectState
+        icon={FolderOpen}
+        description="Cree ou selectionne un projet pour voir son arborescence."
+        onCreateProject={openCreateProject}
+      />
     );
   }
 

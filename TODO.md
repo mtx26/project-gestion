@@ -23,7 +23,7 @@
 
 
 
-    
+
 
     reforactore les fichier, demiuer leur taille, ameliroe la structure, plus claire
 
@@ -32,42 +32,7 @@
 
 
 
+rend tout les page et element bien responsive, essayle de limte le fait e de faire un coposant mobil et pc mais jsyte fait que les coposant soit bien agancer pour mobile, soit responsive
 
 
-
-    Membres du projet
-
-1 membre(s), 3 invitation(s).
-
-matis gillet
-matis gillet
-
-Proprietaire
-mtx12345626@gmail.com
-
-contributeur
-
-Invitation
-tee@dfsdfsdf.ssdf
-
-contributeur
-
-Invitation
-matisgillet26@gmail.com
-
-contributeur
-
-Invitation
-le abdge sont pas uniformiser et pareil icic s gillet
-matis gillet
-
-Proprietaire
-mtx12345626@gmail.com
-
-Invitation
-tee@dfsdfsdf.ssdf
-
-Invitation
-matisgillet26@gmail.com
-
-Invitation comparer au reste 
+dans la modal de finance , change un peu la logice pour lier une fincae a un time et pouvori dasn la modal cliquer pour aller dans time sur le time selecitonner

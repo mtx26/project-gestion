@@ -25,6 +25,8 @@ import { FormError } from "@/components/form-error";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { InvitationStatusBadge } from "@/components/ui/invitation-status-badge";
+import { MemberTypeBadge } from "@/components/ui/member-type-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -465,11 +467,10 @@ function ProjectSettingsContent({
                               </div>
                             </div>
                             <div className="flex shrink-0 items-center gap-2">
-                              <Badge
-                                variant={member.user === selectedProject.owner ? "default" : member.role_deleted ? "destructive" : "secondary"}
-                              >
-                                {member.user === selectedProject.owner ? "Proprietaire" : member.role_deleted ? "Sans role" : "Membre"}
-                              </Badge>
+                              <MemberTypeBadge
+                                isOwner={member.user === selectedProject.owner}
+                                roleDeleted={member.role_deleted}
+                              />
                               {canManageMembers && member.user !== selectedProject.owner ? (
                                 <Button
                                   type="button"
@@ -518,16 +519,7 @@ function ProjectSettingsContent({
                                 )}
                               </div>
                               <div className="flex shrink-0 items-center gap-2">
-                                <Badge
-                                  variant="outline"
-                                  className={
-                                    invitation.status === "pending"
-                                      ? "border-orange-200 bg-orange-50 text-orange-700"
-                                      : undefined
-                                  }
-                                >
-                                  Invitation
-                                </Badge>
+                                <InvitationStatusBadge status={invitation.status} />
                                 {canManageMembers ? (
                                   <Button
                                     type="button"

@@ -12,6 +12,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { NoProjectState } from "@/components/ui/no-project-state";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -42,7 +43,7 @@ export default function TrashPage() {
   );
 }
 
-function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspaceState) {
+function TrashPageContent({ user, selectedProject, queryClient, openCreateProject }: ProjectWorkspaceState) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab = searchParams.get("tab") ?? "projects";
@@ -177,12 +178,11 @@ function TrashPageContent({ user, selectedProject, queryClient }: ProjectWorkspa
     </Empty>
   );
   const noProjectMsg = (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>Aucun projet selectionne</EmptyTitle>
-        <EmptyDescription>Selectionnez un projet pour voir cet onglet.</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
+    <NoProjectState
+      icon={RotateCcw}
+      description="Cree ou selectionne un projet pour voir la corbeille."
+      onCreateProject={openCreateProject}
+    />
   );
 
   return (

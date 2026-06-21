@@ -25,7 +25,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { NoProjectState } from "@/components/ui/no-project-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
 import { Input } from "@/components/ui/input";
@@ -365,15 +366,11 @@ function ProjectTimeContent({
 
   if (!selectedProject) {
     return (
-      <Empty className="border bg-card p-8">
-        <EmptyHeader>
-          <EmptyTitle>Aucun projet actif</EmptyTitle>
-          <EmptyDescription>Cree ou selectionne un projet pour enregistrer du temps.</EmptyDescription>
-        </EmptyHeader>
-        <EmptyContent>
-          <Button onClick={openCreateProject}>Creer un projet</Button>
-        </EmptyContent>
-      </Empty>
+      <NoProjectState
+        icon={Clock3}
+        description="Cree ou selectionne un projet pour enregistrer du temps."
+        onCreateProject={openCreateProject}
+      />
     );
   }
 

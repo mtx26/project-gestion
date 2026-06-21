@@ -10,6 +10,7 @@ import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Badge } from "@/components/ui/badge";
+import { InvitationStatusBadge } from "@/components/ui/invitation-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -190,9 +191,7 @@ export function ActiveProjectDashboard({
                       <p className="truncate font-medium">{invitation.email}</p>
                       <p className="mt-1 truncate text-xs text-muted-foreground">{invitation.role_name}</p>
                     </div>
-                    <Badge variant="outline" className="border-orange-200 bg-orange-50 text-orange-700">
-                      Invitation
-                    </Badge>
+                    <InvitationStatusBadge status="pending" />
                   </div>
                 </div>
               ))}

@@ -13,6 +13,7 @@ import { RequestStatusBadge } from "@/components/ui/request-status-badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { NoProjectState } from "@/components/ui/no-project-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { EntryDetailBody } from "@/components/ui/entry-detail-body";
 import { PageTitle } from "@/components/ui/page-title";
@@ -63,7 +64,7 @@ export default function RequestsPage() {
   );
 }
 
-function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWorkspaceState) {
+function RequestsPageContent({ user, selectedProject, queryClient, openCreateProject }: ProjectWorkspaceState) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const canView = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestView);
@@ -210,13 +211,11 @@ function RequestsPageContent({ user, selectedProject, queryClient }: ProjectWork
 
   if (!selectedProject) {
     return (
-      <Empty className="border bg-card py-12">
-        <EmptyHeader>
-          <EmptyMedia variant="icon"><ClipboardList className="size-4" /></EmptyMedia>
-          <EmptyTitle>Aucun projet selectionne</EmptyTitle>
-          <EmptyDescription>Selectionnez un projet pour voir les demandes.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <NoProjectState
+        icon={ClipboardList}
+        description="Cree ou selectionne un projet pour voir les demandes."
+        onCreateProject={openCreateProject}
+      />
     );
   }
 

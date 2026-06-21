@@ -30,6 +30,7 @@ import {
 import { DatePicker } from "@/components/ui/date-picker";
 import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { NoProjectState } from "@/components/ui/no-project-state";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
@@ -68,7 +69,7 @@ export default function FinancePage() {
   );
 }
 
-function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorkspaceState) {
+function FinancePageContent({ user, selectedProject, queryClient, openCreateProject }: ProjectWorkspaceState) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const canViewFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeView);
@@ -195,13 +196,11 @@ function FinancePageContent({ user, selectedProject, queryClient }: ProjectWorks
 
   if (!selectedProject) {
     return (
-      <Empty className="border bg-card py-12">
-        <EmptyHeader>
-          <EmptyMedia variant="icon"><Banknote className="size-4" /></EmptyMedia>
-          <EmptyTitle>Aucun projet selectionne</EmptyTitle>
-          <EmptyDescription>Selectionnez un projet pour voir les finances.</EmptyDescription>
-        </EmptyHeader>
-      </Empty>
+      <NoProjectState
+        icon={Banknote}
+        description="Cree ou selectionne un projet pour voir les finances."
+        onCreateProject={openCreateProject}
+      />
     );
   }
 
