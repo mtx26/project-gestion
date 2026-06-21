@@ -5,6 +5,8 @@ import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, MailOpen } from "lucide-react";
+import { PageTitle } from "@/components/ui/page-title";
+import { formatDateTime } from "@/lib/date-utils";
 import Link from "next/link";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { FormError } from "@/components/form-error";
@@ -53,8 +55,7 @@ function NotificationsContent() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-medium uppercase text-muted-foreground">Notifications</p>
-          <h1 className="mt-1 text-2xl font-semibold">Centre de notifications</h1>
+          <PageTitle category="Notifications" title="Centre de notifications" />
           <p className="mt-2 text-sm text-muted-foreground">
             {unreadCount > 0 ? `${unreadCount} notification(s) non lue(s).` : "Tout est lu."}
           </p>
@@ -166,9 +167,3 @@ function getInvitationToken(notification: Notification) {
   return typeof token === "string" ? token : null;
 }
 
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("fr-BE", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
-}

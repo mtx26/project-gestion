@@ -14,11 +14,12 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Pencil, Plus, Trash2, UserCheck, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Lock, Pencil, Plus, Trash2, UserCheck, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { type FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { TaskPriorityBadge } from "@/components/ui/task-priority-badge";
 import { TaskStatusBadge } from "@/components/ui/task-status-badge";
@@ -49,6 +50,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { MemberFilterSelect } from "@/components/ui/member-filter-select";
+import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
 import { PageTitle } from "@/components/ui/page-title";
 import { toast } from "sonner";
@@ -279,14 +281,11 @@ function ProjectTasksContent({
     return (
       <div className="space-y-5">
         <PageTitle category="Taches" title="Gestion du travail" />
-        <Card className="rounded-lg">
-          <CardContent className="p-5">
-            <p className="font-medium">Taches indisponibles</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ton role ne permet pas de voir les taches de ce projet.
-            </p>
-          </CardContent>
-        </Card>
+        <Alert>
+          <Lock className="size-4" />
+          <AlertTitle>Taches indisponibles</AlertTitle>
+          <AlertDescription>Ton role ne permet pas de voir les taches de ce projet.</AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -377,10 +376,7 @@ function ProjectTasksContent({
         <CardContent>
           <FormErrorAlert error={tasksQuery.error ? getErrorMessage(tasksQuery.error) : null} className="mb-3" />
           {tasksQuery.isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-20 rounded-md" />
-              <Skeleton className="h-20 rounded-md" />
-            </div>
+            <SkeletonLoader count={3} className="h-20 rounded-md" />
           ) : visibleTasks.length === 0 ? (
             <Empty className="border p-8">
               <EmptyHeader>

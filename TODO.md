@@ -21,28 +21,53 @@
     faire un chat par projet
 
 
-    j'ai pas trop le style, je evxu plus un style de couleur comme ca : import { Badge } from "@/components/ui/badge"
 
-export function BadgeCustomColors() {
-  return (
-    <div className="flex flex-wrap gap-2">
-      <Badge className="bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-        Blue
-      </Badge>
-      <Badge className="bg-green-50 text-green-700 dark:bg-green-950 dark:text-green-300">
-        Green
-      </Badge>
-      <Badge className="bg-sky-50 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
-        Sky
-      </Badge>
-      <Badge className="bg-purple-50 text-purple-700 dark:bg-purple-950 dark:text-purple-300">
-        Purple
-      </Badge>
-      <Badge className="bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300">
-        Red
-      </Badge>
-    </div>
-  )
-}
 
-juste pas les mmeme coleur que l'exemple, c'est juste lexemple
+    
+
+    reforactore les fichier, demiuer leur taille, ameliroe la structure, plus claire
+
+
+
+
+
+
+
+
+
+    Membres du projet
+
+1 membre(s), 3 invitation(s).
+
+matis gillet
+matis gillet
+
+Proprietaire
+mtx12345626@gmail.com
+
+contributeur
+
+Invitation
+tee@dfsdfsdf.ssdf
+
+contributeur
+
+Invitation
+matisgillet26@gmail.com
+
+contributeur
+
+Invitation
+le abdge sont pas uniformiser et pareil icic s gillet
+matis gillet
+
+Proprietaire
+mtx12345626@gmail.com
+
+Invitation
+tee@dfsdfsdf.ssdf
+
+Invitation
+matisgillet26@gmail.com
+
+Invitation comparer au reste 

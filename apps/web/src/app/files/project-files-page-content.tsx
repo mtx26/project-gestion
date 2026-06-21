@@ -19,6 +19,7 @@ import {
   FolderOpen,
   FolderPlus,
   ListTodo,
+  Lock,
   Pencil,
   Trash2,
   Upload,
@@ -27,6 +28,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { ComponentType, ReactNode } from "react";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { TaskStatusBadge } from "@/components/ui/task-status-badge";
 import { Button } from "@/components/ui/button";
@@ -477,14 +479,11 @@ function ProjectTreeView({ user, selectedProject, projectsQuery, openCreateProje
     return (
       <div className="space-y-5">
         <PageTitle category="Projet" title="Documents du projet" />
-        <Card className="rounded-lg">
-          <CardContent className="p-5">
-            <p className="font-medium">Fichiers indisponibles</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Ton role ne permet pas de voir l&apos;arborescence de ce projet.
-            </p>
-          </CardContent>
-        </Card>
+        <Alert>
+          <Lock className="size-4" />
+          <AlertTitle>Fichiers indisponibles</AlertTitle>
+          <AlertDescription>Ton role ne permet pas de voir l&apos;arborescence de ce projet.</AlertDescription>
+        </Alert>
       </div>
     );
   }

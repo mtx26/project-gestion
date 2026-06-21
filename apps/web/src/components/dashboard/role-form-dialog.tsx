@@ -24,7 +24,6 @@ import {
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
 type RoleFormDialogProps = {
@@ -96,12 +95,11 @@ export function RoleFormDialog({
         </DialogHeader>
 
         <form
+          id="role-form"
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSubmit) {
-              onSubmit();
-            }
+            if (canSubmit) onSubmit();
           }}
         >
           <Field>
@@ -135,17 +133,16 @@ export function RoleFormDialog({
             Les actions dependent de la lecture: cocher une action ajoute automatiquement les droits necessaires.
           </p>
 
-          <ScrollArea className="max-h-[45vh] pr-1">
-          <div className="space-y-3">
-            {permissionGroups.map((group) => {
-              const groupIds = group.permissions.map((permission) => permission.id);
-              const groupFullySelected = groupIds.every((id) => rolePermissionIds.includes(id));
-              const groupPartiallySelected =
-                !groupFullySelected && groupIds.some((id) => rolePermissionIds.includes(id));
+          <div className="-mx-4 no-scrollbar max-h-[50vh] overflow-y-auto px-4">
+            <div className="space-y-3 py-1">
+              {permissionGroups.map((group) => {
+                const groupIds = group.permissions.map((permission) => permission.id);
+                const groupFullySelected = groupIds.every((id) => rolePermissionIds.includes(id));
+                const groupPartiallySelected =
+                  !groupFullySelected && groupIds.some((id) => rolePermissionIds.includes(id));
 
-              return (
-                <div key={group.scope} className="rounded-lg border p-3">
-                  <div className="flex items-center justify-between gap-3">
+                return (
+                  <div key={group.scope} className="rounded-lg border p-3">
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id={`permission-group-${group.scope}`}
@@ -154,30 +151,28 @@ export function RoleFormDialog({
                       />
                       <Label htmlFor={`permission-group-${group.scope}`}>{group.label}</Label>
                     </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                      {group.permissions.map((permission) => {
+                        const fieldId = `permission-${permission.id}`;
+                        return (
+                          <div key={permission.id} className="flex items-center gap-2 rounded-md px-1 py-0.5">
+                            <Checkbox
+                              id={fieldId}
+                              checked={rolePermissionIds.includes(permission.id)}
+                              onCheckedChange={(checked) => togglePermission(permission.id, checked === true)}
+                            />
+                            <Label htmlFor={fieldId} className="font-normal">
+                              {getPermissionAction(permission.code)}
+                            </Label>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {group.permissions.map((permission) => {
-                      const fieldId = `permission-${permission.id}`;
-
-                      return (
-                        <div key={permission.id} className="flex items-center gap-2 rounded-md px-1 py-0.5">
-                          <Checkbox
-                            id={fieldId}
-                            checked={rolePermissionIds.includes(permission.id)}
-                            onCheckedChange={(checked) => togglePermission(permission.id, checked === true)}
-                          />
-                          <Label htmlFor={fieldId} className="font-normal">
-                            {getPermissionAction(permission.code)}
-                          </Label>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-          </ScrollArea>
 
           {!canSubmit ? (
             <p className="text-xs text-muted-foreground">
@@ -186,19 +181,19 @@ export function RoleFormDialog({
           ) : null}
 
           <FormError message={error} />
-
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline">
-                Annuler
-              </Button>
-            </DialogClose>
-            <Button type="submit" disabled={!canSubmit || isPending}>
-              {mode === "create" ? <Plus className="size-4" /> : <Save className="size-4" />}
-              {isPending ? "Enregistrement..." : mode === "create" ? "Creer le role" : "Enregistrer"}
-            </Button>
-          </DialogFooter>
         </form>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Annuler
+            </Button>
+          </DialogClose>
+          <Button type="submit" form="role-form" disabled={!canSubmit || isPending}>
+            {mode === "create" ? <Plus className="size-4" /> : <Save className="size-4" />}
+            {isPending ? "Enregistrement..." : mode === "create" ? "Creer le role" : "Enregistrer"}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

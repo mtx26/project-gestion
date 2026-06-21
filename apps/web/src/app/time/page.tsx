@@ -6,13 +6,13 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CreditCard, Eye, Pencil, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, Clock3, CreditCard, Eye, Lock, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import type { FormEvent } from "react";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FormErrorAlert } from "@/components/ui/form-error-alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,7 @@ import {
   getTargetValueFromEntry,
 } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { formatCalendarMonth, formatDateTime, formatTimeOnly } from "@/lib/date-utils";
 import { parseBooleanParam } from "@/lib/url-params";
 import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
 import { PageTitle } from "@/components/ui/page-title";
@@ -380,10 +381,11 @@ function ProjectTimeContent({
     return (
       <div className="space-y-5">
         <PageTitle category="Temps" title="Suivi du travail" />
-        <PermissionNotice
-          title="Suivi du temps indisponible"
-          description="Ton role ne permet pas de consulter ni d'enregistrer des heures sur ce projet."
-        />
+        <Alert>
+          <Lock className="size-4" />
+          <AlertTitle>Suivi du temps indisponible</AlertTitle>
+          <AlertDescription>Ton role ne permet pas de consulter ni d&apos;enregistrer des heures sur ce projet.</AlertDescription>
+        </Alert>
       </div>
     );
   }
@@ -510,10 +512,11 @@ function ProjectTimeContent({
         ) : null}
 
         {canRecordTime && !canViewTime ? (
-          <PermissionNotice
-            title="Liste non visible"
-            description="Tu peux enregistrer du temps, mais ton role ne permet pas de consulter les heures."
-          />
+          <Alert>
+            <Lock className="size-4" />
+            <AlertTitle>Liste non visible</AlertTitle>
+            <AlertDescription>Tu peux enregistrer du temps, mais ton role ne permet pas de consulter les heures.</AlertDescription>
+          </Alert>
         ) : null}
       </div>
 
@@ -608,16 +611,6 @@ function ProjectTimeContent({
   );
 }
 
-function PermissionNotice({ title, description }: { title: string; description: string }) {
-  return (
-    <Card className="rounded-lg">
-      <CardContent className="p-5">
-        <p className="font-medium">{title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
-  );
-}
 
 function TimeTotalsPanel({
   label,
@@ -1856,23 +1849,3 @@ async function invalidateTimeQueries(
   await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "time-entries"] });
 }
 
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("fr-BE", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function formatTimeOnly(value: string) {
-  return new Intl.DateTimeFormat("fr-BE", {
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
-}
-
-function formatCalendarMonth(value: Date) {
-  return new Intl.DateTimeFormat("fr-BE", {
-    month: "long",
-    year: "numeric",
-  }).format(value);
-}
