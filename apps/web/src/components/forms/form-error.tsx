@@ -5,4 +5,3 @@ export function FormError({ message }: { message?: string | null }) {
 
   return <p className="text-sm text-destructive">{message}</p>;
 }
-

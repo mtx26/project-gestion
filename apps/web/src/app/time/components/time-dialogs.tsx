@@ -17,14 +17,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
-import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
+import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
+import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TargetPickerDialog } from "@/components/ui/target-tree-picker";
+import { TargetPickerDialog } from "@/components/pickers/target-tree-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDateTime } from "@/lib/date-utils";
 import { type TargetTreeNode, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";

@@ -1,7 +1,7 @@
 "use client";
 
 import { SelectItem } from "@/components/ui/select";
-import { FilterSelect } from "@/components/ui/filter-bar";
+import { FilterSelect } from "@/components/filters/filter-bar";
 
 type Member = { id: number; user: number; user_display_name: string };
 

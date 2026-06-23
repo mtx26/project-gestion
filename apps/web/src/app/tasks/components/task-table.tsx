@@ -16,8 +16,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TaskPriorityBadge } from "@/components/ui/task-priority-badge";
-import { TaskStatusBadge } from "@/components/ui/task-status-badge";
+import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
+import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatTaskDate, getStatusClassName } from "@/lib/task-utils";
 

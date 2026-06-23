@@ -4,7 +4,7 @@ import type { TimeEntry } from "@project-gestion/types";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { SkeletonLoader } from "@/components/ui/skeleton-loader";
+import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { formatCalendarMonth, formatTimeOnly } from "@/lib/date-utils";
 import { formatDuration } from "@/lib/task-utils";
 import {

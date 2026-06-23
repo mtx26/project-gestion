@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AccountProfileForm } from "@/components/account/account-profile-form";
+import { AccountProfileForm } from "@/app/account/components/account-profile-form";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

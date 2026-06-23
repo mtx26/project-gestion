@@ -8,7 +8,7 @@ import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { ProjectPageFallback } from "@/components/dashboard/project-page-fallback";
-import { FormError } from "@/components/form-error";
+import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";

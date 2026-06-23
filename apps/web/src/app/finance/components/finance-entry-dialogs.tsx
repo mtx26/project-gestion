@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DatePicker } from "@/components/forms/date-picker";
 import {
   Dialog,
   DialogClose,
@@ -17,15 +17,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EntryDetailBody } from "@/components/ui/entry-detail-body";
-import { EntryTypeBadge } from "@/components/ui/entry-type-badge";
+import { EntryDetailBody } from "@/components/entries/entry-detail-body";
+import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
-import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
+import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
+import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 

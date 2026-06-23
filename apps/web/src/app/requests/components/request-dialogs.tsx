@@ -16,14 +16,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EntryDetailBody } from "@/components/ui/entry-detail-body";
+import { EntryDetailBody } from "@/components/entries/entry-detail-body";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
-import { MultiDocumentAttachmentField } from "@/components/ui/multi-document-attachment-field";
-import { RequestStatusBadge } from "@/components/ui/request-status-badge";
+import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
+import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { Textarea } from "@/components/ui/textarea";
-import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/ui/tree-picker";
+import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 

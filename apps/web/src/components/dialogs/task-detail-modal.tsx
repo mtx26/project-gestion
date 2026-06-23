@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TaskPriorityBadge } from "@/components/ui/task-priority-badge";
-import { TaskStatusBadge } from "@/components/ui/task-status-badge";
+import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
+import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { formatTaskDate } from "@/lib/task-utils";
 
 interface TaskDetailModalProps {

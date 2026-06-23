@@ -1,6 +1,6 @@
 "use client";
 
-import { ActiveProjectDashboard } from "@/components/dashboard/active-project-dashboard";
+import { ActiveProjectDashboard } from "@/app/dashboard/components/active-project-dashboard";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 
 export default function DashboardPage() {

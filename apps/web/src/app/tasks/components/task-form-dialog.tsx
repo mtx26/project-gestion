@@ -7,7 +7,7 @@ import React, { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DatePicker } from "@/components/forms/date-picker";
 import {
   Dialog,
   DialogClose,
@@ -18,12 +18,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { TreePickerDialog } from "@/components/ui/tree-picker";
+import { TreePickerDialog } from "@/components/pickers/tree-picker";
 import { findFolderName } from "@/lib/folder-utils";
 import type { FolderFilter } from "../lib/filters";
 import { getFolderId } from "../lib/filters";

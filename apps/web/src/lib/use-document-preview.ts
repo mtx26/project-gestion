@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import type { PreviewDocument } from "@/components/ui/document-preview-modal";
+import type { PreviewDocument } from "@/components/dialogs/document-preview-modal";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 

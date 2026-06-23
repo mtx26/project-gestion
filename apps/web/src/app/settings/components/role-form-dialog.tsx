@@ -9,7 +9,7 @@ import {
   removePermissionIdWithDependents,
 } from "@project-gestion/permissions";
 import { Plus, Save } from "lucide-react";
-import { FormError } from "@/components/form-error";
+import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

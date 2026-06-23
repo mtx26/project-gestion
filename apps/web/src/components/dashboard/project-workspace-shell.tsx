@@ -8,7 +8,7 @@ import { normalizeApiList } from "@project-gestion/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProtectedRoute } from "@/components/protected-route";

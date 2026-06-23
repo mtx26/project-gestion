@@ -1,7 +1,7 @@
 import type { ProjectFormValues } from "@project-gestion/validation";
 import { Plus } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
-import { FormError } from "@/components/form-error";
+import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";

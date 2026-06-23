@@ -4,7 +4,7 @@ import type { Task, TimeEntry } from "@project-gestion/types";
 import { Clock3, Folder, FolderOpen, ListTodo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TaskStatusBadge } from "@/components/ui/task-status-badge";
+import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 
 function TimeTotals({ timeEntries }: { timeEntries: TimeEntry[] }) {

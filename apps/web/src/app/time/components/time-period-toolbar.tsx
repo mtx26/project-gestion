@@ -1,7 +1,7 @@
 "use client";
 
 import type { FolderTreeNode } from "@project-gestion/types";
-import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
+import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { SelectItem } from "@/components/ui/select";
 import type { PaymentStatusFilter, PeriodPreset, UserFilter } from "../lib/time-filters";
 

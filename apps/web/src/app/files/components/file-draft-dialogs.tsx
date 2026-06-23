@@ -2,7 +2,7 @@
 
 import type { FolderTreeNode, Task } from "@project-gestion/types";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DatePicker } from "@/components/forms/date-picker";
 import {
   Dialog,
   DialogClose,
@@ -16,7 +16,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { TreePickerDialog } from "@/components/ui/tree-picker";
+import { TreePickerDialog } from "@/components/pickers/tree-picker";
 
 export function FileDraftDialogs(props: {
   taskOpen: boolean;

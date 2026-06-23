@@ -11,7 +11,7 @@ import { Suspense } from "react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AuthShell } from "@/components/auth-shell";
-import { FormError } from "@/components/form-error";
+import { FormError } from "@/components/forms/form-error";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";

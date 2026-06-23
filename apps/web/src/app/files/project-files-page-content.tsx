@@ -48,14 +48,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
+import { DocumentPreviewModal, type PreviewDocument } from "@/components/dialogs/document-preview-modal";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/ui/form-error-alert";
+import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
-import { NoProjectState } from "@/components/ui/no-project-state";
-import { PageTitle } from "@/components/ui/page-title";
+import { NoProjectState } from "@/components/states/no-project-state";
+import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
-import { TaskDetailModal } from "@/components/ui/task-detail-modal";
+import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api } from "@/lib/api";

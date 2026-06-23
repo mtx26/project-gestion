@@ -30,3 +30,8 @@ rend tout les page et element bien responsive, essayle de limte le fait e de fai
 
 
 dans la modal de finance , change un peu la logice pour lier une fincae a un time et pouvori dasn la modal cliquer pour aller dans time sur le time selecitonner
+
+
+mette le filtre sur mobile dasn un bouton filtre avec une modal comme c'est souvent dasn les ite etc
+
+y'a un probeleme avec les selecter de page dasn setting, tash etc car pas resposnive

@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Select, SelectContent, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
-import type { TreePickerProps } from "@/components/ui/tree-picker";
-import { TreePickerDialog } from "@/components/ui/tree-picker";
+import type { TreePickerProps } from "@/components/pickers/tree-picker";
+import { TreePickerDialog } from "@/components/pickers/tree-picker";
 import { buildClearParams } from "@/lib/url-params";
 
 // ─── FilterBar ──────────────────────────────────────────────────────────────

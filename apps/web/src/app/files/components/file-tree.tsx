@@ -15,7 +15,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
-import { TaskStatusBadge } from "@/components/ui/task-status-badge";
+import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {

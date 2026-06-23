@@ -5,7 +5,7 @@ import Cropper from "react-easy-crop";
 
 import { Crop, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { FormError } from "@/components/form-error";
+import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

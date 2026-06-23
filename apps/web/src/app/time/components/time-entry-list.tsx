@@ -4,9 +4,9 @@ import type { TimeEntry } from "@project-gestion/types";
 import { CreditCard, Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { PaymentStatusBadge } from "@/components/ui/payment-status-badge";
-import { SkeletonLoader } from "@/components/ui/skeleton-loader";
-import { TargetIcon } from "@/components/ui/target-tree-picker";
+import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
+import { SkeletonLoader } from "@/components/states/skeleton-loader";
+import { TargetIcon } from "@/components/pickers/target-tree-picker";
 import { formatDateTime } from "@/lib/date-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import {
