@@ -35,9 +35,13 @@ const taskSchema = z.object({
   folder: z.string(),
   status: z.enum(["todo", "in_progress", "done"]),
   priority: z.enum(["low", "normal", "high"]),
+  startDate: z.string(),
   dueDate: z.string(),
   assignees: z.array(z.number()),
-});
+}).refine(
+  (v) => !v.startDate || !v.dueDate || v.startDate <= v.dueDate,
+  { message: "La date de debut ne peut pas depasser l'echeance", path: ["startDate"] },
+);
 type TaskFormValues = z.infer<typeof taskSchema>;
 
 export function TaskFormDialog({
@@ -79,6 +83,7 @@ export function TaskFormDialog({
         : (initialFolder ?? "all"),
       status: task?.status ?? "todo",
       priority: task?.priority ?? "normal",
+      startDate: task?.start_date ?? "",
       dueDate: task?.due_date ?? "",
       assignees: task?.assigned_to ?? [],
     },
@@ -96,6 +101,7 @@ export function TaskFormDialog({
       folder: getFolderId(values.folder as FolderFilter),
       status: values.status,
       priority: values.priority,
+      start_date: values.startDate || null,
       due_date: values.dueDate || null,
       assigned_to: values.assignees,
     });
@@ -183,7 +189,7 @@ export function TaskFormDialog({
           </div>
 
           {mode === "edit" ? (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 sm:grid-cols-3">
               <Field>
                 <FieldLabel>Priorite</FieldLabel>
                 <Controller
@@ -202,6 +208,16 @@ export function TaskFormDialog({
                 />
               </Field>
               <Field>
+                <FieldLabel>Date de debut</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <DatePicker value={field.value} onChange={field.onChange} />
+                  )}
+                />
+              </Field>
+              <Field>
                 <FieldLabel>Echeance</FieldLabel>
                 <Controller
                   control={form.control}
@@ -213,16 +229,28 @@ export function TaskFormDialog({
               </Field>
             </div>
           ) : (
-            <Field>
-              <FieldLabel>Echeance</FieldLabel>
-              <Controller
-                control={form.control}
-                name="dueDate"
-                render={({ field }) => (
-                  <DatePicker value={field.value} onChange={field.onChange} />
-                )}
-              />
-            </Field>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field>
+                <FieldLabel>Date de debut</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="startDate"
+                  render={({ field }) => (
+                    <DatePicker value={field.value} onChange={field.onChange} />
+                  )}
+                />
+              </Field>
+              <Field>
+                <FieldLabel>Echeance</FieldLabel>
+                <Controller
+                  control={form.control}
+                  name="dueDate"
+                  render={({ field }) => (
+                    <DatePicker value={field.value} onChange={field.onChange} />
+                  )}
+                />
+              </Field>
+            </div>
           )}
 
           {members.length > 0 ? (

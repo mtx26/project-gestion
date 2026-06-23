@@ -221,6 +221,7 @@ export type Task = {
   description: string | null;
   status: "todo" | "in_progress" | "done";
   priority: "low" | "normal" | "high";
+  start_date: string | null;
   due_date: string | null;
   completed_at: string | null;
   created_at: string;
@@ -236,6 +237,7 @@ export type TaskPayload = {
   description?: string | null;
   status?: "todo" | "in_progress" | "done";
   priority?: "low" | "normal" | "high";
+  start_date?: string | null;
   due_date?: string | null;
 };
 

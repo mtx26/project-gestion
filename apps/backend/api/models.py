@@ -186,6 +186,7 @@ class Task(BaseModel):
     description = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=50, default="todo")
     priority = models.CharField(max_length=50, default="normal")
+    start_date = models.DateField(null=True, blank=True)
     due_date = models.DateField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
