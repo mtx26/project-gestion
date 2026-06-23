@@ -4,7 +4,7 @@ import type { ExpenseRequest, File as ApiFile, FinancialEntry, Folder, Project, 
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, Receipt, RotateCcw, Wallet } from "lucide-react";
 import { PageTitle } from "@/components/ui/page-title";
 import { formatBytes, formatDuration, formatMoney } from "@/lib/task-utils";
@@ -42,7 +42,8 @@ export default function TrashPage() {
   );
 }
 
-function TrashPageContent({ user, selectedProject, queryClient, openCreateProject }: ProjectWorkspaceState) {
+function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab = searchParams.get("tab") ?? "projects";

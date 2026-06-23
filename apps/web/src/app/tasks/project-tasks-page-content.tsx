@@ -4,10 +4,10 @@ import type { Task, TaskPayload } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Lock, UserCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -25,12 +25,12 @@ import { TaskDetailModal } from "@/components/ui/task-detail-modal";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { buildFolderNameMap } from "@/lib/folder-utils";
-import { buildFilterParams, parseBooleanParam, parseIdParam } from "@/lib/url-params";
+import { parseBooleanParam, parseIdParam } from "@/lib/url-params";
+import { useProjectResources } from "@/lib/use-project-resources";
+import { useUrlFilter } from "@/lib/use-url-filter";
 import { TaskFormDialog } from "./components/task-form-dialog";
 import { TaskTable } from "./components/task-table";
 import {
-  type FolderFilter,
   type PriorityFilter,
   type StatusFilter,
   buildTasksHref,
@@ -62,14 +62,14 @@ function ProjectTasksContent({
   selectedProject,
   projectsQuery,
   openCreateProject,
-  queryClient,
 }: ProjectWorkspaceState) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const canViewTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskView);
   const canEditTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskEdit);
   const canDeleteTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskDelete);
   const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
+  const projectId = selectedProject?.id ?? null;
   const folderFilter = parseFolderFilter(searchParams.get("folder"));
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const priorityFilter = parsePriorityFilter(searchParams.get("priority"));
@@ -81,6 +81,12 @@ function ProjectTasksContent({
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+
+  const updateUrlFilter = useUrlFilter("/tasks", searchParams, projectId);
+  const { folders, members, folderNameById, handleCreateFolder } = useProjectResources(
+    projectId,
+    { canView: canViewFiles, canEdit: false, canFetchMembers: canViewTasks },
+  );
 
   const tasksQuery = useQuery({
     queryKey: selectedProject
@@ -100,20 +106,8 @@ function ProjectTasksContent({
       }),
     enabled: Boolean(selectedProject && canViewTasks),
   });
-  const foldersQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.folders.tree(selectedProject.id) : ["folders", "tree", "disabled"],
-    queryFn: () => api.folders.tree(selectedProject!.id),
-    enabled: Boolean(selectedProject && canViewFiles),
-  });
-  const membersQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.members.list(selectedProject.id) : ["members", "disabled"],
-    queryFn: () => api.members.list(selectedProject!.id),
-    enabled: Boolean(selectedProject && canViewTasks),
-  });
 
-  const folderNameById = useMemo(() => buildFolderNameMap(foldersQuery.data ?? []), [foldersQuery.data]);
   const tasks = normalizeApiList(tasksQuery.data);
-  const members = normalizeApiList(membersQuery.data);
   const visibleTasks = showCompleted ? tasks : tasks.filter((t) => t.status !== "done");
   const myTasks = user ? visibleTasks.filter((t) => t.assigned_to.includes(user.id)) : [];
 
@@ -144,26 +138,6 @@ function ProjectTasksContent({
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
-  const createFolder = useMutation({
-    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
-      api.folders.create(selectedProject!.id, { name, parent_folder: parentId }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(selectedProject!.id) });
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
-  });
-
-  async function handleCreateFolder(name: string, parentId: number | null): Promise<void> {
-    await createFolder.mutateAsync({ name, parentId });
-  }
-
-  function updateUrlFilter(
-    changes: Partial<{ folder: FolderFilter; status: StatusFilter; priority: PriorityFilter; include_completed: boolean; member: number | null }>,
-  ) {
-    if (!selectedProject) return;
-    const params = buildFilterParams(searchParams, selectedProject.id, changes);
-    router.replace(`/tasks?${params.toString()}`, { scroll: false });
-  }
 
 
   if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
@@ -223,7 +197,7 @@ function ProjectTasksContent({
         />
         {canViewFiles ? (
           <FilterFolderPicker
-            folders={foldersQuery.data ?? []}
+            folders={folders}
             selectedFolderId={folderId}
             buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
             description="Filtrer les tâches par dossier."
@@ -302,7 +276,7 @@ function ProjectTasksContent({
         mode="create"
         open={createDialogOpen}
         canViewFiles={canViewFiles}
-        folders={foldersQuery.data ?? []}
+        folders={folders}
         members={members}
         initialFolder={folderFilter}
         isPending={createTask.isPending}
@@ -316,7 +290,7 @@ function ProjectTasksContent({
         mode="edit"
         task={editingTask}
         canViewFiles={canViewFiles}
-        folders={foldersQuery.data ?? []}
+        folders={folders}
         members={members}
         isPending={updateTask.isPending}
         error={updateTask.error ? getErrorMessage(updateTask.error) : null}

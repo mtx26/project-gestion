@@ -4,10 +4,9 @@ import type { TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Clock3, Lock, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -29,7 +28,9 @@ import {
   findTargetLabel,
   getTargetPayload,
 } from "@/lib/target-utils";
-import { buildFilterParams, parseBooleanParam } from "@/lib/url-params";
+import { parseBooleanParam } from "@/lib/url-params";
+import { useProjectResources } from "@/lib/use-project-resources";
+import { useUrlFilter } from "@/lib/use-url-filter";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
 import { TimeCalendarView } from "./components/time-calendar-view";
 import { TimeEntryForm } from "./components/time-entry-form";
@@ -78,10 +79,10 @@ function ProjectTimeContent({
   selectedProject,
   projectsQuery,
   openCreateProject,
-  queryClient,
 }: ProjectWorkspaceState) {
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
+  const projectId = selectedProject?.id ?? null;
   const canViewTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryView);
   const canViewAllTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryViewAll);
   const canRecordTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryEdit);
@@ -110,6 +111,13 @@ function ProjectTimeContent({
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [detailEntry, setDetailEntry] = useState<TimeEntry | null>(null);
 
+  const updateUrlFilter = useUrlFilter("/time", searchParams, projectId);
+  const { folders, targetFolders, members, handleCreateFolder } = useProjectResources(projectId, {
+    canView: canViewTime,
+    canEdit: canRecordTime,
+    canFetchMembers: canViewAllTime,
+  });
+
   const timeEntriesQuery = useQuery({
     queryKey: selectedProject
       ? queryKeys.timeEntries.list(selectedProject.id, {
@@ -128,25 +136,9 @@ function ProjectTimeContent({
       }),
     enabled: Boolean(selectedProject && canViewTime),
   });
-  const membersQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.members.list(selectedProject.id) : ["members", "disabled"],
-    queryFn: () => api.members.list(selectedProject!.id),
-    enabled: Boolean(selectedProject && canViewAllTime),
-  });
-  const targetTreeQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.folders.targetTree(selectedProject.id) : ["folders", "target-tree", "disabled"],
-    queryFn: () => api.folders.targetTree(selectedProject!.id),
-    enabled: Boolean(selectedProject && canRecordTime),
-  });
-  const foldersQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.folders.tree(selectedProject.id) : ["folders", "tree", "disabled"],
-    queryFn: () => api.folders.tree(selectedProject!.id),
-    enabled: Boolean(selectedProject && canViewTime),
-  });
 
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
-  const members = normalizeApiList(membersQuery.data);
-  const targetTree = useMemo(() => buildTargetTree(targetTreeQuery.data ?? []), [targetTreeQuery.data]);
+  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const selectedTargetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
   const folderNameById = useMemo(() => collectTargetLabelsByType(targetTree, "folder"), [targetTree]);
   const taskTitleById = useMemo(() => collectTargetLabelsByType(targetTree, "task"), [targetTree]);
@@ -157,8 +149,8 @@ function ProjectTimeContent({
   );
   const descendantFolderIds = useMemo(() => {
     if (!targetFilter?.startsWith("folder-")) return null;
-    return getDescendantFolderIds(foldersQuery.data ?? [], Number(targetFilter.replace("folder-", "")));
-  }, [foldersQuery.data, targetFilter]);
+    return getDescendantFolderIds(folders, Number(targetFilter.replace("folder-", "")));
+  }, [folders, targetFilter]);
   const visibleTimeEntries = useMemo(
     () => filterTimeEntriesByPaymentStatus(filterTimeEntriesByTarget(timeEntries, targetFilter, taskFolderById, descendantFolderIds), paymentStatusFilter),
     [paymentStatusFilter, targetFilter, taskFolderById, timeEntries, descendantFolderIds],
@@ -227,36 +219,11 @@ function ProjectTimeContent({
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
-  const createFolder = useMutation({
-    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
-      api.folders.create(selectedProject!.id, { name, parent_folder: parentId }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(selectedProject!.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(selectedProject!.id) }),
-      ]);
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
-  });
-
-  async function handleCreateFolder(name: string, parentId: number | null) {
-    await createFolder.mutateAsync({ name, parentId });
-  }
 
   function onSubmitTimeEntry(event: React.FormEvent<HTMLFormElement>, documentIds: number[]) {
     event.preventDefault();
     if (!selectedProject || !user || !canRecordTime) return;
     createTimeEntry.mutate(documentIds);
-  }
-
-
-  function updateUrlFilter(changes: Partial<{
-    user: UserFilter; payment: PaymentStatusFilter; period: PeriodPreset;
-    target: string | null; view: TimeViewMode; include_unpaid: boolean;
-  }>) {
-    if (!selectedProject) return;
-    const params = buildFilterParams(searchParams, selectedProject.id, changes);
-    router.replace(`/time?${params.toString()}`, { scroll: false });
   }
 
   if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
@@ -308,7 +275,7 @@ function ProjectTimeContent({
           targetFolderId={targetFilter?.startsWith("folder-") ? Number(targetFilter.replace("folder-", "")) : null}
           userFilter={userFilter}
           includeUnpaidOutsideMonth={includeUnpaidOutsideMonth}
-          folders={foldersQuery.data ?? []}
+          folders={folders}
           onSelectFolder={(folderId) => updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })}
           onPeriodPresetChange={(v) => updateUrlFilter({ period: v })}
           onPaymentStatusFilterChange={(v) => updateUrlFilter({ payment: v })}

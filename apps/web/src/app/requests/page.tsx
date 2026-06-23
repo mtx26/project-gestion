@@ -4,15 +4,16 @@ import type { ExpenseRequest, ExpenseRequestPayload } from "@project-gestion/typ
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { AccessDeniedState } from "@/components/ui/access-denied-state";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
-import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
+import { DocumentPreviewModal } from "@/components/ui/document-preview-modal";
+import { useDocumentPreview } from "@/lib/use-document-preview";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { EntryMetadataRow } from "@/components/ui/entry-metadata-row";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/ui/filter-bar";
@@ -25,9 +26,10 @@ import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { buildFolderNameMap } from "@/lib/folder-utils";
 import { formatMoney } from "@/lib/task-utils";
-import { buildFilterParams, parseIdParam, parseBooleanParam } from "@/lib/url-params";
+import { parseIdParam, parseBooleanParam } from "@/lib/url-params";
+import { useProjectResources } from "@/lib/use-project-resources";
+import { useUrlFilter } from "@/lib/use-url-filter";
 import { ExpenseRequestDetailDialog, ExpenseRequestFormDialog } from "./components/request-dialogs";
 import { buildRequestsHref, parseStatusFilter } from "./lib/request-utils";
 
@@ -47,8 +49,8 @@ export default function RequestsPage() {
   );
 }
 
-function RequestsPageContent({ user, selectedProject, queryClient, openCreateProject }: ProjectWorkspaceState) {
-  const router = useRouter();
+function RequestsPageContent({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const canView = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestView);
   const canEdit = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestEdit);
@@ -65,14 +67,12 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [viewingRequest, setViewingRequest] = useState<ExpenseRequest | null>(null);
-  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  function updateUrlFilter(changes: Record<string, string | number | boolean | null | undefined>) {
-    if (!selectedProject) return;
-    const params = buildFilterParams(searchParams, selectedProject.id, changes);
-    router.replace(`/requests?${params.toString()}`, { scroll: false });
-  }
+  const updateUrlFilter = useUrlFilter("/requests", searchParams, projectId);
+  const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
+    useProjectResources(projectId, { canView, canEdit });
+  const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const requestsQuery = useQuery({
     queryKey: projectId
@@ -87,24 +87,6 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
       folder: folderFilterId ?? undefined,
       requested_by: userFilterId ?? undefined,
     }),
-    enabled: Boolean(projectId && canView),
-  });
-
-  const foldersQuery = useQuery({
-    queryKey: projectId ? queryKeys.folders.tree(projectId) : ["folders", "tree", "disabled"],
-    queryFn: () => api.folders.tree(projectId!),
-    enabled: Boolean(projectId && canView),
-  });
-
-  const targetTreeQuery = useQuery({
-    queryKey: projectId ? queryKeys.folders.targetTree(projectId) : ["folders", "target-tree", "disabled"],
-    queryFn: () => api.folders.targetTree(projectId!),
-    enabled: Boolean(projectId && canEdit),
-  });
-
-  const membersQuery = useQuery({
-    queryKey: projectId ? queryKeys.members.list(projectId) : ["members", "disabled"],
-    queryFn: () => api.members.list(projectId!),
     enabled: Boolean(projectId && canView),
   });
 
@@ -158,28 +140,6 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
     onError: (err) => toast.error(getErrorMessage(err)),
   });
 
-  const openDocument = useMutation({
-    mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
-    onSuccess: (data) => setPreviewDocument(data),
-    onError: (err) => toast.error(getErrorMessage(err)),
-  });
-
-  const createFolder = useMutation({
-    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
-      api.folders.create(projectId!, { name, parent_folder: parentId }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
-      ]);
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
-  });
-
-  async function handleCreateFolder(name: string, parentId: number | null) {
-    await createFolder.mutateAsync({ name, parentId });
-  }
-
   if (!selectedProject) {
     return (
       <NoProjectState
@@ -195,16 +155,10 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
   }
 
   const allRequests = normalizeApiList(requestsQuery.data);
-  const folders = foldersQuery.data ?? [];
-  const targetFolders = targetTreeQuery.data ?? [];
-  const members = normalizeApiList(membersQuery.data);
-  const folderNameById = useMemo(() => buildFolderNameMap(folders), [folders]);
-
   const visibleRequests =
     statusFilter === "all" && !showRejected
       ? allRequests.filter((r) => r.status !== "rejected")
       : allRequests;
-
   const search = searchQuery.trim().toLowerCase();
   const requests = search
     ? visibleRequests.filter((r) =>
@@ -213,8 +167,6 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
         (r.description ?? "").toLowerCase().includes(search),
       )
     : visibleRequests;
-
-
   const folderFilterName = folderFilterId != null ? (folderNameById.get(folderFilterId) ?? "Dossier") : null;
 
   return (
@@ -365,7 +317,6 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
         onCreateFolder={canEdit ? handleCreateFolder : undefined}
         onSubmit={(payload) => createRequest.mutate(payload)}
       />
-
       <ExpenseRequestFormDialog
         key={editingRequest?.id ?? "edit-none"}
         mode="edit"
@@ -378,7 +329,6 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
         onCreateFolder={canEdit ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}
       />
-
       <ConfirmDeleteDialog
         open={deletingId != null}
         title="Supprimer la demande"
@@ -386,7 +336,6 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
         onConfirm={() => deletingId != null && deleteRequest.mutate(deletingId)}
         onClose={() => setDeletingId(null)}
       />
-
       <ExpenseRequestDetailDialog
         request={viewingRequest}
         folders={folders}
@@ -394,7 +343,6 @@ function RequestsPageContent({ user, selectedProject, queryClient, openCreatePro
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingRequest(null)}
       />
-
       <DocumentPreviewModal
         document={previewDocument}
         onClose={() => setPreviewDocument(null)}

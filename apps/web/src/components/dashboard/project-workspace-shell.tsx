@@ -34,7 +34,6 @@ export type ProjectWorkspaceState = {
   selectedProjectId: string;
   selectedProject: Project | null;
   openCreateProject: () => void;
-  queryClient: ReturnType<typeof useQueryClient>;
 };
 
 export function ProjectWorkspaceShell({
@@ -129,7 +128,6 @@ export function ProjectWorkspaceShell({
               selectedProjectId,
               selectedProject,
               openCreateProject: () => setCreateDialogOpen(true),
-              queryClient,
             })}
           </div>
         </SidebarInset>

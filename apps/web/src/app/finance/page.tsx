@@ -4,16 +4,17 @@ import type { FinancialEntry, FinancialEntryPayload } from "@project-gestion/typ
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { AccessDeniedState } from "@/components/ui/access-denied-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDeleteDialog } from "@/components/ui/confirm-delete-dialog";
-import { DocumentPreviewModal, type PreviewDocument } from "@/components/ui/document-preview-modal";
+import { DocumentPreviewModal } from "@/components/ui/document-preview-modal";
+import { useDocumentPreview } from "@/lib/use-document-preview";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { EntryMetadataRow } from "@/components/ui/entry-metadata-row";
 import { EntryTypeBadge } from "@/components/ui/entry-type-badge";
@@ -26,9 +27,10 @@ import { SkeletonLoader } from "@/components/ui/skeleton-loader";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { buildFolderNameMap } from "@/lib/folder-utils";
 import { formatMoney } from "@/lib/task-utils";
-import { buildFilterParams, parseIdParam } from "@/lib/url-params";
+import { parseIdParam } from "@/lib/url-params";
+import { useProjectResources } from "@/lib/use-project-resources";
+import { useUrlFilter } from "@/lib/use-url-filter";
 import { FinanceBarChart } from "./components/finance-bar-chart";
 import { FinancialEntryDetailDialog, FinancialEntryFormDialog } from "./components/finance-entry-dialogs";
 import { buildFinanceHref, computeTotals, parseTypeFilter } from "./lib/finance-utils";
@@ -62,8 +64,8 @@ function SummaryCard({ label, value, className }: { label: string; value: string
   );
 }
 
-function FinancePageContent({ user, selectedProject, queryClient, openCreateProject }: ProjectWorkspaceState) {
-  const router = useRouter();
+function FinancePageContent({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const canViewFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeView);
   const canEditFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeEdit);
@@ -77,15 +79,13 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
   const [viewingEntry, setViewingEntry] = useState<FinancialEntry | null>(null);
-  const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  function updateUrlFilter(changes: Record<string, string | number | boolean | null | undefined>) {
-    if (!selectedProject) return;
-    const params = buildFilterParams(searchParams, selectedProject.id, changes);
-    router.replace(`/finance?${params.toString()}`, { scroll: false });
-  }
+  const updateUrlFilter = useUrlFilter("/finance", searchParams, projectId);
+  const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
+    useProjectResources(projectId, { canView: canViewFinance, canEdit: canEditFinance });
+  const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const entriesQuery = useQuery({
     queryKey: projectId
@@ -103,21 +103,6 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
       }),
     enabled: Boolean(projectId && canViewFinance),
   });
-  const foldersQuery = useQuery({
-    queryKey: projectId ? queryKeys.folders.tree(projectId) : ["folders", "tree", "disabled"],
-    queryFn: () => api.folders.tree(projectId!),
-    enabled: Boolean(projectId && canViewFinance),
-  });
-  const targetTreeQuery = useQuery({
-    queryKey: projectId ? queryKeys.folders.targetTree(projectId) : ["folders", "target-tree", "disabled"],
-    queryFn: () => api.folders.targetTree(projectId!),
-    enabled: Boolean(projectId && canEditFinance),
-  });
-  const membersQuery = useQuery({
-    queryKey: projectId ? queryKeys.members.list(projectId) : ["members", "disabled"],
-    queryFn: () => api.members.list(projectId!),
-    enabled: Boolean(projectId && canViewFinance),
-  });
 
   const createEntry = useMutation({
     mutationFn: (payload: FinancialEntryPayload) => api.financialEntries.create(projectId!, payload),
@@ -129,6 +114,7 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
     },
     onError: (err) => setFormError(getErrorMessage(err)),
   });
+
   const updateEntry = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Partial<FinancialEntryPayload> }) =>
       api.financialEntries.update(projectId!, id, payload),
@@ -140,6 +126,7 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
     },
     onError: (err) => setFormError(getErrorMessage(err)),
   });
+
   const deleteEntry = useMutation({
     mutationFn: (id: number) => api.financialEntries.remove(projectId!, id),
     onSuccess: () => {
@@ -149,26 +136,6 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
-  const openDocument = useMutation({
-    mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
-    onSuccess: (data) => setPreviewDocument(data),
-    onError: (err) => toast.error(getErrorMessage(err)),
-  });
-  const createFolder = useMutation({
-    mutationFn: ({ name, parentId }: { name: string; parentId: number | null }) =>
-      api.folders.create(projectId!, { name, parent_folder: parentId }),
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
-      ]);
-    },
-    onError: (err) => toast.error(getErrorMessage(err)),
-  });
-
-  async function handleCreateFolder(name: string, parentId: number | null) {
-    await createFolder.mutateAsync({ name, parentId });
-  }
 
   if (!selectedProject) {
     return (
@@ -185,10 +152,6 @@ function FinancePageContent({ user, selectedProject, queryClient, openCreateProj
   }
 
   const allEntries = normalizeApiList(entriesQuery.data);
-  const folders = foldersQuery.data ?? [];
-  const targetFolders = targetTreeQuery.data ?? [];
-  const members = normalizeApiList(membersQuery.data);
-  const folderNameById = useMemo(() => buildFolderNameMap(folders), [folders]);
   const search = searchQuery.trim().toLowerCase();
   const entries = search
     ? allEntries.filter(

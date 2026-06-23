@@ -4,7 +4,7 @@ import type { Task } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Clock3,
   Folder,
@@ -96,8 +96,8 @@ function ProjectTreeView({
   selectedProject,
   projectsQuery,
   openCreateProject,
-  queryClient,
 }: ProjectWorkspaceState) {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
   const canEditFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileEdit);
