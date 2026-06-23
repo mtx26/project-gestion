@@ -3,7 +3,7 @@
 import type { TimeEntry } from "@project-gestion/types";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, CreditCard, Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,11 +40,21 @@ const editTimeSchema = z.object({
 });
 type EditTimeFormValues = z.infer<typeof editTimeSchema>;
 
-const paymentSchema = z.object({
-  mode: z.enum(["full", "partial"]),
-  amount: z.string(),
-});
-type PaymentFormValues = z.infer<typeof paymentSchema>;
+function makePaymentSchema(remaining: number) {
+  return z.object({
+    mode: z.enum(["full", "partial"]),
+    amount: z.string(),
+  })
+    .refine(
+      (v) => v.mode !== "partial" || Number(v.amount) > 0,
+      { message: "Le montant doit etre superieur a 0", path: ["amount"] },
+    )
+    .refine(
+      (v) => v.mode !== "partial" || Number(v.amount) <= remaining,
+      { message: "Le montant ne peut pas depasser le reste a payer", path: ["amount"] },
+    );
+}
+type PaymentFormValues = { mode: "full" | "partial"; amount: string };
 
 export type EditTimeSubmitData = {
   documentIds: number[];
@@ -342,9 +352,10 @@ export function PaymentDialog({
   onSubmit: (values: { mode: "full" | "partial"; amount: string }) => void;
 }) {
   const remainingAmount = Number(entry?.remaining_amount ?? 0);
+  const schema = useMemo(() => makePaymentSchema(remainingAmount), [remainingAmount]);
 
   const form = useForm<PaymentFormValues>({
-    resolver: zodResolver(paymentSchema),
+    resolver: zodResolver(schema),
     defaultValues: { mode: "full", amount: entry?.remaining_amount ?? "" },
   });
 
@@ -380,17 +391,18 @@ export function PaymentDialog({
           />
 
           {mode === "partial" ? (
-            <div className="space-y-2">
+            <Field>
               <Label htmlFor="payment-amount">Montant paye</Label>
               <Input
                 id="payment-amount"
                 type="number"
-                min="0"
+                min="0.01"
                 max={remainingAmount}
                 step="0.01"
                 {...form.register("amount")}
               />
-            </div>
+              <FieldError errors={[form.formState.errors.amount]} />
+            </Field>
           ) : null}
 
           <FormErrorAlert error={error} />
@@ -402,7 +414,7 @@ export function PaymentDialog({
           </DialogClose>
           <Button
             type="button"
-            disabled={isPending || remainingAmount <= 0 || (mode === "partial" && Number(form.watch("amount")) <= 0)}
+            disabled={isPending || remainingAmount <= 0}
             onClick={form.handleSubmit(handleSubmit)}
           >
             <CheckCircle2 className="size-4" />

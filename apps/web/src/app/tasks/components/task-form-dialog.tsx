@@ -252,6 +252,7 @@ export function TaskFormDialog({
               </Field>
             </div>
           )}
+          <FieldError errors={[form.formState.errors.startDate]} />
 
           {members.length > 0 ? (
             <Field>

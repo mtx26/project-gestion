@@ -196,6 +196,9 @@ class Task(BaseModel):
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.task.folder_project_mismatch")
 
+        if self.start_date and self.due_date and self.start_date > self.due_date:
+            raise ValidationError({"start_date": "errors.task.start_date_after_due_date"})
+
 class Invitation(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     email = models.EmailField()
