@@ -30,7 +30,7 @@ function VerifyEmailContent() {
         setMessage("Ton email est confirme. Tu peux maintenant te connecter.");
       } catch (error) {
         setStatus("error");
-        setMessage(getErrorMessage(error));
+        setMessage(getErrorMessage(error) ?? "Une erreur est survenue.");
       }
     }
 

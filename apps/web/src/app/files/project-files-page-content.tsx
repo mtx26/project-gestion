@@ -395,7 +395,7 @@ function ProjectTreeView({
   return (
     <div className="space-y-5">
       <PageTitle category="Projet" title="Documents du projet" />
-      <FormErrorAlert error={treeQuery.error ? getErrorMessage(treeQuery.error) : null} />
+      <FormErrorAlert error={getErrorMessage(treeQuery.error)} />
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
         <Card className="rounded-lg">

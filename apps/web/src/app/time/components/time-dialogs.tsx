@@ -214,7 +214,6 @@ export function EditTimeEntryDialog({
 
 export function TimeEntryDetailDialog({
   entry,
-  userNameById,
   canEdit,
   canPay,
   canDelete,
@@ -226,7 +225,6 @@ export function TimeEntryDetailDialog({
   onTaskClick,
 }: {
   entry: TimeEntry | null;
-  userNameById: Map<number, string>;
   canEdit: boolean;
   canPay: boolean;
   canDelete: boolean;
@@ -241,7 +239,7 @@ export function TimeEntryDetailDialog({
 
   const paymentStatus = getPaymentStatus(entry);
   const targetLabel = getEntryTargetLabel(entry);
-  const displayName = (entry.user != null ? userNameById.get(entry.user) : null) ?? entry.user_display_name;
+  const displayName = entry.user_display_name;
   const paidRatio =
     Number(entry.cost_amount) > 0
       ? Math.min(100, (Number(entry.paid_amount) / Number(entry.cost_amount)) * 100)

@@ -15,7 +15,8 @@ export function getFieldError(error: unknown, field: string) {
   return null;
 }
 
-export function getErrorMessage(error: unknown) {
+export function getErrorMessage(error: unknown): string | null {
+  if (error == null) return null;
   if (error instanceof ApiError) {
     if (error.status === 429) {
       return "Trop de tentatives. Reessaie plus tard.";

@@ -119,7 +119,7 @@ export function ProjectWorkspaceShell({
               <SidebarTrigger />
             </div>
 
-            <FormErrorAlert error={projectsQuery.error ? getErrorMessage(projectsQuery.error) : null} className="mb-6" />
+            <FormErrorAlert error={getErrorMessage(projectsQuery.error)} className="mb-6" />
 
             {children({
               user,
@@ -137,7 +137,7 @@ export function ProjectWorkspaceShell({
           onOpenChange={setCreateDialogOpen}
           form={form}
           onSubmit={onCreateProject}
-          error={createProject.error ? getErrorMessage(createProject.error) : null}
+          error={getErrorMessage(createProject.error)}
           isPending={createProject.isPending}
         />
       </SidebarProvider>

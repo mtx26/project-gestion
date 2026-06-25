@@ -203,7 +203,7 @@ function ProjectSettingsContent({
               form={editForm}
               canEdit={canEditSelectedProject}
               isPending={updateProject.isPending}
-              error={updateProject.error ? getErrorMessage(updateProject.error) : null}
+              error={getErrorMessage(updateProject.error)}
               onSubmit={(values) => {
                 if (selectedProject && canEditSelectedProject) {
                   updateProject.mutate({ id: selectedProject.id, values });
@@ -245,7 +245,7 @@ function ProjectSettingsContent({
                 project={selectedProject}
                 canDelete={canDeleteSelectedProject}
                 isPending={deleteProject.isPending}
-                error={deleteProject.error ? getErrorMessage(deleteProject.error) : null}
+                error={getErrorMessage(deleteProject.error)}
                 onDelete={() => deleteProject.mutate(selectedProject.id)}
               />
             </TabsContent>

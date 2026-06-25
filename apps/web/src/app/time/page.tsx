@@ -260,7 +260,7 @@ function ProjectTimeContent({
         ) : null}
       </div>
 
-      <FormErrorAlert error={canViewTime && timeEntriesQuery.error ? getErrorMessage(timeEntriesQuery.error) : null} />
+      <FormErrorAlert error={canViewTime ? getErrorMessage(timeEntriesQuery.error) : null} />
 
       {canViewTime ? (
         <TimePeriodToolbar
@@ -295,7 +295,6 @@ function ProjectTimeContent({
               <TimeEntryList
                 entries={visibleTimeEntries}
                 isLoading={timeEntriesQuery.isLoading}
-                userNameById={userNameById}
                 canPay={canPayTime}
                 canEdit={canRecordTime}
                 canDelete={canDeleteTime}
@@ -357,7 +356,7 @@ function ProjectTimeContent({
             targetTree={targetTree}
             selectedTargetLabel={selectedTargetLabel}
             isPending={createTimeEntry.isPending}
-            error={createTimeEntry.error ? getErrorMessage(createTimeEntry.error) : null}
+            error={getErrorMessage(createTimeEntry.error)}
             onHoursChange={setHours}
             onMinutesChange={setMinutes}
             onHourlyRateChange={setHourlyRateDraft}
@@ -373,7 +372,7 @@ function ProjectTimeContent({
         key={paymentTarget?.id ?? "payment-none"}
         entry={paymentTarget}
         isPending={payTimeEntry.isPending}
-        error={payTimeEntry.error ? getErrorMessage(payTimeEntry.error) : null}
+        error={getErrorMessage(payTimeEntry.error)}
         onOpenChange={(open) => { if (!open) { setPaymentTarget(null); payTimeEntry.reset(); } }}
         onSubmit={(values) => payTimeEntry.mutate(values)}
       />
@@ -383,14 +382,13 @@ function ProjectTimeContent({
         projectId={selectedProject?.id ?? 0}
         targetTree={targetTree}
         isPending={updateTimeEntry.isPending}
-        error={updateTimeEntry.error ? getErrorMessage(updateTimeEntry.error) : null}
+        error={getErrorMessage(updateTimeEntry.error)}
         onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
         onOpenChange={(open) => { if (!open) { setEditingEntry(null); updateTimeEntry.reset(); } }}
         onSubmit={(data) => updateTimeEntry.mutate(data)}
       />
       <TimeEntryDetailDialog
         entry={viewingEntry}
-        userNameById={userNameById}
         canEdit={canRecordTime}
         canPay={canPayTime}
         canDelete={canDeleteTime}

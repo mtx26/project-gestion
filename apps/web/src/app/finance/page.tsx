@@ -337,7 +337,6 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       />
       <TimeEntryDetailDialog
         entry={viewingTimeEntry}
-        userNameById={new Map()}
         canEdit={false}
         canPay={false}
         canDelete={false}

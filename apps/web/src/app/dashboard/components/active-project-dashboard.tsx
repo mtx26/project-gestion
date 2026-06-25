@@ -90,9 +90,7 @@ export function ActiveProjectDashboard({
   const unpaidMinutes = unpaidTimeEntries.reduce((total, entry) => total + entry.duration_minutes, 0);
   const unpaidAmount = unpaidTimeEntries.reduce((total, entry) => total + Number(entry.remaining_amount), 0);
   const isFinanceLoading = financeQuery.isLoading;
-  const financeError = financeQuery.error
-    ? getErrorMessage(financeQuery.error)
-    : null;
+  const financeError = getErrorMessage(financeQuery.error);
 
   if (isLoading) {
     return <ProjectDashboardSkeleton />;

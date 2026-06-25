@@ -103,7 +103,7 @@ function AccountContent({ user }: { user: User | null }) {
                       <PasswordInput id="new-password" autoComplete="new-password" {...passwordForm.register("new_password")} />
                       <FieldError errors={[passwordForm.formState.errors.new_password]} />
                     </Field>
-                    <FormError message={changePassword.error ? getErrorMessage(changePassword.error) : null} />
+                    <FormError message={getErrorMessage(changePassword.error)} />
                     <Button type="submit" disabled={changePassword.isPending}>
                       <Save className="size-4" />
                       {changePassword.isPending ? "Enregistrement..." : "Enregistrer"}

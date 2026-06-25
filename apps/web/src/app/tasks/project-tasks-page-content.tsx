@@ -224,7 +224,6 @@ function ProjectTasksContent({
           <CardContent>
             <TaskTable
               tasks={myTasks}
-              folderNameById={folderNameById}
               members={members}
               canEdit={canEditTasks}
               canDelete={canDeleteTasks}
@@ -244,7 +243,7 @@ function ProjectTasksContent({
           <CardTitle>Taches</CardTitle>
         </CardHeader>
         <CardContent>
-          <FormErrorAlert error={tasksQuery.error ? getErrorMessage(tasksQuery.error) : null} className="mb-3" />
+          <FormErrorAlert error={getErrorMessage(tasksQuery.error)} className="mb-3" />
           {tasksQuery.isLoading ? (
             <SkeletonLoader count={3} className="h-20 rounded-md" />
           ) : visibleTasks.length === 0 ? (
@@ -257,7 +256,6 @@ function ProjectTasksContent({
           ) : (
             <TaskTable
               tasks={visibleTasks}
-              folderNameById={folderNameById}
               members={members}
               canEdit={canEditTasks}
               canDelete={canDeleteTasks}
@@ -279,7 +277,7 @@ function ProjectTasksContent({
         members={members}
         initialFolder={folderFilter}
         isPending={createTask.isPending}
-        error={createTask.error ? getErrorMessage(createTask.error) : null}
+        error={getErrorMessage(createTask.error)}
         onOpenChange={setCreateDialogOpen}
         onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
         onSubmit={(payload) => { if (selectedProject && canEditTasks) createTask.mutate(payload); }}
@@ -292,7 +290,7 @@ function ProjectTasksContent({
         folders={folders}
         members={members}
         isPending={updateTask.isPending}
-        error={updateTask.error ? getErrorMessage(updateTask.error) : null}
+        error={getErrorMessage(updateTask.error)}
         onOpenChange={(open) => { if (!open) setEditingTask(null); }}
         onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingTask && updateTask.mutate({ taskId: editingTask.id, payload })}

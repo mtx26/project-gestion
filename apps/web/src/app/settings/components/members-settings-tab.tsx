@@ -144,7 +144,7 @@ export function MembersSettingsTab({
             <Button type="submit" disabled={!inviteEmail || !inviteRoleId || inviteMember.isPending}>
               Inviter
             </Button>
-            <FormError message={inviteMember.error ? getErrorMessage(inviteMember.error) : null} />
+            <FormError message={getErrorMessage(inviteMember.error)} />
           </form>
         ) : null}
 
@@ -265,10 +265,10 @@ export function MembersSettingsTab({
           ))}
         </div>
 
-        <FormError message={removeMember.error ? getErrorMessage(removeMember.error) : null} />
-        <FormError message={updateMemberRole.error ? getErrorMessage(updateMemberRole.error) : null} />
-        <FormError message={updateInvitationRole.error ? getErrorMessage(updateInvitationRole.error) : null} />
-        <FormError message={removeInvitation.error ? getErrorMessage(removeInvitation.error) : null} />
+        <FormError message={getErrorMessage(removeMember.error)} />
+        <FormError message={getErrorMessage(updateMemberRole.error)} />
+        <FormError message={getErrorMessage(updateInvitationRole.error)} />
+        <FormError message={getErrorMessage(removeInvitation.error)} />
       </CardContent>
     </Card>
   );

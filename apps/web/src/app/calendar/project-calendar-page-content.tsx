@@ -95,10 +95,7 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
   const tasks = normalizeApiList(tasksQuery.data);
   const members = normalizeApiList(membersQuery.data);
 
-  const userNameById = useMemo(
-    () => new Map(members.map((m): [number, string] => [m.user, m.user_display_name])),
-    [members],
-  );
+
 
   function handleTaskClick(taskId: number) {
     setSelectedTask(tasks.find((t) => t.id === taskId) ?? null);
@@ -180,7 +177,6 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
 
       <TimeEntryDetailDialog
         entry={selectedTimeEntry}
-        userNameById={userNameById}
         canEdit={false}
         canPay={false}
         canDelete={false}

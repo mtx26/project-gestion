@@ -34,7 +34,6 @@ const COLUMN_LABELS: Record<string, string> = {
 
 export function TaskTable({
   tasks,
-  folderNameById,
   members,
   canEdit,
   canDelete,
@@ -46,7 +45,6 @@ export function TaskTable({
   onStatusChange,
 }: {
   tasks: Task[];
-  folderNameById: Map<number, string>;
   members: TaskMember[];
   canEdit: boolean;
   canDelete: boolean;
@@ -76,10 +74,10 @@ export function TaskTable({
       },
       {
         id: "folder",
-        accessorFn: (row) => row.folder == null ? "" : (folderNameById.get(row.folder) ?? ""),
+        accessorFn: (row) => row.folder_name ?? "",
         header: ({ column }) => <SortButton column={column}>Dossier</SortButton>,
         cell: ({ row }) => {
-          const name = row.original.folder == null ? "Projet" : (folderNameById.get(row.original.folder) ?? `Dossier #${row.original.folder}`);
+          const name = row.original.folder == null ? "Projet" : (row.original.folder_name ?? `Dossier #${row.original.folder}`);
           return <span className="text-muted-foreground">{name}</span>;
         },
         sortingFn: "alphanumeric",
@@ -179,7 +177,7 @@ export function TaskTable({
         enableSorting: false,
       },
     ],
-    [folderNameById, userDisplayMap, canEdit, canDelete, deletingId, onEdit, onDelete, onStatusChange],
+    [userDisplayMap, canEdit, canDelete, deletingId, onEdit, onDelete, onStatusChange],
   );
 
   const table = useReactTable({

@@ -166,7 +166,7 @@ export function AccountProfileForm({
         />
       </Field>
       <div className="sm:col-span-2">
-        <FormError message={updateProfile.error ? getErrorMessage(updateProfile.error) : null} />
+        <FormError message={getErrorMessage(updateProfile.error)} />
         <Button type="submit" disabled={updateProfile.isPending}>
           <Save className="size-4" />
           {updateProfile.isPending ? "Enregistrement..." : submitLabel}

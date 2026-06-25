@@ -73,13 +73,9 @@ function NotificationsContent() {
 
       <FormError
         message={
-          notificationsQuery.error
-            ? getErrorMessage(notificationsQuery.error)
-            : markRead.error
-              ? getErrorMessage(markRead.error)
-              : markAllRead.error
-                ? getErrorMessage(markAllRead.error)
-                : null
+          getErrorMessage(notificationsQuery.error) ??
+          getErrorMessage(markRead.error) ??
+          getErrorMessage(markAllRead.error)
         }
       />
 

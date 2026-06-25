@@ -206,15 +206,11 @@ export function RolesSettingsTab({
           onRolePermissionIdsChange={setRolePermissionIds}
           permissions={permissions}
           onSubmit={onSubmit}
-          error={
-            editingRole
-              ? updateRole.error ? getErrorMessage(updateRole.error) : null
-              : createRole.error ? getErrorMessage(createRole.error) : null
-          }
+          error={editingRole ? getErrorMessage(updateRole.error) : getErrorMessage(createRole.error)}
           isPending={editingRole ? updateRole.isPending : createRole.isPending}
         />
       ) : null}
-      <FormError message={deleteRole.error ? getErrorMessage(deleteRole.error) : null} />
+      <FormError message={getErrorMessage(deleteRole.error)} />
     </>
   );
 }

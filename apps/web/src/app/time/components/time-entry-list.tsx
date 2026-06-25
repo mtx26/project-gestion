@@ -18,7 +18,6 @@ import {
 export function TimeEntryList({
   entries,
   isLoading,
-  userNameById,
   canPay,
   canEdit,
   canDelete,
@@ -30,7 +29,6 @@ export function TimeEntryList({
 }: {
   entries: TimeEntry[];
   isLoading: boolean;
-  userNameById: Map<number, string>;
   canPay: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -65,7 +63,7 @@ export function TimeEntryList({
         <TimeEntryRow
           key={entry.id}
           entry={entry}
-          displayName={(entry.user != null ? userNameById.get(entry.user) : null) ?? entry.user_display_name}
+          displayName={entry.user_display_name}
           targetLabel={getEntryTargetLabel(entry)}
           canPay={canPay}
           canEdit={canEdit}
