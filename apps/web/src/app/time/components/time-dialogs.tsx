@@ -214,9 +214,9 @@ export function EditTimeEntryDialog({
 
 export function TimeEntryDetailDialog({
   entry,
-  canEdit,
-  canPay,
-  canDelete,
+  canEdit = false,
+  canPay = false,
+  canDelete = false,
   deletingId,
   onClose,
   onEdit,
@@ -225,14 +225,14 @@ export function TimeEntryDetailDialog({
   onTaskClick,
 }: {
   entry: TimeEntry | null;
-  canEdit: boolean;
-  canPay: boolean;
-  canDelete: boolean;
-  deletingId: number | null | undefined;
+  canEdit?: boolean;
+  canPay?: boolean;
+  canDelete?: boolean;
+  deletingId?: number | null;
   onClose: () => void;
-  onEdit: (entry: TimeEntry) => void;
-  onPay: (entry: TimeEntry) => void;
-  onDelete: (entry: TimeEntry) => void;
+  onEdit?: (entry: TimeEntry) => void;
+  onPay?: (entry: TimeEntry) => void;
+  onDelete?: (entry: TimeEntry) => void;
   onTaskClick?: (taskId: number) => void;
 }) {
   if (!entry) return null;
@@ -252,20 +252,20 @@ export function TimeEntryDetailDialog({
       title={entry.description || "Temps enregistre"}
       footer={
         <ModalFooter
-          destructive={canDelete ? {
+          destructive={canDelete && onDelete ? {
             label: deletingId === entry.id ? "Suppression..." : "Supprimer",
             onClick: () => onDelete(entry),
             disabled: deletingId === entry.id,
           } : undefined}
           actions={
             <>
-              {canPay && paymentStatus !== "paid" ? (
+              {canPay && onPay && paymentStatus !== "paid" ? (
                 <Button type="button" variant="outline" size="sm" onClick={() => onPay(entry)}>
                   <CreditCard className="size-4" />
                   Payer
                 </Button>
               ) : null}
-              {canEdit ? (
+              {canEdit && onEdit ? (
                 <Button type="button" size="sm" onClick={() => onEdit(entry)}>
                   <Pencil className="size-4" />
                   Modifier

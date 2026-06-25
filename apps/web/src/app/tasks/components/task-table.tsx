@@ -34,7 +34,6 @@ const COLUMN_LABELS: Record<string, string> = {
 
 export function TaskTable({
   tasks,
-  members,
   canEdit,
   canDelete,
   deletingId,
@@ -45,7 +44,6 @@ export function TaskTable({
   onStatusChange,
 }: {
   tasks: Task[];
-  members: TaskMember[];
   canEdit: boolean;
   canDelete: boolean;
   deletingId: number | null | undefined;
@@ -58,12 +56,6 @@ export function TaskTable({
   "use no memo";
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultVisibility);
-
-  const userDisplayMap = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const m of members) map.set(m.user, m.user_display_name);
-    return map;
-  }, [members]);
 
   const columns = useMemo<ColumnDef<Task>[]>(
     () => [
@@ -129,7 +121,7 @@ export function TaskTable({
         id: "assignees",
         header: () => <span>Assignes</span>,
         cell: ({ row }) => {
-          const names = row.original.assigned_to.map((uid) => userDisplayMap.get(uid) ?? `#${uid}`).join(", ");
+          const names = row.original.assigned_to_display_names.join(", ");
           return <span className="max-w-30 truncate text-muted-foreground">{names || "-"}</span>;
         },
         enableSorting: false,
@@ -177,7 +169,7 @@ export function TaskTable({
         enableSorting: false,
       },
     ],
-    [userDisplayMap, canEdit, canDelete, deletingId, onEdit, onDelete, onStatusChange],
+    [canEdit, canDelete, deletingId, onEdit, onDelete, onStatusChange],
   );
 
   const table = useReactTable({

@@ -17,9 +17,8 @@ import { formatDate } from "@/lib/task-utils";
 
 interface TaskDetailModalProps {
   task: Task | null;
-  members: { user: number; user_display_name: string }[];
-  canEdit: boolean;
-  canDelete: boolean;
+  canEdit?: boolean;
+  canDelete?: boolean;
   deletingId?: number | null;
   onClose: () => void;
   onEdit?: (task: Task) => void;
@@ -28,9 +27,8 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({
   task,
-  members,
-  canEdit,
-  canDelete,
+  canEdit = false,
+  canDelete = false,
   deletingId,
   onClose,
   onEdit,
@@ -43,10 +41,7 @@ export function TaskDetailModal({
         ? "Projet"
         : (task.folder_name ?? `Dossier #${task.folder}`);
 
-  const assigneeNames =
-    task?.assigned_to.map(
-      (uid) => members.find((m) => m.user === uid)?.user_display_name ?? `#${uid}`,
-    ) ?? [];
+  const assigneeNames = task?.assigned_to_display_names ?? [];
 
   return (
     <DetailModal

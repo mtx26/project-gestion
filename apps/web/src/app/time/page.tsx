@@ -29,7 +29,7 @@ import {
   findTargetLabel,
   getTargetPayload,
 } from "@/lib/target-utils";
-import { parseBooleanParam } from "@/lib/url-params";
+import { buildProjectHref, parseBooleanParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
@@ -41,7 +41,6 @@ import {
   type PaymentStatusFilter,
   type PeriodPreset,
   type UserFilter,
-  buildTimeHref,
   filterTimeEntriesByPaymentStatus,
   filterTimeEntriesByTarget,
   getPeriodRange,
@@ -64,8 +63,8 @@ export default function TimePage() {
     <ProjectWorkspaceShell
       activeItem="time"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildTimeHref(id, searchParams))}
-      onProjectCreated={(project) => router.push(buildTimeHref(project.id, searchParams))}
+      onProjectSelected={(id) => router.push(buildProjectHref("/time", id, searchParams))}
+      onProjectCreated={(project) => router.push(buildProjectHref("/time", project.id, searchParams))}
     >
       {(state) => <ProjectTimeContent {...state} />}
     </ProjectWorkspaceShell>
@@ -401,9 +400,6 @@ function ProjectTimeContent({
       />
       <TaskDetailModal
         task={viewingTask}
-        members={members}
-        canEdit={false}
-        canDelete={false}
         onClose={() => setViewingTask(null)}
       />
     </div>

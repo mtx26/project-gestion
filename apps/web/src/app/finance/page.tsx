@@ -29,12 +29,12 @@ import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
-import { parseIdParam } from "@/lib/url-params";
+import { buildProjectHref, parseIdParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { FinanceBarChart } from "./components/finance-bar-chart";
 import { FinancialEntryDetailDialog, FinancialEntryFormDialog } from "./components/finance-entry-dialogs";
-import { buildFinanceHref, computeTotals, parseTypeFilter } from "./lib/finance-utils";
+import { computeTotals, parseTypeFilter } from "./lib/finance-utils";
 
 export default function FinancePage() {
   const router = useRouter();
@@ -44,8 +44,8 @@ export default function FinancePage() {
     <ProjectWorkspaceShell
       activeItem="finance"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildFinanceHref(id, searchParams))}
-      onProjectCreated={(project) => router.push(buildFinanceHref(project.id, searchParams))}
+      onProjectSelected={(id) => router.push(buildProjectHref("/finance", id, searchParams))}
+      onProjectCreated={(project) => router.push(buildProjectHref("/finance", project.id, searchParams))}
     >
       {(state) => <FinancePageContent {...state} />}
     </ProjectWorkspaceShell>
@@ -337,14 +337,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       />
       <TimeEntryDetailDialog
         entry={viewingTimeEntry}
-        canEdit={false}
-        canPay={false}
-        canDelete={false}
-        deletingId={null}
         onClose={() => setViewingTimeEntry(null)}
-        onEdit={() => {}}
-        onPay={() => {}}
-        onDelete={() => {}}
       />
       <DocumentPreviewModal
         document={previewDocument}

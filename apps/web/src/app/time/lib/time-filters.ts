@@ -6,11 +6,6 @@ export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
 export type PeriodPreset = "this-month" | "last-month" | "this-week" | "last-30-days" | "this-year" | "all";
 export type TimeViewMode = "list" | "calendar";
 
-export function buildTimeHref(projectId: number, searchParams: URLSearchParams): string {
-  const params = new URLSearchParams(searchParams.toString());
-  params.set("project", String(projectId));
-  return `/time?${params.toString()}`;
-}
 
 export function formatDateInputValue(date: Date): string {
   return [

@@ -636,9 +636,6 @@ function ProjectTreeView({
 
       <TaskDetailModal
         task={viewingTask}
-        members={[]}
-        canEdit={false}
-        canDelete={false}
         onClose={() => setViewingTask(null)}
       />
 

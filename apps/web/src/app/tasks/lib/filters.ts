@@ -29,11 +29,6 @@ export function getFolderId(value: FolderFilter): number | null {
   return null;
 }
 
-export function buildTasksHref(projectId: number, searchParams: URLSearchParams): string {
-  const params = new URLSearchParams(searchParams.toString());
-  params.set("project", String(projectId));
-  return `/tasks?${params.toString()}`;
-}
 
 export async function invalidateTasks(queryClient: QueryClient, projectId: number): Promise<void> {
   await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });

@@ -218,6 +218,7 @@ export type Task = {
   created_by: ID | null;
   created_by_name: string | null;
   assigned_to: ID[];
+  assigned_to_display_names: string[];
   title: string;
   description: string | null;
   status: "todo" | "in_progress" | "done";

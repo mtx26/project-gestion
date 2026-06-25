@@ -410,6 +410,7 @@ class DocumentDownloadSerializer(serializers.Serializer):
 class TaskSerializer(serializers.ModelSerializer):
     folder_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
+    assigned_to_display_names = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -421,6 +422,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "created_by",
             "created_by_name",
             "assigned_to",
+            "assigned_to_display_names",
             "title",
             "description",
             "status",
@@ -438,6 +440,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "created_by",
             "folder_name",
             "created_by_name",
+            "assigned_to_display_names",
         ]
 
     def get_folder_name(self, obj):
@@ -445,6 +448,9 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_created_by_name(self, obj):
         return _get_user_display_name(obj.created_by)
+
+    def get_assigned_to_display_names(self, obj):
+        return [_get_user_display_name(u) for u in obj.assigned_to.all()]
 
     def validate_assigned_to(self, value):
         from .services.members import get_project_assignable_users

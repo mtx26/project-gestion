@@ -27,11 +27,11 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
-import { parseIdParam, parseBooleanParam } from "@/lib/url-params";
+import { buildProjectHref, parseIdParam, parseBooleanParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { ExpenseRequestDetailDialog, ExpenseRequestFormDialog } from "./components/request-dialogs";
-import { buildRequestsHref, parseStatusFilter } from "./lib/request-utils";
+import { parseStatusFilter } from "./lib/request-utils";
 
 export default function RequestsPage() {
   const router = useRouter();
@@ -41,8 +41,8 @@ export default function RequestsPage() {
     <ProjectWorkspaceShell
       activeItem="requests"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildRequestsHref(id, searchParams))}
-      onProjectCreated={(project) => router.push(buildRequestsHref(project.id, searchParams))}
+      onProjectSelected={(id) => router.push(buildProjectHref("/requests", id, searchParams))}
+      onProjectCreated={(project) => router.push(buildProjectHref("/requests", project.id, searchParams))}
     >
       {(state) => <RequestsPageContent {...state} />}
     </ProjectWorkspaceShell>

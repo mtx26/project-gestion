@@ -25,7 +25,7 @@ import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { parseBooleanParam, parseIdParam } from "@/lib/url-params";
+import { buildProjectHref, parseBooleanParam, parseIdParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { TaskFormDialog } from "./components/task-form-dialog";
@@ -33,7 +33,6 @@ import { TaskTable } from "./components/task-table";
 import {
   type PriorityFilter,
   type StatusFilter,
-  buildTasksHref,
   getFolderId,
   invalidateTasks,
   parseFolderFilter,
@@ -49,8 +48,8 @@ export function ProjectTasksPageContent() {
     <ProjectWorkspaceShell
       activeItem="tasks"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildTasksHref(id, searchParams))}
-      onProjectCreated={(project) => router.push(buildTasksHref(project.id, searchParams))}
+      onProjectSelected={(id) => router.push(buildProjectHref("/tasks", id, searchParams))}
+      onProjectCreated={(project) => router.push(buildProjectHref("/tasks", project.id, searchParams))}
     >
       {(state) => <ProjectTasksContent {...state} />}
     </ProjectWorkspaceShell>
@@ -224,7 +223,6 @@ function ProjectTasksContent({
           <CardContent>
             <TaskTable
               tasks={myTasks}
-              members={members}
               canEdit={canEditTasks}
               canDelete={canDeleteTasks}
               deletingId={deleteTask.isPending ? deleteTask.variables : null}
@@ -256,7 +254,6 @@ function ProjectTasksContent({
           ) : (
             <TaskTable
               tasks={visibleTasks}
-              members={members}
               canEdit={canEditTasks}
               canDelete={canDeleteTasks}
               deletingId={deleteTask.isPending ? deleteTask.variables : null}
@@ -297,7 +294,6 @@ function ProjectTasksContent({
       />
       <TaskDetailModal
         task={viewingTask}
-        members={members}
         canEdit={canEditTasks}
         canDelete={canDeleteTasks}
         deletingId={deleteTask.isPending ? deleteTask.variables : null}

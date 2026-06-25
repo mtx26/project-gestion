@@ -18,6 +18,7 @@ import { Label } from "@/components/ui/label";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
+import { buildProjectHref } from "@/lib/url-params";
 import { formatDateInputValue, getMonthCalendarDays } from "@/lib/calendar-utils";
 
 const ProjectCalendarView = dynamic(
@@ -25,11 +26,6 @@ const ProjectCalendarView = dynamic(
   { ssr: false, loading: () => <Skeleton className="h-150 rounded-lg" /> },
 );
 
-function buildCalendarHref(projectId: number, searchParams: URLSearchParams): string {
-  const params = new URLSearchParams(searchParams.toString());
-  params.set("project", String(projectId));
-  return `/calendar?${params.toString()}`;
-}
 
 function getMonthRange(monthDate: Date): { startDate: string; endDate: string } {
   const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
@@ -45,8 +41,8 @@ export function ProjectCalendarPageContent() {
     <ProjectWorkspaceShell
       activeItem="calendar"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildCalendarHref(id, searchParams))}
-      onProjectCreated={(project) => router.push(buildCalendarHref(project.id, searchParams))}
+      onProjectSelected={(id) => router.push(buildProjectHref("/calendar", id, searchParams))}
+      onProjectCreated={(project) => router.push(buildProjectHref("/calendar", project.id, searchParams))}
     >
       {(state) => <ProjectCalendarContent {...state} />}
     </ProjectWorkspaceShell>
@@ -85,16 +81,9 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
     enabled: Boolean(projectId && canViewTasks),
   });
 
-  const membersQuery = useQuery({
-    queryKey: projectId && canViewTasks ? queryKeys.members.list(projectId) : ["members", "calendar", "disabled"],
-    queryFn: () => api.members.list(projectId!),
-    enabled: Boolean(projectId && canViewTasks),
-  });
 
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
   const tasks = normalizeApiList(tasksQuery.data);
-  const members = normalizeApiList(membersQuery.data);
-
 
 
   function handleTaskClick(taskId: number) {
@@ -169,22 +158,12 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
 
       <TaskDetailModal
         task={selectedTask}
-        members={members}
-        canEdit={false}
-        canDelete={false}
         onClose={() => setSelectedTask(null)}
       />
 
       <TimeEntryDetailDialog
         entry={selectedTimeEntry}
-        canEdit={false}
-        canPay={false}
-        canDelete={false}
-        deletingId={null}
         onClose={() => setSelectedTimeEntry(null)}
-        onEdit={() => {}}
-        onPay={() => {}}
-        onDelete={() => {}}
         onTaskClick={handleTimeEntryTaskClick}
       />
     </div>

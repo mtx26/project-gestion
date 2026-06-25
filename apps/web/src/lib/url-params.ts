@@ -1,3 +1,13 @@
+export function buildProjectHref(
+  path: string,
+  projectId: number | string,
+  searchParams?: { toString(): string },
+): string {
+  const params = new URLSearchParams(searchParams?.toString() ?? "");
+  params.set("project", String(projectId));
+  return `${path}?${params.toString()}`;
+}
+
 export function buildClearParams(
   searchParams: { toString(): string },
   removeKeys: string[],
