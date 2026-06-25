@@ -4,9 +4,8 @@ import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { toastError } from "@/lib/errors";
 import { buildFolderNameMap } from "@/lib/folder-utils";
 
 export function useProjectResources(
@@ -50,7 +49,7 @@ export function useProjectResources(
         queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
       ]);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const folders = useMemo(() => foldersQuery.data ?? [], [foldersQuery.data]);

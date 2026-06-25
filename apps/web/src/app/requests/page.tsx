@@ -25,7 +25,7 @@ import { SelectItem } from "@/components/ui/select";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { toastError } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
 import { buildProjectHref, parseIdParam, parseBooleanParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
@@ -97,7 +97,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setCreateOpen(false);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const updateRequest = useMutation({
@@ -108,7 +108,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setEditingRequest(null);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const deleteRequest = useMutation({
@@ -118,7 +118,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setDeletingId(null);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const approveRequest = useMutation({
@@ -128,7 +128,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const rejectRequest = useMutation({
@@ -137,7 +137,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       toast.success("Remboursement rejete");
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   if (!selectedProject) {

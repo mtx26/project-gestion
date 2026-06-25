@@ -21,7 +21,7 @@ import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
 import { getDescendantFolderIds } from "@/lib/folder-utils";
 import {
   buildTargetTree,
@@ -171,7 +171,7 @@ function ProjectTimeContent({
       setDescription(""); setTargetValue("project"); setTimeFormOpen(false);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
   const deleteTimeEntry = useMutation({
     mutationFn: (timeEntryId: number) => api.timeEntries.remove(selectedProject!.id, timeEntryId),
@@ -179,7 +179,7 @@ function ProjectTimeContent({
       toast.success("Entree supprimee");
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
   const payTimeEntry = useMutation({
     mutationFn: (values: { mode: "full" | "partial"; amount: string }) =>
@@ -195,7 +195,7 @@ function ProjectTimeContent({
         queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(selectedProject!.id) }),
       ]);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
   const updateTimeEntry = useMutation({
     mutationFn: (data: EditTimeSubmitData) =>
@@ -212,7 +212,7 @@ function ProjectTimeContent({
       setEditingEntry(null);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   async function handleTaskClick(taskId: number) {

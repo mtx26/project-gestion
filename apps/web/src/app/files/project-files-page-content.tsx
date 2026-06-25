@@ -59,7 +59,7 @@ import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
 import { findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
 import { buildProjectHref } from "@/lib/url-params";
 import { FileTree } from "./components/file-tree";
@@ -156,20 +156,20 @@ function ProjectTreeView({
     mutationFn: ({ name, parentFolder }: { name: string; parentFolder: number | null }) =>
       api.folders.create(selectedProject!.id, { name, parent_folder: parentFolder }),
     onSuccess: () => { toast.success("Dossier cree"); treeQuery.refetch(); },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const uploadDocument = useMutation({
     mutationFn: ({ file, folder }: { file: File; folder: number | null }) =>
       api.documents.upload(selectedProject!.id, { file, folder }),
     onSuccess: () => { toast.success("Document uploade"); treeQuery.refetch(); },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const openDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.download(selectedProject!.id, documentId),
     onSuccess: (data) => setPreviewDocument(data),
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const deleteFolder = useMutation({
@@ -184,13 +184,13 @@ function ProjectTreeView({
       );
       await treeQuery.refetch();
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const deleteDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.remove(selectedProject!.id, documentId),
     onSuccess: async () => { toast.success("Document supprime"); setItemToDelete(null); await treeQuery.refetch(); },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const renameItem = useMutation<unknown, Error, { target: FileActionTarget; name: string }>({
@@ -204,14 +204,14 @@ function ProjectTreeView({
       setRenameValue("");
       await treeQuery.refetch();
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const moveFolder = useMutation({
     mutationFn: ({ folderId, newParentId }: { folderId: number; newParentId: number | null }) =>
       api.folders.update(selectedProject!.id, folderId, { parent_folder: newParentId }),
     onSuccess: async () => treeQuery.refetch(),
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const createTask = useMutation({
@@ -235,7 +235,7 @@ function ProjectTreeView({
           : Promise.resolve(),
       ]);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const createTimeEntry = useMutation({
@@ -257,7 +257,7 @@ function ProjectTreeView({
         await queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.all(selectedProjectId) });
       }
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   const selectedFolderId = selectedFolderState.projectId === selectedProjectId ? selectedFolderState.id : null;

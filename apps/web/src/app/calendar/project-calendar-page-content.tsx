@@ -75,7 +75,7 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
 
   const tasksQuery = useQuery({
     queryKey: projectId && canViewTasks
-      ? ["projects", projectId, "tasks", "calendar", firstCalStr, lastCalStr]
+      ? queryKeys.tasks.calendar(projectId, firstCalStr, lastCalStr)
       : ["calendar", "tasks", "disabled"],
     queryFn: () => api.tasks.list(projectId!, { date_from: firstCalStr, date_to: lastCalStr }),
     enabled: Boolean(projectId && canViewTasks),

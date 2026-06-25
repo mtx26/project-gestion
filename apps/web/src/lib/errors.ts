@@ -1,4 +1,5 @@
 import { ApiError } from "@project-gestion/api";
+import { toast } from "sonner";
 
 export function getFieldError(error: unknown, field: string) {
   if (!(error instanceof ApiError)) {
@@ -28,6 +29,10 @@ export function getErrorMessage(error: unknown): string | null {
     return error.message;
   }
   return "Une erreur est survenue.";
+}
+
+export function toastError(err: unknown): void {
+  toast.error(getErrorMessage(err));
 }
 
 export function isEmailVerificationRequired(error: unknown) {

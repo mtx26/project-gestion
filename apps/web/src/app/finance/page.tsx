@@ -27,7 +27,7 @@ import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { toast } from "sonner";
 import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
 import { buildProjectHref, parseIdParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
@@ -136,7 +136,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
       setDeletingEntryId(null);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
   async function handleTimeEntryClick(timeEntryId: number) {

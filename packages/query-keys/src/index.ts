@@ -54,6 +54,8 @@ export const queryKeys = {
   },
   tasks: {
     all: (projectId: number) => ["projects", projectId, "tasks"] as const,
+    calendar: (projectId: number, dateFrom: string, dateTo: string) =>
+      ["projects", projectId, "tasks", "calendar", dateFrom, dateTo] as const,
     list: (
       projectId: number,
       query: {

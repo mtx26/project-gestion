@@ -24,7 +24,7 @@ import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
 import { buildProjectHref, parseBooleanParam, parseIdParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
@@ -117,7 +117,7 @@ function ProjectTasksContent({
       setCreateDialogOpen(false);
       await invalidateTasks(queryClient, selectedProject!.id);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
   const updateTask = useMutation({
     mutationFn: ({ taskId, payload }: { taskId: number; payload: Partial<TaskPayload> }) =>
@@ -127,7 +127,7 @@ function ProjectTasksContent({
       setEditingTask(null);
       await invalidateTasks(queryClient, selectedProject!.id);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
   const deleteTask = useMutation({
     mutationFn: (taskId: number) => api.tasks.remove(selectedProject!.id, taskId),
@@ -135,7 +135,7 @@ function ProjectTasksContent({
       toast.success("Tache supprimee");
       await invalidateTasks(queryClient, selectedProject!.id);
     },
-    onError: (err) => toast.error(getErrorMessage(err)),
+    onError: toastError,
   });
 
 
