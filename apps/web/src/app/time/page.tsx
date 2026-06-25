@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
+import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -24,7 +25,6 @@ import { getErrorMessage } from "@/lib/errors";
 import { getDescendantFolderIds } from "@/lib/folder-utils";
 import {
   buildTargetTree,
-  collectTargetLabelsByType,
   collectTaskFolderIds,
   findTargetLabel,
   getTargetPayload,
@@ -106,8 +106,8 @@ function ProjectTimeContent({
   const [description, setDescription] = useState("");
   const [paymentTarget, setPaymentTarget] = useState<TimeEntry | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-  const [detailEntry, setDetailEntry] = useState<TimeEntry | null>(null);
-  const [detailTask, setDetailTask] = useState<Task | null>(null);
+  const [viewingEntry, setViewingEntry] = useState<TimeEntry | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
 
   const updateUrlFilter = useUrlFilter("/time", searchParams, projectId);
   const { folders, targetFolders, members, handleCreateFolder } = useProjectResources(projectId, {
@@ -138,8 +138,6 @@ function ProjectTimeContent({
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const selectedTargetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
-  const folderNameById = useMemo(() => collectTargetLabelsByType(targetTree, "folder"), [targetTree]);
-  const taskTitleById = useMemo(() => collectTargetLabelsByType(targetTree, "task"), [targetTree]);
   const taskFolderById = useMemo(() => collectTaskFolderIds(targetTree), [targetTree]);
   const userNameById = useMemo(
     () => new Map(members.map((m): [number, string] => [m.user, m.user_display_name])),
@@ -222,7 +220,7 @@ function ProjectTimeContent({
     if (!projectId) return;
     try {
       const task = await api.tasks.get(projectId, taskId);
-      setDetailTask(task);
+      setViewingTask(task);
     } catch {
       toast.error("Impossible de charger la tache");
     }
@@ -247,16 +245,7 @@ function ProjectTimeContent({
   }
 
   if (!canViewTime && !canRecordTime) {
-    return (
-      <div className="space-y-5">
-        <PageTitle category="Temps" title="Suivi du travail" />
-        <Alert>
-          <Lock className="size-4" />
-          <AlertTitle>Suivi du temps indisponible</AlertTitle>
-          <AlertDescription>Ton role ne permet pas de consulter ni d&apos;enregistrer des heures sur ce projet.</AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <AccessDeniedState description="Ton role ne permet pas de consulter ni d'enregistrer des heures sur ce projet." />;
   }
 
   return (
@@ -307,15 +296,13 @@ function ProjectTimeContent({
                 entries={visibleTimeEntries}
                 isLoading={timeEntriesQuery.isLoading}
                 userNameById={userNameById}
-                folderNameById={folderNameById}
-                taskTitleById={taskTitleById}
                 canPay={canPayTime}
                 canEdit={canRecordTime}
                 canDelete={canDeleteTime}
                 deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
                 onPay={setPaymentTarget}
                 onEdit={setEditingEntry}
-                onDetail={setDetailEntry}
+                onDetail={setViewingEntry}
                 onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
               />
             </CardContent>
@@ -402,27 +389,24 @@ function ProjectTimeContent({
         onSubmit={(data) => updateTimeEntry.mutate(data)}
       />
       <TimeEntryDetailDialog
-        entry={detailEntry}
-        folderNameById={folderNameById}
-        taskTitleById={taskTitleById}
+        entry={viewingEntry}
         userNameById={userNameById}
         canEdit={canRecordTime}
         canPay={canPayTime}
         canDelete={canDeleteTime}
         deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
-        onClose={() => setDetailEntry(null)}
-        onEdit={(entry) => { setDetailEntry(null); setEditingEntry(entry); }}
-        onPay={(entry) => { setDetailEntry(null); setPaymentTarget(entry); }}
-        onDelete={(entry) => { setDetailEntry(null); deleteTimeEntry.mutate(entry.id); }}
-        onTaskClick={(taskId) => { setDetailEntry(null); handleTaskClick(taskId); }}
+        onClose={() => setViewingEntry(null)}
+        onEdit={(entry) => { setViewingEntry(null); setEditingEntry(entry); }}
+        onPay={(entry) => { setViewingEntry(null); setPaymentTarget(entry); }}
+        onDelete={(entry) => { setViewingEntry(null); deleteTimeEntry.mutate(entry.id); }}
+        onTaskClick={(taskId) => { setViewingEntry(null); handleTaskClick(taskId); }}
       />
       <TaskDetailModal
-        task={detailTask}
-        folderNameById={folderNameById}
+        task={viewingTask}
         members={members}
         canEdit={false}
         canDelete={false}
-        onClose={() => setDetailTask(null)}
+        onClose={() => setViewingTask(null)}
       />
     </div>
   );

@@ -95,10 +95,6 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
   const tasks = normalizeApiList(tasksQuery.data);
   const members = normalizeApiList(membersQuery.data);
 
-  const taskTitleById = useMemo(
-    () => new Map(tasks.map((t) => [t.id, t.title])),
-    [tasks],
-  );
   const userNameById = useMemo(
     () => new Map(members.map((m): [number, string] => [m.user, m.user_display_name])),
     [members],
@@ -176,7 +172,6 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
 
       <TaskDetailModal
         task={selectedTask}
-        folderNameById={new Map()}
         members={members}
         canEdit={false}
         canDelete={false}
@@ -185,8 +180,6 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
 
       <TimeEntryDetailDialog
         entry={selectedTimeEntry}
-        folderNameById={new Map()}
-        taskTitleById={taskTitleById}
         userNameById={userNameById}
         canEdit={false}
         canPay={false}

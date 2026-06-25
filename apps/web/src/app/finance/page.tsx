@@ -257,9 +257,10 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
                   <p className="truncate text-sm text-muted-foreground">{entry.description}</p>
                 ) : null}
                 <EntryMetadataRow
+                  taskId={entry.task}
                   taskName={entry.task_name}
                   folderId={entry.folder}
-                  folderName={entry.folder ? (folderNameById.get(entry.folder) ?? `Dossier #${entry.folder}`) : null}
+                  folderName={entry.folder_name ?? (entry.folder ? `Dossier #${entry.folder}` : null)}
                   documents={entry.documents_info}
                   userName={entry.time_entry_user_name ?? entry.created_by_name}
                   userIconClassName={entry.time_entry_user_name ? "text-violet-500" : undefined}
@@ -329,7 +330,6 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       />
       <FinancialEntryDetailDialog
         entry={viewingEntry}
-        folders={folders}
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingEntry(null)}
@@ -337,8 +337,6 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       />
       <TimeEntryDetailDialog
         entry={viewingTimeEntry}
-        folderNameById={new Map()}
-        taskTitleById={new Map()}
         userNameById={new Map()}
         canEdit={false}
         canPay={false}

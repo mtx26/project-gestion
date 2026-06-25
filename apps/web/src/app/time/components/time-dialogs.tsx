@@ -31,6 +31,7 @@ import { formatDateTime } from "@/lib/date-utils";
 import { type TargetTreeNode, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
+import { DetailField, DetailLabel, DetailModal, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
 
 const editTimeSchema = z.object({
@@ -213,8 +214,6 @@ export function EditTimeEntryDialog({
 
 export function TimeEntryDetailDialog({
   entry,
-  folderNameById,
-  taskTitleById,
   userNameById,
   canEdit,
   canPay,
@@ -227,8 +226,6 @@ export function TimeEntryDetailDialog({
   onTaskClick,
 }: {
   entry: TimeEntry | null;
-  folderNameById: Map<number, string>;
-  taskTitleById: Map<number, string>;
   userNameById: Map<number, string>;
   canEdit: boolean;
   canPay: boolean;
@@ -243,7 +240,7 @@ export function TimeEntryDetailDialog({
   if (!entry) return null;
 
   const paymentStatus = getPaymentStatus(entry);
-  const targetLabel = getEntryTargetLabel(entry, folderNameById, taskTitleById);
+  const targetLabel = getEntryTargetLabel(entry);
   const displayName = (entry.user != null ? userNameById.get(entry.user) : null) ?? entry.user_display_name;
   const paidRatio =
     Number(entry.cost_amount) > 0
@@ -251,131 +248,99 @@ export function TimeEntryDetailDialog({
       : 100;
 
   return (
-    <Dialog open={entry != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle className="pr-6">{entry.description || "Temps enregistre"}</DialogTitle>
-        </DialogHeader>
-        <div className="divide-y">
-          {/* Hero */}
-          <div className="pb-5">
-            <PaymentStatusBadge status={paymentStatus} />
-            <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">{formatMoney(entry.cost_amount)}</p>
-            <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <Clock className="size-3.5" />
-                {formatDuration(entry.duration_minutes)}
-              </span>
-              <span>·</span>
-              <span>{formatMoney(entry.hourly_rate)}/h</span>
-            </div>
-          </div>
+    <DetailModal
+      open
+      onClose={onClose}
+      title={entry.description || "Temps enregistre"}
+      footer={
+        <ModalFooter
+          destructive={canDelete ? {
+            label: deletingId === entry.id ? "Suppression..." : "Supprimer",
+            onClick: () => onDelete(entry),
+            disabled: deletingId === entry.id,
+          } : undefined}
+          actions={
+            <>
+              {canPay && paymentStatus !== "paid" ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => onPay(entry)}>
+                  <CreditCard className="size-4" />
+                  Payer
+                </Button>
+              ) : null}
+              {canEdit ? (
+                <Button type="button" size="sm" onClick={() => onEdit(entry)}>
+                  <Pencil className="size-4" />
+                  Modifier
+                </Button>
+              ) : null}
+            </>
+          }
+        />
+      }
+    >
+      <ModalHero>
+        <PaymentStatusBadge status={paymentStatus} />
+        <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">{formatMoney(entry.cost_amount)}</p>
+        <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Clock className="size-3.5" />
+            {formatDuration(entry.duration_minutes)}
+          </span>
+          <span>·</span>
+          <span>{formatMoney(entry.hourly_rate)}/h</span>
+        </div>
+      </ModalHero>
 
-          {/* Infos */}
-          <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-5">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Utilisateur</p>
-              <div className="mt-1.5 flex items-center gap-2">
-                <UserRound className="size-4 shrink-0 text-muted-foreground" />
-                <span className="text-sm">{displayName}</span>
-              </div>
-            </div>
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Date</p>
-              <div className="mt-1.5 flex items-center gap-2">
-                <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
-                <span className="text-sm">{formatDateTime(entry.created_at)}</span>
-              </div>
-            </div>
-            <div className="col-span-2">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cible</p>
-              {entry.task != null && onTaskClick ? (
-                <button
-                  type="button"
-                  className="mt-1.5 flex items-center gap-2 text-sm font-medium text-primary underline-offset-2 hover:underline"
-                  onClick={() => onTaskClick(entry.task!)}
-                >
-                  <ListTodo className="size-4 shrink-0 text-sky-600" />
-                  {targetLabel}
-                </button>
-              ) : (
-                <div className="mt-1.5 flex items-center gap-2 text-sm">
-                  {entry.task != null
-                    ? <ListTodo className="size-4 shrink-0 text-sky-600" />
-                    : entry.folder != null
-                      ? <Folder className="size-4 shrink-0 text-amber-500" />
-                      : null}
-                  <span>{targetLabel}</span>
-                </div>
-              )}
-            </div>
-          </div>
+      <ModalGrid>
+        <DetailField label="Utilisateur" icon={UserRound}>
+          <span>{displayName}</span>
+        </DetailField>
+        <DetailField label="Date" icon={CalendarDays}>
+          <span>{formatDateTime(entry.created_at)}</span>
+        </DetailField>
+        {(entry.task != null || entry.folder != null) ? (
+          <DetailField label="Cible" className="col-span-2">
+            {entry.task != null && onTaskClick ? (
+              <button
+                type="button"
+                className="flex items-center gap-2 font-medium text-primary underline-offset-2 hover:underline"
+                onClick={() => onTaskClick(entry.task!)}
+              >
+                <ListTodo className="size-4 shrink-0 text-sky-600" />
+                {targetLabel}
+              </button>
+            ) : (
+              <>
+                {entry.task != null
+                  ? <ListTodo className="size-4 shrink-0 text-sky-600" />
+                  : <Folder className="size-4 shrink-0 text-amber-500" />}
+                <span>{targetLabel}</span>
+              </>
+            )}
+          </DetailField>
+        ) : null}
+      </ModalGrid>
 
-          {/* Paiement */}
-          <div className="pt-5">
-            <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Paiement</p>
-            <div className="mb-4 flex items-center gap-3">
-              <Progress value={paidRatio} className="h-2 flex-1" />
-              <span className="min-w-[3ch] text-right text-sm font-semibold tabular-nums">{Math.round(paidRatio)}%</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-lg bg-emerald-50 px-4 py-3 dark:bg-emerald-950/30">
-                <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Paye</p>
-                <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{formatMoney(entry.paid_amount)}</p>
-              </div>
-              <div className={cn(
-                "rounded-lg px-4 py-3",
-                paymentStatus === "paid" ? "bg-muted/50" : "bg-orange-50 dark:bg-orange-950/30",
-              )}>
-                <p className={cn(
-                  "text-[11px] font-medium uppercase tracking-wide",
-                  paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 dark:text-orange-400",
-                )}>Reste</p>
-                <p className={cn(
-                  "mt-1 text-xl font-bold tabular-nums",
-                  paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 dark:text-orange-400",
-                )}>
-                  {paymentStatus === "paid" ? "—" : formatMoney(entry.remaining_amount)}
-                </p>
-              </div>
-            </div>
+      <div className="pt-5">
+        <DetailLabel className="mb-3">Paiement</DetailLabel>
+        <div className="mb-4 flex items-center gap-3">
+          <Progress value={paidRatio} className="h-2 flex-1" />
+          <span className="min-w-[3ch] text-right text-sm font-semibold tabular-nums">{Math.round(paidRatio)}%</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-lg bg-emerald-50 px-4 py-3 dark:bg-emerald-950/30">
+            <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Paye</p>
+            <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{formatMoney(entry.paid_amount)}</p>
+          </div>
+          <div className={cn("rounded-lg px-4 py-3", paymentStatus === "paid" ? "bg-muted/50" : "bg-orange-50 dark:bg-orange-950/30")}>
+            <p className={cn("text-[11px] font-medium uppercase tracking-wide", paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 dark:text-orange-400")}>Reste</p>
+            <p className={cn("mt-1 text-xl font-bold tabular-nums", paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 dark:text-orange-400")}>
+              {paymentStatus === "paid" ? "—" : formatMoney(entry.remaining_amount)}
+            </p>
           </div>
         </div>
-        <DialogFooter className="flex-row items-center justify-between sm:justify-between">
-          {canDelete ? (
-            <Button
-              type="button"
-              variant="destructive"
-              size="sm"
-              disabled={deletingId === entry.id}
-              onClick={() => onDelete(entry)}
-            >
-              <Trash2 className="size-4" />
-              {deletingId === entry.id ? "Suppression..." : "Supprimer"}
-            </Button>
-          ) : (
-            <span />
-          )}
-          <div className="flex gap-2">
-            <DialogClose asChild>
-              <Button type="button" variant="outline" size="sm">Fermer</Button>
-            </DialogClose>
-            {canPay && paymentStatus !== "paid" ? (
-              <Button type="button" variant="outline" size="sm" onClick={() => onPay(entry)}>
-                <CreditCard className="size-4" />
-                Payer
-              </Button>
-            ) : null}
-            {canEdit ? (
-              <Button type="button" size="sm" onClick={() => onEdit(entry)}>
-                <Pencil className="size-4" />
-                Modifier
-              </Button>
-            ) : null}
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </DetailModal>
   );
 }
 

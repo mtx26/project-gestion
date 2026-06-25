@@ -60,7 +60,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { buildFolderNameMap, findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
+import { findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
 import { FileTree } from "./components/file-tree";
 import { FileDraftDialogs } from "./components/file-draft-dialogs";
 import { FolderPreviewPanel } from "./components/folder-preview-panel";
@@ -273,8 +273,6 @@ function ProjectTreeView({
     () => getDescendantFolderIds(treeQuery.data ?? [], selectedFolderId),
     [treeQuery.data, selectedFolderId],
   );
-
-  const folderNameById = useMemo(() => buildFolderNameMap(treeQuery.data ?? []), [treeQuery.data]);
 
   const rootExpandedFolderIds = useMemo(
     () => new Set((treeQuery.data ?? []).filter((n) => n.type === "folder").map((n) => n.id)),
@@ -638,7 +636,6 @@ function ProjectTreeView({
 
       <TaskDetailModal
         task={viewingTask}
-        folderNameById={folderNameById}
         members={[]}
         canEdit={false}
         canDelete={false}

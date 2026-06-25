@@ -116,13 +116,9 @@ export function getTimeEntryCardClassName(status: Exclude<PaymentStatusFilter, "
   return `${base} border-l-4 border-l-orange-500`;
 }
 
-export function getEntryTargetLabel(
-  entry: TimeEntry,
-  folderNameById: Map<number, string>,
-  taskTitleById: Map<number, string>,
-): string {
-  if (entry.task != null) return taskTitleById.get(entry.task) ?? entry.task_name ?? "Tache liee";
-  if (entry.folder != null) return folderNameById.get(entry.folder) ?? "Dossier lie";
+export function getEntryTargetLabel(entry: TimeEntry): string {
+  if (entry.task != null) return entry.task_name ?? "Tache liee";
+  if (entry.folder != null) return entry.folder_name ?? "Dossier lie";
   return "Projet";
 }
 

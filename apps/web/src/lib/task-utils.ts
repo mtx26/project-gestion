@@ -24,12 +24,8 @@ export function getPriorityClassName(priority: Task["priority"]) {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
-export function formatTaskDate(value: string) {
-  return new Intl.DateTimeFormat("fr-BE", { dateStyle: "medium" }).format(new Date(value));
-}
-
 export function formatDate(value: string) {
-  return new Date(value).toLocaleDateString("fr-BE");
+  return new Intl.DateTimeFormat("fr-BE", { dateStyle: "medium" }).format(new Date(value));
 }
 
 export function formatDuration(totalMinutes: number) {

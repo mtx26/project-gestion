@@ -214,6 +214,7 @@ export type Task = {
   id: ID;
   project: ID;
   folder: ID | null;
+  folder_name: string | null;
   created_by: ID | null;
   created_by_name: string | null;
   assigned_to: ID[];
@@ -245,6 +246,7 @@ export type TimeEntry = {
   id: ID;
   project: ID;
   folder: ID | null;
+  folder_name: string | null;
   task: ID | null;
   task_name: string | null;
   user: ID | null;
@@ -287,6 +289,7 @@ export type FinancialEntry = {
   id: ID;
   project: ID;
   folder: ID | null;
+  folder_name: string | null;
   documents_info: Array<{ id: ID; name: string | null }>;
   time_entry: ID | null;
   time_entry_user_name: string | null;
@@ -324,6 +327,7 @@ export type ExpenseRequest = {
   category: string | null;
   description: string | null;
   folder: ID | null;
+  folder_name: string | null;
   documents_info: Array<{ id: ID; name: string | null }>;
   task: ID | null;
   task_name: string | null;

@@ -5,17 +5,17 @@ import { hasProjectPermission, permissionCodes } from "@project-gestion/permissi
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Lock, UserCheck } from "lucide-react";
+import { Check, UserCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
+import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
 import { SelectItem } from "@/components/ui/select";
@@ -140,6 +140,14 @@ function ProjectTasksContent({
   });
 
 
+  function handleStatusChange(task: Task, status: Task["status"]) {
+    const payload: Partial<TaskPayload> = { status };
+    if (status === "in_progress" && !task.start_date) {
+      payload.start_date = new Date().toISOString().split("T")[0];
+    }
+    updateTask.mutate({ taskId: task.id, payload });
+  }
+
   if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
 
   if (!selectedProject) {
@@ -153,16 +161,7 @@ function ProjectTasksContent({
   }
 
   if (!canViewTasks) {
-    return (
-      <div className="space-y-5">
-        <PageTitle category="Taches" title="Gestion du travail" />
-        <Alert>
-          <Lock className="size-4" />
-          <AlertTitle>Taches indisponibles</AlertTitle>
-          <AlertDescription>Ton role ne permet pas de voir les taches de ce projet.</AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <AccessDeniedState description="Ton role ne permet pas de voir les taches de ce projet." />;
   }
 
   return (
@@ -234,7 +233,7 @@ function ProjectTasksContent({
               onOpenDetail={setViewingTask}
               onEdit={setEditingTask}
               onDelete={(task) => deleteTask.mutate(task.id)}
-              onStatusChange={(task, status) => updateTask.mutate({ taskId: task.id, payload: { status } })}
+              onStatusChange={handleStatusChange}
             />
           </CardContent>
         </Card>
@@ -266,7 +265,7 @@ function ProjectTasksContent({
               onOpenDetail={setViewingTask}
               onEdit={setEditingTask}
               onDelete={(task) => deleteTask.mutate(task.id)}
-              onStatusChange={(task, status) => updateTask.mutate({ taskId: task.id, payload: { status } })}
+              onStatusChange={handleStatusChange}
             />
           )}
         </CardContent>
@@ -300,7 +299,6 @@ function ProjectTasksContent({
       />
       <TaskDetailModal
         task={viewingTask}
-        folderNameById={folderNameById}
         members={members}
         canEdit={canEditTasks}
         canDelete={canDeleteTasks}

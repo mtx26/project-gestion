@@ -408,6 +408,7 @@ class DocumentDownloadSerializer(serializers.Serializer):
 
 
 class TaskSerializer(serializers.ModelSerializer):
+    folder_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
 
     class Meta:
@@ -416,6 +417,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "id",
             "project",
             "folder",
+            "folder_name",
             "created_by",
             "created_by_name",
             "assigned_to",
@@ -434,8 +436,12 @@ class TaskSerializer(serializers.ModelSerializer):
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
             "created_by",
+            "folder_name",
             "created_by_name",
         ]
+
+    def get_folder_name(self, obj):
+        return obj.folder.name if obj.folder_id else None
 
     def get_created_by_name(self, obj):
         return _get_user_display_name(obj.created_by)
@@ -633,6 +639,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     cost_amount = serializers.SerializerMethodField()
     paid_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
+    folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     user_display_name = serializers.SerializerMethodField()
     documents_info = serializers.SerializerMethodField()
@@ -646,6 +653,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "id",
             "project",
             "folder",
+            "folder_name",
             "task",
             "task_name",
             "user",
@@ -668,6 +676,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "cost_amount",
             "paid_amount",
             "remaining_amount",
+            "folder_name",
             "task_name",
             "user_display_name",
             "documents_info",
@@ -681,6 +690,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         if not get_project_assignable_users(project).filter(pk=user.pk).exists():
             raise serializers.ValidationError("errors.time_entry.user_not_project_member")
         return user
+
+    def get_folder_name(self, obj):
+        return obj.folder.name if obj.folder_id else None
 
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None
@@ -843,6 +855,7 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):
+    folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     time_entry_user_name = serializers.SerializerMethodField()
@@ -857,6 +870,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "id",
             "project",
             "folder",
+            "folder_name",
             "documents",
             "documents_info",
             "time_entry",
@@ -878,11 +892,15 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         read_only_fields = BASE_READ_ONLY_FIELDS + [
             "project",
             "created_by",
+            "folder_name",
             "task_name",
             "created_by_name",
             "time_entry_user_name",
             "documents_info",
         ]
+
+    def get_folder_name(self, obj):
+        return obj.folder.name if obj.folder_id else None
 
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None
@@ -929,6 +947,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
 
 
 class ExpenseRequestSerializer(serializers.ModelSerializer):
+    folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     requested_by_name = serializers.SerializerMethodField()
     documents_info = serializers.SerializerMethodField()
@@ -946,6 +965,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "category",
             "description",
             "folder",
+            "folder_name",
             "documents",
             "documents_info",
             "task",
@@ -966,10 +986,14 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             "status",
             "approved_at",
             "approved_by",
+            "folder_name",
             "task_name",
             "requested_by_name",
             "documents_info",
         ]
+
+    def get_folder_name(self, obj):
+        return obj.folder.name if obj.folder_id else None
 
     def get_task_name(self, obj):
         return obj.task.title if obj.task_id else None

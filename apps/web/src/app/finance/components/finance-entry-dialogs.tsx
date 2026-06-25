@@ -2,7 +2,7 @@
 
 import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, Clock, Eye, FileText, Folder, ListTodo, UserRound } from "lucide-react";
+import { Calendar, Clock, Folder, ListTodo, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -18,7 +18,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
-import { findFolderName } from "@/lib/folder-utils";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
@@ -27,6 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
+import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero, ModalSection } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 const financeSchema = z.object({
@@ -207,136 +207,98 @@ export function FinancialEntryFormDialog({
 
 export function FinancialEntryDetailDialog({
   entry,
-  folders,
   isOpeningDocument,
   onOpenDocument,
   onClose,
   onTimeEntryClick,
 }: {
   entry: FinancialEntry | null;
-  folders: FolderTreeNode[];
   isOpeningDocument: boolean;
   onOpenDocument: (documentId: number) => void;
   onClose: () => void;
   onTimeEntryClick?: (timeEntryId: number) => void;
 }) {
   return (
-    <Dialog open={entry != null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Detail de l&apos;entree</DialogTitle>
-        </DialogHeader>
-        {entry && (
-          <div className="divide-y">
-            {/* Hero */}
-            <div className="pb-5">
-              <EntryTypeBadge type={entry.type} />
-              <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">
-                {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
-              </p>
-            </div>
+    <DetailModal
+      open={entry != null}
+      onClose={onClose}
+      title="Detail de l'entree"
+      footer={<ModalFooter />}
+    >
+      {entry ? (
+        <>
+          <ModalHero>
+            <EntryTypeBadge type={entry.type} />
+            <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">
+              {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
+            </p>
+          </ModalHero>
 
-            {/* Details */}
-            {(entry.category || entry.description || entry.task_name || entry.folder) ? (
-              <div className="space-y-4 py-5">
-                {entry.category ? (
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Categorie</p>
-                    <p className="mt-1.5 text-sm font-medium">{entry.category}</p>
-                  </div>
-                ) : null}
-                {entry.description ? (
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Description</p>
-                    <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{entry.description}</p>
-                  </div>
-                ) : null}
-                {entry.task_name || entry.folder ? (
-                  <div>
-                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cible</p>
-                    {entry.task_name ? (
-                      <div className="mt-1.5 flex items-center gap-2 text-sm">
-                        <ListTodo className="size-4 shrink-0 text-sky-600" />
-                        <span className="font-medium">{entry.task_name}</span>
-                      </div>
-                    ) : (
-                      <div className="mt-1.5 flex items-center gap-2 text-sm">
-                        <Folder className="size-4 shrink-0 text-amber-500" />
-                        <span className="font-medium">{findFolderName(folders, entry.folder!) ?? `Dossier #${entry.folder}`}</span>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            {/* Meta */}
-            <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-5">
-              {entry.time_entry_user_name ? (
+          {(entry.category != null || entry.description != null || entry.task != null || entry.folder != null) ? (
+            <ModalSection>
+              {entry.category ? (
+                <DetailField label="Categorie">
+                  <span className="font-medium">{entry.category}</span>
+                </DetailField>
+              ) : null}
+              {entry.description ? (
                 <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Pour</p>
-                  <div className="mt-1.5 flex items-center gap-2 text-sm">
-                    <UserRound className="size-4 shrink-0 text-violet-500" />
-                    <span>{entry.time_entry_user_name}</span>
-                  </div>
-                </div>
-              ) : entry.created_by_name ? (
-                <div>
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cree par</p>
-                  <div className="mt-1.5 flex items-center gap-2 text-sm">
-                    <UserRound className="size-4 shrink-0 text-muted-foreground" />
-                    <span>{entry.created_by_name}</span>
-                  </div>
+                  <DetailLabel>Description</DetailLabel>
+                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{entry.description}</p>
                 </div>
               ) : null}
-              <div>
-                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Date</p>
-                <div className="mt-1.5 flex items-center gap-2 text-sm">
-                  <Calendar className="size-4 shrink-0 text-muted-foreground" />
-                  <span>{formatDate(entry.created_at)}</span>
-                </div>
-              </div>
-              {entry.time_entry != null && onTimeEntryClick ? (
-                <div className="col-span-2">
-                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Entree de temps</p>
-                  <button
-                    type="button"
-                    className="mt-1.5 flex items-center gap-2 text-sm font-medium text-primary underline-offset-2 hover:underline"
-                    onClick={() => onTimeEntryClick(entry.time_entry!)}
-                  >
-                    <Clock className="size-4 shrink-0" />
-                    Voir le detail
-                  </button>
-                </div>
+              {entry.task != null || entry.folder != null ? (
+                <DetailField label="Cible">
+                  {entry.task_name ? (
+                    <>
+                      <ListTodo className="size-4 shrink-0 text-sky-600" />
+                      <span className="font-medium">{entry.task_name}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Folder className="size-4 shrink-0 text-amber-500" />
+                      <span className="font-medium">{entry.folder_name ?? `Dossier #${entry.folder}`}</span>
+                    </>
+                  )}
+                </DetailField>
               ) : null}
-            </div>
+            </ModalSection>
+          ) : null}
 
-            {/* Documents */}
-            {(entry.documents_info ?? []).length > 0 ? (
-              <div className="pt-5">
-                <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Documents</p>
-                <div className="flex flex-col gap-2">
-                  {(entry.documents_info ?? []).map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
-                      <FileText className="size-4 shrink-0 text-muted-foreground" />
-                      <span className="min-w-0 flex-1 truncate text-sm">{doc.name ?? `Document #${doc.id}`}</span>
-                      <Button type="button" variant="outline" size="sm" disabled={isOpeningDocument} onClick={() => onOpenDocument(doc.id)}>
-                        <Eye className="size-3.5" />
-                        Apercu
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+          <ModalGrid>
+            {entry.time_entry_user_name ? (
+              <DetailField label="Pour" icon={UserRound} iconClassName="text-violet-500">
+                <span>{entry.time_entry_user_name}</span>
+              </DetailField>
+            ) : entry.created_by_name ? (
+              <DetailField label="Cree par" icon={UserRound}>
+                <span>{entry.created_by_name}</span>
+              </DetailField>
             ) : null}
-          </div>
-        )}
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Fermer</Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <DetailField label="Date" icon={Calendar}>
+              <span>{formatDate(entry.created_at)}</span>
+            </DetailField>
+            {entry.time_entry != null && onTimeEntryClick ? (
+              <DetailField label="Entree de temps" className="col-span-2">
+                <button
+                  type="button"
+                  className="flex items-center gap-2 font-medium text-primary underline-offset-2 hover:underline"
+                  onClick={() => onTimeEntryClick(entry.time_entry!)}
+                >
+                  <Clock className="size-4 shrink-0" />
+                  Voir le detail
+                </button>
+              </DetailField>
+            ) : null}
+          </ModalGrid>
+
+          <ModalDocs
+            docs={entry.documents_info ?? []}
+            isOpening={isOpeningDocument}
+            onOpen={onOpenDocument}
+          />
+        </>
+      ) : null}
+    </DetailModal>
   );
 }

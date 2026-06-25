@@ -245,9 +245,10 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
                   </p>
                 ) : null}
                 <EntryMetadataRow
+                  taskId={req.task}
                   taskName={req.task_name}
                   folderId={req.folder}
-                  folderName={req.folder ? (folderNameById.get(req.folder) ?? `Dossier #${req.folder}`) : null}
+                  folderName={req.folder_name ?? (req.folder ? `Dossier #${req.folder}` : null)}
                   documents={req.documents_info}
                   userName={req.requested_by_name}
                   date={req.created_at}
@@ -338,7 +339,6 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       />
       <ExpenseRequestDetailDialog
         request={viewingRequest}
-        folders={folders}
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingRequest(null)}

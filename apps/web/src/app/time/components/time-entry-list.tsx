@@ -19,8 +19,6 @@ export function TimeEntryList({
   entries,
   isLoading,
   userNameById,
-  folderNameById,
-  taskTitleById,
   canPay,
   canEdit,
   canDelete,
@@ -33,8 +31,6 @@ export function TimeEntryList({
   entries: TimeEntry[];
   isLoading: boolean;
   userNameById: Map<number, string>;
-  folderNameById: Map<number, string>;
-  taskTitleById: Map<number, string>;
   canPay: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -70,7 +66,7 @@ export function TimeEntryList({
           key={entry.id}
           entry={entry}
           displayName={(entry.user != null ? userNameById.get(entry.user) : null) ?? entry.user_display_name}
-          targetLabel={getEntryTargetLabel(entry, folderNameById, taskTitleById)}
+          targetLabel={getEntryTargetLabel(entry)}
           canPay={canPay}
           canEdit={canEdit}
           canDelete={canDelete}
@@ -124,10 +120,12 @@ function TimeEntryRow({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>{displayName}</span>
             <span>{formatDateTime(entry.created_at)}</span>
-            <span className="inline-flex max-w-full items-center gap-1">
-              <TargetIcon type={targetType} />
-              <span className="min-w-0 truncate">{targetLabel}</span>
-            </span>
+            {targetType !== "project" ? (
+              <span className="inline-flex max-w-full items-center gap-1">
+                <TargetIcon type={targetType} />
+                <span className="min-w-0 truncate">{targetLabel}</span>
+              </span>
+            ) : null}
             <span className="font-medium text-foreground">{formatDuration(entry.duration_minutes)}</span>
             <span className="font-medium text-foreground">{formatMoney(entry.cost_amount)}</span>
           </div>

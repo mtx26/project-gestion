@@ -19,7 +19,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatTaskDate, getStatusClassName } from "@/lib/task-utils";
+import { formatDate, getStatusClassName } from "@/lib/task-utils";
 
 export type TaskMember = { id: number; user: number; user_display_name: string };
 
@@ -122,7 +122,7 @@ export function TaskTable({
         header: ({ column }) => <SortButton column={column}>Echeance</SortButton>,
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.due_date ? formatTaskDate(row.original.due_date) : "-"}
+            {row.original.due_date ? formatDate(row.original.due_date) : "-"}
           </span>
         ),
         sortUndefined: "last",
