@@ -1,5 +1,6 @@
 import type { Task } from "@project-gestion/types";
 import type { QueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@project-gestion/query-keys";
 import { parseEnumParam } from "@/lib/url-params";
 
 export type StatusFilter = "all" | Task["status"];
@@ -31,5 +32,5 @@ export function getFolderId(value: FolderFilter): number | null {
 
 
 export async function invalidateTasks(queryClient: QueryClient, projectId: number): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });
+  await queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(projectId) });
 }

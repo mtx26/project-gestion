@@ -61,6 +61,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
+import { buildProjectHref } from "@/lib/url-params";
 import { FileTree } from "./components/file-tree";
 import { FileDraftDialogs } from "./components/file-draft-dialogs";
 import { FolderPreviewPanel } from "./components/folder-preview-panel";
@@ -75,16 +76,8 @@ export function ProjectFilesPageContent() {
       activeItem="files"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
       maxWidthClassName="max-w-6xl"
-      onProjectSelected={(id) => {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("project", String(id));
-        router.push(`/files?${params.toString()}`);
-      }}
-      onProjectCreated={(project) => {
-        const params = new URLSearchParams(searchParams.toString());
-        params.set("project", String(project.id));
-        router.push(`/files?${params.toString()}`);
-      }}
+      onProjectSelected={(id) => router.push(buildProjectHref("/files", id, searchParams))}
+      onProjectCreated={(project) => router.push(buildProjectHref("/files", project.id, searchParams))}
     >
       {(state) => <ProjectTreeView {...state} />}
     </ProjectWorkspaceShell>
@@ -238,7 +231,7 @@ function ProjectTreeView({
       await Promise.all([
         treeQuery.refetch(),
         selectedProjectId
-          ? queryClient.invalidateQueries({ queryKey: ["projects", selectedProjectId, "tasks"] })
+          ? queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(selectedProjectId) })
           : Promise.resolve(),
       ]);
     },
@@ -261,7 +254,7 @@ function ProjectTreeView({
       setTimeHourlyRate(user?.profile?.default_hourly_rate ?? "0");
       setTimeDescription("");
       if (selectedProjectId) {
-        await queryClient.invalidateQueries({ queryKey: ["projects", selectedProjectId, "time-entries"] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.all(selectedProjectId) });
       }
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -355,11 +348,11 @@ function ProjectTreeView({
   }
 
   function buildFolderTimeHref(folderId: number) {
-    return `/time?${new URLSearchParams({ project: String(selectedProjectId), target: `folder-${folderId}` }).toString()}`;
+    return buildProjectHref("/time", selectedProjectId!, new URLSearchParams({ target: `folder-${folderId}` }));
   }
 
   function buildFolderTasksHref(folderId: number) {
-    return `/tasks?project=${selectedProjectId}&folder=folder-${folderId}`;
+    return buildProjectHref("/tasks", selectedProjectId!, new URLSearchParams({ folder: `folder-${folderId}` }));
   }
 
   if (projectsQuery.isLoading) {
@@ -586,12 +579,12 @@ function ProjectTreeView({
           onOpenTasks={() =>
             selectedFolderId != null
               ? router.push(buildFolderTasksHref(selectedFolderId))
-              : router.push(`/tasks?project=${selectedProjectId}`)
+              : router.push(buildProjectHref("/tasks", selectedProjectId!))
           }
           onOpenTime={() =>
             selectedFolderId != null
               ? router.push(buildFolderTimeHref(selectedFolderId))
-              : router.push(`/time?project=${selectedProjectId}`)
+              : router.push(buildProjectHref("/time", selectedProjectId!))
           }
         />
       </div>

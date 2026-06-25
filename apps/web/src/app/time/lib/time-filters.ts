@@ -1,5 +1,6 @@
 import type { TimeEntry } from "@project-gestion/types";
 import type { QueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@project-gestion/query-keys";
 
 export type UserFilter = "mine" | "all" | `member-${number}`;
 export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
@@ -207,5 +208,5 @@ export function getMonthCalendarDays(monthDate: Date): Date[] {
 }
 
 export async function invalidateTimeQueries(queryClient: QueryClient, projectId: number): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: ["projects", projectId, "time-entries"] });
+  await queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.all(projectId) });
 }

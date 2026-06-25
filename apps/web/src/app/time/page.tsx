@@ -192,7 +192,7 @@ function ProjectTimeContent({
       setPaymentTarget(null);
       await Promise.all([
         invalidateTimeQueries(queryClient, selectedProject!.id),
-        queryClient.invalidateQueries({ queryKey: ["projects", selectedProject!.id, "financial-entries"] }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(selectedProject!.id) }),
       ]);
     },
     onError: (err) => toast.error(getErrorMessage(err)),

@@ -94,7 +94,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     mutationFn: (payload: ExpenseRequestPayload) => api.expenseRequests.create(projectId!, payload),
     onSuccess: () => {
       toast.success("Remboursement cree");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setCreateOpen(false);
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -105,7 +105,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       api.expenseRequests.update(projectId!, id, payload),
     onSuccess: () => {
       toast.success("Remboursement mis a jour");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setEditingRequest(null);
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -115,7 +115,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     mutationFn: (id: number) => api.expenseRequests.remove(projectId!, id),
     onSuccess: () => {
       toast.success("Remboursement supprime");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setDeletingId(null);
     },
     onError: (err) => toast.error(getErrorMessage(err)),
@@ -125,8 +125,8 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     mutationFn: (id: number) => api.expenseRequests.approve(projectId!, id),
     onSuccess: () => {
       toast.success("Remboursement approuve");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
@@ -135,7 +135,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     mutationFn: (id: number) => api.expenseRequests.reject(projectId!, id),
     onSuccess: () => {
       toast.success("Remboursement rejete");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });

@@ -19,12 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-
-function buildTrashHref(projectId: number | string, params: URLSearchParams) {
-  const next = new URLSearchParams(params.toString());
-  next.set("project", String(projectId));
-  return `/trash?${next}`;
-}
+import { buildProjectHref } from "@/lib/url-params";
 
 export default function TrashPage() {
   const router = useRouter();
@@ -34,8 +29,8 @@ export default function TrashPage() {
     <ProjectWorkspaceShell
       activeItem="trash"
       selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildTrashHref(id, searchParams))}
-      onProjectCreated={(project) => router.push(buildTrashHref(project.id, searchParams))}
+      onProjectSelected={(id) => router.push(buildProjectHref("/trash", id, searchParams))}
+      onProjectCreated={(project) => router.push(buildProjectHref("/trash", project.id, searchParams))}
     >
       {(state) => <TrashPageContent {...state} />}
     </ProjectWorkspaceShell>
@@ -83,7 +78,7 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
     mutationFn: (folderId: number) => api.folders.restore(projectId!, folderId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.folders.trash(projectId!) });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "folders", "tree"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.folders.allTree(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
@@ -98,7 +93,7 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.documents.trash(projectId!) });
       queryClient.invalidateQueries({ queryKey: queryKeys.documents.list(projectId!) });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "folders", "tree"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.folders.allTree(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
@@ -112,8 +107,8 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
     mutationFn: (taskId: number) => api.tasks.restore(projectId!, taskId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.trash(projectId!) });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "tasks"] });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "folders", "tree"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(projectId!) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.folders.allTree(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
@@ -127,7 +122,7 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
     mutationFn: (timeEntryId: number) => api.timeEntries.restore(projectId!, timeEntryId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.trash(projectId!) });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "time-entries"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.all(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
@@ -141,7 +136,7 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
     mutationFn: (entryId: number) => api.financialEntries.restore(projectId!, entryId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.trash(projectId!) });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
@@ -155,7 +150,7 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
     mutationFn: (id: number) => api.expenseRequests.restore(projectId!, id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.trash(projectId!) });
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "expense-requests"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });

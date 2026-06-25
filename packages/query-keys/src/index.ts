@@ -27,6 +27,7 @@ export const queryKeys = {
     list: () => ["permissions", "list"] as const,
   },
   financialEntries: {
+    all: (projectId: number) => ["projects", projectId, "financial-entries"] as const,
     list: (projectId: number, query: { type?: string; folder?: number; createdBy?: number } = {}) =>
       ["projects", projectId, "financial-entries", {
         type: query.type ?? "all",
@@ -42,6 +43,7 @@ export const queryKeys = {
     trash: (projectId: number) => ["projects", projectId, "documents", "trash"] as const,
   },
   expenseRequests: {
+    all: (projectId: number) => ["projects", projectId, "expense-requests"] as const,
     list: (projectId: number, query: { status?: string; folder?: number; requestedBy?: number } = {}) =>
       ["projects", projectId, "expense-requests", {
         status: query.status ?? "all",
@@ -51,6 +53,7 @@ export const queryKeys = {
     trash: (projectId: number) => ["projects", projectId, "expense-requests", "trash"] as const,
   },
   tasks: {
+    all: (projectId: number) => ["projects", projectId, "tasks"] as const,
     list: (
       projectId: number,
       query: {
@@ -69,12 +72,14 @@ export const queryKeys = {
     trash: (projectId: number) => ["projects", projectId, "tasks", "trash"] as const,
   },
   folders: {
+    allTree: (projectId: number) => ["projects", projectId, "folders", "tree"] as const,
     tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
       ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false }] as const,
     targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
     trash: (projectId: number) => ["projects", projectId, "folders", "trash"] as const,
   },
   timeEntries: {
+    all: (projectId: number) => ["projects", projectId, "time-entries"] as const,
     list: (
       projectId: number,
       query: {

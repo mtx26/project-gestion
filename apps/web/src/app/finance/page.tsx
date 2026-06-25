@@ -110,7 +110,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
     mutationFn: (payload: FinancialEntryPayload) => api.financialEntries.create(projectId!, payload),
     onSuccess: () => {
       toast.success("Entree creee");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
       setCreateOpen(false);
       setFormError(null);
     },
@@ -122,7 +122,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       api.financialEntries.update(projectId!, id, payload),
     onSuccess: () => {
       toast.success("Entree mise a jour");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
       setEditingEntry(null);
       setFormError(null);
     },
@@ -133,7 +133,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
     mutationFn: (id: number) => api.financialEntries.remove(projectId!, id),
     onSuccess: () => {
       toast.success("Entree supprimee");
-      queryClient.invalidateQueries({ queryKey: ["projects", projectId, "financial-entries"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
       setDeletingEntryId(null);
     },
     onError: (err) => toast.error(getErrorMessage(err)),
