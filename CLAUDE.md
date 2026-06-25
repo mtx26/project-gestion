@@ -56,6 +56,13 @@ Entités clés : `Project`, `Role`, `Permission`, `RolePermission`, `ProjectMemb
 
 ---
 
+## Installation de dépendances
+
+Quand on installe une nouvelle librairie :
+1. **Vérifier si un package existant couvre déjà le besoin** avant d'en ajouter un.
+2. **Toujours chercher et exécuter les commandes de setup/init officielles** après `pnpm add` — par exemple `pnpm dlx shadcn@latest add <composant>`, `npx <lib> init`, etc. Ne pas se contenter du `pnpm add` si la lib fournit une CLI de configuration.
+---
+
 ## Règles non-négociables
 
 1. **Ne construire que ce qui est explicitement demandé.**

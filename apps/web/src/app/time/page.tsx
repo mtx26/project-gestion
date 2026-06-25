@@ -1,14 +1,15 @@
 "use client";
 
-import type { TimeEntry } from "@project-gestion/types";
+import type { Task, TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CalendarDays, Clock3, Lock, Plus } from "lucide-react";
+import { Clock3, Lock, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
+import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,7 +33,6 @@ import { parseBooleanParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
-import { TimeCalendarView } from "./components/time-calendar-view";
 import { TimeEntryForm } from "./components/time-entry-form";
 import { TimeEntryList } from "./components/time-entry-list";
 import { TimePeriodToolbar } from "./components/time-period-toolbar";
@@ -40,7 +40,6 @@ import { type EditTimeSubmitData, EditTimeEntryDialog, PaymentDialog, TimeEntryD
 import {
   type PaymentStatusFilter,
   type PeriodPreset,
-  type TimeViewMode,
   type UserFilter,
   buildTimeHref,
   filterTimeEntriesByPaymentStatus,
@@ -52,7 +51,6 @@ import {
   parsePaymentStatusFilter,
   parsePeriodPreset,
   parseTargetFilter,
-  parseTimeViewMode,
   parseUserFilter,
   summarizeTimeEntries,
 } from "./lib/time-filters";
@@ -93,7 +91,6 @@ function ProjectTimeContent({
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
   const periodPreset = parsePeriodPreset(searchParams.get("period"));
   const targetFilter = parseTargetFilter(searchParams.get("target"));
-  const viewMode = parseTimeViewMode(searchParams.get("view"));
   const includeUnpaidOutsideMonth = parseBooleanParam(searchParams.get("include_unpaid"));
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
   const periodRange = useMemo(() => getPeriodRange(periodPreset), [periodPreset]);
@@ -110,6 +107,7 @@ function ProjectTimeContent({
   const [paymentTarget, setPaymentTarget] = useState<TimeEntry | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [detailEntry, setDetailEntry] = useState<TimeEntry | null>(null);
+  const [detailTask, setDetailTask] = useState<Task | null>(null);
 
   const updateUrlFilter = useUrlFilter("/time", searchParams, projectId);
   const { folders, targetFolders, members, handleCreateFolder } = useProjectResources(projectId, {
@@ -220,6 +218,16 @@ function ProjectTimeContent({
     onError: (err) => toast.error(getErrorMessage(err)),
   });
 
+  async function handleTaskClick(taskId: number) {
+    if (!projectId) return;
+    try {
+      const task = await api.tasks.get(projectId, taskId);
+      setDetailTask(task);
+    } catch {
+      toast.error("Impossible de charger la tache");
+    }
+  }
+
   function onSubmitTimeEntry(event: React.FormEvent<HTMLFormElement>, documentIds: number[]) {
     event.preventDefault();
     if (!selectedProject || !user || !canRecordTime) return;
@@ -285,57 +293,36 @@ function ProjectTimeContent({
         />
       ) : null}
 
-      <div className={canRecordTime && canViewTime && viewMode !== "calendar" ? "grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start" : "grid gap-4"}>
+      <div className={canRecordTime && canViewTime ? "grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start" : "grid gap-4"}>
         {canViewTime ? (
           <Card className="rounded-lg">
-            <CardHeader className="gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <CardHeader>
               <CardTitle>Entrees de temps</CardTitle>
-              <div className="flex items-center gap-1 rounded-lg border bg-muted/40 p-1">
-                <Button type="button" variant={viewMode === "list" ? "secondary" : "ghost"} size="sm" onClick={() => updateUrlFilter({ view: "list" })}>
-                  Liste
-                </Button>
-                <Button type="button" variant={viewMode === "calendar" ? "secondary" : "ghost"} size="sm" onClick={() => updateUrlFilter({ view: "calendar" })}>
-                  <CalendarDays className="size-3.5" />
-                  Calendrier
-                </Button>
-              </div>
             </CardHeader>
             <CardContent>
               {!canViewAllTime && canViewTime ? (
                 <p className="mb-3 text-sm text-muted-foreground">Vue limitee a tes propres entrees.</p>
               ) : null}
-              {viewMode === "calendar" ? (
-                <TimeCalendarView
-                  key={periodRange.startDate}
-                  entries={visibleTimeEntries}
-                  isLoading={timeEntriesQuery.isLoading}
-                  userNameById={userNameById}
-                  folderNameById={folderNameById}
-                  taskTitleById={taskTitleById}
-                  calendarDate={periodRange.startDate}
-                />
-              ) : (
-                <TimeEntryList
-                  entries={visibleTimeEntries}
-                  isLoading={timeEntriesQuery.isLoading}
-                  userNameById={userNameById}
-                  folderNameById={folderNameById}
-                  taskTitleById={taskTitleById}
-                  canPay={canPayTime}
-                  canEdit={canRecordTime}
-                  canDelete={canDeleteTime}
-                  deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
-                  onPay={setPaymentTarget}
-                  onEdit={setEditingEntry}
-                  onDetail={setDetailEntry}
-                  onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
-                />
-              )}
+              <TimeEntryList
+                entries={visibleTimeEntries}
+                isLoading={timeEntriesQuery.isLoading}
+                userNameById={userNameById}
+                folderNameById={folderNameById}
+                taskTitleById={taskTitleById}
+                canPay={canPayTime}
+                canEdit={canRecordTime}
+                canDelete={canDeleteTime}
+                deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
+                onPay={setPaymentTarget}
+                onEdit={setEditingEntry}
+                onDetail={setDetailEntry}
+                onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
+              />
             </CardContent>
           </Card>
         ) : null}
 
-        {canRecordTime && canViewTime && viewMode !== "calendar" ? (
+        {canRecordTime && canViewTime ? (
           <TimeTotalsPanel
             label={totalsLabel}
             totals={totals}
@@ -345,7 +332,7 @@ function ProjectTimeContent({
           />
         ) : null}
 
-        {!canRecordTime && canViewTime && viewMode !== "calendar" ? (
+        {!canRecordTime && canViewTime ? (
           <div>
             <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -427,6 +414,15 @@ function ProjectTimeContent({
         onEdit={(entry) => { setDetailEntry(null); setEditingEntry(entry); }}
         onPay={(entry) => { setDetailEntry(null); setPaymentTarget(entry); }}
         onDelete={(entry) => { setDetailEntry(null); deleteTimeEntry.mutate(entry.id); }}
+        onTaskClick={(taskId) => { setDetailEntry(null); handleTaskClick(taskId); }}
+      />
+      <TaskDetailModal
+        task={detailTask}
+        folderNameById={folderNameById}
+        members={members}
+        canEdit={false}
+        canDelete={false}
+        onClose={() => setDetailTask(null)}
       />
     </div>
   );

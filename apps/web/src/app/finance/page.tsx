@@ -1,6 +1,6 @@
 "use client";
 
-import type { FinancialEntry, FinancialEntryPayload } from "@project-gestion/types";
+import type { FinancialEntry, FinancialEntryPayload, TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
@@ -25,6 +25,7 @@ import { PageTitle } from "@/components/page-title";
 import { SelectItem } from "@/components/ui/select";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { toast } from "sonner";
+import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
@@ -79,6 +80,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
   const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
   const [viewingEntry, setViewingEntry] = useState<FinancialEntry | null>(null);
+  const [viewingTimeEntry, setViewingTimeEntry] = useState<TimeEntry | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -136,6 +138,17 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
     },
     onError: (err) => toast.error(getErrorMessage(err)),
   });
+
+  async function handleTimeEntryClick(timeEntryId: number) {
+    if (!projectId) return;
+    setViewingEntry(null);
+    try {
+      const entry = await api.timeEntries.get(projectId, timeEntryId);
+      setViewingTimeEntry(entry);
+    } catch {
+      toast.error("Impossible de charger l'entree de temps");
+    }
+  }
 
   if (!selectedProject) {
     return (
@@ -320,6 +333,21 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingEntry(null)}
+        onTimeEntryClick={handleTimeEntryClick}
+      />
+      <TimeEntryDetailDialog
+        entry={viewingTimeEntry}
+        folderNameById={new Map()}
+        taskTitleById={new Map()}
+        userNameById={new Map()}
+        canEdit={false}
+        canPay={false}
+        canDelete={false}
+        deletingId={null}
+        onClose={() => setViewingTimeEntry(null)}
+        onEdit={() => {}}
+        onPay={() => {}}
+        onDelete={() => {}}
       />
       <DocumentPreviewModal
         document={previewDocument}

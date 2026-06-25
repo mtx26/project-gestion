@@ -2,7 +2,7 @@ import type { Project, User } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { Banknote, Bell, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
+import { Banknote, Bell, CalendarDays, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -33,7 +33,7 @@ type DashboardSidebarProps = {
   selectedProjectId: string;
   userId: number | null;
   user: User | null | undefined;
-  activeItem: "dashboard" | "settings" | "files" | "tasks" | "time" | "finance" | "requests" | "trash" | "account" | "notifications";
+  activeItem: "dashboard" | "settings" | "files" | "tasks" | "calendar" | "time" | "finance" | "requests" | "trash" | "account" | "notifications";
   isLoading: boolean;
   onSelectProject: (id: number) => void;
   onCreateProject: () => void;
@@ -62,6 +62,7 @@ export function DashboardSidebar({
   const settingsHref = selectedProjectId ? `/settings?project=${selectedProjectId}` : "/settings";
   const filesHref = selectedProjectId ? `/files?project=${selectedProjectId}` : "/files";
   const tasksHref = selectedProjectId ? `/tasks?project=${selectedProjectId}` : "/tasks";
+  const calendarHref = selectedProjectId ? `/calendar?project=${selectedProjectId}` : "/calendar";
   const timeHref = selectedProjectId ? `/time?project=${selectedProjectId}` : "/time";
   const trashHref = selectedProjectId ? `/trash?project=${selectedProjectId}` : "/trash";
   const financeHref = selectedProjectId ? `/finance?project=${selectedProjectId}` : "/finance";
@@ -88,6 +89,13 @@ export function DashboardSidebar({
       label: "Taches",
       icon: ListTodo,
       locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.taskView)),
+    },
+    {
+      key: "calendar",
+      href: calendarHref,
+      label: "Calendrier",
+      icon: CalendarDays,
+      locked: false,
     },
     {
       key: "time",

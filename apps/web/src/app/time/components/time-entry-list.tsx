@@ -1,7 +1,7 @@
 "use client";
 
 import type { TimeEntry } from "@project-gestion/types";
-import { CreditCard, Eye, Pencil, Trash2 } from "lucide-react";
+import { CreditCard, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
@@ -140,9 +140,6 @@ function TimeEntryRow({
               Payer
             </Button>
           ) : null}
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="Voir les details" onClick={onDetail}>
-            <Eye className="size-4" />
-          </Button>
           {canEdit ? (
             <Button type="button" variant="ghost" size="icon-sm" aria-label="Modifier cette entree" onClick={onEdit}>
               <Pencil className="size-4" />

@@ -2,7 +2,8 @@
 
 import type { TimeEntry } from "@project-gestion/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CheckCircle2, CreditCard, Pencil, Trash2 } from "lucide-react";
+import { CalendarDays, CheckCircle2, Clock, CreditCard, Folder, ListTodo, Pencil, Trash2, UserRound } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -223,6 +224,7 @@ export function TimeEntryDetailDialog({
   onEdit,
   onPay,
   onDelete,
+  onTaskClick,
 }: {
   entry: TimeEntry | null;
   folderNameById: Map<number, string>;
@@ -236,6 +238,7 @@ export function TimeEntryDetailDialog({
   onEdit: (entry: TimeEntry) => void;
   onPay: (entry: TimeEntry) => void;
   onDelete: (entry: TimeEntry) => void;
+  onTaskClick?: (taskId: number) => void;
 }) {
   if (!entry) return null;
 
@@ -249,56 +252,94 @@ export function TimeEntryDetailDialog({
 
   return (
     <Dialog open={entry != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle className="pr-6">{entry.description || "Temps enregistre"}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-2">
+        <div className="divide-y">
+          {/* Hero */}
+          <div className="pb-5">
             <PaymentStatusBadge status={paymentStatus} />
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Utilisateur</p>
-              <p className="mt-1 text-sm">{displayName}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Date</p>
-              <p className="mt-1 text-sm">{formatDateTime(entry.created_at)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Cible</p>
-              <p className="mt-1 text-sm">{targetLabel}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Duree</p>
-              <p className="mt-1 text-sm">{formatDuration(entry.duration_minutes)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Taux horaire</p>
-              <p className="mt-1 text-sm">{formatMoney(entry.hourly_rate)}/h</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Total</p>
-              <p className="mt-1 text-sm font-semibold">{formatMoney(entry.cost_amount)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Paye</p>
-              <p className="mt-1 text-sm text-emerald-700">{formatMoney(entry.paid_amount)}</p>
-            </div>
-            <div>
-              <p className="text-xs font-medium uppercase text-muted-foreground">Reste</p>
-              <p className={`mt-1 text-sm ${paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 font-medium"}`}>
-                {paymentStatus === "paid" ? "—" : formatMoney(entry.remaining_amount)}
-              </p>
+            <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">{formatMoney(entry.cost_amount)}</p>
+            <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5">
+                <Clock className="size-3.5" />
+                {formatDuration(entry.duration_minutes)}
+              </span>
+              <span>·</span>
+              <span>{formatMoney(entry.hourly_rate)}/h</span>
             </div>
           </div>
-          {paymentStatus !== "paid" ? (
-            <div className="flex items-center gap-2">
-              <Progress value={paidRatio} className="h-2" />
-              <span className="shrink-0 text-xs text-muted-foreground">{Math.round(paidRatio)}%</span>
+
+          {/* Infos */}
+          <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-5">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Utilisateur</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <UserRound className="size-4 shrink-0 text-muted-foreground" />
+                <span className="text-sm">{displayName}</span>
+              </div>
             </div>
-          ) : null}
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Date</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <CalendarDays className="size-4 shrink-0 text-muted-foreground" />
+                <span className="text-sm">{formatDateTime(entry.created_at)}</span>
+              </div>
+            </div>
+            <div className="col-span-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cible</p>
+              {entry.task != null && onTaskClick ? (
+                <button
+                  type="button"
+                  className="mt-1.5 flex items-center gap-2 text-sm font-medium text-primary underline-offset-2 hover:underline"
+                  onClick={() => onTaskClick(entry.task!)}
+                >
+                  <ListTodo className="size-4 shrink-0 text-sky-600" />
+                  {targetLabel}
+                </button>
+              ) : (
+                <div className="mt-1.5 flex items-center gap-2 text-sm">
+                  {entry.task != null
+                    ? <ListTodo className="size-4 shrink-0 text-sky-600" />
+                    : entry.folder != null
+                      ? <Folder className="size-4 shrink-0 text-amber-500" />
+                      : null}
+                  <span>{targetLabel}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Paiement */}
+          <div className="pt-5">
+            <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Paiement</p>
+            <div className="mb-4 flex items-center gap-3">
+              <Progress value={paidRatio} className="h-2 flex-1" />
+              <span className="min-w-[3ch] text-right text-sm font-semibold tabular-nums">{Math.round(paidRatio)}%</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="rounded-lg bg-emerald-50 px-4 py-3 dark:bg-emerald-950/30">
+                <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">Paye</p>
+                <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700 dark:text-emerald-400">{formatMoney(entry.paid_amount)}</p>
+              </div>
+              <div className={cn(
+                "rounded-lg px-4 py-3",
+                paymentStatus === "paid" ? "bg-muted/50" : "bg-orange-50 dark:bg-orange-950/30",
+              )}>
+                <p className={cn(
+                  "text-[11px] font-medium uppercase tracking-wide",
+                  paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 dark:text-orange-400",
+                )}>Reste</p>
+                <p className={cn(
+                  "mt-1 text-xl font-bold tabular-nums",
+                  paymentStatus === "paid" ? "text-muted-foreground" : "text-orange-700 dark:text-orange-400",
+                )}>
+                  {paymentStatus === "paid" ? "—" : formatMoney(entry.remaining_amount)}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
         <DialogFooter className="flex-row items-center justify-between sm:justify-between">
           {canDelete ? (

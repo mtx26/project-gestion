@@ -121,8 +121,8 @@ export function getEntryTargetLabel(
   folderNameById: Map<number, string>,
   taskTitleById: Map<number, string>,
 ): string {
-  if (entry.task != null) return taskTitleById.get(entry.task) ?? entry.task_name ?? `#${entry.task}`;
-  if (entry.folder != null) return folderNameById.get(entry.folder) ?? `#${entry.folder}`;
+  if (entry.task != null) return taskTitleById.get(entry.task) ?? entry.task_name ?? "Tache liee";
+  if (entry.folder != null) return folderNameById.get(entry.folder) ?? "Dossier lie";
   return "Projet";
 }
 

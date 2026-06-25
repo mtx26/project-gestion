@@ -2,7 +2,7 @@
 
 import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, UserRound } from "lucide-react";
+import { Calendar, Clock, Eye, FileText, Folder, ListTodo, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -17,8 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EntryDetailBody } from "@/components/entries/entry-detail-body";
 import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
+import { findFolderName } from "@/lib/folder-utils";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
@@ -211,65 +211,124 @@ export function FinancialEntryDetailDialog({
   isOpeningDocument,
   onOpenDocument,
   onClose,
+  onTimeEntryClick,
 }: {
   entry: FinancialEntry | null;
   folders: FolderTreeNode[];
   isOpeningDocument: boolean;
   onOpenDocument: (documentId: number) => void;
   onClose: () => void;
+  onTimeEntryClick?: (timeEntryId: number) => void;
 }) {
   return (
     <Dialog open={entry != null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Detail de l&apos;entree</DialogTitle>
         </DialogHeader>
         {entry && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
+          <div className="divide-y">
+            {/* Hero */}
+            <div className="pb-5">
               <EntryTypeBadge type={entry.type} />
-              <span className="text-2xl font-semibold tabular-nums">
+              <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">
                 {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
-              </span>
+              </p>
             </div>
 
-            <EntryDetailBody
-              category={entry.category}
-              description={entry.description}
-              task_name={entry.task_name}
-              folder={entry.folder}
-              documents_info={entry.documents_info}
-              folders={folders}
-              isOpeningDocument={isOpeningDocument}
-              onOpenDocument={onOpenDocument}
-            />
+            {/* Details */}
+            {(entry.category || entry.description || entry.task_name || entry.folder) ? (
+              <div className="space-y-4 py-5">
+                {entry.category ? (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Categorie</p>
+                    <p className="mt-1.5 text-sm font-medium">{entry.category}</p>
+                  </div>
+                ) : null}
+                {entry.description ? (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Description</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{entry.description}</p>
+                  </div>
+                ) : null}
+                {entry.task_name || entry.folder ? (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cible</p>
+                    {entry.task_name ? (
+                      <div className="mt-1.5 flex items-center gap-2 text-sm">
+                        <ListTodo className="size-4 shrink-0 text-sky-600" />
+                        <span className="font-medium">{entry.task_name}</span>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 flex items-center gap-2 text-sm">
+                        <Folder className="size-4 shrink-0 text-amber-500" />
+                        <span className="font-medium">{findFolderName(folders, entry.folder!) ?? `Dossier #${entry.folder}`}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            {/* Meta */}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-5">
               {entry.time_entry_user_name ? (
                 <div>
-                  <p className="text-xs text-muted-foreground">Pour</p>
-                  <div className="flex items-center gap-1.5">
-                    <UserRound className="size-3.5 text-violet-500" />
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Pour</p>
+                  <div className="mt-1.5 flex items-center gap-2 text-sm">
+                    <UserRound className="size-4 shrink-0 text-violet-500" />
                     <span>{entry.time_entry_user_name}</span>
                   </div>
                 </div>
               ) : entry.created_by_name ? (
                 <div>
-                  <p className="text-xs text-muted-foreground">Cree par</p>
-                  <div className="flex items-center gap-1.5">
-                    <UserRound className="size-3.5 text-muted-foreground" />
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cree par</p>
+                  <div className="mt-1.5 flex items-center gap-2 text-sm">
+                    <UserRound className="size-4 shrink-0 text-muted-foreground" />
                     <span>{entry.created_by_name}</span>
                   </div>
                 </div>
               ) : null}
               <div>
-                <p className="text-xs text-muted-foreground">Date</p>
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="size-3.5 text-muted-foreground" />
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Date</p>
+                <div className="mt-1.5 flex items-center gap-2 text-sm">
+                  <Calendar className="size-4 shrink-0 text-muted-foreground" />
                   <span>{formatDate(entry.created_at)}</span>
                 </div>
               </div>
+              {entry.time_entry != null && onTimeEntryClick ? (
+                <div className="col-span-2">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Entree de temps</p>
+                  <button
+                    type="button"
+                    className="mt-1.5 flex items-center gap-2 text-sm font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => onTimeEntryClick(entry.time_entry!)}
+                  >
+                    <Clock className="size-4 shrink-0" />
+                    Voir le detail
+                  </button>
+                </div>
+              ) : null}
             </div>
+
+            {/* Documents */}
+            {(entry.documents_info ?? []).length > 0 ? (
+              <div className="pt-5">
+                <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Documents</p>
+                <div className="flex flex-col gap-2">
+                  {(entry.documents_info ?? []).map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                      <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-sm">{doc.name ?? `Document #${doc.id}`}</span>
+                      <Button type="button" variant="outline" size="sm" disabled={isOpeningDocument} onClick={() => onOpenDocument(doc.id)}>
+                        <Eye className="size-3.5" />
+                        Apercu
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
         <DialogFooter>

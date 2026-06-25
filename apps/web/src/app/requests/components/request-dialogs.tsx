@@ -2,7 +2,7 @@
 
 import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, UserRound } from "lucide-react";
+import { Calendar, Eye, FileText, Folder, ListTodo, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { EntryDetailBody } from "@/components/entries/entry-detail-body";
+import { findFolderName } from "@/lib/folder-utils";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
@@ -190,49 +190,91 @@ export function ExpenseRequestDetailDialog({
 }) {
   return (
     <Dialog open={request != null} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Detail de la demande</DialogTitle>
         </DialogHeader>
         {request && (
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
+          <div className="divide-y">
+            {/* Hero */}
+            <div className="pb-5">
               <RequestStatusBadge status={request.status} />
-              <div>
-                <p className="font-semibold">{request.title}</p>
-                <p className="text-lg font-semibold tabular-nums">{formatMoney(request.amount)}</p>
-              </div>
+              <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">{formatMoney(request.amount)}</p>
+              <p className="mt-2 text-base font-semibold">{request.title}</p>
             </div>
 
-            <EntryDetailBody
-              category={request.category}
-              description={request.description}
-              task_name={request.task_name}
-              folder={request.folder}
-              documents_info={request.documents_info}
-              folders={folders}
-              isOpeningDocument={isOpeningDocument}
-              onOpenDocument={onOpenDocument}
-            />
+            {/* Details */}
+            {(request.category || request.description || request.task_name || request.folder) ? (
+              <div className="space-y-4 py-5">
+                {request.category ? (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Categorie</p>
+                    <p className="mt-1.5 text-sm font-medium">{request.category}</p>
+                  </div>
+                ) : null}
+                {request.description ? (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Description</p>
+                    <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{request.description}</p>
+                  </div>
+                ) : null}
+                {request.task_name || request.folder ? (
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Cible</p>
+                    {request.task_name ? (
+                      <div className="mt-1.5 flex items-center gap-2 text-sm">
+                        <ListTodo className="size-4 shrink-0 text-sky-600" />
+                        <span className="font-medium">{request.task_name}</span>
+                      </div>
+                    ) : (
+                      <div className="mt-1.5 flex items-center gap-2 text-sm">
+                        <Folder className="size-4 shrink-0 text-amber-500" />
+                        <span className="font-medium">{findFolderName(folders, request.folder!) ?? `Dossier #${request.folder}`}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
-            <div className="grid grid-cols-2 gap-3 text-sm">
+            {/* Meta */}
+            <div className="grid grid-cols-2 gap-x-8 gap-y-5 py-5">
               {request.requested_by_name ? (
                 <div>
-                  <p className="text-xs text-muted-foreground">Demande par</p>
-                  <div className="flex items-center gap-1.5">
-                    <UserRound className="size-3.5 text-muted-foreground" />
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Demande par</p>
+                  <div className="mt-1.5 flex items-center gap-2 text-sm">
+                    <UserRound className="size-4 shrink-0 text-muted-foreground" />
                     <span>{request.requested_by_name}</span>
                   </div>
                 </div>
               ) : null}
               <div>
-                <p className="text-xs text-muted-foreground">Date</p>
-                <div className="flex items-center gap-1.5">
-                  <Calendar className="size-3.5 text-muted-foreground" />
+                <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Date</p>
+                <div className="mt-1.5 flex items-center gap-2 text-sm">
+                  <Calendar className="size-4 shrink-0 text-muted-foreground" />
                   <span>{formatDate(request.created_at)}</span>
                 </div>
               </div>
             </div>
+
+            {/* Documents */}
+            {(request.documents_info ?? []).length > 0 ? (
+              <div className="pt-5">
+                <p className="mb-3 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Documents</p>
+                <div className="flex flex-col gap-2">
+                  {(request.documents_info ?? []).map((doc) => (
+                    <div key={doc.id} className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
+                      <FileText className="size-4 shrink-0 text-muted-foreground" />
+                      <span className="min-w-0 flex-1 truncate text-sm">{doc.name ?? `Document #${doc.id}`}</span>
+                      <Button type="button" variant="outline" size="sm" disabled={isOpeningDocument} onClick={() => onOpenDocument(doc.id)}>
+                        <Eye className="size-3.5" />
+                        Apercu
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
         <DialogFooter>

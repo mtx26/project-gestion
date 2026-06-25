@@ -377,6 +377,8 @@ export function createApiClient({
           method: "POST",
           body: payload,
         }),
+      get: (projectId: number, timeEntryId: number) =>
+        request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/`),
       trash: (projectId: number) =>
         request<TimeEntry[] | PaginatedResponse<TimeEntry>>(`/api/projects/${projectId}/time-entries/trash/`),
       restore: (projectId: number, timeEntryId: number) =>
@@ -385,7 +387,19 @@ export function createApiClient({
     tasks: {
       list: (
         projectId: number,
-        query: { folder?: number; status?: Task["status"]; priority?: Task["priority"]; created_by?: number } = {},
+        query: {
+          folder?: number;
+          status?: Task["status"];
+          priority?: Task["priority"];
+          created_by?: number;
+          include_completed?: boolean;
+          date_from?: string;
+          date_to?: string;
+          start_date_after?: string;
+          start_date_before?: string;
+          due_date_after?: string;
+          due_date_before?: string;
+        } = {},
       ) =>
         request<Task[] | PaginatedResponse<Task>>(
           `/api/projects/${projectId}/tasks/${buildQueryString({
@@ -393,8 +407,17 @@ export function createApiClient({
             status: query.status,
             priority: query.priority,
             created_by: query.created_by != null ? String(query.created_by) : undefined,
+            include_completed: query.include_completed ? "true" : undefined,
+            date_from: query.date_from,
+            date_to: query.date_to,
+            start_date_after: query.start_date_after,
+            start_date_before: query.start_date_before,
+            due_date_after: query.due_date_after,
+            due_date_before: query.due_date_before,
           })}`,
         ),
+      get: (projectId: number, taskId: number) =>
+        request<Task>(`/api/projects/${projectId}/tasks/${taskId}/`),
       create: (projectId: number, payload: TaskPayload) =>
         request<Task>(`/api/projects/${projectId}/tasks/`, {
           method: "POST",

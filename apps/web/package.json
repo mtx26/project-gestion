@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
+    "@fullcalendar/core": "^6.1.21",
+    "@fullcalendar/daygrid": "^6.1.21",
+    "@fullcalendar/react": "^6.1.21",
     "@hookform/resolvers": "^5.4.0",
     "@project-gestion/api": "workspace:*",
     "@project-gestion/config": "workspace:*",

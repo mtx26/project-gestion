@@ -1,4 +1,6 @@
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
 
 import django_filters
 from rest_framework import generics
@@ -18,6 +20,11 @@ from ..services.projects import get_accessible_projects
 
 class TaskFilter(django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
+    # Filtres de plage individuels
+    start_date_after = django_filters.DateFilter(field_name="start_date", lookup_expr="gte")
+    start_date_before = django_filters.DateFilter(field_name="start_date", lookup_expr="lte")
+    due_date_after = django_filters.DateFilter(field_name="due_date", lookup_expr="gte")
+    due_date_before = django_filters.DateFilter(field_name="due_date", lookup_expr="lte")
 
     class Meta:
         model = Task
@@ -29,6 +36,30 @@ class TaskFilter(django_filters.FilterSet):
             return queryset
         folder_ids = get_descendant_folder_ids(value, project_id)
         return queryset.filter(folder_id__in=folder_ids)
+
+
+def apply_task_date_range(queryset, request):
+    """
+    Filtre OR combiné : retourne les tâches dont start_date OU due_date
+    tombe dans [date_from, date_to]. Utilisé par le calendrier.
+    """
+    date_from = parse_date(request.query_params.get("date_from") or "")
+    date_to = parse_date(request.query_params.get("date_to") or "")
+
+    if not date_from and not date_to:
+        return queryset
+
+    if date_from and date_to:
+        q = (
+            Q(start_date__gte=date_from, start_date__lte=date_to) |
+            Q(due_date__gte=date_from, due_date__lte=date_to)
+        )
+    elif date_from:
+        q = Q(start_date__gte=date_from) | Q(due_date__gte=date_from)
+    else:
+        q = Q(start_date__lte=date_to) | Q(due_date__lte=date_to)
+
+    return queryset.filter(q)
 
 
 @extend_schema(tags=["tasks"])
@@ -68,7 +99,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Task.objects.none()
 
-        return Task.objects.filter(
+        queryset = Task.objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         ).select_related(
@@ -78,6 +109,8 @@ class TaskListCreateView(generics.ListCreateAPIView):
         ).prefetch_related(
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
+
+        return apply_task_date_range(queryset, self.request)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -181,7 +214,7 @@ class TaskTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Task.deleted_objects.none()
 
-        return Task.deleted_objects.filter(
+        queryset = Task.deleted_objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         ).select_related(
@@ -191,6 +224,8 @@ class TaskTrashListView(generics.ListAPIView):
         ).prefetch_related(
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
+
+        return apply_task_date_range(queryset, self.request)
 
 
 @extend_schema(tags=["tasks"])
