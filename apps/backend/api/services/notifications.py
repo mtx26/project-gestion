@@ -6,32 +6,29 @@ from ..models import Notification
 from .mail import send_email
 from .push import send_push_notification
 
-# Channels each notification type can use.
-# notify() filters against user profile preferences at runtime.
-_CHANNELS = {
-    NotificationType.PROJECT_INVITATION: ["in_app", "push", "email"],
-    NotificationType.PROJECT_INVITATION_ACCEPTED: ["in_app", "push"],
-}
-
 # Resend template ID setting name per notification type.
 _EMAIL_TEMPLATES = {
     NotificationType.PROJECT_INVITATION: "RESEND_INVITATION_TEMPLATE_ID",
 }
 
+_ALL_CHANNELS = ["in_app", "push", "email"]
 
-def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None):
+
+def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=None):
     """
-    Dispatch a notification based on user profile preferences.
+    Dispatch a notification.
 
-    - user=None  → non-registered user, email only (to to_email).
+    - channels   → defaults to all channels; restrict to a subset when needed.
+    - user=None  → email only (to to_email), regardless of channels arg.
     - user set   → in_app always; push/email gated by profile preferences.
     - data       → stored on the Notification record and used as Resend template variables.
     - to_email   → used as email recipient when user is None.
     """
-    channels = _CHANNELS.get(type, ["in_app"])
+    if channels is None:
+        channels = _ALL_CHANNELS
 
     if user is None:
-        if "email" in channels and to_email:
+        if to_email:
             _send_notification_email(to_email=to_email, type=type, title=title, data=data)
         return None
 
