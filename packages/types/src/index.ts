@@ -3,6 +3,8 @@ export type ID = number;
 export type Profile = {
   picture_url: string;
   default_hourly_rate: string | null;
+  notification_email: boolean;
+  notification_push: boolean;
 };
 
 export type User = {
@@ -21,6 +23,8 @@ export type UserUpdatePayload = {
   last_name?: string;
   profile?: {
     default_hourly_rate?: string;
+    notification_email?: boolean;
+    notification_push?: boolean;
   };
 };
 

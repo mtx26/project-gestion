@@ -79,7 +79,20 @@ def create_project_invitation(*, project, email, role, invited_by):
                 type=NotificationType.PROJECT_INVITATION,
                 title="Invitation a un projet",
                 message=f"Vous avez ete invite au projet {project.name}.",
+                channels=["in_app", "push", "email"],
                 data={"invitation_id": invitation.id, "token": invitation.token},
+                email_subject=f"Invitation au projet {project.name}",
+                email_template_id=settings.RESEND_INVITATION_TEMPLATE_ID or None,
+                email_template_variables={
+                    "PROJECT_NAME": project.name,
+                    "INVITER_NAME": invited_by.get_username(),
+                    "INVITATION_URL": _build_invitation_url(invitation.token),
+                    "EXPIRES_AT": f"{invitation.expires_at:%Y-%m-%d %H:%M}",
+                },
+                email_metadata={
+                    "invitation_id": str(invitation.id),
+                    "project_id": str(project.id),
+                },
             )
         else:
             send_invitation_email(invitation)
@@ -168,6 +181,7 @@ def accept_project_invitation(*, token, user):
             type=NotificationType.PROJECT_INVITATION_ACCEPTED,
             title="Invitation acceptee",
             message=f"{user.email} a rejoint le projet {invitation.project.name}.",
+            channels=["in_app", "push"],
         )
 
     return invitation, member

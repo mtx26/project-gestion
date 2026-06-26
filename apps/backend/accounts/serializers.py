@@ -24,7 +24,7 @@ from .services import send_password_reset_email
 class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ["picture_url", "default_hourly_rate"]
+        fields = ["picture_url", "default_hourly_rate", "notification_email", "notification_push"]
         read_only_fields = ["picture_url"]
 
 class UserSerializer(serializers.ModelSerializer):
@@ -86,7 +86,7 @@ class LoginSerializer(TokenObtainPairSerializer):
 class CurrentUserUpdateProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
-        fields = ["default_hourly_rate"]
+        fields = ["default_hourly_rate", "notification_email", "notification_push"]
 
 
 class CurrentUserUpdateSerializer(serializers.ModelSerializer):
