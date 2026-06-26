@@ -6,48 +6,43 @@ from ..models import Notification
 from .mail import send_email
 from .push import send_push_notification
 
-# Maps notification type → settings attribute holding the Resend template ID.
-# Add an entry here whenever a new notification type needs an email template.
+# Channels each notification type can use.
+# notify() filters against user profile preferences at runtime.
+_CHANNELS = {
+    NotificationType.PROJECT_INVITATION: ["in_app", "push", "email"],
+    NotificationType.PROJECT_INVITATION_ACCEPTED: ["in_app", "push"],
+}
+
+# Resend template ID setting name per notification type.
 _EMAIL_TEMPLATES = {
     NotificationType.PROJECT_INVITATION: "RESEND_INVITATION_TEMPLATE_ID",
 }
 
 
-def notify(
-    *,
-    user,
-    type,
-    title,
-    message,
-    channels,
-    project=None,
-    created_by=None,
-    data=None,
-    to_email=None,
-):
+def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None):
     """
-    Dispatch a notification to the requested channels.
+    Dispatch a notification based on user profile preferences.
 
-    channels: subset of ["in_app", "push", "email"].
-
-    - "in_app" : persisted to DB. Requires user (skipped when user is None).
-    - "push"   : sent via FCM. Requires user + profile.notification_push == True.
-    - "email"  : sent via Resend template resolved from _EMAIL_TEMPLATES.
-                 Recipient is user.email when user exists, to_email otherwise.
-                 Skipped when user exists but has no profile, or
-                 profile.notification_email == False.
-                 Skipped when user is None and to_email is not provided.
-
-    data is passed as Resend template variables when sending email.
+    - user=None  → non-registered user, email only (to to_email).
+    - user set   → in_app always; push/email gated by profile preferences.
+    - data       → stored on the Notification record and used as Resend template variables.
+    - to_email   → used as email recipient when user is None.
     """
+    channels = _CHANNELS.get(type, ["in_app"])
+
+    if user is None:
+        if "email" in channels and to_email:
+            _send_notification_email(to_email=to_email, type=type, title=title, data=data)
+        return None
+
     try:
-        profile = user.profile if user is not None else None
+        profile = user.profile
     except ObjectDoesNotExist:
         profile = None
 
     notification = None
 
-    if "in_app" in channels and user is not None:
+    if "in_app" in channels:
         notification = Notification.objects.create(
             user=user,
             project=project,
@@ -58,33 +53,26 @@ def notify(
             data=data or {},
         )
 
-    if "push" in channels and user is not None:
-        push_enabled = profile.notification_push if profile is not None else True
-        if push_enabled:
+    if "push" in channels:
+        if profile is None or profile.notification_push:
             send_push_notification(user=user, title=title, message=message, data=data)
 
     if "email" in channels:
-        recipient = user.email if user is not None else to_email
-        email_allowed = (
-            recipient is not None
-            and (user is None or (profile is not None and profile.notification_email))
-        )
-        if email_allowed:
-            template_id = _resolve_email_template_id(type)
-            send_email(
-                to_email=recipient,
-                subject=title,
-                type=type,
-                resend_template_id=template_id,
-                resend_template_variables=data or {},
-                reply_to=settings.DEFAULT_REPLY_TO_EMAIL,
-            )
+        if profile is not None and profile.notification_email:
+            _send_notification_email(to_email=user.email, type=type, title=title, data=data)
 
     return notification
 
 
-def _resolve_email_template_id(notification_type):
-    setting_name = _EMAIL_TEMPLATES.get(notification_type)
-    if not setting_name:
-        return None
-    return getattr(settings, setting_name, None) or None
+def _send_notification_email(*, to_email, type, title, data):
+    setting_name = _EMAIL_TEMPLATES.get(type)
+    template_id = getattr(settings, setting_name, None) or None if setting_name else None
+
+    send_email(
+        to_email=to_email,
+        subject=title,
+        type=type,
+        resend_template_id=template_id,
+        resend_template_variables=data or {},
+        reply_to=settings.DEFAULT_REPLY_TO_EMAIL,
+    )

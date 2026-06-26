@@ -82,13 +82,12 @@ def create_project_invitation(*, project, email, role, invited_by):
 
         notify(
             user=invited_user,
-            to_email=email if not invited_user else None,
+            to_email=invitation.email,
             project=project,
             created_by=invited_by,
             type=NotificationType.PROJECT_INVITATION,
             title="Invitation a un projet",
             message=f"Vous avez ete invite au projet {project.name}.",
-            channels=["in_app", "push", "email"],
             data=invitation_data,
         )
 
@@ -146,7 +145,6 @@ def accept_project_invitation(*, token, user):
             type=NotificationType.PROJECT_INVITATION_ACCEPTED,
             title="Invitation acceptee",
             message=f"{user.email} a rejoint le projet {invitation.project.name}.",
-            channels=["in_app", "push"],
         )
 
     return invitation, member
