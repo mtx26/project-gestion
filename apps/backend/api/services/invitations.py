@@ -10,7 +10,6 @@ from django.utils import timezone
 
 from ..constants import NotificationType
 from ..models import Invitation, Notification, ProjectMember
-from .mail import send_email
 from .notifications import notify
 from .projects import get_accessible_projects
 
@@ -71,63 +70,29 @@ def create_project_invitation(*, project, email, role, invited_by):
         )
         invitation.full_clean()
 
-        if invited_user:
-            notify(
-                user=invited_user,
-                project=project,
-                created_by=invited_by,
-                type=NotificationType.PROJECT_INVITATION,
-                title="Invitation a un projet",
-                message=f"Vous avez ete invite au projet {project.name}.",
-                channels=["in_app", "push", "email"],
-                data={"invitation_id": invitation.id, "token": invitation.token},
-                email_subject=f"Invitation au projet {project.name}",
-                email_template_id=settings.RESEND_INVITATION_TEMPLATE_ID or None,
-                email_template_variables={
-                    "PROJECT_NAME": project.name,
-                    "INVITER_NAME": invited_by.get_username(),
-                    "INVITATION_URL": _build_invitation_url(invitation.token),
-                    "EXPIRES_AT": f"{invitation.expires_at:%Y-%m-%d %H:%M}",
-                },
-                email_metadata={
-                    "invitation_id": str(invitation.id),
-                    "project_id": str(project.id),
-                },
-            )
-        else:
-            send_invitation_email(invitation)
+        invitation_data = {
+            "invitation_id": invitation.id,
+            "token": invitation.token,
+            # Resend template variables
+            "PROJECT_NAME": project.name,
+            "INVITER_NAME": invited_by.get_username(),
+            "INVITATION_URL": _build_invitation_url(invitation.token),
+            "EXPIRES_AT": f"{invitation.expires_at:%Y-%m-%d %H:%M}",
+        }
+
+        notify(
+            user=invited_user,
+            to_email=email if not invited_user else None,
+            project=project,
+            created_by=invited_by,
+            type=NotificationType.PROJECT_INVITATION,
+            title="Invitation a un projet",
+            message=f"Vous avez ete invite au projet {project.name}.",
+            channels=["in_app", "push", "email"],
+            data=invitation_data,
+        )
 
     return invitation
-
-
-def send_invitation_email(invitation):
-    invitation_url = _build_invitation_url(invitation.token)
-    metadata = {
-        "invitation_id": str(invitation.id),
-        "project_id": str(invitation.project_id),
-    }
-
-    return send_email(
-        to_email=invitation.email,
-        subject=f"Invitation au projet {invitation.project.name}",
-        type="project_invitation",
-        resend_template_id=settings.RESEND_INVITATION_TEMPLATE_ID or None,
-        resend_template_variables={
-            "PROJECT_NAME": invitation.project.name,
-            "INVITER_NAME": invitation.invited_by.get_username(),
-            "INVITATION_URL": invitation_url,
-            "EXPIRES_AT": f"{invitation.expires_at:%Y-%m-%d %H:%M}",
-        },
-        text_body=(
-            f"{invitation.invited_by.get_username()} vous a invite au projet "
-            f"{invitation.project.name}.\n\n"
-            f"Accepter l'invitation : {invitation_url}\n\n"
-            f"Cette invitation expire le {invitation.expires_at:%Y-%m-%d %H:%M}."
-        ),
-        metadata=metadata,
-        invitation=invitation,
-        reply_to=settings.DEFAULT_REPLY_TO_EMAIL,
-    )
 
 
 def accept_project_invitation(*, token, user):
