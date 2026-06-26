@@ -11,22 +11,7 @@ _EMAIL_TEMPLATES = {
     NotificationType.PROJECT_INVITATION: "RESEND_INVITATION_TEMPLATE_ID",
 }
 
-_ALL_CHANNELS = ["in_app", "push", "email"]
-
-
-def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=None):
-    """
-    Dispatch a notification.
-
-    - channels   → defaults to all channels; restrict to a subset when needed.
-    - user=None  → email only (to to_email), regardless of channels arg.
-    - user set   → in_app always; push/email gated by profile preferences.
-    - data       → stored on the Notification record and used as Resend template variables.
-    - to_email   → used as email recipient when user is None.
-    """
-    if channels is None:
-        channels = _ALL_CHANNELS
-
+def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=["in_app", "push", "email"]):
     if user is None:
         if to_email:
             _send_notification_email(to_email=to_email, type=type, title=title, data=data)
@@ -50,13 +35,14 @@ def notify(*, user, type, title, message, data=None, project=None, created_by=No
             data=data or {},
         )
 
-    if "push" in channels:
-        if profile is None or profile.notification_push:
-            send_push_notification(user=user, title=title, message=message, data=data)
+    if profile is None:
+        return notification
 
-    if "email" in channels:
-        if profile is not None and profile.notification_email:
-            _send_notification_email(to_email=user.email, type=type, title=title, data=data)
+    if "push" in channels and profile.notification_push:
+        send_push_notification(user=user, title=title, message=message, data=data)
+
+    if "email" in channels and profile.notification_email:
+        _send_notification_email(to_email=user.email, type=type, title=title, data=data)
 
     return notification
 
