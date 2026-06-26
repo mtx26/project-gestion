@@ -2,9 +2,11 @@ import type { Project, User } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { Banknote, Bell, CalendarDays, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
+import { Banknote, Bell, BellRing, CalendarDays, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
+import { useWebPushNotifications } from "@/lib/use-web-push-notifications";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -53,6 +55,7 @@ export function DashboardSidebar({
 }: DashboardSidebarProps) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const theme = useSyncExternalStore(subscribeToTheme, getThemeSnapshot, getServerThemeSnapshot);
+  const { isSupported: isPushSupported, permission: pushPermission, isRegistering: isPushRegistering, requestPermission: requestPushPermission } = useWebPushNotifications();
   const unreadNotificationsQuery = useQuery({
     queryKey: queryKeys.notifications.unreadCount,
     queryFn: api.notifications.unreadCount,
@@ -153,6 +156,24 @@ export function DashboardSidebar({
               ) : null}
             </Link>
           </Button>
+          {isPushSupported && pushPermission === "default" ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="group-data-[state=collapsed]/sidebar:lg:hidden"
+                  onClick={requestPushPermission}
+                  disabled={isPushRegistering}
+                  aria-label="Activer les notifications push"
+                >
+                  <BellRing className="size-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Activer les notifications push</TooltipContent>
+            </Tooltip>
+          ) : null}
           <Button
             type="button"
             variant="ghost"
