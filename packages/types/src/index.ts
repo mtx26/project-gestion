@@ -104,6 +104,13 @@ export type InvitationAcceptResponse = {
   member: ProjectMember;
 };
 
+export const NotificationType = {
+  PROJECT_INVITATION: "project_invitation",
+  PROJECT_INVITATION_ACCEPTED: "project_invitation_accepted",
+} as const;
+
+export type NotificationTypeValue = (typeof NotificationType)[keyof typeof NotificationType];
+
 export type Notification = {
   id: ID;
   user: ID;
@@ -111,13 +118,27 @@ export type Notification = {
   created_by: ID | null;
   title: string;
   message: string;
-  type: string;
+  type: NotificationTypeValue | string;
   data: Record<string, unknown>;
   is_read: boolean;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
   deleted_by: ID | null;
+};
+
+export type UserDevice = {
+  id: ID;
+  fcm_token: string;
+  platform: "web" | "ios" | "android";
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UserDevicePayload = {
+  fcm_token: string;
+  platform?: "web" | "ios" | "android";
 };
 
 export type Project = {

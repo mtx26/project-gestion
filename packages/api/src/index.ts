@@ -27,6 +27,8 @@ import type {
   TimeEntryPaymentPayload,
   TimeEntryPayload,
   User,
+  UserDevice,
+  UserDevicePayload,
   UserUpdatePayload,
   Folder,
   FolderPayload,
@@ -300,6 +302,17 @@ export function createApiClient({
       markAllRead: () =>
         request<void>("/api/notifications/mark-all-read/", {
           method: "POST",
+        }),
+    },
+    devices: {
+      register: (payload: UserDevicePayload) =>
+        request<UserDevice>("/api/devices/", {
+          method: "POST",
+          body: payload,
+        }),
+      unregister: (fcmToken: string) =>
+        request<void>(`/api/devices/${encodeURIComponent(fcmToken)}/`, {
+          method: "DELETE",
         }),
     },
     financialEntries: {

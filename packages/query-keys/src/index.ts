@@ -23,6 +23,9 @@ export const queryKeys = {
     list: (unreadOnly?: boolean) => ["notifications", "list", { unreadOnly: unreadOnly ?? false }] as const,
     unreadCount: ["notifications", "unread-count"] as const,
   },
+  devices: {
+    all: ["devices"] as const,
+  },
   permissions: {
     list: () => ["permissions", "list"] as const,
   },
