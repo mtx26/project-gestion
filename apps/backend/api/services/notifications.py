@@ -36,7 +36,7 @@ def notify(*, user, type, title, message, data=None, project=None, created_by=No
         )
 
     if profile is None:
-        return notification
+        channels = ["in_app"]
 
     if "push" in channels and profile.notification_push:
         send_push_notification(user=user, title=title, message=message, data=data)
