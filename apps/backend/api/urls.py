@@ -25,6 +25,7 @@ from .views.notifications import (
     NotificationMarkReadView,
     NotificationUnreadCountView,
 )
+from .views.devices import DeviceRegisterView, DeviceUnregisterView
 from .views.users import UserListView
 from .views.folders import (
     FolderListCreateView,
@@ -73,6 +74,9 @@ from .views.expense_requests import (
 
 urlpatterns = [
     path("users/", UserListView.as_view(), name="user-list"),
+    # Devices (FCM push tokens)
+    path("devices/", DeviceRegisterView.as_view(), name="device-register"),
+    path("devices/<str:fcm_token>/", DeviceUnregisterView.as_view(), name="device-unregister"),
     # Projects
     path("projects/", ProjectListCreateView.as_view(), name="project-list-create"),
     path("projects/<int:pk>/", ProjectDetailView.as_view(), name="project-detail"),

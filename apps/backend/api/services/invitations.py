@@ -8,6 +8,7 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from ..constants import NotificationType
 from ..models import Invitation, Notification, ProjectMember
 from .mail import send_email
 from .notifications import notify
@@ -75,7 +76,7 @@ def create_project_invitation(*, project, email, role, invited_by):
                 user=invited_user,
                 project=project,
                 created_by=invited_by,
-                type="project_invitation",
+                type=NotificationType.PROJECT_INVITATION,
                 title="Invitation a un projet",
                 message=f"Vous avez ete invite au projet {project.name}.",
                 data={"invitation_id": invitation.id, "token": invitation.token},
@@ -151,7 +152,7 @@ def accept_project_invitation(*, token, user):
         invitation.save(update_fields=["accepted_at", "updated_at"])
         Notification.objects.filter(
             user=user,
-            type="project_invitation",
+            type=NotificationType.PROJECT_INVITATION,
             data__invitation_id=invitation.id,
         ).update(
             is_read=True,
@@ -164,7 +165,7 @@ def accept_project_invitation(*, token, user):
             user=invitation.invited_by,
             project=invitation.project,
             created_by=user,
-            type="project_invitation_accepted",
+            type=NotificationType.PROJECT_INVITATION_ACCEPTED,
             title="Invitation acceptee",
             message=f"{user.email} a rejoint le projet {invitation.project.name}.",
         )

@@ -236,6 +236,25 @@ class Notification(BaseModel):
     data = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False)
 
+class UserDevice(models.Model):
+    class Platform(models.TextChoices):
+        WEB = "web"
+        IOS = "ios"
+        ANDROID = "android"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="devices")
+    fcm_token = models.TextField(unique=True)
+    platform = models.CharField(max_length=20, choices=Platform.choices, default=Platform.WEB)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "is_active"]),
+        ]
+
+
 class EmailDelivery(BaseModel):
     class Status(models.TextChoices):
         PENDING = "pending", "email_delivery.status.pending"

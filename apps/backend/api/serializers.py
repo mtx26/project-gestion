@@ -28,6 +28,7 @@ from .models import (
     Task,
     Invitation,
     Notification,
+    UserDevice,
     TimeEntry,
     FinancialEntry,
     ExpenseRequest,
@@ -639,6 +640,13 @@ class NotificationSerializer(serializers.ModelSerializer):
             "project",
             "created_by",
         ]
+
+
+class UserDeviceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserDevice
+        fields = ["id", "fcm_token", "platform", "is_active", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_active", "created_at", "updated_at"]
 
 
 class TimeEntrySerializer(serializers.ModelSerializer):
