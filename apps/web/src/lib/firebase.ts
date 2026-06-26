@@ -3,21 +3,23 @@
 import { getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import { getMessaging, type Messaging } from "firebase/messaging";
 
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+function getFirebaseConfig(): Record<string, string> | null {
+  const raw = process.env.NEXT_PUBLIC_FIREBASE_CONFIG;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as Record<string, string>;
+  } catch {
+    return null;
+  }
+}
 
 export function isFirebaseConfigured(): boolean {
-  return Boolean(process.env.NEXT_PUBLIC_FIREBASE_API_KEY);
+  return getFirebaseConfig() !== null;
 }
 
 function getFirebaseApp(): FirebaseApp {
-  return getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
+  if (getApps().length) return getApps()[0]!;
+  return initializeApp(getFirebaseConfig()!);
 }
 
 export function getFirebaseMessaging(): Messaging | null {
