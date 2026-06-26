@@ -20,9 +20,6 @@ def notify(*, user, type, title, message, data=None, project=None, created_by=No
     try:
         profile = user.profile
     except ObjectDoesNotExist:
-        profile = None
-
-    if profile is None:
         channels = ["in_app"]
 
     notification = None
