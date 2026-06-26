@@ -22,6 +22,9 @@ def notify(*, user, type, title, message, data=None, project=None, created_by=No
     except ObjectDoesNotExist:
         profile = None
 
+    if profile is None:
+        channels = ["in_app"]
+
     notification = None
 
     if "in_app" in channels:
@@ -34,9 +37,6 @@ def notify(*, user, type, title, message, data=None, project=None, created_by=No
             message=message,
             data=data or {},
         )
-
-    if profile is None:
-        channels = ["in_app"]
 
     if "push" in channels and profile.notification_push:
         send_push_notification(user=user, title=title, message=message, data=data)
