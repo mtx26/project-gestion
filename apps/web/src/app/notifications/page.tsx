@@ -1,22 +1,27 @@
 "use client";
 
 import type { Notification } from "@project-gestion/types";
-import { normalizeApiList } from "@project-gestion/api";
+import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, MailOpen } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
 import { formatDateTime } from "@/lib/date-utils";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { FormError } from "@/components/forms/form-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { FilterBar, FilterToggle } from "@/components/filters/filter-bar";
 import { ItemGroup } from "@/components/ui/item";
+import { PaginationBar } from "@/components/pagination-bar";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
+import { parsePageParam } from "@/lib/url-params";
+import { useUrlFilter } from "@/lib/use-url-filter";
 
 export default function NotificationsPage() {
   return (
@@ -27,10 +32,16 @@ export default function NotificationsPage() {
 }
 
 function NotificationsContent() {
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const unreadOnly = searchParams.get("unread") === "1";
+  const page = parsePageParam(searchParams.get("page"));
+  const updateFilter = useUrlFilter("/notifications", searchParams, null);
+
   const notificationsQuery = useQuery({
-    queryKey: queryKeys.notifications.list(false),
-    queryFn: () => api.notifications.list(),
+    queryKey: queryKeys.notifications.list(unreadOnly, page),
+    queryFn: () => api.notifications.list({ unread: unreadOnly || undefined, page }),
+    placeholderData: keepPreviousData,
   });
   const markRead = useMutation({
     mutationFn: api.notifications.markRead,
@@ -48,6 +59,7 @@ function NotificationsContent() {
   });
 
   const notifications = normalizeApiList(notificationsQuery.data);
+  const totalCount = getApiCount(notificationsQuery.data);
   const unreadCount = notifications.filter((notification) => !notification.is_read).length;
 
   return (
@@ -69,6 +81,15 @@ function NotificationsContent() {
           Tout marquer lu
         </Button>
       </div>
+
+      <FilterBar>
+        <FilterToggle
+          pressed={unreadOnly}
+          onPressedChange={(pressed) => updateFilter({ unread: pressed })}
+        >
+          Non lues uniquement
+        </FilterToggle>
+      </FilterBar>
 
       <FormError
         message={
@@ -94,16 +115,19 @@ function NotificationsContent() {
               </EmptyHeader>
             </Empty>
           ) : (
-            <ItemGroup>
-              {notifications.map((notification) => (
-                <NotificationRow
-                  key={notification.id}
-                  notification={notification}
-                  isUpdating={markRead.isPending}
-                  onMarkRead={() => markRead.mutate(notification.id)}
-                />
-              ))}
-            </ItemGroup>
+            <>
+              <ItemGroup>
+                {notifications.map((notification) => (
+                  <NotificationRow
+                    key={notification.id}
+                    notification={notification}
+                    isUpdating={markRead.isPending}
+                    onMarkRead={() => markRead.mutate(notification.id)}
+                  />
+                ))}
+              </ItemGroup>
+              <PaginationBar count={totalCount} page={page} pageSize={getApiPageSize(notificationsQuery.data)} onPageChange={(p) => updateFilter({ page: p })} />
+            </>
           )}
         </CardContent>
       </Card>

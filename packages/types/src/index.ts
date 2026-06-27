@@ -286,6 +286,14 @@ export type TimeEntryPayment = {
   time_entry: TimeEntry;
 };
 
+export type TimeEntryStats = {
+  duration_minutes: number;
+  cost_amount: string;
+  paid_amount: string;
+  remaining_amount: string;
+  entry_count: number;
+};
+
 export type FinancialEntry = {
   id: ID;
   project: ID;
@@ -379,6 +387,7 @@ export type FinancialEntryChart = {
 
 export type PaginatedResponse<T> = {
   count: number;
+  page_size: number;
   next: string | null;
   previous: string | null;
   results: T[];

@@ -3,11 +3,9 @@
 import type { Task } from "@project-gestion/types";
 import {
   type ColumnDef,
-  type SortingState,
   type VisibilityState,
   flexRender,
   getCoreRowModel,
-  getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 import { ChevronDown, ChevronUp, ChevronsUpDown, Columns3, Pencil, Trash2 } from "lucide-react";
@@ -38,6 +36,9 @@ export function TaskTable({
   canDelete,
   deletingId,
   defaultVisibility = {},
+  sortField = "",
+  sortDir = "asc",
+  onSortChange,
   onOpenDetail,
   onEdit,
   onDelete,
@@ -48,36 +49,47 @@ export function TaskTable({
   canDelete: boolean;
   deletingId: number | null | undefined;
   defaultVisibility?: VisibilityState;
+  sortField?: string;
+  sortDir?: "asc" | "desc";
+  onSortChange?: (field: string, dir: "asc" | "desc") => void;
   onOpenDetail: (task: Task) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
   onStatusChange: (task: Task, status: Task["status"]) => void;
 }) {
   "use no memo";
-  const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultVisibility);
 
   const columns = useMemo<ColumnDef<Task>[]>(
     () => [
       {
         accessorKey: "title",
-        header: ({ column }) => <SortButton column={column}>Tache</SortButton>,
+        header: () => (
+          <SortButton field="title" sortField={sortField} sortDir={sortDir} onSortChange={onSortChange}>
+            Tache
+          </SortButton>
+        ),
         cell: ({ row }) => <span className="font-medium">{row.original.title}</span>,
       },
       {
         id: "folder",
-        accessorFn: (row) => row.folder_name ?? "",
-        header: ({ column }) => <SortButton column={column}>Dossier</SortButton>,
+        header: () => (
+          <SortButton field="folder__name" sortField={sortField} sortDir={sortDir} onSortChange={onSortChange}>
+            Dossier
+          </SortButton>
+        ),
         cell: ({ row }) => {
           const name = row.original.folder == null ? "Projet" : (row.original.folder_name ?? `Dossier #${row.original.folder}`);
           return <span className="text-muted-foreground">{name}</span>;
         },
-        sortingFn: "alphanumeric",
       },
       {
         id: "status",
-        accessorFn: (row) => ({ todo: 0, in_progress: 1, done: 2 }[row.status]),
-        header: ({ column }) => <SortButton column={column}>Statut</SortButton>,
+        header: () => (
+          <SortButton field="status_order" sortField={sortField} sortDir={sortDir} onSortChange={onSortChange}>
+            Statut
+          </SortButton>
+        ),
         cell: ({ row }) => (
           <div onClick={(e) => e.stopPropagation()}>
             {canEdit ? (
@@ -102,20 +114,26 @@ export function TaskTable({
       },
       {
         id: "priority",
-        accessorFn: (row) => ({ low: 0, normal: 1, high: 2 }[row.priority]),
-        header: ({ column }) => <SortButton column={column}>Priorite</SortButton>,
+        header: () => (
+          <SortButton field="priority_order" sortField={sortField} sortDir={sortDir} onSortChange={onSortChange}>
+            Priorite
+          </SortButton>
+        ),
         cell: ({ row }) => <TaskPriorityBadge priority={row.original.priority} />,
       },
       {
         id: "due_date",
         accessorKey: "due_date",
-        header: ({ column }) => <SortButton column={column}>Echeance</SortButton>,
+        header: () => (
+          <SortButton field="due_date" sortField={sortField} sortDir={sortDir} onSortChange={onSortChange}>
+            Echeance
+          </SortButton>
+        ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
             {row.original.due_date ? formatDate(row.original.due_date) : "-"}
           </span>
         ),
-        sortUndefined: "last",
       },
       {
         id: "assignees",
@@ -124,7 +142,6 @@ export function TaskTable({
           const names = row.original.assigned_to_display_names.join(", ");
           return <span className="max-w-30 truncate text-muted-foreground">{names || "-"}</span>;
         },
-        enableSorting: false,
       },
       {
         id: "actions",
@@ -166,20 +183,17 @@ export function TaskTable({
             ) : null}
           </div>
         ),
-        enableSorting: false,
       },
     ],
-    [canEdit, canDelete, deletingId, onEdit, onDelete, onStatusChange],
+    [canEdit, canDelete, deletingId, onEdit, onDelete, onStatusChange, sortField, sortDir, onSortChange],
   );
 
   const table = useReactTable({
     data: tasks,
     columns,
-    state: { sorting, columnVisibility },
-    onSortingChange: setSorting,
+    state: { columnVisibility },
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
   });
 
   return (
@@ -258,23 +272,29 @@ export function TaskTable({
 }
 
 function SortButton({
-  column,
+  field,
+  sortField,
+  sortDir,
+  onSortChange,
   children,
 }: {
-  column: { getIsSorted: () => false | "asc" | "desc"; toggleSorting: (asc: boolean) => void; getCanSort: () => boolean };
+  field: string;
+  sortField: string;
+  sortDir: "asc" | "desc";
+  onSortChange?: (field: string, dir: "asc" | "desc") => void;
   children: React.ReactNode;
 }) {
-  const sorted = column.getIsSorted();
-  if (!column.getCanSort()) return <span>{children}</span>;
+  const isActive = sortField === field;
+  const dir = isActive ? sortDir : undefined;
   return (
     <button
       className="flex items-center gap-1 hover:text-foreground"
-      onClick={() => column.toggleSorting(sorted === "asc")}
+      onClick={() => onSortChange?.(field, isActive ? (sortDir === "asc" ? "desc" : "asc") : "asc")}
     >
       {children}
-      {sorted === "asc" ? (
+      {dir === "asc" ? (
         <ChevronUp className="size-3.5" />
-      ) : sorted === "desc" ? (
+      ) : dir === "desc" ? (
         <ChevronDown className="size-3.5" />
       ) : (
         <ChevronsUpDown className="size-3.5 text-muted-foreground/50" />

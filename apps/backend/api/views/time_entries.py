@@ -1,6 +1,9 @@
-from django.shortcuts import get_object_or_404
+from decimal import Decimal
+
+import django_filters
 from django.db.models import Case, DecimalField, ExpressionWrapper, F, Q, Sum, Value, When
 from django.db.models.functions import Coalesce
+from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 
 from rest_framework import generics, status
@@ -17,32 +20,137 @@ from ..serializers import TimeEntryPaymentSerializer, TimeEntrySerializer
 from ..services.folders import get_descendant_folder_ids
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
+from ..services.time_entries import compute_time_entry_stats
+
+
+class TimeEntryFilter(django_filters.FilterSet):
+    folder = django_filters.NumberFilter(method="filter_folder")
+    target = django_filters.CharFilter(method="filter_target")
+
+    class Meta:
+        model = TimeEntry
+        fields = ["user", "task"]
+
+    def filter_folder(self, queryset, name, value):
+        project_id = self.request.parser_context["kwargs"].get("project_id")
+        if not project_id:
+            return queryset
+        folder_ids = get_descendant_folder_ids(value, project_id)
+        return queryset.filter(folder_id__in=folder_ids)
+
+    def filter_target(self, queryset, name, value):
+        project_id = self.request.parser_context["kwargs"].get("project_id")
+        if value == "project":
+            return queryset.filter(folder__isnull=True, task__isnull=True)
+        if value.startswith("task-"):
+            try:
+                task_id = int(value.replace("task-", ""))
+            except (ValueError, TypeError):
+                return queryset
+            return queryset.filter(task_id=task_id)
+        if value.startswith("folder-") and project_id:
+            try:
+                folder_id = int(value.replace("folder-", ""))
+            except (ValueError, TypeError):
+                return queryset
+            folder_ids = get_descendant_folder_ids(folder_id, project_id)
+            return queryset.filter(Q(folder_id__in=folder_ids) | Q(task__folder_id__in=folder_ids))
+        return queryset
+
+
+def _annotate_financial_fields(queryset):
+    cost_amount = ExpressionWrapper(
+        F("duration_minutes") * F("hourly_rate") / Value(60),
+        output_field=DecimalField(max_digits=12, decimal_places=2),
+    )
+    paid_amount = Coalesce(
+        Sum(
+            Case(
+                When(
+                    financial_entries__type=FinancialEntry.FinancialType.EXPENSE,
+                    then=F("financial_entries__amount"),
+                ),
+                When(
+                    financial_entries__type=FinancialEntry.FinancialType.REFUND,
+                    then=-F("financial_entries__amount"),
+                ),
+                default=Value(0),
+                output_field=DecimalField(max_digits=12, decimal_places=2),
+            )
+        ),
+        Value(0),
+        output_field=DecimalField(max_digits=12, decimal_places=2),
+    )
+    return queryset.annotate(filter_cost_amount=cost_amount, filter_paid_amount=paid_amount)
+
+
+def apply_time_entry_financial_filters(queryset, request):
+    """Applies date range, payment_status, and include_unpaid filters. Annotates when needed."""
+    payment_status = request.query_params.get("payment_status", "all")
+    include_unpaid = request.query_params.get("include_unpaid") == "true"
+    start_date = parse_date(request.query_params.get("start_date", "") or "")
+    end_date = parse_date(request.query_params.get("end_date", "") or "")
+
+    needs_annotation = include_unpaid or (payment_status and payment_status not in ("all", ""))
+
+    if needs_annotation:
+        queryset = _annotate_financial_fields(queryset)
+
+    if start_date or end_date:
+        date_filter = Q()
+        if start_date:
+            date_filter &= Q(created_at__date__gte=start_date)
+        if end_date:
+            date_filter &= Q(created_at__date__lte=end_date)
+        if include_unpaid:
+            queryset = queryset.filter(date_filter | Q(filter_paid_amount__lt=F("filter_cost_amount")))
+        else:
+            queryset = queryset.filter(date_filter)
+
+    if not needs_annotation or payment_status in ("all", ""):
+        return queryset
+
+    if payment_status == "paid":
+        return queryset.filter(filter_paid_amount__gte=F("filter_cost_amount"))
+    if payment_status == "unpaid":
+        return queryset.filter(
+            filter_paid_amount__lte=Value(Decimal("0")),
+            filter_cost_amount__gt=Value(Decimal("0")),
+        )
+    if payment_status == "partial":
+        return queryset.filter(
+            filter_paid_amount__gt=Value(Decimal("0")),
+            filter_paid_amount__lt=F("filter_cost_amount"),
+        )
+    if payment_status == "not_paid":
+        return queryset.filter(filter_cost_amount__gt=F("filter_paid_amount"))
+    return queryset
 
 
 @extend_schema(tags=["time entries"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les entrees de temps d'un projet",
+        summary="Lister les entrées de temps d'un projet",
         description=(
-            "Retourne toutes les entrees de temps actives d'un projet.\n\n"
-            "- Filtres disponibles : `folder`, `task`, `user`, `start_date`, `end_date`, `include_unpaid`.\n\n"
+            "Retourne les entrées de temps actives d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}),\n"
+            "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`, `include_unpaid`.\n\n"
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.view`.\n\n"
-            "- Avec `time_entry.view_all`, toutes les entrees du projet sont visibles.\n\n"
-            "- Sans `time_entry.view_all`, seules les entrees de l'utilisateur connecte sont visibles."
+            "- Restriction : sans `time_entry.view_all`, seules les entrées de l'utilisateur connecté sont retournées."
         ),
     ),
     post=extend_schema(
-        summary="Creer une entree de temps",
-        description="Cree une nouvelle entree de temps dans un projet.\nPermission requise : `time_entry.edit`.",
+        summary="Créer une entrée de temps",
+        description="Crée une nouvelle entrée de temps dans un projet.\nPermission requise : `time_entry.edit`.",
     ),
 )
 class TimeEntryListCreateView(generics.ListCreateAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["task", "user"]
+    filterset_class = TimeEntryFilter
     search_fields = ["description"]
 
     def get_permissions(self):
@@ -50,99 +158,34 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
             self.permission_code = "time_entry.view"
         elif self.request.method == "POST":
             self.permission_code = "time_entry.edit"
-
         return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.objects.none()
 
-        project = get_object_or_404(
-            get_accessible_projects(self.request.user),
-            pk=self.kwargs["project_id"],
-        )
+        project_id = self.kwargs["project_id"]
         queryset = TimeEntry.objects.filter(
-            project_id=self.kwargs["project_id"],
-        ).select_related(
-            "project",
-            "folder",
-            "task",
-            "user",
-        ).prefetch_related(
-            "financial_entries",
-            "documents",
-        ).order_by("-created_at", "-id")
-
+            project_id=project_id,
+            project__in=get_accessible_projects(self.request.user),
+        )
+        project = get_object_or_404(get_accessible_projects(self.request.user), pk=project_id)
         if not has_project_permission(self.request.user, project, "time_entry.view_all"):
             queryset = queryset.filter(user=self.request.user)
 
-        folder_id_str = self.request.query_params.get("folder")
-        if folder_id_str:
-            try:
-                folder_id = int(folder_id_str)
-            except (ValueError, TypeError):
-                pass
-            else:
-                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
-                queryset = queryset.filter(folder_id__in=folder_ids)
+        queryset = apply_time_entry_financial_filters(queryset, self.request)
 
-        queryset = self.filter_by_date_range_and_unpaid(queryset)
-
-        return queryset
-
-    def filter_by_date_range_and_unpaid(self, queryset):
-        start_date = parse_date(self.request.query_params.get("start_date", ""))
-        end_date = parse_date(self.request.query_params.get("end_date", ""))
-        include_unpaid = self.request.query_params.get("include_unpaid") == "true"
-
-        date_filter = Q()
-        if start_date:
-            date_filter &= Q(created_at__date__gte=start_date)
-        if end_date:
-            date_filter &= Q(created_at__date__lte=end_date)
-
-        if not start_date and not end_date:
-            return queryset
-
-        if not include_unpaid:
-            return queryset.filter(date_filter)
-
-        cost_amount = ExpressionWrapper(
-            F("duration_minutes") * F("hourly_rate") / Value(60),
-            output_field=DecimalField(max_digits=12, decimal_places=2),
-        )
-        paid_amount = Coalesce(
-            Sum(
-                Case(
-                    When(
-                        financial_entries__type=FinancialEntry.FinancialType.EXPENSE,
-                        then=F("financial_entries__amount"),
-                    ),
-                    When(
-                        financial_entries__type=FinancialEntry.FinancialType.REFUND,
-                        then=-F("financial_entries__amount"),
-                    ),
-                    default=Value(0),
-                    output_field=DecimalField(max_digits=12, decimal_places=2),
-                )
-            ),
-            Value(0),
-            output_field=DecimalField(max_digits=12, decimal_places=2),
-        )
-
-        return queryset.annotate(
-            filter_cost_amount=cost_amount,
-            filter_paid_amount=paid_amount,
-        ).filter(
-            date_filter | Q(filter_paid_amount__lt=F("filter_cost_amount"))
+        return (
+            queryset
+            .select_related("project", "folder", "task", "user")
+            .prefetch_related("financial_entries", "documents")
+            .order_by("-created_at", "-id")
         )
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-
         if getattr(self, "swagger_fake_view", False):
             return context
-
         project = get_object_or_404(
             get_accessible_projects(self.request.user),
             pk=self.kwargs["project_id"],
@@ -161,20 +204,63 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
 @extend_schema(tags=["time entries"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Detail d'une entree de temps",
-        description="Retourne une entree de temps precise.\nPermission requise : `time_entry.view`.",
+        summary="Statistiques des entrées de temps",
+        description=(
+            "Retourne les totaux agrégés pour l'ensemble des entrées correspondant aux filtres.\n\n"
+            "Accepte les mêmes filtres que le endpoint de liste (sauf `page`).\n\n"
+            "Permission requise : `time_entry.view`."
+        ),
+    )
+)
+class TimeEntryStatsView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "time_entry.view"
+
+    def get(self, request, project_id):
+        if getattr(self, "swagger_fake_view", False):
+            return Response({
+                "duration_minutes": 0,
+                "cost_amount": "0.00",
+                "paid_amount": "0.00",
+                "remaining_amount": "0.00",
+                "entry_count": 0,
+            })
+
+        queryset = TimeEntry.objects.filter(
+            project_id=project_id,
+            project__in=get_accessible_projects(request.user),
+        )
+        project = get_object_or_404(get_accessible_projects(request.user), pk=project_id)
+        if not has_project_permission(request.user, project, "time_entry.view_all"):
+            queryset = queryset.filter(user=request.user)
+
+        filterset = TimeEntryFilter(request.query_params, queryset=queryset, request=request)
+        queryset = filterset.qs
+        queryset = apply_time_entry_financial_filters(queryset, request)
+
+        if "filter_cost_amount" not in queryset.query.annotations:
+            queryset = _annotate_financial_fields(queryset)
+
+        return Response(compute_time_entry_stats(queryset))
+
+
+@extend_schema(tags=["time entries"])
+@extend_schema_view(
+    get=extend_schema(
+        summary="Détail d'une entrée de temps",
+        description="Retourne une entrée de temps précise.\nPermission requise : `time_entry.view`.",
     ),
     put=extend_schema(
-        summary="Modifier une entree de temps",
-        description="Modifie completement une entree de temps.\nPermission requise : `time_entry.edit`.",
+        summary="Modifier une entrée de temps",
+        description="Modifie complètement une entrée de temps.\nPermission requise : `time_entry.edit`.",
     ),
     patch=extend_schema(
-        summary="Modifier partiellement une entree de temps",
-        description="Modifie partiellement une entree de temps.\nPermission requise : `time_entry.edit`.",
+        summary="Modifier partiellement une entrée de temps",
+        description="Modifie partiellement une entrée de temps.\nPermission requise : `time_entry.edit`.",
     ),
     delete=extend_schema(
-        summary="Supprimer une entree de temps",
-        description="Supprime une entree de temps via soft delete.\nPermission requise : `time_entry.delete`.",
+        summary="Supprimer une entrée de temps",
+        description="Supprime une entrée de temps via soft delete.\nPermission requise : `time_entry.delete`.",
     ),
 )
 class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -188,7 +274,6 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
             self.permission_code = "time_entry.edit"
         elif self.request.method == "DELETE":
             self.permission_code = "time_entry.delete"
-
         return super().get_permissions()
 
     def get_queryset(self):
@@ -220,10 +305,8 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-
         if getattr(self, "swagger_fake_view", False):
             return context
-
         project = get_object_or_404(
             get_accessible_projects(self.request.user),
             pk=self.kwargs["project_id"],
@@ -238,10 +321,10 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema(tags=["time entries"])
 @extend_schema_view(
     post=extend_schema(
-        summary="Marquer une entree de temps payee",
+        summary="Marquer une entrée de temps comme payée",
         description=(
-            "Cree une entree finance liee a l'entree de temps.\n"
-            "Utilise `pay_full=true` pour payer le reste complet, ou `amount` pour un paiement partiel.\n"
+            "Crée une entrée financière liée à l'entrée de temps.\n"
+            "Utiliser `pay_full=true` pour solder complètement, ou `amount` pour un paiement partiel.\n"
             "Permission requise : `time_entry.pay`."
         ),
         request=TimeEntryPaymentSerializer,
@@ -272,10 +355,8 @@ class TimeEntryPaymentView(generics.GenericAPIView):
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
-
         if not getattr(self, "swagger_fake_view", False):
             context["time_entry"] = self.get_object()
-
         return context
 
     def post(self, request, project_id, pk):
@@ -288,13 +369,13 @@ class TimeEntryPaymentView(generics.GenericAPIView):
 @extend_schema(tags=["time entries"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les entrees de temps supprimees",
+        summary="Lister les entrées de temps supprimées",
         description=(
-            "Retourne les entrees de temps supprimees d'un projet.\n\n"
-            "- Filtres disponibles : `folder`, `task`, `user`.\n\n"
+            "Retourne les entrées de temps supprimées d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}).\n\n"
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `time_entry.view`."
+            "- Permission requise : `time_entry.restore`."
         ),
     )
 )
@@ -302,7 +383,7 @@ class TimeEntryTrashListView(generics.ListAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["task", "user"]
+    filterset_class = TimeEntryFilter
     search_fields = ["description"]
 
     def get_permissions(self):
@@ -313,37 +394,22 @@ class TimeEntryTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.deleted_objects.none()
 
-        queryset = TimeEntry.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "task",
-            "user",
-        ).prefetch_related(
-            "financial_entries",
-            "documents",
-        ).order_by("-created_at", "-id")
-
-        folder_id_str = self.request.query_params.get("folder")
-        if folder_id_str:
-            try:
-                folder_id = int(folder_id_str)
-            except (ValueError, TypeError):
-                pass
-            else:
-                folder_ids = get_descendant_folder_ids(folder_id, self.kwargs["project_id"])
-                queryset = queryset.filter(folder_id__in=folder_ids)
-
-        return queryset
+        return (
+            TimeEntry.deleted_objects.filter(
+                project_id=self.kwargs["project_id"],
+                project__in=get_accessible_projects(self.request.user),
+            )
+            .select_related("project", "folder", "task", "user")
+            .prefetch_related("financial_entries", "documents")
+            .order_by("-created_at", "-id")
+        )
 
 
 @extend_schema(tags=["time entries"])
 @extend_schema_view(
     post=extend_schema(
-        summary="Restaurer une entree de temps",
-        description="Restaure une entree de temps supprimee.\nPermission requise : `time_entry.restore`.",
+        summary="Restaurer une entrée de temps",
+        description="Restaure une entrée de temps supprimée.\nPermission requise : `time_entry.restore`.",
         request=None,
     )
 )
@@ -371,8 +437,6 @@ class TimeEntryRestoreView(generics.GenericAPIView):
 
     def post(self, request, project_id, pk):
         time_entry = self.get_object()
-
         time_entry.restore()
-
         serializer = self.get_serializer(time_entry)
         return Response(serializer.data)

@@ -19,14 +19,14 @@ from ..services.projects import (
     get=extend_schema(
         summary="Lister les projets",
         description=(
-            "Retourne tous les projets accessibles pour l'utilisateur connecte.\n\n"
+            "Retourne tous les projets accessibles pour l'utilisateur connecté.\n\n"
             "- Recherche disponible : `search` sur `name` et `description`.\n\n"
             "- Pagination disponible : `page`."
         ),
     ),
     post=extend_schema(
-        summary="Creer un projet",
-        description="Cree un nouveau projet pour l'utilisateur connecte.",
+        summary="Créer un projet",
+        description="Crée un nouveau projet pour l'utilisateur connecté.",
     ),
 )
 class ProjectListCreateView(generics.ListCreateAPIView):
@@ -45,20 +45,20 @@ class ProjectListCreateView(generics.ListCreateAPIView):
 @extend_schema(tags=["projects"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Recuperer un projet",
-        description="Retourne les details d'un projet accessible.",
+        summary="Détail d'un projet",
+        description="Retourne un projet précis.",
     ),
     put=extend_schema(
-        summary="Remplacer un projet",
-        description="Remplace entierement les donnees d'un projet.\nPermission requise : `project.edit`.",
+        summary="Modifier un projet",
+        description="Modifie complètement les données d'un projet.\nPermission requise : `project.edit`.",
     ),
     patch=extend_schema(
-        summary="Modifier un projet",
-        description="Modifie partiellement les donnees d'un projet.\nPermission requise : `project.edit`.",
+        summary="Modifier partiellement un projet",
+        description="Modifie partiellement les données d'un projet.\nPermission requise : `project.edit`.",
     ),
     delete=extend_schema(
         summary="Supprimer un projet",
-        description="Supprime un projet avec soft-delete. Reserve au proprietaire du projet.",
+        description="Supprime un projet via soft delete. Réservé au propriétaire du projet.",
     ),
 )
 class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -89,7 +89,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer un projet",
-        description="Restaure un projet supprime. Reserve au proprietaire du projet.",
+        description="Restaure un projet supprimé. Réservé au propriétaire du projet.",
         request=None,
     ),
 )
@@ -114,9 +114,9 @@ class ProjectRestoreView(generics.GenericAPIView):
 @extend_schema(tags=["projects"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les projets supprimes",
+        summary="Lister les projets supprimés",
         description=(
-            "Retourne tous les projets supprimes accessibles pour l'utilisateur connecte.\n\n"
+            "Retourne tous les projets supprimés accessibles pour l'utilisateur connecté.\n\n"
             "- Recherche disponible : `search` sur `name` et `description`.\n\n"
             "- Pagination disponible : `page`."
         ),

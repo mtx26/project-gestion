@@ -21,16 +21,17 @@ from ..services.projects import get_accessible_projects
     get=extend_schema(
         summary="Lister les invitations d'un projet",
         description=(
-            "Retourne les invitations d'un projet.\n"
-            "Permission requise : `member.view`."
+            "Retourne les invitations d'un projet.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `member.view`."
         ),
     ),
     post=extend_schema(
         summary="Inviter un utilisateur",
         description=(
-            "Cree une invitation pour un email.\n"
-            "Si un compte existe deja pour cet email, une notification interne est creee.\n"
-            "Sinon, un email d'invitation est envoye.\n"
+            "Crée une invitation pour un email.\n"
+            "Si un compte existe déjà pour cet email, une notification interne est créée.\n"
+            "Sinon, un email d'invitation est envoyé.\n"
             "Permission requise : `member.edit`."
         ),
         request=InvitationCreateSerializer,
@@ -90,9 +91,13 @@ class InvitationListCreateView(generics.ListCreateAPIView):
 
 @extend_schema(tags=["member"])
 @extend_schema_view(
+    get=extend_schema(
+        summary="Détail d'une invitation",
+        description="Retourne une invitation précise.\nPermission requise : `member.view`.",
+    ),
     patch=extend_schema(
         summary="Modifier une invitation",
-        description="Modifie le role d'une invitation en attente.\nPermission requise : `member.edit`.",
+        description="Modifie le rôle d'une invitation en attente.\nPermission requise : `member.edit`.",
     ),
     delete=extend_schema(
         summary="Annuler une invitation",
@@ -135,7 +140,7 @@ class InvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
         summary="Accepter une invitation",
         description=(
             "Accepte une invitation par token.\n"
-            "L'utilisateur connecte doit avoir le meme email que l'invitation."
+            "L'utilisateur connecté doit avoir le même email que l'invitation."
         ),
         request=InvitationAcceptSerializer,
         responses={status.HTTP_200_OK: InvitationAcceptSerializer},

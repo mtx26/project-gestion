@@ -1,5 +1,8 @@
+import django_filters
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import generics, status
+from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,29 +11,47 @@ from ..models import Notification
 from ..serializers import NotificationSerializer
 
 
+class NotificationFilter(django_filters.FilterSet):
+    unread = django_filters.BooleanFilter(method="filter_unread")
+
+    class Meta:
+        model = Notification
+        fields = []
+
+    def filter_unread(self, queryset, name, value):
+        if value:
+            return queryset.filter(is_read=False)
+        return queryset
+
+
 @extend_schema(tags=["notifications"])
 @extend_schema_view(
-    get=extend_schema(summary="Lister mes notifications"),
+    get=extend_schema(
+        summary="Lister mes notifications",
+        description=(
+            "Retourne les notifications de l'utilisateur connecté, triées par statut de lecture puis par date.\n\n"
+            "- Filtres disponibles : `unread=true` — retourne uniquement les notifications non lues.\n\n"
+            "- Recherche disponible : `search` sur `title` et `message`.\n\n"
+            "- Pagination disponible : `page`."
+        ),
+    ),
 )
 class NotificationListView(generics.ListAPIView):
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = NotificationFilter
+    search_fields = ["title", "message"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Notification.objects.none()
 
-        queryset = Notification.objects.select_related(
-            "project",
-            "created_by",
-        ).filter(
-            user=self.request.user,
+        return (
+            Notification.objects.select_related("project", "created_by")
+            .filter(user=self.request.user)
+            .order_by("is_read", "-created_at", "-id")
         )
-
-        if self.request.query_params.get("unread") == "true":
-            queryset = queryset.filter(is_read=False)
-
-        return queryset.order_by("is_read", "-created_at")
 
 
 @extend_schema(tags=["notifications"])

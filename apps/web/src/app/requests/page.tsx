@@ -2,9 +2,9 @@
 
 import type { ExpenseRequest, ExpenseRequestPayload } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
-import { normalizeApiList } from "@project-gestion/api";
+import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -27,8 +27,10 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { toastError } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
-import { buildProjectHref, parseIdParam, parseBooleanParam } from "@/lib/url-params";
+import { buildProjectHref, parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
+import { PaginationBar } from "@/components/pagination-bar";
 import { useProjectResources } from "@/lib/use-project-resources";
+import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { ExpenseRequestDetailDialog, ExpenseRequestFormDialog } from "./components/request-dialogs";
 import { parseStatusFilter } from "./lib/request-utils";
@@ -60,16 +62,19 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
 
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const showRejected = parseBooleanParam(searchParams.get("show_rejected"));
+  const excludeRejected = !showRejected && statusFilter === "all";
   const folderFilterId = parseIdParam(searchParams.get("folder"));
   const userFilterId = parseIdParam(searchParams.get("member"));
+  const ordering = parseEnumParam(searchParams.get("ordering"), ["created_at", "-amount", "amount", "title"] as const, "all");
+  const page = parsePageParam(searchParams.get("page"));
+  const searchFromUrl = searchParams.get("search") ?? "";
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [viewingRequest, setViewingRequest] = useState<ExpenseRequest | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-
   const updateUrlFilter = useUrlFilter("/requests", searchParams, projectId);
+  const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
     useProjectResources(projectId, { canView, canEdit });
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
@@ -80,14 +85,23 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           status: statusFilter !== "all" ? statusFilter : undefined,
           folder: folderFilterId ?? undefined,
           requestedBy: userFilterId ?? undefined,
+          excludeRejected,
+          ordering: ordering !== "all" ? ordering : undefined,
+          page,
+          search: searchFromUrl || undefined,
         })
       : ["expense-requests", "disabled"],
     queryFn: () => api.expenseRequests.list(projectId!, {
       status: statusFilter !== "all" ? statusFilter : undefined,
       folder: folderFilterId ?? undefined,
       requested_by: userFilterId ?? undefined,
+      exclude_rejected: excludeRejected || undefined,
+      ordering: ordering !== "all" ? ordering : undefined,
+      page,
+      search: searchFromUrl || undefined,
     }),
     enabled: Boolean(projectId && canView),
+    placeholderData: keepPreviousData,
   });
 
   const createRequest = useMutation({
@@ -154,19 +168,8 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     return <AccessDeniedState description="Vous n'avez pas acces aux demandes de remboursement de ce projet." />;
   }
 
-  const allRequests = normalizeApiList(requestsQuery.data);
-  const visibleRequests =
-    statusFilter === "all" && !showRejected
-      ? allRequests.filter((r) => r.status !== "rejected")
-      : allRequests;
-  const search = searchQuery.trim().toLowerCase();
-  const requests = search
-    ? visibleRequests.filter((r) =>
-        r.title.toLowerCase().includes(search) ||
-        (r.category ?? "").toLowerCase().includes(search) ||
-        (r.description ?? "").toLowerCase().includes(search),
-      )
-    : visibleRequests;
+  const requests = normalizeApiList(requestsQuery.data);
+  const totalCount = getApiCount(requestsQuery.data);
   const folderFilterName = folderFilterId != null ? (folderNameById.get(folderFilterId) ?? "Dossier") : null;
 
   return (
@@ -202,7 +205,14 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           onSelect={(id) => updateUrlFilter({ folder: id })}
           onCreateFolder={canEdit ? handleCreateFolder : undefined}
         />
-        <FilterSearch value={searchQuery} onChange={setSearchQuery} />
+        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
+        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
+          <SelectItem value="all">Date récente</SelectItem>
+          <SelectItem value="created_at">Date ancienne</SelectItem>
+          <SelectItem value="-amount">Montant ↓</SelectItem>
+          <SelectItem value="amount">Montant ↑</SelectItem>
+          <SelectItem value="title">Titre A→Z</SelectItem>
+        </FilterSelect>
         {statusFilter === "all" ? (
           <FilterToggle
             pressed={showRejected}
@@ -211,7 +221,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
             Inclure refusés
           </FilterToggle>
         ) : null}
-        <FilterClear path="/requests" removeKeys={["status", "folder", "member", "show_rejected"]} onClick={() => setSearchQuery("")} />
+        <FilterClear path="/requests" removeKeys={["status", "folder", "member", "show_rejected", "ordering", "page", "search"]} />
       </FilterBar>
 
       {requestsQuery.isLoading ? (
@@ -224,7 +234,8 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="flex flex-col gap-2">
+        <>
+          <div className="flex flex-col gap-2">
           {requests.map((req) => (
             <div
               key={req.id}
@@ -305,7 +316,9 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
               </div>
             </div>
           ))}
-        </div>
+          </div>
+          <PaginationBar count={totalCount} page={page} pageSize={getApiPageSize(requestsQuery.data)} onPageChange={(p) => updateUrlFilter({ page: p })} />
+        </>
       )}
 
       <ExpenseRequestFormDialog

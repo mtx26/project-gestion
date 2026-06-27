@@ -26,6 +26,7 @@ import type {
   TimeEntryPayment,
   TimeEntryPaymentPayload,
   TimeEntryPayload,
+  TimeEntryStats,
   User,
   UserUpdatePayload,
   Folder,
@@ -53,6 +54,17 @@ export function normalizeApiList<T>(data: T[] | PaginatedResponse<T> | undefined
   }
 
   return Array.isArray(data) ? data : data.results;
+}
+
+export function getApiCount<T>(data: T[] | PaginatedResponse<T> | undefined): number {
+  if (!data) return 0;
+  if (Array.isArray(data)) return data.length;
+  return data.count;
+}
+
+export function getApiPageSize<T>(data: T[] | PaginatedResponse<T> | undefined): number {
+  if (!data || Array.isArray(data)) return 50;
+  return (data as PaginatedResponse<T>).page_size ?? 50;
 }
 
 export function summarizeFinancialEntries(entries: Pick<FinancialEntry, "amount" | "type">[]) {
@@ -286,10 +298,11 @@ export function createApiClient({
         }),
     },
     notifications: {
-      list: (query: { unread?: boolean } = {}) =>
+      list: (query: { unread?: boolean; page?: number } = {}) =>
         request<Notification[] | PaginatedResponse<Notification>>(
           `/api/notifications/${buildQueryString({
             unread: query.unread ? "true" : undefined,
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
           })}`,
         ),
       unreadCount: () => request<{ count: number }>("/api/notifications/unread-count/"),
@@ -305,13 +318,16 @@ export function createApiClient({
     financialEntries: {
       list: (
         projectId: number,
-        query: { type?: string; folder?: number; created_by?: number } = {},
+        query: { type?: string; folder?: number; created_by?: number; ordering?: string; page?: number; search?: string } = {},
       ) =>
         request<FinancialEntry[] | PaginatedResponse<FinancialEntry>>(
           `/api/projects/${projectId}/financial-entries/${buildQueryString({
             type: query.type,
             folder: query.folder != null ? String(query.folder) : undefined,
             created_by: query.created_by != null ? String(query.created_by) : undefined,
+            ordering: query.ordering || undefined,
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+            search: query.search || undefined,
           })}`,
         ),
       chart: (
@@ -348,7 +364,15 @@ export function createApiClient({
     timeEntries: {
       list: (
         projectId: number,
-        query: { user?: number; start_date?: string; end_date?: string; include_unpaid?: boolean } = {},
+        query: {
+          user?: number;
+          start_date?: string;
+          end_date?: string;
+          include_unpaid?: boolean;
+          payment_status?: string;
+          target?: string;
+          page?: number;
+        } = {},
       ) =>
         request<TimeEntry[] | PaginatedResponse<TimeEntry>>(
           `/api/projects/${projectId}/time-entries/${buildQueryString({
@@ -356,6 +380,30 @@ export function createApiClient({
             start_date: query.start_date,
             end_date: query.end_date,
             include_unpaid: query.include_unpaid ? "true" : undefined,
+            payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
+            target: query.target && query.target !== "project" ? query.target : undefined,
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+          })}`,
+        ),
+      stats: (
+        projectId: number,
+        query: {
+          user?: number;
+          start_date?: string;
+          end_date?: string;
+          include_unpaid?: boolean;
+          payment_status?: string;
+          target?: string;
+        } = {},
+      ) =>
+        request<TimeEntryStats>(
+          `/api/projects/${projectId}/time-entries/stats/${buildQueryString({
+            user: query.user ? String(query.user) : undefined,
+            start_date: query.start_date,
+            end_date: query.end_date,
+            include_unpaid: query.include_unpaid ? "true" : undefined,
+            payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
+            target: query.target && query.target !== "project" ? query.target : undefined,
           })}`,
         ),
       create: (projectId: number, payload: TimeEntryPayload) =>
@@ -392,13 +440,12 @@ export function createApiClient({
           status?: Task["status"];
           priority?: Task["priority"];
           created_by?: number;
-          include_completed?: boolean;
+          assigned_to?: number;
+          exclude_done?: boolean;
           date_from?: string;
           date_to?: string;
-          start_date_after?: string;
-          start_date_before?: string;
-          due_date_after?: string;
-          due_date_before?: string;
+          page?: number;
+          ordering?: string;
         } = {},
       ) =>
         request<Task[] | PaginatedResponse<Task>>(
@@ -407,13 +454,12 @@ export function createApiClient({
             status: query.status,
             priority: query.priority,
             created_by: query.created_by != null ? String(query.created_by) : undefined,
-            include_completed: query.include_completed ? "true" : undefined,
+            assigned_to: query.assigned_to != null ? String(query.assigned_to) : undefined,
+            exclude_done: query.exclude_done ? "true" : undefined,
             date_from: query.date_from,
             date_to: query.date_to,
-            start_date_after: query.start_date_after,
-            start_date_before: query.start_date_before,
-            due_date_after: query.due_date_after,
-            due_date_before: query.due_date_before,
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+            ordering: query.ordering || undefined,
           })}`,
         ),
       get: (projectId: number, taskId: number) =>
@@ -501,13 +547,17 @@ export function createApiClient({
     expenseRequests: {
       list: (
         projectId: number,
-        query: { status?: string; folder?: number; requested_by?: number } = {},
+        query: { status?: string; folder?: number; requested_by?: number; exclude_rejected?: boolean; ordering?: string; page?: number; search?: string } = {},
       ) =>
         request<ExpenseRequest[] | PaginatedResponse<ExpenseRequest>>(
           `/api/projects/${projectId}/expense-requests/${buildQueryString({
             status: query.status,
             folder: query.folder != null ? String(query.folder) : undefined,
             requested_by: query.requested_by != null ? String(query.requested_by) : undefined,
+            exclude_rejected: query.exclude_rejected ? "true" : undefined,
+            ordering: query.ordering || undefined,
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+            search: query.search || undefined,
           })}`,
         ),
       create: (projectId: number, payload: ExpenseRequestPayload) =>

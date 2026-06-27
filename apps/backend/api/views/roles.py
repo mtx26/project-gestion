@@ -22,17 +22,17 @@ from ..services.roles import (
 @extend_schema(tags=["roles"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les roles d'un projet",
+        summary="Lister les rôles d'un projet",
         description=(
-            "Retourne tous les roles accessibles pour un projet donne.\n\n"
+            "Retourne tous les rôles d'un projet.\n\n"
             "- Recherche disponible : `search` sur `name` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `role.view`."
         ),
     ),
     post=extend_schema(
-        summary="Creer un role",
-        description="Cree un nouveau role dans le projet indique.\nPermission requise : `role.edit`.",
+        summary="Créer un rôle",
+        description="Crée un nouveau rôle dans le projet.\nPermission requise : `role.edit`.",
     ),
 )
 class RoleListCreateView(generics.ListCreateAPIView):
@@ -69,20 +69,20 @@ class RoleListCreateView(generics.ListCreateAPIView):
 @extend_schema(tags=["roles"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Recuperer un role",
-        description="Retourne les details d'un role precis d'un projet.\nPermission requise : `role.view`.",
+        summary="Détail d'un rôle",
+        description="Retourne un rôle précis d'un projet.\nPermission requise : `role.view`.",
     ),
     put=extend_schema(
-        summary="Remplacer un role",
-        description="Remplace entierement les donnees d'un role.\nPermission requise : `role.edit`.",
+        summary="Modifier un rôle",
+        description="Modifie complètement un rôle.\nPermission requise : `role.edit`.",
     ),
     patch=extend_schema(
-        summary="Modifier un role",
-        description="Modifie partiellement les donnees d'un role.\nPermission requise : `role.edit`.",
+        summary="Modifier partiellement un rôle",
+        description="Modifie partiellement un rôle.\nPermission requise : `role.edit`.",
     ),
     delete=extend_schema(
-        summary="Supprimer un role",
-        description="Supprime un role du projet.\nPermission requise : `role.delete`.",
+        summary="Supprimer un rôle",
+        description="Supprime un rôle du projet via soft delete.\nPermission requise : `role.delete`.",
     ),
 )
 class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -117,11 +117,10 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     get=extend_schema(
         summary="Lister les permissions",
         description=(
-            "Retourne toutes les permissions disponibles pour creer ou modifier un role.\n\n"
+            "Retourne toutes les permissions disponibles pour créer ou modifier un rôle.\n\n"
             "- Filtres disponibles : `code`.\n\n"
             "- Recherche disponible : `search` sur `code`, `name` et `description`.\n\n"
-            "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `role.view`."
+            "- Pagination disponible : `page`."
         ),
     ),
 )

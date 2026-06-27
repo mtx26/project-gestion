@@ -2,9 +2,9 @@
 
 import type { FinancialEntry, FinancialEntryPayload, TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
-import { normalizeApiList } from "@project-gestion/api";
+import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Banknote, Pencil, Plus, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -29,12 +29,14 @@ import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
-import { buildProjectHref, parseIdParam } from "@/lib/url-params";
+import { buildProjectHref, parseEnumParam, parseIdParam, parsePageParam } from "@/lib/url-params";
+import { PaginationBar } from "@/components/pagination-bar";
 import { useProjectResources } from "@/lib/use-project-resources";
+import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { FinanceBarChart } from "./components/finance-bar-chart";
 import { FinancialEntryDetailDialog, FinancialEntryFormDialog } from "./components/finance-entry-dialogs";
-import { computeTotals, parseTypeFilter } from "./lib/finance-utils";
+import { parseTypeFilter } from "./lib/finance-utils";
 
 export default function FinancePage() {
   const router = useRouter();
@@ -75,6 +77,9 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
   const typeFilter = parseTypeFilter(searchParams.get("type"));
   const folderFilterId = parseIdParam(searchParams.get("folder"));
   const userFilterId = parseIdParam(searchParams.get("member"));
+  const ordering = parseEnumParam(searchParams.get("ordering"), ["created_at", "-amount", "amount"] as const, "all");
+  const page = parsePageParam(searchParams.get("page"));
+  const searchFromUrl = searchParams.get("search") ?? "";
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
@@ -82,12 +87,21 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
   const [viewingEntry, setViewingEntry] = useState<FinancialEntry | null>(null);
   const [viewingTimeEntry, setViewingTimeEntry] = useState<TimeEntry | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-
   const updateUrlFilter = useUrlFilter("/finance", searchParams, projectId);
+  const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
     useProjectResources(projectId, { canView: canViewFinance, canEdit: canEditFinance });
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
+
+  const chartStartDate = new Date();
+  chartStartDate.setFullYear(chartStartDate.getFullYear() - 1);
+  const chartStartDateStr = chartStartDate.toISOString().slice(0, 10);
+
+  const chartQuery = useQuery({
+    queryKey: projectId ? queryKeys.financialEntries.chart(projectId, "month", chartStartDateStr) : ["finance-chart", "disabled"],
+    queryFn: () => api.financialEntries.chart(projectId!, { group_by: "month", start_date: chartStartDateStr }),
+    enabled: Boolean(projectId && canViewFinance),
+  });
 
   const entriesQuery = useQuery({
     queryKey: projectId
@@ -95,6 +109,9 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
           type: typeFilter !== "all" ? typeFilter : undefined,
           folder: folderFilterId ?? undefined,
           createdBy: userFilterId ?? undefined,
+          ordering: ordering !== "all" ? ordering : undefined,
+          page,
+          search: searchFromUrl || undefined,
         })
       : ["financial-entries", "disabled"],
     queryFn: () =>
@@ -102,8 +119,12 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
         type: typeFilter !== "all" ? typeFilter : undefined,
         folder: folderFilterId ?? undefined,
         created_by: userFilterId ?? undefined,
+        ordering: ordering !== "all" ? ordering : undefined,
+        page,
+        search: searchFromUrl || undefined,
       }),
     enabled: Boolean(projectId && canViewFinance),
+    placeholderData: keepPreviousData,
   });
 
   const createEntry = useMutation({
@@ -164,18 +185,9 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
     return <AccessDeniedState description="Vous n'avez pas acces aux finances de ce projet." />;
   }
 
-  const allEntries = normalizeApiList(entriesQuery.data);
-  const search = searchQuery.trim().toLowerCase();
-  const entries = search
-    ? allEntries.filter(
-        (e) =>
-          (e.category ?? "").toLowerCase().includes(search) ||
-          (e.description ?? "").toLowerCase().includes(search) ||
-          (e.task_name ?? "").toLowerCase().includes(search) ||
-          (e.created_by_name ?? "").toLowerCase().includes(search),
-      )
-    : allEntries;
-  const totals = computeTotals(entries);
+  const entries = normalizeApiList(entriesQuery.data);
+  const totalCount = getApiCount(entriesQuery.data);
+  const chartTotals = chartQuery.data?.totals;
   const folderFilterName = folderFilterId != null ? (folderNameById.get(folderFilterId) ?? "Dossier") : null;
 
   return (
@@ -210,19 +222,25 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
           onSelect={(id) => updateUrlFilter({ folder: id })}
           onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
         />
-        <FilterSearch value={searchQuery} onChange={setSearchQuery} />
-        <FilterClear path="/finance" removeKeys={["type", "folder", "member"]} onClick={() => setSearchQuery("")} />
+        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
+        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
+          <SelectItem value="all">Date récente</SelectItem>
+          <SelectItem value="created_at">Date ancienne</SelectItem>
+          <SelectItem value="-amount">Montant ↓</SelectItem>
+          <SelectItem value="amount">Montant ↑</SelectItem>
+        </FilterSelect>
+        <FilterClear path="/finance" removeKeys={["type", "folder", "member", "ordering", "page", "search"]} />
       </FilterBar>
 
-      <FinanceBarChart entries={entries} isLoading={entriesQuery.isLoading} />
+      <FinanceBarChart series={chartQuery.data?.series} isLoading={chartQuery.isLoading} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <SummaryCard label="Depenses" value={formatMoney(totals.expenses)} className="text-destructive" />
-        <SummaryCard label="Remboursements" value={formatMoney(totals.refunds)} className="text-emerald-600" />
+        <SummaryCard label="Depenses" value={formatMoney(Number(chartTotals?.expenses ?? 0))} className="text-destructive" />
+        <SummaryCard label="Remboursements" value={formatMoney(Number(chartTotals?.refunds ?? 0))} className="text-emerald-600" />
         <SummaryCard
           label="Net"
-          value={formatMoney(totals.balance)}
-          className={totals.balance >= 0 ? "text-emerald-600" : "text-destructive"}
+          value={formatMoney(Number(chartTotals?.balance ?? 0))}
+          className={Number(chartTotals?.balance ?? 0) >= 0 ? "text-emerald-600" : "text-destructive"}
         />
       </div>
 
@@ -236,7 +254,8 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
           </EmptyHeader>
         </Empty>
       ) : (
-        <div className="flex flex-col gap-2">
+        <>
+          <div className="flex flex-col gap-2">
           {entries.map((entry) => (
             <div
               key={entry.id}
@@ -294,7 +313,9 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
               </div>
             </div>
           ))}
-        </div>
+          </div>
+          <PaginationBar count={totalCount} page={page} pageSize={getApiPageSize(entriesQuery.data)} onPageChange={(p) => updateUrlFilter({ page: p })} />
+        </>
       )}
 
       <FinancialEntryFormDialog

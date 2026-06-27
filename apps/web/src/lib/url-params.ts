@@ -5,6 +5,7 @@ export function buildProjectHref(
 ): string {
   const params = new URLSearchParams(searchParams?.toString() ?? "");
   params.set("project", String(projectId));
+  params.delete("page");
   return `${path}?${params.toString()}`;
 }
 
@@ -23,6 +24,12 @@ export function parseIdParam(value: string | null): number | null {
   if (!value) return null;
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export function parsePageParam(value: string | null): number {
+  if (!value) return 1;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1;
 }
 
 export function parseBooleanParam(value: string | null): boolean {
@@ -53,11 +60,11 @@ export function parseEnumParam<T extends string>(
  */
 export function buildFilterParams(
   searchParams: { toString(): string },
-  projectId: number,
+  projectId: number | null,
   changes: Record<string, string | number | boolean | null | undefined>,
 ): URLSearchParams {
   const params = new URLSearchParams(searchParams.toString());
-  params.set("project", String(projectId));
+  if (projectId != null) params.set("project", String(projectId));
   for (const [key, value] of Object.entries(changes)) {
     if (value === undefined) continue;
     if (value === null || value === false || value === "all") {

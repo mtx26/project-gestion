@@ -1,12 +1,12 @@
 "use client";
 
-import type { FinancialEntry } from "@project-gestion/types";
+import type { FinancialEntryChartSeriesPoint } from "@project-gestion/types";
 import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMoney } from "@/lib/task-utils";
-import { computeFinanceChartData, financeChartConfig, formatFinancePeriod } from "../lib/finance-utils";
+import { financeChartConfig, formatFinancePeriod } from "../lib/finance-utils";
 
 function FinanceChartTooltip({
   active,
@@ -38,8 +38,17 @@ function FinanceChartTooltip({
   );
 }
 
-export function FinanceBarChart({ entries, isLoading }: { entries: FinancialEntry[]; isLoading: boolean }) {
-  const data = useMemo(() => computeFinanceChartData(entries), [entries]);
+export function FinanceBarChart({
+  series,
+  isLoading,
+}: {
+  series: FinancialEntryChartSeriesPoint[] | undefined;
+  isLoading: boolean;
+}) {
+  const data = useMemo(
+    () => (series ?? []).map((p) => ({ period: p.period, expenses: Number(p.expenses), refunds: Number(p.refunds) })),
+    [series],
+  );
 
   if (isLoading) return <Skeleton className="h-52 w-full rounded-lg" />;
   if (data.length < 2) return null;

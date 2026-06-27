@@ -1,4 +1,4 @@
-from django.db.models import Q
+from django.db.models import Case, IntegerField, Q, Value, When
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 
@@ -16,19 +16,18 @@ from ..permissions import HasProjectPermission
 from ..serializers import TaskSerializer
 from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
+from ..utils import StableOrderingFilter
 
 
 class TaskFilter(django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
-    # Filtres de plage individuels
-    start_date_after = django_filters.DateFilter(field_name="start_date", lookup_expr="gte")
-    start_date_before = django_filters.DateFilter(field_name="start_date", lookup_expr="lte")
-    due_date_after = django_filters.DateFilter(field_name="due_date", lookup_expr="gte")
-    due_date_before = django_filters.DateFilter(field_name="due_date", lookup_expr="lte")
+    exclude_done = django_filters.BooleanFilter(method="filter_exclude_done")
+    date_from = django_filters.DateFilter(method="filter_date_from")
+    date_to = django_filters.DateFilter(method="filter_date_to")
 
     class Meta:
         model = Task
-        fields = ["status", "priority", "due_date", "created_by", "assigned_to"]
+        fields = ["status", "priority", "created_by", "assigned_to"]
 
     def filter_folder(self, queryset, name, value):
         project_id = self.request.parser_context["kwargs"].get("project_id")
@@ -37,55 +36,53 @@ class TaskFilter(django_filters.FilterSet):
         folder_ids = get_descendant_folder_ids(value, project_id)
         return queryset.filter(folder_id__in=folder_ids)
 
-
-def apply_task_date_range(queryset, request):
-    """
-    Filtre OR combiné : retourne les tâches dont start_date OU due_date
-    tombe dans [date_from, date_to]. Utilisé par le calendrier.
-    """
-    date_from = parse_date(request.query_params.get("date_from") or "")
-    date_to = parse_date(request.query_params.get("date_to") or "")
-
-    if not date_from and not date_to:
+    def filter_exclude_done(self, queryset, _name, value):
+        if value:
+            return queryset.exclude(status="done")
         return queryset
 
-    if date_from and date_to:
-        q = (
-            Q(start_date__gte=date_from, start_date__lte=date_to) |
-            Q(due_date__gte=date_from, due_date__lte=date_to)
-        )
-    elif date_from:
-        q = Q(start_date__gte=date_from) | Q(due_date__gte=date_from)
-    else:
-        q = Q(start_date__lte=date_to) | Q(due_date__lte=date_to)
+    def filter_date_from(self, queryset, _name, value):
+        date_to = parse_date(self.data.get("date_to") or "")
+        if date_to:
+            return queryset.filter(
+                Q(start_date__gte=value, start_date__lte=date_to) |
+                Q(due_date__gte=value, due_date__lte=date_to)
+            )
+        return queryset.filter(Q(start_date__gte=value) | Q(due_date__gte=value))
 
-    return queryset.filter(q)
+    def filter_date_to(self, queryset, _name, value):
+        if self.data.get("date_from"):
+            return queryset  # logique déjà appliquée par filter_date_from
+        return queryset.filter(Q(start_date__lte=value) | Q(due_date__lte=value))
 
 
 @extend_schema(tags=["tasks"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les taches d'un projet",
+        summary="Lister les tâches d'un projet",
         description=(
-            "Retourne toutes les taches actives d'un projet.\n\n"
-            "- Filtres disponibles : `folder`, `status`, `priority`, "
-            "`due_date`, `created_by`, `assigned_to`.\n\n"
+            "Retourne toutes les tâches actives d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `priority`, `created_by`, `assigned_to`, `exclude_done`.\n\n"
+            "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `due_date` tombe dans la plage.\n\n"
             "- Recherche disponible : `search` sur `title` et `description`.\n\n"
+            "- Tri disponible : `ordering` sur `title`, `folder__name`, `status_order`, `priority_order`, `due_date`, `created_at`. "
+            "Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `task.view`."
         ),
     ),
     post=extend_schema(
-        summary="Creer une tache",
-        description="Cree une nouvelle tache dans un projet.\nPermission requise : `task.edit`.",
+        summary="Créer une tâche",
+        description="Crée une nouvelle tâche dans un projet.\nPermission requise : `task.edit`.",
     ),
 )
 class TaskListCreateView(generics.ListCreateAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = TaskFilter
     search_fields = ["title", "description"]
+    ordering_fields = ["title", "folder__name", "status_order", "priority_order", "due_date", "created_at"]
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -102,6 +99,21 @@ class TaskListCreateView(generics.ListCreateAPIView):
         queryset = Task.objects.filter(
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
+        ).annotate(
+            status_order=Case(
+                When(status="todo", then=Value(0)),
+                When(status="in_progress", then=Value(1)),
+                When(status="done", then=Value(2)),
+                default=Value(0),
+                output_field=IntegerField(),
+            ),
+            priority_order=Case(
+                When(priority="low", then=Value(0)),
+                When(priority="normal", then=Value(1)),
+                When(priority="high", then=Value(2)),
+                default=Value(1),
+                output_field=IntegerField(),
+            ),
         ).select_related(
             "project",
             "folder",
@@ -110,7 +122,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
 
-        return apply_task_date_range(queryset, self.request)
+        return queryset
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -136,20 +148,20 @@ class TaskListCreateView(generics.ListCreateAPIView):
 @extend_schema(tags=["tasks"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Detail d'une tache",
-        description="Retourne une tache precise.\nPermission requise : `task.view`.",
+        summary="Détail d'une tâche",
+        description="Retourne une tâche précise.\nPermission requise : `task.view`.",
     ),
     put=extend_schema(
-        summary="Modifier une tache",
-        description="Modifie completement une tache.\nPermission requise : `task.edit`.",
+        summary="Modifier une tâche",
+        description="Modifie complètement une tâche.\nPermission requise : `task.edit`.",
     ),
     patch=extend_schema(
-        summary="Modifier partiellement une tache",
-        description="Modifie partiellement une tache.\nPermission requise : `task.edit`.",
+        summary="Modifier partiellement une tâche",
+        description="Modifie partiellement une tâche.\nPermission requise : `task.edit`.",
     ),
     delete=extend_schema(
-        summary="Supprimer une tache",
-        description="Supprime une tache via soft delete.\nPermission requise : `task.delete`.",
+        summary="Supprimer une tâche",
+        description="Supprime une tâche via soft delete.\nPermission requise : `task.delete`.",
     ),
 )
 class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -188,14 +200,14 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema(tags=["tasks"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les taches supprimees",
+        summary="Lister les tâches supprimées",
         description=(
-            "Retourne les taches supprimees d'un projet.\n\n"
-            "- Filtres disponibles : `folder`, `status`, `priority`, "
-            "`due_date`, `created_by`, `assigned_to`.\n\n"
+            "Retourne les tâches supprimées d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `priority`, `created_by`, `assigned_to`, `exclude_done`.\n\n"
+            "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `due_date` tombe dans la plage.\n\n"
             "- Recherche disponible : `search` sur `title` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `task.view`."
+            "- Permission requise : `task.restore`."
         ),
     )
 )
@@ -225,14 +237,14 @@ class TaskTrashListView(generics.ListAPIView):
             "assigned_to",
         ).order_by("due_date", "created_at", "id")
 
-        return apply_task_date_range(queryset, self.request)
+        return queryset
 
 
 @extend_schema(tags=["tasks"])
 @extend_schema_view(
     post=extend_schema(
-        summary="Restaurer une tache",
-        description="Restaure une tache supprimee.\nPermission requise : `task.restore`.",
+        summary="Restaurer une tâche",
+        description="Restaure une tâche supprimée.\nPermission requise : `task.restore`.",
         request=None,
     )
 )

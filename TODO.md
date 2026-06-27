@@ -35,3 +35,8 @@ dans la modal de finance , change un peu la logice pour lier une fincae a un tim
 mette le filtre sur mobile dasn un bouton filtre avec une modal comme c'est souvent dasn les ite etc
 
 y'a un probeleme avec les selecter de page dasn setting, tash etc car pas resposnive
+
+
+si je veux mettre en place les notification fcm, mail et apres autre, que utilise la technologie, la manier de lutilsie et lintegre ? 
+
+et met qand le guery etc les triee aussi etc, je veux que le filitre soi tvriement coté bakcend comme les trie et que tou les trie aussi car y'a la pagination 

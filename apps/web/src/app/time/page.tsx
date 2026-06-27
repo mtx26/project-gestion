@@ -2,9 +2,9 @@
 
 import type { Task, TimeEntry } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
-import { normalizeApiList } from "@project-gestion/api";
+import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Lock, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -22,16 +22,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
-import { getDescendantFolderIds } from "@/lib/folder-utils";
 import {
   buildTargetTree,
-  collectTaskFolderIds,
   findTargetLabel,
   getTargetPayload,
 } from "@/lib/target-utils";
-import { buildProjectHref, parseBooleanParam } from "@/lib/url-params";
+import { buildProjectHref, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
+import { PaginationBar } from "@/components/pagination-bar";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
 import { TimeEntryForm } from "./components/time-entry-form";
 import { TimeEntryList } from "./components/time-entry-list";
@@ -41,8 +40,6 @@ import {
   type PaymentStatusFilter,
   type PeriodPreset,
   type UserFilter,
-  filterTimeEntriesByPaymentStatus,
-  filterTimeEntriesByTarget,
   getPeriodRange,
   getSelectedUserId,
   getTotalsLabel,
@@ -51,7 +48,6 @@ import {
   parsePeriodPreset,
   parseTargetFilter,
   parseUserFilter,
-  summarizeTimeEntries,
 } from "./lib/time-filters";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 
@@ -108,6 +104,8 @@ function ProjectTimeContent({
   const [viewingEntry, setViewingEntry] = useState<TimeEntry | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
 
+  const page = parsePageParam(searchParams.get("page"));
+
   const updateUrlFilter = useUrlFilter("/time", searchParams, projectId);
   const { folders, targetFolders, members, handleCreateFolder } = useProjectResources(projectId, {
     canView: canViewTime,
@@ -122,6 +120,9 @@ function ProjectTimeContent({
           startDate: periodRange.startDate,
           endDate: periodRange.endDate,
           includeUnpaid: includeUnpaidOutsideMonth,
+          paymentStatus: paymentStatusFilter,
+          target: targetFilter ?? undefined,
+          page,
         })
       : ["time-entries", "disabled"],
     queryFn: () =>
@@ -130,27 +131,47 @@ function ProjectTimeContent({
         start_date: periodRange.startDate,
         end_date: periodRange.endDate,
         include_unpaid: includeUnpaidOutsideMonth,
+        payment_status: paymentStatusFilter,
+        target: targetFilter ?? undefined,
+        page,
+      }),
+    enabled: Boolean(selectedProject && canViewTime),
+    placeholderData: keepPreviousData,
+  });
+
+  const statsQuery = useQuery({
+    queryKey: selectedProject
+      ? queryKeys.timeEntries.stats(selectedProject.id, {
+          userId: selectedUserId ?? "all",
+          startDate: periodRange.startDate,
+          endDate: periodRange.endDate,
+          includeUnpaid: includeUnpaidOutsideMonth,
+          paymentStatus: paymentStatusFilter,
+          target: targetFilter ?? undefined,
+        })
+      : ["time-entries", "stats", "disabled"],
+    queryFn: () =>
+      api.timeEntries.stats(selectedProject!.id, {
+        ...(selectedUserId == null ? {} : { user: selectedUserId }),
+        start_date: periodRange.startDate,
+        end_date: periodRange.endDate,
+        include_unpaid: includeUnpaidOutsideMonth,
+        payment_status: paymentStatusFilter,
+        target: targetFilter ?? undefined,
       }),
     enabled: Boolean(selectedProject && canViewTime),
   });
 
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
-  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
-  const selectedTargetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
-  const taskFolderById = useMemo(() => collectTaskFolderIds(targetTree), [targetTree]);
-  const userNameById = useMemo(
-    () => new Map(members.map((m): [number, string] => [m.user, m.user_display_name])),
-    [members],
-  );
-  const descendantFolderIds = useMemo(() => {
-    if (!targetFilter?.startsWith("folder-")) return null;
-    return getDescendantFolderIds(folders, Number(targetFilter.replace("folder-", "")));
-  }, [folders, targetFilter]);
-  const visibleTimeEntries = useMemo(
-    () => filterTimeEntriesByPaymentStatus(filterTimeEntriesByTarget(timeEntries, targetFilter, taskFolderById, descendantFolderIds), paymentStatusFilter),
-    [paymentStatusFilter, targetFilter, taskFolderById, timeEntries, descendantFolderIds],
-  );
-  const totals = summarizeTimeEntries(visibleTimeEntries);
+  const totalCount = getApiCount(timeEntriesQuery.data);
+  const targetTree = buildTargetTree(targetFolders);
+  const selectedTargetLabel = findTargetLabel(targetTree, targetValue) ?? "Projet";
+  const userNameById = new Map(members.map((m): [number, string] => [m.user, m.user_display_name]));
+  const totals = {
+    durationMinutes: statsQuery.data?.duration_minutes ?? 0,
+    costAmount: Number(statsQuery.data?.cost_amount ?? 0),
+    remainingAmount: Number(statsQuery.data?.remaining_amount ?? 0),
+  };
   const targetFilterLabel = targetFilter ? findTargetLabel(targetTree, targetFilter) : null;
   const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, periodPreset, members, user?.id ?? null, targetFilterLabel);
 
@@ -292,7 +313,7 @@ function ProjectTimeContent({
                 <p className="mb-3 text-sm text-muted-foreground">Vue limitee a tes propres entrees.</p>
               ) : null}
               <TimeEntryList
-                entries={visibleTimeEntries}
+                entries={timeEntries}
                 isLoading={timeEntriesQuery.isLoading}
                 canPay={canPayTime}
                 canEdit={canRecordTime}
@@ -303,6 +324,12 @@ function ProjectTimeContent({
                 onDetail={setViewingEntry}
                 onDelete={(entry) => deleteTimeEntry.mutate(entry.id)}
               />
+              <PaginationBar
+                count={totalCount}
+                page={page}
+                pageSize={getApiPageSize(timeEntriesQuery.data)}
+                onPageChange={(p) => updateUrlFilter({ page: p })}
+              />
             </CardContent>
           </Card>
         ) : null}
@@ -311,7 +338,7 @@ function ProjectTimeContent({
           <TimeTotalsPanel
             label={totalsLabel}
             totals={totals}
-            entries={visibleTimeEntries}
+            entries={timeEntries}
             userNameById={userNameById}
             currentUserId={user?.id ?? null}
           />

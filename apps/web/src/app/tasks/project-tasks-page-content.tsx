@@ -2,9 +2,9 @@
 
 import type { Task, TaskPayload } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
-import { normalizeApiList } from "@project-gestion/api";
+import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, UserCheck } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -25,7 +25,8 @@ import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
-import { buildProjectHref, parseBooleanParam, parseIdParam } from "@/lib/url-params";
+import { buildProjectHref, parseBooleanParam, parseIdParam, parsePageParam } from "@/lib/url-params";
+import { PaginationBar } from "@/components/pagination-bar";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { TaskFormDialog } from "./components/task-form-dialog";
@@ -73,9 +74,13 @@ function ProjectTasksContent({
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const priorityFilter = parsePriorityFilter(searchParams.get("priority"));
   const includeCompleted = parseBooleanParam(searchParams.get("include_completed"));
-  const showCompleted = includeCompleted || statusFilter === "done";
+  const excludeDone = !includeCompleted && statusFilter === "all";
   const createdByFilter = parseIdParam(searchParams.get("member"));
   const folderId = getFolderId(folderFilter);
+  const page = parsePageParam(searchParams.get("page"));
+  const sortField = searchParams.get("sort") ?? "";
+  const sortDir = (searchParams.get("order") === "desc" ? "desc" : "asc") as "asc" | "desc";
+  const ordering = sortField ? `${sortDir === "desc" ? "-" : ""}${sortField}` : undefined;
 
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -94,6 +99,9 @@ function ProjectTasksContent({
           status: statusFilter === "all" ? undefined : statusFilter,
           priority: priorityFilter === "all" ? undefined : priorityFilter,
           createdBy: createdByFilter ?? undefined,
+          excludeDone: excludeDone || undefined,
+          page,
+          ordering,
         })
       : ["tasks", "disabled"],
     queryFn: () =>
@@ -102,13 +110,39 @@ function ProjectTasksContent({
         ...(statusFilter === "all" ? {} : { status: statusFilter }),
         ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
         ...(createdByFilter == null ? {} : { created_by: createdByFilter }),
+        exclude_done: excludeDone || undefined,
+        page,
+        ordering,
       }),
     enabled: Boolean(selectedProject && canViewTasks),
+    placeholderData: keepPreviousData,
+  });
+
+  const myTasksQuery = useQuery({
+    queryKey: selectedProject && user
+      ? queryKeys.tasks.list(selectedProject.id, {
+          folderId: folderId ?? undefined,
+          status: statusFilter === "all" ? undefined : statusFilter,
+          priority: priorityFilter === "all" ? undefined : priorityFilter,
+          excludeDone: excludeDone || undefined,
+          assignedTo: user.id,
+        })
+      : ["tasks", "my-tasks", "disabled"],
+    queryFn: () =>
+      api.tasks.list(selectedProject!.id, {
+        ...(folderId == null ? {} : { folder: folderId }),
+        ...(statusFilter === "all" ? {} : { status: statusFilter }),
+        ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
+        exclude_done: excludeDone || undefined,
+        assigned_to: user!.id,
+      }),
+    enabled: Boolean(selectedProject && canViewTasks && user),
+    placeholderData: keepPreviousData,
   });
 
   const tasks = normalizeApiList(tasksQuery.data);
-  const visibleTasks = showCompleted ? tasks : tasks.filter((t) => t.status !== "done");
-  const myTasks = user ? visibleTasks.filter((t) => t.assigned_to.includes(user.id)) : [];
+  const totalCount = getApiCount(tasksQuery.data);
+  const myTasks = normalizeApiList(myTasksQuery.data);
 
   const createTask = useMutation({
     mutationFn: (payload: TaskPayload) => api.tasks.create(selectedProject!.id, payload),
@@ -137,7 +171,6 @@ function ProjectTasksContent({
     },
     onError: toastError,
   });
-
 
   function handleStatusChange(task: Task, status: Task["status"]) {
     const payload: Partial<TaskPayload> = { status };
@@ -204,12 +237,12 @@ function ProjectTasksContent({
           />
         ) : null}
         <FilterToggle
-          pressed={showCompleted}
+          pressed={includeCompleted || statusFilter === "done"}
           onPressedChange={(pressed) => updateUrlFilter({ include_completed: pressed })}
         >
           Inclure terminées
         </FilterToggle>
-        <FilterClear path="/tasks" removeKeys={["folder", "status", "priority", "member", "include_completed"]} />
+        <FilterClear path="/tasks" removeKeys={["folder", "status", "priority", "member", "include_completed", "page", "sort", "order"]} />
       </FilterBar>
 
       {myTasks.length > 0 ? (
@@ -227,6 +260,9 @@ function ProjectTasksContent({
               canDelete={canDeleteTasks}
               deletingId={deleteTask.isPending ? deleteTask.variables : null}
               defaultVisibility={{ assignees: false }}
+              sortField={sortField}
+              sortDir={sortDir}
+              onSortChange={(field, dir) => updateUrlFilter({ sort: field, order: dir })}
               onOpenDetail={setViewingTask}
               onEdit={setEditingTask}
               onDelete={(task) => deleteTask.mutate(task.id)}
@@ -244,7 +280,7 @@ function ProjectTasksContent({
           <FormErrorAlert error={getErrorMessage(tasksQuery.error)} className="mb-3" />
           {tasksQuery.isLoading ? (
             <SkeletonLoader count={3} className="h-20 rounded-md" />
-          ) : visibleTasks.length === 0 ? (
+          ) : tasks.length === 0 ? (
             <Empty className="border p-8">
               <EmptyHeader>
                 <EmptyTitle>Aucune tache</EmptyTitle>
@@ -252,16 +288,27 @@ function ProjectTasksContent({
               </EmptyHeader>
             </Empty>
           ) : (
-            <TaskTable
-              tasks={visibleTasks}
-              canEdit={canEditTasks}
-              canDelete={canDeleteTasks}
-              deletingId={deleteTask.isPending ? deleteTask.variables : null}
-              onOpenDetail={setViewingTask}
-              onEdit={setEditingTask}
-              onDelete={(task) => deleteTask.mutate(task.id)}
-              onStatusChange={handleStatusChange}
-            />
+            <>
+              <TaskTable
+                tasks={tasks}
+                canEdit={canEditTasks}
+                canDelete={canDeleteTasks}
+                deletingId={deleteTask.isPending ? deleteTask.variables : null}
+                sortField={sortField}
+                sortDir={sortDir}
+                onSortChange={(field, dir) => updateUrlFilter({ sort: field, order: dir })}
+                onOpenDetail={setViewingTask}
+                onEdit={setEditingTask}
+                onDelete={(task) => deleteTask.mutate(task.id)}
+                onStatusChange={handleStatusChange}
+              />
+              <PaginationBar
+                count={totalCount}
+                page={page}
+                pageSize={getApiPageSize(tasksQuery.data)}
+                onPageChange={(p) => updateUrlFilter({ page: p })}
+              />
+            </>
           )}
         </CardContent>
       </Card>

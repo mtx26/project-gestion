@@ -2,6 +2,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+import django_filters
 from rest_framework import generics
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
@@ -10,10 +11,34 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
+from ..utils import StableOrderingFilter
+
 from ..models import ExpenseRequest, FinancialEntry
 from ..permissions import HasProjectPermission
 from ..serializers import ExpenseRequestSerializer
+from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
+
+
+class ExpenseRequestFilter(django_filters.FilterSet):
+    folder = django_filters.NumberFilter(method="filter_folder")
+    exclude_rejected = django_filters.BooleanFilter(method="filter_exclude_rejected")
+
+    class Meta:
+        model = ExpenseRequest
+        fields = ["status", "requested_by"]
+
+    def filter_folder(self, queryset, name, value):
+        project_id = self.request.parser_context["kwargs"].get("project_id")
+        if not project_id:
+            return queryset
+        folder_ids = get_descendant_folder_ids(value, project_id)
+        return queryset.filter(folder_id__in=folder_ids)
+
+    def filter_exclude_rejected(self, queryset, _name, value):
+        if value:
+            return queryset.exclude(status="rejected")
+        return queryset
 
 
 def _expense_request_qs(user, project_id, **extra_filters):
@@ -34,19 +59,27 @@ def _expense_request_qs(user, project_id, **extra_filters):
 @extend_schema_view(
     get=extend_schema(
         summary="Lister les demandes de remboursement",
-        description="Retourne toutes les demandes de remboursement actives d'un projet.\nPermission requise : `expense_request.view`.",
+        description=(
+            "Retourne toutes les demandes de remboursement actives d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `requested_by`, `exclude_rejected`.\n\n"
+            "- Recherche disponible : `search` sur `title`, `category` et `description`.\n\n"
+            "- Tri disponible : `ordering` sur `title`, `amount`, `created_at`. Préfixer avec `-` pour ordre descendant.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `expense_request.view`."
+        ),
     ),
     post=extend_schema(
-        summary="Creer une demande de remboursement",
-        description="Cree une nouvelle demande de remboursement.\nPermission requise : `expense_request.edit`.",
+        summary="Créer une demande de remboursement",
+        description="Crée une nouvelle demande de remboursement.\nPermission requise : `expense_request.edit`.",
     ),
 )
 class ExpenseRequestListCreateView(generics.ListCreateAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["status", "folder", "requested_by"]
+    filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
+    filterset_class = ExpenseRequestFilter
     search_fields = ["title", "category", "description"]
+    ordering_fields = ["title", "amount", "created_at"]
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -73,12 +106,12 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
 @extend_schema(tags=["expense-requests"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Detail d'une demande de remboursement",
-        description="Retourne une demande de remboursement precise.\nPermission requise : `expense_request.view`.",
+        summary="Détail d'une demande de remboursement",
+        description="Retourne une demande de remboursement précise.\nPermission requise : `expense_request.view`.",
     ),
     put=extend_schema(
         summary="Modifier une demande de remboursement",
-        description="Modifie une demande de remboursement (seulement si en attente).\nPermission requise : `expense_request.edit`.",
+        description="Modifie complètement une demande de remboursement.\nPermission requise : `expense_request.edit`.",
     ),
     patch=extend_schema(
         summary="Modifier partiellement une demande de remboursement",
@@ -86,7 +119,7 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
     ),
     delete=extend_schema(
         summary="Supprimer une demande de remboursement",
-        description="Supprime une demande via soft delete.\nPermission requise : `expense_request.delete`.",
+        description="Supprime une demande de remboursement via soft delete.\nPermission requise : `expense_request.delete`.",
     ),
 )
 class ExpenseRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -118,8 +151,8 @@ class ExpenseRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
     post=extend_schema(
         summary="Approuver une demande de remboursement",
         description=(
-            "Approuve une demande en attente et cree automatiquement une entree financiere "
-            "de type depense avec le meme dossier et montant.\n\n"
+            "Approuve une demande en attente et crée automatiquement une entrée financière "
+            "de type dépense avec le même dossier et montant.\n"
             "Permission requise : `expense_request.approve`."
         ),
         request=None,
@@ -196,13 +229,22 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
 @extend_schema(tags=["expense-requests"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les demandes de remboursement supprimees",
-        description="Retourne les demandes de remboursement en corbeille.\nPermission requise : `expense_request.restore`.",
+        summary="Lister les demandes de remboursement supprimées",
+        description=(
+            "Retourne les demandes de remboursement supprimées d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `requested_by`, `exclude_rejected`.\n\n"
+            "- Recherche disponible : `search` sur `title`, `category` et `description`.\n\n"
+            "- Pagination disponible : `page`.\n\n"
+            "- Permission requise : `expense_request.restore`."
+        ),
     )
 )
 class ExpenseRequestTrashListView(generics.ListAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filterset_class = ExpenseRequestFilter
+    search_fields = ["title", "category", "description"]
 
     def get_permissions(self):
         self.permission_code = "expense_request.restore"
@@ -228,7 +270,7 @@ class ExpenseRequestTrashListView(generics.ListAPIView):
 @extend_schema_view(
     post=extend_schema(
         summary="Restaurer une demande de remboursement",
-        description="Restaure une demande de remboursement supprimee.\nPermission requise : `expense_request.restore`.",
+        description="Restaure une demande de remboursement supprimée.\nPermission requise : `expense_request.restore`.",
         request=None,
     )
 )

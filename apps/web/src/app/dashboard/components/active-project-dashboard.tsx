@@ -54,16 +54,18 @@ export function ActiveProjectDashboard({
     queryFn: () => api.financialEntries.chart(project!.id, { group_by: "month" }),
     enabled: Boolean(project && canViewFinance),
   });
-  const timeEntriesQuery = useQuery({
+  const timeStatsQuery = useQuery({
     queryKey: project
-      ? queryKeys.timeEntries.list(project.id, {
+      ? queryKeys.timeEntries.stats(project.id, {
           userId: defaultTimeUserFilter === "all" ? "all" : userId ?? undefined,
           includeUnpaid: true,
+          paymentStatus: "not_paid",
         })
-      : ["time-entries", "disabled"],
-    queryFn: () => api.timeEntries.list(project!.id, {
+      : ["time-entries", "stats", "disabled"],
+    queryFn: () => api.timeEntries.stats(project!.id, {
       ...(defaultTimeUserFilter === "all" || userId == null ? {} : { user: userId }),
       include_unpaid: true,
+      payment_status: "not_paid",
     }),
     enabled: Boolean(project && canViewTime),
   });
@@ -85,10 +87,8 @@ export function ActiveProjectDashboard({
     balance: "0",
   };
   const financePoints = financeChart?.series ?? [];
-  const timeEntries = normalizeApiList(timeEntriesQuery.data);
-  const unpaidTimeEntries = timeEntries.filter((entry) => Number(entry.remaining_amount) > 0);
-  const unpaidMinutes = unpaidTimeEntries.reduce((total, entry) => total + entry.duration_minutes, 0);
-  const unpaidAmount = unpaidTimeEntries.reduce((total, entry) => total + Number(entry.remaining_amount), 0);
+  const unpaidMinutes = timeStatsQuery.data?.duration_minutes ?? 0;
+  const unpaidAmount = Number(timeStatsQuery.data?.remaining_amount ?? 0);
   const isFinanceLoading = financeQuery.isLoading;
   const financeError = getErrorMessage(financeQuery.error);
 
@@ -130,7 +130,7 @@ export function ActiveProjectDashboard({
             <SummaryTile
               icon={Clock3}
               label="Heures impayees"
-              value={timeEntriesQuery.isLoading ? "..." : formatDuration(unpaidMinutes)}
+              value={timeStatsQuery.isLoading ? "..." : formatDuration(unpaidMinutes)}
               detail={`${formatMoney(unpaidAmount)} restant a payer.`}
               href={buildUnpaidTimeHref(project.id, defaultTimeUserFilter)}
             />

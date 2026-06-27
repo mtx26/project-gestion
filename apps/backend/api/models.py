@@ -174,6 +174,16 @@ class Document(BaseModel):
         ]
 
 class Task(BaseModel):
+    class Status(models.TextChoices):
+        TODO = "todo", "todo"
+        IN_PROGRESS = "in_progress", "in_progress"
+        DONE = "done", "done"
+
+    class Priority(models.TextChoices):
+        LOW = "low", "low"
+        NORMAL = "normal", "normal"
+        HIGH = "high", "high"
+
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="tasks_created")
@@ -184,10 +194,10 @@ class Task(BaseModel):
     )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    status = models.CharField(max_length=50, default="todo")
-    priority = models.CharField(max_length=50, default="normal")
+    status = models.CharField(max_length=50, choices=Status.choices, default=Status.TODO, db_index=True)
+    priority = models.CharField(max_length=50, choices=Priority.choices, default=Priority.NORMAL, db_index=True)
     start_date = models.DateField(null=True, blank=True)
-    due_date = models.DateField(null=True, blank=True)
+    due_date = models.DateField(null=True, blank=True, db_index=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     def clean(self):
@@ -234,7 +244,7 @@ class Notification(BaseModel):
     message = models.TextField()
     type = models.CharField(max_length=100)
     data = models.JSONField(default=dict, blank=True)
-    is_read = models.BooleanField(default=False)
+    is_read = models.BooleanField(default=False, db_index=True)
 
 class EmailDelivery(BaseModel):
     class Status(models.TextChoices):
@@ -323,7 +333,7 @@ class FinancialEntry(BaseModel):
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="financial_entries_created")
     date = models.DateField(null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    type = models.CharField(max_length=50, choices=FinancialType.choices)
+    type = models.CharField(max_length=50, choices=FinancialType.choices, db_index=True)
     category = models.CharField(max_length=100, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
     
@@ -392,7 +402,7 @@ class ExpenseRequest(BaseModel):
         related_name="expense_requests_docs",
     )
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_made")
     approved_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_approved")

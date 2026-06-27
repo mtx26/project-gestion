@@ -25,7 +25,7 @@ from ..permissions import HasProjectPermission
         summary="Lister les dossiers d'un projet",
         description=(
             "Retourne tous les dossiers actifs d'un projet.\n\n"
-            "- Filtres disponibles : `parent_folder`.\n\n"
+            "- Filtres disponibles : `parent_folder` (dossier parent direct).\n\n"
             "- Recherche disponible : `search` sur `name` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `file.view`."
@@ -73,9 +73,9 @@ class FolderListCreateView(generics.ListCreateAPIView):
     get=extend_schema(
         summary="Arbre des dossiers d'un projet",
         description=(
-            "Retourne les dossiers et documents d'un projet sous forme d'arbre.\n"
-            "Avec `include_tasks=true`, ajoute les taches non terminees si l'utilisateur a aussi `task.view`.\n"
-            "Permission requise : `file.view`."
+            "Retourne les dossiers et documents d'un projet sous forme d'arbre.\n\n"
+            "- Paramètre disponible : `include_tasks=true` — inclut les tâches non terminées si l'utilisateur a la permission `task.view`.\n\n"
+            "- Permission requise : `file.view`."
         ),
         responses=FolderTreeNodeSerializer(many=True),
     )
@@ -121,8 +121,10 @@ class FolderTreeView(generics.GenericAPIView):
     get=extend_schema(
         summary="Arbre des cibles de temps d'un projet",
         description=(
-            "Retourne les dossiers et, si autorise, les taches d'un projet sous forme d'arbre.\n"
-            "Permission requise : `time_entry.edit`. Les taches requierent aussi `task.view`."
+            "Retourne les dossiers et tâches d'un projet sous forme d'arbre, "
+            "utilisé pour sélectionner la cible d'une entrée de temps.\n"
+            "Les tâches sont incluses si l'utilisateur a la permission `task.view`.\n"
+            "Permission requise : `time_entry.edit`."
         ),
         responses=FolderTreeNodeSerializer(many=True),
     )
@@ -172,7 +174,7 @@ class FolderTargetTreeView(generics.GenericAPIView):
     ),
     delete=extend_schema(
         summary="Supprimer un dossier",
-        description="Supprime un dossier.\nPermission requise : `file.delete`.",
+        description="Supprime un dossier via soft delete.\nPermission requise : `file.delete`.",
     ),
 )
 class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -207,10 +209,10 @@ class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
         summary="Lister les dossiers supprimés",
         description=(
             "Retourne les dossiers supprimés d'un projet.\n\n"
-            "- Filtres disponibles : `parent_folder`.\n\n"
+            "- Filtres disponibles : `parent_folder` (dossier parent direct).\n\n"
             "- Recherche disponible : `search` sur `name` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `file.view`."
+            "- Permission requise : `file.restore`."
         ),
     )
 )

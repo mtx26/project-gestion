@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
+import django_filters
 from rest_framework import generics, serializers
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
@@ -19,7 +20,24 @@ from ..serializers import (
     FinancialEntryChartSerializer,
     FinancialEntrySerializer,
 )
+from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
+from ..utils import StableOrderingFilter
+
+
+class FinancialEntryFilter(django_filters.FilterSet):
+    folder = django_filters.NumberFilter(method="filter_folder")
+
+    class Meta:
+        model = FinancialEntry
+        fields = ["type", "created_by"]
+
+    def filter_folder(self, queryset, name, value):
+        project_id = self.request.parser_context["kwargs"].get("project_id")
+        if not project_id:
+            return queryset
+        folder_ids = get_descendant_folder_ids(value, project_id)
+        return queryset.filter(folder_id__in=folder_ids)
 
 
 ZERO_MONEY = Decimal("0.00")
@@ -29,26 +47,28 @@ MONEY_QUANTIZE = Decimal("0.01")
 @extend_schema(tags=["finance"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les entrees financieres d'un projet",
+        summary="Lister les entrées financières d'un projet",
         description=(
-            "Retourne toutes les entrees financieres actives d'un projet.\n\n"
-            "- Filtres disponibles : `folder`, `document`, `time_entry`, `type`, `category`, `created_by`.\n\n"
+            "Retourne toutes les entrées financières actives d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `type`, `created_by`.\n\n"
             "- Recherche disponible : `search` sur `category` et `description`.\n\n"
+            "- Tri disponible : `ordering` sur `amount`, `created_at`. Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `finance.view`."
         ),
     ),
     post=extend_schema(
-        summary="Creer une entree financiere",
-        description="Cree une nouvelle entree financiere dans un projet.\nPermission requise : `finance.edit`.",
+        summary="Créer une entrée financière",
+        description="Crée une nouvelle entrée financière dans un projet.\nPermission requise : `finance.edit`.",
     ),
 )
 class FinancialEntryListCreateView(generics.ListCreateAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["folder", "time_entry", "type", "category", "created_by"]
+    filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
+    filterset_class = FinancialEntryFilter
     search_fields = ["category", "description"]
+    ordering_fields = ["amount", "created_at"]
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -84,11 +104,11 @@ class FinancialEntryListCreateView(generics.ListCreateAPIView):
 @extend_schema(tags=["finance"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Donnees de graphique financier d'un projet",
+        summary="Données de graphique financier d'un projet",
         description=(
-            "Retourne les totaux financiers actifs d'un projet, une serie temporelle "
-            "et une repartition par categorie.\n\n"
-            "- Parametres disponibles : `group_by=month|day`, `start_date`, `end_date`.\n\n"
+            "Retourne les totaux financiers actifs d'un projet, une série temporelle "
+            "et une répartition par catégorie.\n\n"
+            "- Paramètres disponibles : `group_by=month|day`, `start_date`, `end_date`.\n\n"
             "- Permission requise : `finance.view`."
         ),
         parameters=[FinancialEntryChartQuerySerializer],
@@ -214,20 +234,20 @@ class FinancialEntryChartView(generics.GenericAPIView):
 @extend_schema(tags=["finance"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Detail d'une entree financiere",
-        description="Retourne une entree financiere precise.\nPermission requise : `finance.view`.",
+        summary="Détail d'une entrée financière",
+        description="Retourne une entrée financière précise.\nPermission requise : `finance.view`.",
     ),
     put=extend_schema(
-        summary="Modifier une entree financiere",
-        description="Modifie completement une entree financiere.\nPermission requise : `finance.edit`.",
+        summary="Modifier une entrée financière",
+        description="Modifie complètement une entrée financière.\nPermission requise : `finance.edit`.",
     ),
     patch=extend_schema(
-        summary="Modifier partiellement une entree financiere",
-        description="Modifie partiellement une entree financiere.\nPermission requise : `finance.edit`.",
+        summary="Modifier partiellement une entrée financière",
+        description="Modifie partiellement une entrée financière.\nPermission requise : `finance.edit`.",
     ),
     delete=extend_schema(
-        summary="Supprimer une entree financiere",
-        description="Supprime une entree financiere via soft delete.\nPermission requise : `finance.delete`.",
+        summary="Supprimer une entrée financière",
+        description="Supprime une entrée financière via soft delete.\nPermission requise : `finance.delete`.",
     ),
 )
 class FinancialEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -266,13 +286,13 @@ class FinancialEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
 @extend_schema(tags=["finance"])
 @extend_schema_view(
     get=extend_schema(
-        summary="Lister les entrees financieres supprimees",
+        summary="Lister les entrées financières supprimées",
         description=(
-            "Retourne les entrees financieres supprimees d'un projet.\n\n"
-            "- Filtres disponibles : `folder`, `document`, `time_entry`, `type`, `category`, `created_by`.\n\n"
+            "Retourne les entrées financières supprimées d'un projet.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `type`, `created_by`.\n\n"
             "- Recherche disponible : `search` sur `category` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `finance.view`."
+            "- Permission requise : `finance.restore`."
         ),
     )
 )
@@ -280,7 +300,7 @@ class FinancialEntryTrashListView(generics.ListAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_fields = ["folder", "time_entry", "type", "category", "created_by"]
+    filterset_class = FinancialEntryFilter
     search_fields = ["category", "description"]
 
     def get_permissions(self):
@@ -306,8 +326,8 @@ class FinancialEntryTrashListView(generics.ListAPIView):
 @extend_schema(tags=["finance"])
 @extend_schema_view(
     post=extend_schema(
-        summary="Restaurer une entree financiere",
-        description="Restaure une entree financiere supprimee.\nPermission requise : `finance.restore`.",
+        summary="Restaurer une entrée financière",
+        description="Restaure une entrée financière supprimée.\nPermission requise : `finance.restore`.",
         request=None,
     )
 )

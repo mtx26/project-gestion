@@ -19,10 +19,9 @@ from ..models import ProjectMember
     get=extend_schema(
         summary="Lister les membres d'un projet",
         description=(
-            "Retourne tous les membres accessibles pour un projet donne.\n\n"
+            "Retourne tous les membres d'un projet.\n\n"
             "- Filtres disponibles : `user`, `role`.\n\n"
-            "- Recherche disponible : `search` sur `user__email`, `user__first_name`, "
-            "`user__last_name`, `user__username` et `role__name`.\n\n"
+            "- Recherche disponible : `search` sur l'email, le prénom, le nom de l'utilisateur et le nom du rôle.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `member.view`."
         ),
@@ -101,13 +100,17 @@ def _build_owner_entry(project):
 
 @extend_schema(tags=["member"])
 @extend_schema_view(
+    get=extend_schema(
+        summary="Détail d'un membre",
+        description="Retourne un membre précis d'un projet.\nPermission requise : `member.view`.",
+    ),
     patch=extend_schema(
         summary="Modifier un membre",
-        description="Modifie le role d'un membre du projet.\nPermission requise : `member.edit`.",
+        description="Modifie le rôle d'un membre du projet.\nPermission requise : `member.edit`.",
     ),
     delete=extend_schema(
         summary="Supprimer un membre",
-        description="Supprime un membre du projet.\nPermission requise : `member.edit`.",
+        description="Supprime un membre du projet via soft delete.\nPermission requise : `member.edit`.",
     ),
 )
 class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
