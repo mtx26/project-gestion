@@ -1,16 +1,9 @@
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
-from ..constants import NotificationType
 from ..models import Notification
 from .mail import send_email
 from .push import send_push_notification
-
-# Resend template ID setting name per notification type.
-_EMAIL_TEMPLATES = {
-    NotificationType.PROJECT_INVITATION: "project-invitation",
-    NotificationType.PROJECT_INVITATION_ACCEPTED: "invitation-accepted",
-}
 
 def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=["in_app", "push", "email"]):
     if user is None:
@@ -50,7 +43,7 @@ def _send_notification_email(*, to_email, type, title, data):
         to_email=to_email,
         subject=title,
         type=type,
-        resend_template_id=_EMAIL_TEMPLATES.get(type),
+        resend_template_id=getattr(settings, f"RESEND_{type.upper()}_TEMPLATE_ID", None),
         resend_template_variables=data or {},
         reply_to=settings.DEFAULT_REPLY_TO_EMAIL,
     )
