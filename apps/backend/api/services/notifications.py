@@ -9,6 +9,7 @@ from .push import send_push_notification
 # Resend template ID setting name per notification type.
 _EMAIL_TEMPLATES = {
     NotificationType.PROJECT_INVITATION: "RESEND_INVITATION_TEMPLATE_ID",
+    NotificationType.PROJECT_INVITATION_ACCEPTED: "RESEND_INVITATION_ACCEPTED_TEMPLATE_ID",
 }
 
 def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=["in_app", "push", "email"]):

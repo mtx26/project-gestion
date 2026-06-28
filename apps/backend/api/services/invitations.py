@@ -145,7 +145,6 @@ def accept_project_invitation(*, token, user):
             type=NotificationType.PROJECT_INVITATION_ACCEPTED,
             title="Invitation acceptee",
             message=f"{user.email} a rejoint le projet {invitation.project.name}.",
-            channels=["in_app", "push"],
         )
 
     return invitation, member
