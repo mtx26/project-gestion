@@ -2,8 +2,9 @@
 
 import type { FolderTreeNode } from "@project-gestion/types";
 import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
-import type { PaymentStatusFilter, PeriodPreset, UserFilter } from "../lib/time-filters";
+import type { PaymentStatusFilter, PeriodPreset } from "../lib/time-filters";
 
 export function TimePeriodToolbar({
   canViewAllTime,
@@ -12,7 +13,8 @@ export function TimePeriodToolbar({
   paymentStatusFilter,
   targetFilterLabel,
   targetFolderId,
-  userFilter,
+  currentUserId,
+  userFilterId,
   includeUnpaidOutsideMonth,
   folders,
   onSelectFolder,
@@ -28,13 +30,14 @@ export function TimePeriodToolbar({
   paymentStatusFilter: PaymentStatusFilter;
   targetFilterLabel: string | null;
   targetFolderId: number | null;
-  userFilter: UserFilter;
+  currentUserId: number | null;
+  userFilterId: number | null;
   includeUnpaidOutsideMonth: boolean;
   folders: FolderTreeNode[];
   onSelectFolder: (folderId: number | null) => void;
   onPeriodPresetChange: (value: PeriodPreset) => void;
   onPaymentStatusFilterChange: (value: PaymentStatusFilter) => void;
-  onUserFilterChange: (value: UserFilter) => void;
+  onUserFilterChange: (userId: number | null) => void;
   onIncludeUnpaidOutsideMonthChange: (value: boolean) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
@@ -51,15 +54,13 @@ export function TimePeriodToolbar({
         <SelectItem value="all">Tout</SelectItem>
       </FilterSelect>
       {canViewAllTime ? (
-        <FilterSelect value={userFilter} onValueChange={(value) => onUserFilterChange(value as UserFilter)}>
-          <SelectItem value="mine">Mes heures</SelectItem>
-          <SelectItem value="all">Tous les membres</SelectItem>
-          {members.map((member) => (
-            <SelectItem key={member.id} value={`member-${member.user}`}>
-              {member.user_display_name}
-            </SelectItem>
-          ))}
-        </FilterSelect>
+        <MemberFilterSelect
+          members={members}
+          value={userFilterId}
+          currentUserId={currentUserId}
+          selfLabel="Mes heures"
+          onChange={onUserFilterChange}
+        />
       ) : null}
       <FilterFolderPicker
         folders={folders}
@@ -79,9 +80,9 @@ export function TimePeriodToolbar({
         pressed={includeUnpaidOutsideMonth}
         onPressedChange={onIncludeUnpaidOutsideMonthChange}
       >
-        Inclure impayés
+        Impayés hors période
       </FilterToggle>
-      <FilterClear path="/time" removeKeys={["period", "user", "payment", "target", "include_unpaid"]} />
+      <FilterClear path="/time" removeKeys={["period", "user", "payment", "target", "include_unpaid", "page"]} />
     </FilterBar>
   );
 }

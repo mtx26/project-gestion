@@ -8,11 +8,13 @@ type Member = { id: number; user: number; user_display_name: string };
 interface MemberFilterSelectProps {
   members: Member[];
   value: number | null;
+  currentUserId?: number | null;
+  selfLabel?: string;
   className?: string;
   onChange: (memberId: number | null) => void;
 }
 
-export function MemberFilterSelect({ members, value, className, onChange }: MemberFilterSelectProps) {
+export function MemberFilterSelect({ members, value, currentUserId, selfLabel, className, onChange }: MemberFilterSelectProps) {
   if (members.length === 0) return null;
   return (
     <FilterSelect
@@ -23,7 +25,7 @@ export function MemberFilterSelect({ members, value, className, onChange }: Memb
       <SelectItem value="all">Tous les membres</SelectItem>
       {members.map((m) => (
         <SelectItem key={m.id} value={String(m.user)}>
-          {m.user_display_name}
+          {currentUserId != null && m.user === currentUserId && selfLabel ? selfLabel : m.user_display_name}
         </SelectItem>
       ))}
     </FilterSelect>

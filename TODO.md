@@ -32,11 +32,14 @@ rend tout les page et element bien responsive, essayle de limte le fait e de fai
 dans la modal de finance , change un peu la logice pour lier une fincae a un time et pouvori dasn la modal cliquer pour aller dans time sur le time selecitonner
 
 
-mette le filtre sur mobile dasn un bouton filtre avec une modal comme c'est souvent dasn les ite etc
+mette le filtre sur mobile dasn un bouton filtre avec une modal comme c'est souvent dasn les sites etc
 
 y'a un probeleme avec les selecter de page dasn setting, tash etc car pas resposnive
 
 
 si je veux mettre en place les notification fcm, mail et apres autre, que utilise la technologie, la manier de lutilsie et lintegre ? 
 
-et met qand le guery etc les triee aussi etc, je veux que le filitre soi tvriement coté bakcend comme les trie et que tou les trie aussi car y'a la pagination 
+quand je selctionne un dossier dasn le selecteur, ca le ferm puis le reouvre pui s le ferme
+
+
+rearange un peu les onglet sur la gauche, pour que lrodre soit coerent

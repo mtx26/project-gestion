@@ -88,6 +88,10 @@ function ProjectTimeContent({
   const targetFilter = parseTargetFilter(searchParams.get("target"));
   const includeUnpaidOutsideMonth = parseBooleanParam(searchParams.get("include_unpaid"));
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
+  const userFilterId: number | null =
+    userFilter === "all" ? null :
+    userFilter === "mine" ? (user?.id ?? null) :
+    Number(userFilter.replace("member-", ""));
   const periodRange = useMemo(() => getPeriodRange(periodPreset), [periodPreset]);
 
   const [targetValue, setTargetValue] = useState(parseTargetFilter(searchParams.get("target")) ?? "project");
@@ -135,7 +139,7 @@ function ProjectTimeContent({
         target: targetFilter ?? undefined,
         page,
       }),
-    enabled: Boolean(selectedProject && canViewTime),
+    enabled: Boolean(projectId && canViewTime),
     placeholderData: keepPreviousData,
   });
 
@@ -159,7 +163,7 @@ function ProjectTimeContent({
         payment_status: paymentStatusFilter,
         target: targetFilter ?? undefined,
       }),
-    enabled: Boolean(selectedProject && canViewTime),
+    enabled: Boolean(projectId && canViewTime),
   });
 
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
@@ -290,13 +294,14 @@ function ProjectTimeContent({
           paymentStatusFilter={paymentStatusFilter}
           targetFilterLabel={targetFilterLabel}
           targetFolderId={targetFilter?.startsWith("folder-") ? Number(targetFilter.replace("folder-", "")) : null}
-          userFilter={userFilter}
+          currentUserId={user?.id ?? null}
+          userFilterId={userFilterId}
           includeUnpaidOutsideMonth={includeUnpaidOutsideMonth}
           folders={folders}
           onSelectFolder={(folderId) => updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })}
           onPeriodPresetChange={(v) => updateUrlFilter({ period: v })}
           onPaymentStatusFilterChange={(v) => updateUrlFilter({ payment: v })}
-          onUserFilterChange={(v) => updateUrlFilter({ user: v })}
+          onUserFilterChange={(id) => updateUrlFilter({ user: id === null ? null : `member-${id}` })}
           onIncludeUnpaidOutsideMonthChange={(v) => updateUrlFilter({ include_unpaid: v })}
           onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
         />

@@ -11,7 +11,6 @@ import {
   FolderOpen,
   FolderPlus,
   ListTodo,
-  Lock,
   Pencil,
   Trash2,
   Upload,
@@ -19,7 +18,7 @@ import {
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { AccessDeniedState } from "@/components/states/access-denied-state";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -370,16 +369,7 @@ function ProjectTreeView({
   }
 
   if (!canViewFiles) {
-    return (
-      <div className="space-y-5">
-        <PageTitle category="Projet" title="Documents du projet" />
-        <Alert>
-          <Lock className="size-4" />
-          <AlertTitle>Fichiers indisponibles</AlertTitle>
-          <AlertDescription>Ton role ne permet pas de voir l&apos;arborescence de ce projet.</AlertDescription>
-        </Alert>
-      </div>
-    );
+    return <AccessDeniedState description="Ton role ne permet pas de voir l'arborescence de ce projet." />;
   }
 
   const selectedFolderName = findFolderName(treeQuery.data ?? [], selectedFolderId);

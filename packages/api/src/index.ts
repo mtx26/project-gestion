@@ -446,6 +446,7 @@ export function createApiClient({
           date_to?: string;
           page?: number;
           ordering?: string;
+          search?: string;
         } = {},
       ) =>
         request<Task[] | PaginatedResponse<Task>>(
@@ -460,6 +461,7 @@ export function createApiClient({
             date_to: query.date_to,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
             ordering: query.ordering || undefined,
+            search: query.search || undefined,
           })}`,
         ),
       get: (projectId: number, taskId: number) =>

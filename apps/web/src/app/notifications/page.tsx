@@ -15,12 +15,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { FilterBar, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterBar, FilterClear, FilterToggle } from "@/components/filters/filter-bar";
 import { ItemGroup } from "@/components/ui/item";
 import { PaginationBar } from "@/components/pagination-bar";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
-import { parsePageParam } from "@/lib/url-params";
+import { parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { useUrlFilter } from "@/lib/use-url-filter";
 
 export default function NotificationsPage() {
@@ -34,9 +34,9 @@ export default function NotificationsPage() {
 function NotificationsContent() {
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const unreadOnly = searchParams.get("unread") === "1";
+  const unreadOnly = parseBooleanParam(searchParams.get("unread"));
   const page = parsePageParam(searchParams.get("page"));
-  const updateFilter = useUrlFilter("/notifications", searchParams, null);
+  const updateUrlFilter = useUrlFilter("/notifications", searchParams, null);
 
   const notificationsQuery = useQuery({
     queryKey: queryKeys.notifications.list(unreadOnly, page),
@@ -85,10 +85,11 @@ function NotificationsContent() {
       <FilterBar>
         <FilterToggle
           pressed={unreadOnly}
-          onPressedChange={(pressed) => updateFilter({ unread: pressed })}
+          onPressedChange={(pressed) => updateUrlFilter({ unread: pressed })}
         >
           Non lues uniquement
         </FilterToggle>
+        <FilterClear path="/notifications" removeKeys={["unread", "page"]} />
       </FilterBar>
 
       <FormError
@@ -126,7 +127,7 @@ function NotificationsContent() {
                   />
                 ))}
               </ItemGroup>
-              <PaginationBar count={totalCount} page={page} pageSize={getApiPageSize(notificationsQuery.data)} onPageChange={(p) => updateFilter({ page: p })} />
+              <PaginationBar count={totalCount} page={page} pageSize={getApiPageSize(notificationsQuery.data)} onPageChange={(p) => updateUrlFilter({ page: p })} />
             </>
           )}
         </CardContent>

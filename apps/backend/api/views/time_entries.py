@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import django_filters
 from django.db.models import Case, DecimalField, ExpressionWrapper, F, Q, Sum, Value, When
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, Round
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 
@@ -59,9 +59,12 @@ class TimeEntryFilter(django_filters.FilterSet):
 
 
 def _annotate_financial_fields(queryset):
-    cost_amount = ExpressionWrapper(
-        F("duration_minutes") * F("hourly_rate") / Value(60),
-        output_field=DecimalField(max_digits=12, decimal_places=2),
+    cost_amount = Round(
+        ExpressionWrapper(
+            F("duration_minutes") * F("hourly_rate") / Value(60),
+            output_field=DecimalField(max_digits=12, decimal_places=2),
+        ),
+        precision=2,
     )
     paid_amount = Coalesce(
         Sum(

@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
-import { FilterBar, FilterClear, FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { NoProjectState } from "@/components/states/no-project-state";
@@ -28,6 +28,7 @@ import { getErrorMessage, toastError } from "@/lib/errors";
 import { buildProjectHref, parseBooleanParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useProjectResources } from "@/lib/use-project-resources";
+import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { TaskFormDialog } from "./components/task-form-dialog";
 import { TaskTable } from "./components/task-table";
@@ -81,12 +82,14 @@ function ProjectTasksContent({
   const sortField = searchParams.get("sort") ?? "";
   const sortDir = (searchParams.get("order") === "desc" ? "desc" : "asc") as "asc" | "desc";
   const ordering = sortField ? `${sortDir === "desc" ? "-" : ""}${sortField}` : undefined;
+  const searchFromUrl = searchParams.get("search") ?? "";
 
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   const updateUrlFilter = useUrlFilter("/tasks", searchParams, projectId);
+  const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, members, folderNameById, handleCreateFolder } = useProjectResources(
     projectId,
     { canView: canViewFiles, canEdit: false, canFetchMembers: canViewTasks },
@@ -102,6 +105,7 @@ function ProjectTasksContent({
           excludeDone: excludeDone || undefined,
           page,
           ordering,
+          search: searchFromUrl || undefined,
         })
       : ["tasks", "disabled"],
     queryFn: () =>
@@ -113,8 +117,9 @@ function ProjectTasksContent({
         exclude_done: excludeDone || undefined,
         page,
         ordering,
+        search: searchFromUrl || undefined,
       }),
-    enabled: Boolean(selectedProject && canViewTasks),
+    enabled: Boolean(projectId && canViewTasks),
     placeholderData: keepPreviousData,
   });
 
@@ -136,7 +141,7 @@ function ProjectTasksContent({
         exclude_done: excludeDone || undefined,
         assigned_to: user!.id,
       }),
-    enabled: Boolean(selectedProject && canViewTasks && user),
+    enabled: Boolean(projectId && canViewTasks && !!user),
     placeholderData: keepPreviousData,
   });
 
@@ -208,6 +213,7 @@ function ProjectTasksContent({
       </div>
 
       <FilterBar>
+        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
         <FilterSelect value={statusFilter} onValueChange={(value) => updateUrlFilter({ status: value as StatusFilter })}>
           <SelectItem value="all">Tous statuts</SelectItem>
           <SelectItem value="todo">À faire</SelectItem>
@@ -223,6 +229,8 @@ function ProjectTasksContent({
         <MemberFilterSelect
           members={members}
           value={createdByFilter}
+          currentUserId={user?.id ?? null}
+          selfLabel="Mes tâches"
           className="sm:flex-1 sm:min-w-0"
           onChange={(id) => updateUrlFilter({ member: id })}
         />
@@ -242,7 +250,7 @@ function ProjectTasksContent({
         >
           Inclure terminées
         </FilterToggle>
-        <FilterClear path="/tasks" removeKeys={["folder", "status", "priority", "member", "include_completed", "page", "sort", "order"]} />
+        <FilterClear path="/tasks" removeKeys={["folder", "status", "priority", "member", "include_completed", "page", "sort", "order", "search"]} />
       </FilterBar>
 
       {myTasks.length > 0 ? (

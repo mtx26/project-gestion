@@ -75,6 +75,7 @@ export const queryKeys = {
         excludeDone?: boolean;
         page?: number;
         ordering?: string;
+        search?: string;
       } = {},
     ) =>
       ["projects", projectId, "tasks", {
@@ -86,6 +87,7 @@ export const queryKeys = {
         excludeDone: query.excludeDone ?? false,
         page: query.page ?? 1,
         ordering: query.ordering ?? "",
+        search: query.search ?? "",
       }] as const,
     trash: (projectId: number) => ["projects", projectId, "tasks", "trash"] as const,
   },

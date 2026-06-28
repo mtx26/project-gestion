@@ -211,6 +211,8 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
         <MemberFilterSelect
           members={members}
           value={userFilterId}
+          currentUserId={user?.id ?? null}
+          selfLabel="Mes entrées"
           className="sm:flex-1 sm:min-w-0"
           onChange={(id) => updateUrlFilter({ member: id })}
         />

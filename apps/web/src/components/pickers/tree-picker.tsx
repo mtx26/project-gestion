@@ -13,6 +13,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   buildTargetTree,
@@ -108,15 +109,16 @@ export function TreePickerDialog(props: TreePickerProps) {
 
   return (
     <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) setCreatingInNode(null); }}>
-      <Button
-        type="button"
-        variant="outline"
-        className="h-8 w-full justify-start gap-2 bg-background px-3"
-        onClick={() => setOpen(true)}
-      >
-        <TreeIcon type={selectedType} />
-        <span className="min-w-0 truncate">{buttonLabel}</span>
-      </Button>
+      <DialogTrigger asChild>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 w-full justify-start gap-2 bg-background px-3"
+        >
+          <TreeIcon type={selectedType} />
+          <span className="min-w-0 truncate">{buttonLabel}</span>
+        </Button>
+      </DialogTrigger>
 
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>

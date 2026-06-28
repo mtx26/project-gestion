@@ -54,10 +54,10 @@ export default function RequestsPage() {
 function RequestsPageContent({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const canView = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestView);
-  const canEdit = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestEdit);
-  const canDelete = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestDelete);
-  const canApprove = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestApprove);
+  const canViewRequests = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestView);
+  const canEditRequests = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestEdit);
+  const canDeleteRequests = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestDelete);
+  const canApproveRequests = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestApprove);
   const projectId = selectedProject?.id ?? null;
 
   const statusFilter = parseStatusFilter(searchParams.get("status"));
@@ -76,7 +76,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
   const updateUrlFilter = useUrlFilter("/requests", searchParams, projectId);
   const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
-    useProjectResources(projectId, { canView, canEdit });
+    useProjectResources(projectId, { canView: canViewRequests, canEdit: canEditRequests });
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const requestsQuery = useQuery({
@@ -100,7 +100,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       page,
       search: searchFromUrl || undefined,
     }),
-    enabled: Boolean(projectId && canView),
+    enabled: Boolean(projectId && canViewRequests),
     placeholderData: keepPreviousData,
   });
 
@@ -164,7 +164,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     );
   }
 
-  if (!canView) {
+  if (!canViewRequests) {
     return <AccessDeniedState description="Vous n'avez pas acces aux demandes de remboursement de ce projet." />;
   }
 
@@ -176,7 +176,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageTitle category="Remboursements" title="Demandes de remboursement" />
-        {canEdit ? (
+        {canEditRequests ? (
           <Button type="button" className="gap-2" onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />
             Nouvelle demande
@@ -194,6 +194,8 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
         <MemberFilterSelect
           members={members}
           value={userFilterId}
+          currentUserId={user?.id ?? null}
+          selfLabel="Mes demandes"
           className="sm:flex-1 sm:min-w-0"
           onChange={(id) => updateUrlFilter({ member: id })}
         />
@@ -203,7 +205,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           buttonLabel={folderFilterName ?? "Tous dossiers"}
           description="Filtrer les demandes par dossier."
           onSelect={(id) => updateUrlFilter({ folder: id })}
-          onCreateFolder={canEdit ? handleCreateFolder : undefined}
+          onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
         />
         <FilterSearch value={searchQuery} onChange={handleSearchChange} />
         <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
@@ -266,7 +268,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
                 />
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
-                {canApprove && req.status === "pending" ? (
+                {canApproveRequests && req.status === "pending" ? (
                   <>
                     <Button
                       type="button"
@@ -292,7 +294,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
                     </Button>
                   </>
                 ) : null}
-                {canEdit && req.status === "pending" ? (
+                {canEditRequests && req.status === "pending" ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -302,7 +304,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
                     <Pencil className="size-4" />
                   </Button>
                 ) : null}
-                {canDelete ? (
+                {canDeleteRequests ? (
                   <Button
                     type="button"
                     variant="ghost"
@@ -328,7 +330,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
         projectId={projectId!}
         targetFolders={targetFolders}
         isPending={createRequest.isPending}
-        onCreateFolder={canEdit ? handleCreateFolder : undefined}
+        onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
         onSubmit={(payload) => createRequest.mutate(payload)}
       />
       <ExpenseRequestFormDialog
@@ -340,7 +342,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
         projectId={projectId!}
         targetFolders={targetFolders}
         isPending={updateRequest.isPending}
-        onCreateFolder={canEdit ? handleCreateFolder : undefined}
+        onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}
       />
       <ConfirmDeleteDialog
