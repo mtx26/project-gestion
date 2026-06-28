@@ -5,7 +5,7 @@ from ..models import Notification
 from .mail import send_email
 from .push import send_push_notification
 
-def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=["in_app", "push", "email"]):
+def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=("in_app", "push", "email")):
     if user is None:
         if to_email:
             _send_notification_email(to_email=to_email, type=type, title=title, data=data)
@@ -14,6 +14,7 @@ def notify(*, user, type, title, message, data=None, project=None, created_by=No
     try:
         profile = user.profile
     except ObjectDoesNotExist:
+        profile = None
         channels = ["in_app"]
 
     notification = None
