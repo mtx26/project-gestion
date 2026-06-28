@@ -54,6 +54,17 @@ TEMPLATES = [
             variable("EXPIRES_AT", "string", "prochainement"),
         ],
     },
+    {
+        "name": "Invitation accepted",
+        "alias": "invitation-accepted",
+        "subject": "Invitation acceptée",
+        "html_file": "invitation_accepted.html",
+        "variables": [
+            variable("INVITEE_NAME", "string", "Un membre"),
+            variable("PROJECT_NAME", "string", "Projet"),
+            variable("PROJECT_URL", "string", "https://example.com"),
+        ],
+    },
 ]
 
 
