@@ -84,18 +84,18 @@ export function DashboardSidebar({
       locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.fileView)),
     },
     {
+      key: "calendar",
+      href: calendarHref,
+      label: "Calendrier",
+      icon: CalendarDays,
+      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.taskView) && !hasProjectPermission(selectedProject, userId, permissionCodes.timeEntryView)),
+    },
+    {
       key: "tasks",
       href: tasksHref,
       label: "Taches",
       icon: ListTodo,
       locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.taskView)),
-    },
-    {
-      key: "calendar",
-      href: calendarHref,
-      label: "Calendrier",
-      icon: CalendarDays,
-      locked: false,
     },
     {
       key: "time",

@@ -62,7 +62,7 @@ export type TreePickerProps = CommonProps & (FolderOnlyProps | TargetProps);
 export function TreePickerDialog(props: TreePickerProps) {
   const [open, setOpen] = useState(false);
   const [expandedValues, setExpandedValues] = useState<Set<string>>(() => new Set(["project"]));
-  const [includeCompleted, setIncludeCompleted] = useState(false);
+  const [includeCompleted, setIncludeCompleted] = useState(true);
   const [creatingInNode, setCreatingInNode] = useState<string | null>(null);
 
   const onCreateFolder = props.onCreateFolder;

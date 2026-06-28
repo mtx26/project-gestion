@@ -38,8 +38,3 @@ y'a un probeleme avec les selecter de page dasn setting, tash etc car pas respos
 
 
 si je veux mettre en place les notification fcm, mail et apres autre, que utilise la technologie, la manier de lutilsie et lintegre ? 
-
-quand je selctionne un dossier dasn le selecteur, ca le ferm puis le reouvre pui s le ferme
-
-
-rearange un peu les onglet sur la gauche, pour que lrodre soit coerent

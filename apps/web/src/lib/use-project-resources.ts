@@ -23,8 +23,8 @@ export function useProjectResources(
   const queryClient = useQueryClient();
 
   const foldersQuery = useQuery({
-    queryKey: projectId ? queryKeys.folders.tree(projectId) : ["folders", "tree", "disabled"],
-    queryFn: () => api.folders.tree(projectId!),
+    queryKey: projectId ? queryKeys.folders.tree(projectId, { includeFiles: false }) : ["folders", "tree", "disabled"],
+    queryFn: () => api.folders.tree(projectId!, { includeFiles: false }),
     enabled: Boolean(projectId && canView),
   });
 
@@ -45,7 +45,7 @@ export function useProjectResources(
       api.folders.create(projectId!, { name, parent_folder: parentId }),
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.folders.tree(projectId!) }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.folders.allTree(projectId!) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.folders.targetTree(projectId!) }),
       ]);
     },

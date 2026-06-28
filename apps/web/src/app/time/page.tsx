@@ -81,6 +81,7 @@ function ProjectTimeContent({
   const canRecordTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryEdit);
   const canPayTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryPay);
   const canDeleteTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryDelete);
+  const canViewTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskView);
   const defaultUserFilter: UserFilter = canViewAllTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
@@ -428,7 +429,7 @@ function ProjectTimeContent({
         onEdit={(entry) => { setViewingEntry(null); setEditingEntry(entry); }}
         onPay={(entry) => { setViewingEntry(null); setPaymentTarget(entry); }}
         onDelete={(entry) => { setViewingEntry(null); deleteTimeEntry.mutate(entry.id); }}
-        onTaskClick={(taskId) => { setViewingEntry(null); handleTaskClick(taskId); }}
+        onTaskClick={canViewTasks ? (taskId) => { setViewingEntry(null); handleTaskClick(taskId); } : undefined}
       />
       <TaskDetailModal
         task={viewingTask}

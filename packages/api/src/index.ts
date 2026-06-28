@@ -486,9 +486,10 @@ export function createApiClient({
         request<Task>(`/api/projects/${projectId}/tasks/${taskId}/restore/`, { method: "POST" }),
     },
     folders: {
-      tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
+      tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>
         request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/tree/${buildQueryString({
           include_tasks: query.includeTasks ? "true" : undefined,
+          include_files: query.includeFiles === false ? "false" : undefined,
         })}`),
       targetTree: (projectId: number) =>
         request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/target-tree/`),

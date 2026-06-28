@@ -75,6 +75,7 @@ class FolderListCreateView(generics.ListCreateAPIView):
         description=(
             "Retourne les dossiers et documents d'un projet sous forme d'arbre.\n\n"
             "- Paramètre disponible : `include_tasks=true` — inclut les tâches non terminées si l'utilisateur a la permission `task.view`.\n\n"
+            "- Paramètre disponible : `include_files=false` — exclut les documents de la réponse.\n\n"
             "- Permission requise : `file.view`."
         ),
         responses=FolderTreeNodeSerializer(many=True),
@@ -92,10 +93,14 @@ class FolderTreeView(generics.GenericAPIView):
             project__in=get_accessible_projects(request.user),
         ).select_related("created_by").order_by("name", "id")
 
-        documents = Document.objects.filter(
-            project_id=project_id,
-            project__in=get_accessible_projects(request.user),
-        ).order_by("name", "id")
+        include_files = request.query_params.get("include_files", "true") != "false"
+        if include_files:
+            documents = Document.objects.filter(
+                project_id=project_id,
+                project__in=get_accessible_projects(request.user),
+            ).order_by("name", "id")
+        else:
+            documents = Document.objects.none()
 
         if (
             request.query_params.get("include_tasks") == "true"

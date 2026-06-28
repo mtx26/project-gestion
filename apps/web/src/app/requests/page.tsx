@@ -60,14 +60,14 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
   const canApproveRequests = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.expenseRequestApprove);
   const projectId = selectedProject?.id ?? null;
 
+  const searchFromUrl = searchParams.get("search") ?? "";
   const statusFilter = parseStatusFilter(searchParams.get("status"));
+  const userFilterId = parseIdParam(searchParams.get("member"));
+  const folderFilterId = parseIdParam(searchParams.get("folder"));
   const showRejected = parseBooleanParam(searchParams.get("show_rejected"));
   const excludeRejected = !showRejected && statusFilter === "all";
-  const folderFilterId = parseIdParam(searchParams.get("folder"));
-  const userFilterId = parseIdParam(searchParams.get("member"));
   const ordering = parseEnumParam(searchParams.get("ordering"), ["created_at", "-amount", "amount", "title"] as const, "all");
   const page = parsePageParam(searchParams.get("page"));
-  const searchFromUrl = searchParams.get("search") ?? "";
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
@@ -76,29 +76,29 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
   const updateUrlFilter = useUrlFilter("/requests", searchParams, projectId);
   const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
-    useProjectResources(projectId, { canView: canViewRequests, canEdit: canEditRequests });
+    useProjectResources(projectId, { canView: canViewRequests, canEdit: canEditRequests, canFetchMembers: canViewRequests });
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const requestsQuery = useQuery({
     queryKey: projectId
       ? queryKeys.expenseRequests.list(projectId, {
+          search: searchFromUrl || undefined,
           status: statusFilter !== "all" ? statusFilter : undefined,
-          folder: folderFilterId ?? undefined,
           requestedBy: userFilterId ?? undefined,
+          folder: folderFilterId ?? undefined,
           excludeRejected,
           ordering: ordering !== "all" ? ordering : undefined,
           page,
-          search: searchFromUrl || undefined,
         })
       : ["expense-requests", "disabled"],
     queryFn: () => api.expenseRequests.list(projectId!, {
+      search: searchFromUrl || undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
-      folder: folderFilterId ?? undefined,
       requested_by: userFilterId ?? undefined,
+      folder: folderFilterId ?? undefined,
       exclude_rejected: excludeRejected || undefined,
       ordering: ordering !== "all" ? ordering : undefined,
       page,
-      search: searchFromUrl || undefined,
     }),
     enabled: Boolean(projectId && canViewRequests),
     placeholderData: keepPreviousData,
@@ -131,6 +131,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       toast.success("Remboursement supprime");
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setDeletingId(null);
+      setViewingRequest(null);
     },
     onError: toastError,
   });
@@ -141,6 +142,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       toast.success("Remboursement approuve");
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
+      setViewingRequest(null);
     },
     onError: toastError,
   });
@@ -150,6 +152,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
     onSuccess: () => {
       toast.success("Remboursement rejete");
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
+      setViewingRequest(null);
     },
     onError: toastError,
   });
@@ -185,6 +188,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       </div>
 
       <FilterBar>
+        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
         <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v })}>
           <SelectItem value="all">Tous statuts</SelectItem>
           <SelectItem value="pending">En attente</SelectItem>
@@ -207,14 +211,6 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           onSelect={(id) => updateUrlFilter({ folder: id })}
           onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
         />
-        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
-        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
-          <SelectItem value="all">Date récente</SelectItem>
-          <SelectItem value="created_at">Date ancienne</SelectItem>
-          <SelectItem value="-amount">Montant ↓</SelectItem>
-          <SelectItem value="amount">Montant ↑</SelectItem>
-          <SelectItem value="title">Titre A→Z</SelectItem>
-        </FilterSelect>
         {statusFilter === "all" ? (
           <FilterToggle
             pressed={showRejected}
@@ -223,7 +219,14 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
             Inclure refusés
           </FilterToggle>
         ) : null}
-        <FilterClear path="/requests" removeKeys={["status", "folder", "member", "show_rejected", "ordering", "page", "search"]} />
+        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
+          <SelectItem value="all">Date récente</SelectItem>
+          <SelectItem value="created_at">Date ancienne</SelectItem>
+          <SelectItem value="-amount">Montant ↓</SelectItem>
+          <SelectItem value="amount">Montant ↑</SelectItem>
+          <SelectItem value="title">Titre A→Z</SelectItem>
+        </FilterSelect>
+        <FilterClear path="/requests" removeKeys={["search", "status", "member", "folder", "show_rejected", "ordering", "page"]} />
       </FilterBar>
 
       {requestsQuery.isLoading ? (

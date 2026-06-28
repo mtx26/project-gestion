@@ -73,13 +73,14 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
   const canViewFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeView);
   const canEditFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeEdit);
   const canDeleteFinance = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.financeDelete);
+  const canViewTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryView);
   const projectId = selectedProject?.id ?? null;
+  const searchFromUrl = searchParams.get("search") ?? "";
   const typeFilter = parseTypeFilter(searchParams.get("type"));
-  const folderFilterId = parseIdParam(searchParams.get("folder"));
   const userFilterId = parseIdParam(searchParams.get("member"));
+  const folderFilterId = parseIdParam(searchParams.get("folder"));
   const ordering = parseEnumParam(searchParams.get("ordering"), ["created_at", "-amount", "amount"] as const, "all");
   const page = parsePageParam(searchParams.get("page"));
-  const searchFromUrl = searchParams.get("search") ?? "";
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingEntry, setEditingEntry] = useState<FinancialEntry | null>(null);
@@ -90,7 +91,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
   const updateUrlFilter = useUrlFilter("/finance", searchParams, projectId);
   const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
-    useProjectResources(projectId, { canView: canViewFinance, canEdit: canEditFinance });
+    useProjectResources(projectId, { canView: canViewFinance, canEdit: canEditFinance, canFetchMembers: canViewFinance });
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const chartStartDate = new Date();
@@ -106,22 +107,22 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
   const entriesQuery = useQuery({
     queryKey: projectId
       ? queryKeys.financialEntries.list(projectId, {
+          search: searchFromUrl || undefined,
           type: typeFilter !== "all" ? typeFilter : undefined,
-          folder: folderFilterId ?? undefined,
           createdBy: userFilterId ?? undefined,
+          folder: folderFilterId ?? undefined,
           ordering: ordering !== "all" ? ordering : undefined,
           page,
-          search: searchFromUrl || undefined,
         })
       : ["financial-entries", "disabled"],
     queryFn: () =>
       api.financialEntries.list(projectId!, {
+        search: searchFromUrl || undefined,
         type: typeFilter !== "all" ? typeFilter : undefined,
-        folder: folderFilterId ?? undefined,
         created_by: userFilterId ?? undefined,
+        folder: folderFilterId ?? undefined,
         ordering: ordering !== "all" ? ordering : undefined,
         page,
-        search: searchFromUrl || undefined,
       }),
     enabled: Boolean(projectId && canViewFinance),
     placeholderData: keepPreviousData,
@@ -156,6 +157,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       toast.success("Entree supprimee");
       queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) });
       setDeletingEntryId(null);
+      setViewingEntry(null);
     },
     onError: toastError,
   });
@@ -203,6 +205,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       </div>
 
       <FilterBar>
+        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
         <FilterSelect value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
           <SelectItem value="all">Tous types</SelectItem>
           <SelectItem value="expense">Dépenses</SelectItem>
@@ -224,14 +227,13 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
           onSelect={(id) => updateUrlFilter({ folder: id })}
           onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
         />
-        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
         <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
           <SelectItem value="all">Date récente</SelectItem>
           <SelectItem value="created_at">Date ancienne</SelectItem>
           <SelectItem value="-amount">Montant ↓</SelectItem>
           <SelectItem value="amount">Montant ↑</SelectItem>
         </FilterSelect>
-        <FilterClear path="/finance" removeKeys={["type", "folder", "member", "ordering", "page", "search"]} />
+        <FilterClear path="/finance" removeKeys={["search", "type", "member", "folder", "ordering", "page"]} />
       </FilterBar>
 
       <FinanceBarChart series={chartQuery.data?.series} isLoading={chartQuery.isLoading} />
@@ -356,7 +358,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingEntry(null)}
-        onTimeEntryClick={handleTimeEntryClick}
+        onTimeEntryClick={canViewTime ? handleTimeEntryClick : undefined}
       />
       <TimeEntryDetailDialog
         entry={viewingTimeEntry}

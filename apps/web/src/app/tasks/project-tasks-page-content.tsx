@@ -71,18 +71,18 @@ function ProjectTasksContent({
   const canDeleteTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskDelete);
   const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
   const projectId = selectedProject?.id ?? null;
-  const folderFilter = parseFolderFilter(searchParams.get("folder"));
+  const searchFromUrl = searchParams.get("search") ?? "";
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const priorityFilter = parsePriorityFilter(searchParams.get("priority"));
+  const createdByFilter = parseIdParam(searchParams.get("member"));
+  const folderFilter = parseFolderFilter(searchParams.get("folder"));
+  const folderId = getFolderId(folderFilter);
   const includeCompleted = parseBooleanParam(searchParams.get("include_completed"));
   const excludeDone = !includeCompleted && statusFilter === "all";
-  const createdByFilter = parseIdParam(searchParams.get("member"));
-  const folderId = getFolderId(folderFilter);
   const page = parsePageParam(searchParams.get("page"));
   const sortField = searchParams.get("sort") ?? "";
   const sortDir = (searchParams.get("order") === "desc" ? "desc" : "asc") as "asc" | "desc";
   const ordering = sortField ? `${sortDir === "desc" ? "-" : ""}${sortField}` : undefined;
-  const searchFromUrl = searchParams.get("search") ?? "";
 
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -98,26 +98,26 @@ function ProjectTasksContent({
   const tasksQuery = useQuery({
     queryKey: selectedProject
       ? queryKeys.tasks.list(selectedProject.id, {
-          folderId: folderId ?? undefined,
+          search: searchFromUrl || undefined,
           status: statusFilter === "all" ? undefined : statusFilter,
           priority: priorityFilter === "all" ? undefined : priorityFilter,
           createdBy: createdByFilter ?? undefined,
+          folderId: folderId ?? undefined,
           excludeDone: excludeDone || undefined,
-          page,
           ordering,
-          search: searchFromUrl || undefined,
+          page,
         })
       : ["tasks", "disabled"],
     queryFn: () =>
       api.tasks.list(selectedProject!.id, {
-        ...(folderId == null ? {} : { folder: folderId }),
+        search: searchFromUrl || undefined,
         ...(statusFilter === "all" ? {} : { status: statusFilter }),
         ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
         ...(createdByFilter == null ? {} : { created_by: createdByFilter }),
+        ...(folderId == null ? {} : { folder: folderId }),
         exclude_done: excludeDone || undefined,
-        page,
         ordering,
-        search: searchFromUrl || undefined,
+        page,
       }),
     enabled: Boolean(projectId && canViewTasks),
     placeholderData: keepPreviousData,
@@ -126,20 +126,20 @@ function ProjectTasksContent({
   const myTasksQuery = useQuery({
     queryKey: selectedProject && user
       ? queryKeys.tasks.list(selectedProject.id, {
-          folderId: folderId ?? undefined,
           status: statusFilter === "all" ? undefined : statusFilter,
           priority: priorityFilter === "all" ? undefined : priorityFilter,
-          excludeDone: excludeDone || undefined,
           assignedTo: user.id,
+          folderId: folderId ?? undefined,
+          excludeDone: excludeDone || undefined,
         })
       : ["tasks", "my-tasks", "disabled"],
     queryFn: () =>
       api.tasks.list(selectedProject!.id, {
-        ...(folderId == null ? {} : { folder: folderId }),
         ...(statusFilter === "all" ? {} : { status: statusFilter }),
         ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
-        exclude_done: excludeDone || undefined,
         assigned_to: user!.id,
+        ...(folderId == null ? {} : { folder: folderId }),
+        exclude_done: excludeDone || undefined,
       }),
     enabled: Boolean(projectId && canViewTasks && !!user),
     placeholderData: keepPreviousData,
@@ -250,7 +250,7 @@ function ProjectTasksContent({
         >
           Inclure terminées
         </FilterToggle>
-        <FilterClear path="/tasks" removeKeys={["folder", "status", "priority", "member", "include_completed", "page", "sort", "order", "search"]} />
+        <FilterClear path="/tasks" removeKeys={["search", "status", "priority", "member", "folder", "include_completed", "sort", "order", "page"]} />
       </FilterBar>
 
       {myTasks.length > 0 ? (

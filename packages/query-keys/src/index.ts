@@ -93,8 +93,8 @@ export const queryKeys = {
   },
   folders: {
     allTree: (projectId: number) => ["projects", projectId, "folders", "tree"] as const,
-    tree: (projectId: number, query: { includeTasks?: boolean } = {}) =>
-      ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false }] as const,
+    tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>
+      ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false, includeFiles: query.includeFiles ?? true }] as const,
     targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
     trash: (projectId: number) => ["projects", projectId, "folders", "trash"] as const,
   },
