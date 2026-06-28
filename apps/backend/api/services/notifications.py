@@ -8,8 +8,8 @@ from .push import send_push_notification
 
 # Resend template ID setting name per notification type.
 _EMAIL_TEMPLATES = {
-    NotificationType.PROJECT_INVITATION: "RESEND_INVITATION_TEMPLATE_ID",
-    NotificationType.PROJECT_INVITATION_ACCEPTED: "RESEND_INVITATION_ACCEPTED_TEMPLATE_ID",
+    NotificationType.PROJECT_INVITATION: "project-invitation",
+    NotificationType.PROJECT_INVITATION_ACCEPTED: "invitation-accepted",
 }
 
 def notify(*, user, type, title, message, data=None, project=None, created_by=None, to_email=None, channels=["in_app", "push", "email"]):
@@ -46,14 +46,11 @@ def notify(*, user, type, title, message, data=None, project=None, created_by=No
 
 
 def _send_notification_email(*, to_email, type, title, data):
-    setting_name = _EMAIL_TEMPLATES.get(type)
-    template_id = getattr(settings, setting_name, None) or None if setting_name else None
-
     send_email(
         to_email=to_email,
         subject=title,
         type=type,
-        resend_template_id=template_id,
+        resend_template_id=_EMAIL_TEMPLATES.get(type),
         resend_template_variables=data or {},
         reply_to=settings.DEFAULT_REPLY_TO_EMAIL,
     )
