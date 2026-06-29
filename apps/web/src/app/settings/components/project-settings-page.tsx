@@ -12,7 +12,7 @@ import {
   permissionCodes,
 } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Save, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
@@ -83,10 +83,10 @@ function ProjectSettingsContent({
   selectedProject,
   projectsQuery,
   openCreateProject,
-  queryClient,
   initialSection,
 }: ProjectWorkspaceState & { initialSection: SettingsSection }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
 
   const canEditSelectedProject = canEditProject(selectedProject, user?.id ?? null);
