@@ -14,6 +14,7 @@ type AuthState = {
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
   setTokens: (tokens: AuthTokens) => Promise<void>;
+  setUser: (user: User) => void;
   clearSession: () => Promise<void>;
 };
 
@@ -69,6 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: true,
     });
   },
+  setUser: (user) => set({ user }),
   clearSession: async () => {
     await webTokenStore.clearTokens();
     set({

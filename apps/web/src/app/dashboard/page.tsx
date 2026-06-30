@@ -1,19 +1,11 @@
-"use client";
-
-import { ActiveProjectDashboard } from "@/app/dashboard/components/active-project-dashboard";
-import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
+import { Suspense } from "react";
+import { ProjectPageFallback } from "@/components/dashboard/project-page-fallback";
+import { DashboardPageContent } from "./dashboard-page-content";
 
 export default function DashboardPage() {
   return (
-    <ProjectWorkspaceShell activeItem="dashboard">
-      {({ user, selectedProject, projectsQuery, openCreateProject }) => (
-        <ActiveProjectDashboard
-          project={selectedProject}
-          userId={user?.id ?? null}
-          isLoading={projectsQuery.isLoading}
-          onCreateProject={openCreateProject}
-        />
-      )}
-    </ProjectWorkspaceShell>
+    <Suspense fallback={<ProjectPageFallback />}>
+      <DashboardPageContent />
+    </Suspense>
   );
 }

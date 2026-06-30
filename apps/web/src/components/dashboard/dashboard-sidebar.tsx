@@ -2,12 +2,12 @@ import type { Project, User } from "@project-gestion/types";
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { Banknote, Bell, CalendarDays, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Sun, Trash2, UserRound } from "lucide-react";
+import { Banknote, Bell, CalendarDays, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Star, Sun, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import {
   Sidebar,
@@ -31,11 +31,13 @@ const themeChangeEventName = "project-gestion-theme-change";
 type DashboardSidebarProps = {
   projects: Project[];
   selectedProjectId: string;
+  defaultProjectId: string;
   userId: number | null;
   user: User | null | undefined;
   activeItem: "dashboard" | "settings" | "files" | "tasks" | "calendar" | "time" | "finance" | "requests" | "trash" | "account" | "notifications";
   isLoading: boolean;
   onSelectProject: (id: number) => void;
+  onSetDefaultProject: (id: number) => void;
   onCreateProject: () => void;
   onLogout: () => void;
 };
@@ -43,11 +45,13 @@ type DashboardSidebarProps = {
 export function DashboardSidebar({
   projects,
   selectedProjectId,
+  defaultProjectId,
   userId,
   user,
   activeItem,
   isLoading,
   onSelectProject,
+  onSetDefaultProject,
   onCreateProject,
   onLogout,
 }: DashboardSidebarProps) {
@@ -59,6 +63,7 @@ export function DashboardSidebar({
     refetchInterval: 60_000,
   });
   const unreadNotifications = unreadNotificationsQuery.data?.count ?? 0;
+  const dashboardHref = selectedProjectId ? `/dashboard?project=${selectedProjectId}` : "/dashboard";
   const settingsHref = selectedProjectId ? `/settings?project=${selectedProjectId}` : "/settings";
   const filesHref = selectedProjectId ? `/files?project=${selectedProjectId}` : "/files";
   const tasksHref = selectedProjectId ? `/tasks?project=${selectedProjectId}` : "/tasks";
@@ -75,7 +80,7 @@ export function DashboardSidebar({
   }
 
   const navigation = [
-    { key: "dashboard", href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, locked: false },
+    { key: "dashboard", href: dashboardHref, label: "Dashboard", icon: LayoutDashboard, locked: false },
     {
       key: "files",
       href: filesHref,
@@ -132,7 +137,7 @@ export function DashboardSidebar({
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <div className="flex h-10 items-center gap-2 px-2">
-          <Link href="/dashboard" className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-base font-semibold group-data-[state=collapsed]/sidebar:lg:justify-center">
+          <Link href={dashboardHref} className="flex min-w-0 flex-1 items-center gap-2 rounded-md text-base font-semibold group-data-[state=collapsed]/sidebar:lg:justify-center">
             <span className="flex size-9 items-center justify-center rounded-md bg-primary text-primary-foreground">
               <FolderKanban className="size-5" />
             </span>
@@ -199,19 +204,32 @@ export function DashboardSidebar({
                   >
                     <DropdownMenuLabel>Projets</DropdownMenuLabel>
                     <DropdownMenuGroup>
-                      {projects.map((project, index) => (
-                        <DropdownMenuItem
-                          key={project.id}
-                          className="gap-2 p-2"
-                          onClick={() => onSelectProject(project.id)}
-                        >
-                          <ProjectAvatar name={project.name} />
-                          <span className="truncate">{project.name}</span>
-                          {index < 9 ? (
-                            <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
-                          ) : null}
-                        </DropdownMenuItem>
-                      ))}
+                      {projects.map((project) => {
+                        const isDefault = String(project.id) === defaultProjectId;
+                        return (
+                          <DropdownMenuItem
+                            key={project.id}
+                            className="gap-2 p-2"
+                            onClick={() => onSelectProject(project.id)}
+                          >
+                            <ProjectAvatar name={project.name} />
+                            <span className="truncate">{project.name}</span>
+                            <button
+                              type="button"
+                              className="ml-auto shrink-0 rounded p-0.5 hover:bg-accent"
+                              title={isDefault ? "Projet par defaut" : "Definir par defaut"}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSetDefaultProject(project.id);
+                              }}
+                            >
+                              <Star
+                                className={`size-3.5 ${isDefault ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                              />
+                            </button>
+                          </DropdownMenuItem>
+                        );
+                      })}
                     </DropdownMenuGroup>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="gap-2 p-2" onClick={onCreateProject}>

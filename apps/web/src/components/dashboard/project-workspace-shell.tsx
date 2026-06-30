@@ -46,6 +46,7 @@ export function ProjectWorkspaceShell({
 }: ProjectWorkspaceShellProps) {
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const setUser = useAuthStore((state) => state.setUser);
   const logout = useAuthStore((state) => state.logout);
   const [manualSelectedProjectId, setManualSelectedProjectId] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -60,7 +61,8 @@ export function ProjectWorkspaceShell({
   });
 
   const projects = normalizeApiList(projectsQuery.data);
-  const preferredProjectId = manualSelectedProjectId || selectedProjectIdFromUrl;
+  const backendDefaultProjectId = user?.profile?.default_project ? String(user.profile.default_project) : "";
+  const preferredProjectId = manualSelectedProjectId || selectedProjectIdFromUrl || backendDefaultProjectId;
   const selectedProjectId = projects.some((project) => String(project.id) === preferredProjectId)
     ? preferredProjectId
     : projects[0]
@@ -77,6 +79,15 @@ export function ProjectWorkspaceShell({
       setCreateDialogOpen(false);
       onProjectCreated?.(project);
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
+    },
+  });
+
+  const setDefaultProject = useMutation({
+    mutationFn: (projectId: number | null) =>
+      api.auth.updateMe({ profile: { default_project: projectId } }),
+    onSuccess: (updatedUser) => {
+      setUser(updatedUser);
+      toast.success("Projet par defaut mis a jour");
     },
   });
 
@@ -104,11 +115,13 @@ export function ProjectWorkspaceShell({
         <DashboardSidebar
           projects={projects}
           selectedProjectId={selectedProjectId}
+          defaultProjectId={backendDefaultProjectId}
           userId={user?.id ?? null}
           user={user}
           activeItem={activeItem}
           isLoading={projectsQuery.isLoading}
           onSelectProject={onSelectProject}
+          onSetDefaultProject={(id) => setDefaultProject.mutate(id)}
           onCreateProject={() => setCreateDialogOpen(true)}
           onLogout={onLogout}
         />
