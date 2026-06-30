@@ -202,8 +202,8 @@ class Task(BaseModel):
     description = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=50, choices=Status.choices, default=Status.TODO, db_index=True)
     priority = models.CharField(max_length=50, choices=Priority.choices, default=Priority.NORMAL, db_index=True)
-    start_date = models.DateField(null=True, blank=True)
-    end_date = models.DateField(null=True, blank=True, db_index=True)
+    start_date = models.DateTimeField(null=True, blank=True)
+    end_date = models.DateTimeField(null=True, blank=True, db_index=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     def clean(self):
@@ -294,6 +294,7 @@ class TimeEntry(BaseModel):
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    start_date = models.DateTimeField(null=True, blank=True)
     duration_minutes = models.PositiveIntegerField()
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     description = models.TextField(blank=True, null=True)

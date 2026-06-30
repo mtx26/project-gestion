@@ -29,7 +29,8 @@ import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -183,7 +184,7 @@ function ProjectSettingsContent({
       {selectedProject ? (
         <Tabs value={visibleSection} onValueChange={onSettingsSectionChange}>
           <div>
-            <TabsList className="h-auto w-max">
+            <ScrollableTabsList className="h-auto w-max">
               <TabsTrigger value="general" className="min-w-28 flex-none px-3 py-2">General</TabsTrigger>
               {canViewMembers ? (
                 <TabsTrigger value="members" className="min-w-28 flex-none px-3 py-2">Membres</TabsTrigger>
@@ -195,7 +196,7 @@ function ProjectSettingsContent({
               {canDeleteSelectedProject ? (
                 <TabsTrigger value="danger" className="min-w-32 flex-none px-3 py-2">Zone sensible</TabsTrigger>
               ) : null}
-            </TabsList>
+            </ScrollableTabsList>
           </div>
 
           <TabsContent value="general">

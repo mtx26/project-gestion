@@ -13,15 +13,17 @@ import { Input } from "@/components/ui/input";
 import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
 import { TargetPickerDialog } from "@/components/pickers/target-tree-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { DateTimePicker } from "@/components/forms/date-time-picker";
 import { getErrorMessage } from "@/lib/errors";
+import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { type TargetTreeNode, getTargetPayload } from "@/lib/target-utils";
 import { api } from "@/lib/api";
 
 export function TimeEntryForm({
   canRecordTime,
   projectId,
-  hours,
-  minutes,
+  startDate,
+  endDate,
   hourlyRate,
   description,
   targetValue,
@@ -29,8 +31,8 @@ export function TimeEntryForm({
   selectedTargetLabel,
   isPending,
   error,
-  onHoursChange,
-  onMinutesChange,
+  onStartDateChange,
+  onEndDateChange,
   onHourlyRateChange,
   onDescriptionChange,
   onTargetValueChange,
@@ -39,8 +41,8 @@ export function TimeEntryForm({
 }: {
   canRecordTime: boolean;
   projectId: number;
-  hours: string;
-  minutes: string;
+  startDate: string;
+  endDate: string;
   hourlyRate: string;
   description: string;
   targetValue: string;
@@ -48,30 +50,22 @@ export function TimeEntryForm({
   selectedTargetLabel: string;
   isPending: boolean;
   error: string | null;
-  onHoursChange: (value: string) => void;
-  onMinutesChange: (value: string) => void;
+  onStartDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
   onHourlyRateChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onTargetValueChange: (value: string) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (event: FormEvent<HTMLFormElement>, documentIds: number[]) => void;
 }) {
-  const durationMinutes = Number(hours) * 60 + Number(minutes);
+  const durationMinutes = startDate && endDate
+    ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000))
+    : 0;
   const durationHours = durationMinutes / 60;
-  const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
-  const [totalDraft, setTotalDraft] = useState<string | null>(null);
-  const totalValue = totalDraft ?? computedTotal;
+  const computedTotal = durationHours > 0 ? durationHours * Number(hourlyRate) : 0;
   const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  function handleTotalChange(value: string) {
-    setTotalDraft(value);
-    const total = Number(value);
-    if (durationHours > 0 && total >= 0 && value !== "") {
-      onHourlyRateChange((total / durationHours).toFixed(2));
-    }
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -113,32 +107,23 @@ export function TimeEntryForm({
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid grid-cols-2 gap-3">
         <Field>
-          <FieldLabel htmlFor="time-hours">Heures</FieldLabel>
-          <Input id="time-hours" type="number" min="0" value={hours} onChange={(e) => onHoursChange(e.target.value)} />
+          <FieldLabel>Date de début</FieldLabel>
+          <DateTimePicker value={startDate} onChange={onStartDateChange} placeholder="Début" maxDate={endDate} />
         </Field>
         <Field>
-          <FieldLabel htmlFor="time-minutes">Minutes</FieldLabel>
-          <Input id="time-minutes" type="number" min="0" max="59" value={minutes} onChange={(e) => onMinutesChange(e.target.value)} />
+          <FieldLabel>Date de fin</FieldLabel>
+          <DateTimePicker value={endDate} onChange={onEndDateChange} placeholder="Fin" minDate={startDate} />
         </Field>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
+      <div className="flex items-end gap-3">
+        <Field className="flex-1">
           <FieldLabel htmlFor="time-rate">Taux horaire</FieldLabel>
           <Input id="time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(e) => onHourlyRateChange(e.target.value)} />
         </Field>
-        <Field>
-          <FieldLabel htmlFor="time-total">Total</FieldLabel>
-          <Input
-            id="time-total"
-            type="number"
-            min="0"
-            step="0.01"
-            value={totalValue}
-            onChange={(e) => handleTotalChange(e.target.value)}
-            onBlur={() => setTotalDraft(null)}
-          />
-        </Field>
+        <p className="pb-2 text-xs text-muted-foreground">
+          {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
+        </p>
       </div>
 
       <Field>

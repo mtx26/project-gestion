@@ -27,6 +27,7 @@ import {
   findTargetLabel,
   getTargetPayload,
 } from "@/lib/target-utils";
+import { format } from "date-fns";
 import { buildProjectHref, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
@@ -98,8 +99,9 @@ function ProjectTimeContent({
   const [targetValue, setTargetValue] = useState(parseTargetFilter(searchParams.get("target")) ?? "project");
   const [timeFormOpen, setTimeFormOpen] = useState(searchParams.get("new") === "1");
   const [createFormKey, setCreateFormKey] = useState(0);
-  const [hours, setHours] = useState("1");
-  const [minutes, setMinutes] = useState("0");
+  const nowIso = () => format(new Date(), "yyyy-MM-dd'T'HH:mm");
+  const [startDate, setStartDate] = useState(nowIso);
+  const [endDate, setEndDate] = useState(nowIso);
   const defaultHourlyRate = user?.profile?.default_hourly_rate ?? "0";
   const [hourlyRateDraft, setHourlyRateDraft] = useState<string | null>(null);
   const hourlyRate = hourlyRateDraft ?? defaultHourlyRate;
@@ -181,19 +183,25 @@ function ProjectTimeContent({
   const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, periodPreset, members, user?.id ?? null, targetFilterLabel);
 
   const createTimeEntry = useMutation({
-    mutationFn: (documentIds: number[]) =>
-      api.timeEntries.create(selectedProject!.id, {
+    mutationFn: (documentIds: number[]) => {
+      const durationMinutes = startDate && endDate
+        ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000))
+        : 0;
+      return api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
-        duration_minutes: Number(hours) * 60 + Number(minutes),
+        start_date: startDate || null,
+        duration_minutes: durationMinutes,
         hourly_rate: hourlyRate === "" ? undefined : hourlyRate,
         description: description.trim() || null,
         folder: getTargetPayload(targetValue).folder,
         task: getTargetPayload(targetValue).task,
         documents: documentIds,
-      }),
+      });
+    },
     onSuccess: async () => {
       toast.success("Temps enregistre");
-      setHours("1"); setMinutes("0"); setHourlyRateDraft(null);
+      const now = nowIso();
+      setStartDate(now); setEndDate(now); setHourlyRateDraft(null);
       setDescription(""); setTargetValue("project"); setTimeFormOpen(false);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
@@ -227,6 +235,7 @@ function ProjectTimeContent({
     mutationFn: (data: EditTimeSubmitData) =>
       api.timeEntries.update(selectedProject!.id, editingEntry!.id, {
         duration_minutes: data.durationMinutes,
+        start_date: data.startDate,
         hourly_rate: data.hourlyRate,
         description: data.description,
         folder: data.folder,
@@ -380,8 +389,8 @@ function ProjectTimeContent({
             key={createFormKey}
             canRecordTime={canRecordTime}
             projectId={selectedProject?.id ?? 0}
-            hours={hours}
-            minutes={minutes}
+            startDate={startDate}
+            endDate={endDate}
             hourlyRate={hourlyRate}
             description={description}
             targetValue={targetValue}
@@ -389,8 +398,8 @@ function ProjectTimeContent({
             selectedTargetLabel={selectedTargetLabel}
             isPending={createTimeEntry.isPending}
             error={getErrorMessage(createTimeEntry.error)}
-            onHoursChange={setHours}
-            onMinutesChange={setMinutes}
+            onStartDateChange={setStartDate}
+            onEndDateChange={setEndDate}
             onHourlyRateChange={setHourlyRateDraft}
             onDescriptionChange={setDescription}
             onTargetValueChange={setTargetValue}

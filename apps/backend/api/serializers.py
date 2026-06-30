@@ -666,6 +666,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "task_name",
             "user",
             "user_display_name",
+            "start_date",
             "duration_minutes",
             "hourly_rate",
             "cost_amount",

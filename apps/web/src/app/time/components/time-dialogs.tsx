@@ -27,6 +27,8 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TargetPickerDialog } from "@/components/pickers/target-tree-picker";
 import { Textarea } from "@/components/ui/textarea";
+import { addMinutes, format, parseISO } from "date-fns";
+import { DateTimePicker } from "@/components/forms/date-time-picker";
 import { formatDateTime } from "@/lib/date-utils";
 import { type TargetTreeNode, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
@@ -35,8 +37,8 @@ import { DetailField, DetailLabel, DetailModal, ModalFooter, ModalGrid, ModalHer
 import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
 
 const editTimeSchema = z.object({
-  hours: z.string(),
-  minutes: z.string(),
+  startDate: z.string(),
+  endDate: z.string(),
   hourlyRate: z.string(),
   description: z.string(),
 });
@@ -61,6 +63,7 @@ type PaymentFormValues = { mode: "full" | "partial"; amount: string };
 export type EditTimeSubmitData = {
   documentIds: number[];
   durationMinutes: number;
+  startDate: string | null;
   hourlyRate: string | undefined;
   description: string | null;
   folder: number | null;
@@ -89,40 +92,40 @@ export function EditTimeEntryDialog({
   const form = useForm<EditTimeFormValues>({
     resolver: zodResolver(editTimeSchema),
     defaultValues: {
-      hours: entry ? String(Math.floor(entry.duration_minutes / 60)) : "1",
-      minutes: entry ? String(entry.duration_minutes % 60) : "0",
+      startDate: entry?.start_date
+        ? entry.start_date.slice(0, 16)
+        : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      endDate: entry?.start_date
+        ? format(addMinutes(parseISO(entry.start_date.slice(0, 16)), entry.duration_minutes), "yyyy-MM-dd'T'HH:mm")
+        : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       hourlyRate: entry?.hourly_rate ?? "0",
       description: entry?.description ?? "",
     },
   });
   const [targetValue, setTargetValue] = useState(entry ? getTargetValueFromEntry(entry) : "project");
-  const [totalDraft, setTotalDraft] = useState<string | null>(null);
   const docs = useDocumentAttachment(
     (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
   );
 
-  const { hours, minutes, hourlyRate } = form.watch();
-  const durationMinutes = Number(hours) * 60 + Number(minutes);
+  const { startDate, endDate, hourlyRate } = form.watch();
+  const durationMinutes = startDate && endDate
+    ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000))
+    : 0;
   const durationHours = durationMinutes / 60;
-  const computedTotal = durationHours > 0 ? (durationHours * Number(hourlyRate)).toFixed(2) : "0.00";
-  const totalValue = totalDraft ?? computedTotal;
+  const computedTotal = durationHours > 0 ? durationHours * Number(hourlyRate) : 0;
   const selectedTargetLabel = findTargetLabel(targetTree, targetValue) ?? "Projet";
 
-  function handleTotalChange(value: string) {
-    setTotalDraft(value);
-    const total = Number(value);
-    if (durationHours > 0 && total >= 0 && value !== "") {
-      form.setValue("hourlyRate", (total / durationHours).toFixed(2));
-    }
-  }
-
   async function handleSubmit(values: EditTimeFormValues) {
+    const duration = values.startDate && values.endDate
+      ? Math.max(0, Math.round((new Date(values.endDate).getTime() - new Date(values.startDate).getTime()) / 60000))
+      : 0;
     const { folder, task } = getTargetPayload(targetValue);
     const newDocIds = await docs.uploadPending(projectId, folder);
     if (newDocIds === null) return;
     onSubmit({
       documentIds: docs.getAllDocIds(newDocIds),
-      durationMinutes: Number(values.hours) * 60 + Number(values.minutes),
+      durationMinutes: duration,
+      startDate: values.startDate || null,
       hourlyRate: values.hourlyRate === "" ? undefined : values.hourlyRate,
       description: values.description.trim() || null,
       folder,
@@ -143,32 +146,35 @@ export function EditTimeEntryDialog({
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <Field>
-              <FieldLabel htmlFor="edit-time-hours">Heures</FieldLabel>
-              <Input id="edit-time-hours" type="number" min="0" {...form.register("hours")} />
+              <FieldLabel>Date de début</FieldLabel>
+              <Controller
+                control={form.control}
+                name="startDate"
+                render={({ field }) => (
+                  <DateTimePicker value={field.value} onChange={field.onChange} placeholder="Début" maxDate={endDate} />
+                )}
+              />
             </Field>
             <Field>
-              <FieldLabel htmlFor="edit-time-minutes">Minutes</FieldLabel>
-              <Input id="edit-time-minutes" type="number" min="0" max="59" {...form.register("minutes")} />
+              <FieldLabel>Date de fin</FieldLabel>
+              <Controller
+                control={form.control}
+                name="endDate"
+                render={({ field }) => (
+                  <DateTimePicker value={field.value} onChange={field.onChange} placeholder="Fin" minDate={startDate} />
+                )}
+              />
             </Field>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
+          <div className="flex items-end gap-3">
+            <Field className="flex-1">
               <FieldLabel htmlFor="edit-time-rate">Taux horaire</FieldLabel>
               <Input id="edit-time-rate" type="number" min="0" step="0.01" {...form.register("hourlyRate")} />
             </Field>
-            <Field>
-              <FieldLabel htmlFor="edit-time-total">Total</FieldLabel>
-              <Input
-                id="edit-time-total"
-                type="number"
-                min="0"
-                step="0.01"
-                value={totalValue}
-                onChange={(e) => handleTotalChange(e.target.value)}
-                onBlur={() => setTotalDraft(null)}
-              />
-            </Field>
+            <p className="pb-2 text-xs text-muted-foreground">
+              {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
+            </p>
           </div>
 
           <Field>

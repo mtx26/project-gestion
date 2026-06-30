@@ -4,6 +4,7 @@ import type { ExpenseRequest, File as ApiFile, FinancialEntry, Folder, Project, 
 import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, Receipt, RotateCcw, Wallet } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
@@ -15,7 +16,8 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/
 import { NoProjectState } from "@/components/states/no-project-state";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { api } from "@/lib/api";
 import { toastError } from "@/lib/errors";
 import { buildProjectHref } from "@/lib/url-params";
@@ -54,6 +56,22 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
     params.set("tab", value);
     router.push(`/trash?${params}`);
   }
+
+  const lockedFiles = !!(selectedProject && !canRestoreFiles);
+  const lockedTasks = !!(selectedProject && !canRestoreTasks);
+  const lockedTime = !!(selectedProject && !canRestoreTime);
+  const lockedFinance = !!(selectedProject && !canRestoreFinance);
+  const lockedRequests = !!(selectedProject && !canRestoreExpenseRequests);
+
+  const disabledByTab: Record<string, boolean> = {
+    folders: lockedFiles, documents: lockedFiles, tasks: lockedTasks,
+    time: lockedTime, finance: lockedFinance, requests: lockedRequests,
+  };
+
+  useEffect(() => {
+    if (disabledByTab[tab]) setTab("projects");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab, lockedFiles, lockedTasks, lockedTime, lockedFinance, lockedRequests]);
 
   const projectsTrashQuery = useQuery({
     queryKey: queryKeys.projects.trash(),
@@ -186,80 +204,56 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
       </div>
 
       <Tabs value={tab} onValueChange={setTab}>
-        <TabsList>
+        <ScrollableTabsList>
           <TabsTrigger value="projects" className="gap-2">
             Projets
             {deletedProjects.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{deletedProjects.length}</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="folders" className="gap-2">
-            {selectedProject && !canRestoreFiles ? (
-              <Lock className="size-4 text-muted-foreground" />
-            ) : (
-              <FolderIcon className="size-4" />
-            )}
+          <TabsTrigger value="folders" className="gap-2" disabled={lockedFiles}>
+            {lockedFiles ? <Lock className="size-4" /> : <FolderIcon className="size-4" />}
             Dossiers
             {folders.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{folders.length}</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="documents" className="gap-2">
-            {selectedProject && !canRestoreFiles ? (
-              <Lock className="size-4 text-muted-foreground" />
-            ) : (
-              <FileText className="size-4" />
-            )}
+          <TabsTrigger value="documents" className="gap-2" disabled={lockedFiles}>
+            {lockedFiles ? <Lock className="size-4" /> : <FileText className="size-4" />}
             Documents
             {documents.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{documents.length}</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="tasks" className="gap-2">
-            {selectedProject && !canRestoreTasks ? (
-              <Lock className="size-4 text-muted-foreground" />
-            ) : (
-              <ListTodo className="size-4" />
-            )}
+          <TabsTrigger value="tasks" className="gap-2" disabled={lockedTasks}>
+            {lockedTasks ? <Lock className="size-4" /> : <ListTodo className="size-4" />}
             Taches
             {tasks.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{tasks.length}</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="time" className="gap-2">
-            {selectedProject && !canRestoreTime ? (
-              <Lock className="size-4 text-muted-foreground" />
-            ) : (
-              <Clock3 className="size-4" />
-            )}
+          <TabsTrigger value="time" className="gap-2" disabled={lockedTime}>
+            {lockedTime ? <Lock className="size-4" /> : <Clock3 className="size-4" />}
             Temps
             {timeEntries.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{timeEntries.length}</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="finance" className="gap-2">
-            {selectedProject && !canRestoreFinance ? (
-              <Lock className="size-4 text-muted-foreground" />
-            ) : (
-              <Wallet className="size-4" />
-            )}
+          <TabsTrigger value="finance" className="gap-2" disabled={lockedFinance}>
+            {lockedFinance ? <Lock className="size-4" /> : <Wallet className="size-4" />}
             Finance
             {financialEntries.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{financialEntries.length}</span>
             ) : null}
           </TabsTrigger>
-          <TabsTrigger value="requests" className="gap-2">
-            {selectedProject && !canRestoreExpenseRequests ? (
-              <Lock className="size-4 text-muted-foreground" />
-            ) : (
-              <Receipt className="size-4" />
-            )}
+          <TabsTrigger value="requests" className="gap-2" disabled={lockedRequests}>
+            {lockedRequests ? <Lock className="size-4" /> : <Receipt className="size-4" />}
             Remboursements
             {expenseRequests.length > 0 ? (
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">{expenseRequests.length}</span>
             ) : null}
           </TabsTrigger>
-        </TabsList>
+        </ScrollableTabsList>
 
         <TabsContent value="projects" className="mt-4">
           <TrashSection<Project>

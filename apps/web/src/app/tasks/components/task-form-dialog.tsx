@@ -2,12 +2,13 @@
 
 import type { FolderTreeNode, Task, TaskPayload } from "@project-gestion/types";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { format } from "date-fns";
 import { Check, X } from "lucide-react";
 import React, { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { DatePicker } from "@/components/forms/date-picker";
+import { DateTimePicker } from "@/components/forms/date-time-picker";
 import {
   Dialog,
   DialogClose,
@@ -83,8 +84,8 @@ export function TaskFormDialog({
         : (initialFolder ?? "all"),
       status: task?.status ?? "todo",
       priority: task?.priority ?? "normal",
-      startDate: task?.start_date ?? "",
-      endDate: task?.end_date ?? "",
+      startDate: task?.start_date ? task.start_date.slice(0, 16) : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      endDate: task?.end_date ? task.end_date.slice(0, 16) : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       assignees: task?.assigned_to ?? [],
     },
   });
@@ -109,6 +110,8 @@ export function TaskFormDialog({
 
   const folderValue = useWatch({ control: form.control, name: "folder" });
   const folderId = getFolderId(folderValue as FolderFilter);
+  const startDateValue = useWatch({ control: form.control, name: "startDate" });
+  const endDateValue = useWatch({ control: form.control, name: "endDate" });
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -213,7 +216,7 @@ export function TaskFormDialog({
                   control={form.control}
                   name="startDate"
                   render={({ field }) => (
-                    <DatePicker value={field.value} onChange={field.onChange} />
+                    <DateTimePicker value={field.value} onChange={field.onChange} maxDate={endDateValue} />
                   )}
                 />
               </Field>
@@ -223,7 +226,7 @@ export function TaskFormDialog({
                   control={form.control}
                   name="endDate"
                   render={({ field }) => (
-                    <DatePicker value={field.value} onChange={field.onChange} />
+                    <DateTimePicker value={field.value} onChange={field.onChange} minDate={startDateValue} />
                   )}
                 />
               </Field>
@@ -236,7 +239,7 @@ export function TaskFormDialog({
                   control={form.control}
                   name="startDate"
                   render={({ field }) => (
-                    <DatePicker value={field.value} onChange={field.onChange} />
+                    <DateTimePicker value={field.value} onChange={field.onChange} maxDate={endDateValue} />
                   )}
                 />
               </Field>
@@ -246,7 +249,7 @@ export function TaskFormDialog({
                   control={form.control}
                   name="endDate"
                   render={({ field }) => (
-                    <DatePicker value={field.value} onChange={field.onChange} />
+                    <DateTimePicker value={field.value} onChange={field.onChange} minDate={startDateValue} />
                   )}
                 />
               </Field>
