@@ -205,7 +205,7 @@ export type FolderTreeNode = {
   folder?: ID | null;
   status?: "todo" | "in_progress" | "done";
   priority?: "low" | "normal" | "high";
-  due_date?: string | null;
+  end_date?: string | null;
   file_name?: string;
   file_size?: number | null;
   mime_type?: string | null;
@@ -227,7 +227,7 @@ export type Task = {
   status: "todo" | "in_progress" | "done";
   priority: "low" | "normal" | "high";
   start_date: string | null;
-  due_date: string | null;
+  end_date: string | null;
   completed_at: string | null;
   created_at: string;
   updated_at: string;
@@ -243,7 +243,7 @@ export type TaskPayload = {
   status?: "todo" | "in_progress" | "done";
   priority?: "low" | "normal" | "high";
   start_date?: string | null;
-  due_date?: string | null;
+  end_date?: string | null;
 };
 
 export type TimeEntry = {

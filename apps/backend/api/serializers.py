@@ -299,7 +299,7 @@ class FolderTreeNodeSerializer(serializers.Serializer):
     folder = serializers.IntegerField(allow_null=True, required=False)
     status = serializers.CharField(required=False)
     priority = serializers.CharField(required=False)
-    due_date = serializers.CharField(allow_null=True, required=False)
+    end_date = serializers.CharField(allow_null=True, required=False)
     file_name = serializers.CharField(required=False)
     file_size = serializers.IntegerField(required=False)
     mime_type = serializers.CharField(required=False)
@@ -430,7 +430,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "status",
             "priority",
             "start_date",
-            "due_date",
+            "end_date",
             "completed_at",
             "created_at",
             "updated_at",

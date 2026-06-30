@@ -51,6 +51,7 @@ export function translateError(code: string) {
     "errors.email_verification.invalid_key": "Lien de verification invalide ou expire.",
     "errors.user.email_already_exists": "Un compte existe deja avec cet email.",
     "errors.user.username_already_exists": "Ce nom d'utilisateur est deja utilise.",
+    "errors.task.start_date_after_end_date": "La date de debut ne peut pas depasser la date de fin.",
     "errors.invitation.invalid_token": "Lien d'invitation invalide.",
     "errors.invitation.already_accepted": "Cette invitation a deja ete acceptee.",
     "errors.invitation.expired": "Cette invitation a expire.",

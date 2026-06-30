@@ -67,19 +67,19 @@ function buildEvents(timeEntries: TimeEntry[], tasks: Task[]): CalEvent[] {
 
   for (const t of tasks) {
     const base = { entityId: t.id, status: t.status, priority: t.priority };
-    if (t.start_date && t.due_date) {
+    if (t.start_date && t.end_date) {
       events.push({
         id: `task-${t.id}`,
         title: t.title,
         start: t.start_date,
-        end: addOneDay(t.due_date),
+        end: addOneDay(t.end_date),
         allDay: true,
         extendedProps: { kind: "task-span", ...base },
       });
     } else if (t.start_date) {
       events.push({ id: `task-start-${t.id}`, title: t.title, start: t.start_date, allDay: true, extendedProps: { kind: "task-point-start", ...base } });
-    } else if (t.due_date) {
-      events.push({ id: `task-due-${t.id}`, title: t.title, start: t.due_date, allDay: true, extendedProps: { kind: "task-point-due", ...base } });
+    } else if (t.end_date) {
+      events.push({ id: `task-due-${t.id}`, title: t.title, start: t.end_date, allDay: true, extendedProps: { kind: "task-point-due", ...base } });
     }
   }
 

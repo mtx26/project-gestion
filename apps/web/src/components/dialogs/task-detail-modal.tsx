@@ -90,9 +90,9 @@ export function TaskDetailModal({
                 <span>{formatDate(task.start_date)}</span>
               </DetailField>
             ) : null}
-            {task.due_date ? (
-              <DetailField label="Echeance" icon={Calendar}>
-                <span>{formatDate(task.due_date)}</span>
+            {task.end_date ? (
+              <DetailField label="Date de fin" icon={Calendar}>
+                <span>{formatDate(task.end_date)}</span>
               </DetailField>
             ) : null}
             <DetailField label="Cree par" icon={UserRound}>

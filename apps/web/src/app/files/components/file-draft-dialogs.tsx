@@ -26,14 +26,14 @@ export function FileDraftDialogs(props: {
   taskTitle: string;
   taskDescription: string;
   taskPriority: Task["priority"];
-  taskDueDate: string;
+  taskEndDate: string;
   taskIsPending: boolean;
   onTaskOpenChange: (open: boolean) => void;
   onTaskTitleChange: (value: string) => void;
   onTaskDescriptionChange: (value: string) => void;
   onTaskFolderChange: (folderId: number | null) => void;
   onTaskPriorityChange: (value: Task["priority"]) => void;
-  onTaskDueDateChange: (value: string) => void;
+  onTaskEndDateChange: (value: string) => void;
   onTaskSubmit: () => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   timeOpen: boolean;
@@ -60,14 +60,14 @@ export function FileDraftDialogs(props: {
         title={props.taskTitle}
         description={props.taskDescription}
         priority={props.taskPriority}
-        dueDate={props.taskDueDate}
+        endDate={props.taskEndDate}
         isPending={props.taskIsPending}
         onOpenChange={props.onTaskOpenChange}
         onTitleChange={props.onTaskTitleChange}
         onDescriptionChange={props.onTaskDescriptionChange}
         onFolderChange={props.onTaskFolderChange}
         onPriorityChange={props.onTaskPriorityChange}
-        onDueDateChange={props.onTaskDueDateChange}
+        onEndDateChange={props.onTaskEndDateChange}
         onSubmit={props.onTaskSubmit}
         onCreateFolder={props.onCreateFolder}
       />
@@ -98,14 +98,14 @@ export function TaskDraftDialog({
   title,
   description,
   priority,
-  dueDate,
+  endDate,
   isPending,
   onOpenChange,
   onTitleChange,
   onDescriptionChange,
   onFolderChange,
   onPriorityChange,
-  onDueDateChange,
+  onEndDateChange,
   onSubmit,
   onCreateFolder,
 }: {
@@ -116,14 +116,14 @@ export function TaskDraftDialog({
   title: string;
   description: string;
   priority: Task["priority"];
-  dueDate: string;
+  endDate: string;
   isPending: boolean;
   onOpenChange: (open: boolean) => void;
   onTitleChange: (value: string) => void;
   onDescriptionChange: (value: string) => void;
   onFolderChange: (folderId: number | null) => void;
   onPriorityChange: (value: Task["priority"]) => void;
-  onDueDateChange: (value: string) => void;
+  onEndDateChange: (value: string) => void;
   onSubmit: () => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
@@ -168,8 +168,8 @@ export function TaskDraftDialog({
               </Select>
             </Field>
             <Field>
-              <FieldLabel>Echeance</FieldLabel>
-              <DatePicker value={dueDate} onChange={onDueDateChange} />
+              <FieldLabel>Date de fin</FieldLabel>
+              <DatePicker value={endDate} onChange={onEndDateChange} />
             </Field>
           </div>
           <Field>

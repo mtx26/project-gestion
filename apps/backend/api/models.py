@@ -203,7 +203,7 @@ class Task(BaseModel):
     status = models.CharField(max_length=50, choices=Status.choices, default=Status.TODO, db_index=True)
     priority = models.CharField(max_length=50, choices=Priority.choices, default=Priority.NORMAL, db_index=True)
     start_date = models.DateField(null=True, blank=True)
-    due_date = models.DateField(null=True, blank=True, db_index=True)
+    end_date = models.DateField(null=True, blank=True, db_index=True)
     completed_at = models.DateTimeField(null=True, blank=True)
 
     def clean(self):
@@ -212,8 +212,8 @@ class Task(BaseModel):
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.task.folder_project_mismatch")
 
-        if self.start_date and self.due_date and self.start_date > self.due_date:
-            raise ValidationError({"start_date": "errors.task.start_date_after_due_date"})
+        if self.start_date and self.end_date and self.start_date > self.end_date:
+            raise ValidationError({"start_date": "errors.task.start_date_after_end_date"})
 
 class Invitation(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)

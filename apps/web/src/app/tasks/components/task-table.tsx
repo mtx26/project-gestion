@@ -26,7 +26,7 @@ const COLUMN_LABELS: Record<string, string> = {
   folder: "Dossier",
   status: "Statut",
   priority: "Priorite",
-  due_date: "Echeance",
+  end_date: "Date de fin",
   assignees: "Assignes",
 };
 
@@ -122,16 +122,16 @@ export function TaskTable({
         cell: ({ row }) => <TaskPriorityBadge priority={row.original.priority} />,
       },
       {
-        id: "due_date",
-        accessorKey: "due_date",
+        id: "end_date",
+        accessorKey: "end_date",
         header: () => (
-          <SortButton field="due_date" sortField={sortField} sortDir={sortDir} onSortChange={onSortChange}>
-            Echeance
+          <SortButton field="end_date" sortField={sortField} sortDir={sortDir} onSortChange={onSortChange}>
+            Date de fin
           </SortButton>
         ),
         cell: ({ row }) => (
           <span className="text-muted-foreground">
-            {row.original.due_date ? formatDate(row.original.due_date) : "-"}
+            {row.original.end_date ? formatDate(row.original.end_date) : "-"}
           </span>
         ),
       },

@@ -36,11 +36,11 @@ const taskSchema = z.object({
   status: z.enum(["todo", "in_progress", "done"]),
   priority: z.enum(["low", "normal", "high"]),
   startDate: z.string(),
-  dueDate: z.string(),
+  endDate: z.string(),
   assignees: z.array(z.number()),
 }).refine(
-  (v) => !v.startDate || !v.dueDate || v.startDate <= v.dueDate,
-  { message: "La date de debut ne peut pas depasser l'echeance", path: ["startDate"] },
+  (v) => !v.startDate || !v.endDate || v.startDate <= v.endDate,
+  { message: "La date de debut ne peut pas depasser la date de fin", path: ["startDate"] },
 );
 type TaskFormValues = z.infer<typeof taskSchema>;
 
@@ -84,7 +84,7 @@ export function TaskFormDialog({
       status: task?.status ?? "todo",
       priority: task?.priority ?? "normal",
       startDate: task?.start_date ?? "",
-      dueDate: task?.due_date ?? "",
+      endDate: task?.end_date ?? "",
       assignees: task?.assigned_to ?? [],
     },
   });
@@ -102,7 +102,7 @@ export function TaskFormDialog({
       status: values.status,
       priority: values.priority,
       start_date: values.startDate || null,
-      due_date: values.dueDate || null,
+      end_date: values.endDate || null,
       assigned_to: values.assignees,
     });
   }
@@ -218,10 +218,10 @@ export function TaskFormDialog({
                 />
               </Field>
               <Field>
-                <FieldLabel>Echeance</FieldLabel>
+                <FieldLabel>Date de fin</FieldLabel>
                 <Controller
                   control={form.control}
-                  name="dueDate"
+                  name="endDate"
                   render={({ field }) => (
                     <DatePicker value={field.value} onChange={field.onChange} />
                   )}
@@ -241,10 +241,10 @@ export function TaskFormDialog({
                 />
               </Field>
               <Field>
-                <FieldLabel>Echeance</FieldLabel>
+                <FieldLabel>Date de fin</FieldLabel>
                 <Controller
                   control={form.control}
-                  name="dueDate"
+                  name="endDate"
                   render={({ field }) => (
                     <DatePicker value={field.value} onChange={field.onChange} />
                   )}

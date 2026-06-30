@@ -119,7 +119,7 @@ function ProjectTreeView({
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskPriority, setTaskPriority] = useState<Task["priority"]>("normal");
-  const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskEndDate, setTaskEndDate] = useState("");
   const [timeDraftFolderId, setTimeDraftFolderId] = useState<number | null>(null);
   const [timeHours, setTimeHours] = useState("1");
   const [timeMinutes, setTimeMinutes] = useState("0");
@@ -221,12 +221,12 @@ function ProjectTreeView({
         folder: taskDraftFolderId,
         priority: taskPriority,
         status: "todo",
-        due_date: taskDueDate || null,
+        end_date: taskEndDate || null,
       }),
     onSuccess: async () => {
       toast.success("Tache creee");
       setTaskDraftFolderId(null);
-      setTaskTitle(""); setTaskDescription(""); setTaskPriority("normal"); setTaskDueDate("");
+      setTaskTitle(""); setTaskDescription(""); setTaskPriority("normal"); setTaskEndDate("");
       await Promise.all([
         treeQuery.refetch(),
         selectedProjectId
@@ -330,7 +330,7 @@ function ProjectTreeView({
 
   function openTaskDraft(folderId: number | null) {
     setTaskDraftFolderId(folderId);
-    setTaskTitle(""); setTaskDescription(""); setTaskPriority("normal"); setTaskDueDate("");
+    setTaskTitle(""); setTaskDescription(""); setTaskPriority("normal"); setTaskEndDate("");
   }
 
   function openTimeDraft(folderId: number | null) {
@@ -587,14 +587,14 @@ function ProjectTreeView({
         taskTitle={taskTitle}
         taskDescription={taskDescription}
         taskPriority={taskPriority}
-        taskDueDate={taskDueDate}
+        taskEndDate={taskEndDate}
         taskIsPending={createTask.isPending}
         onTaskOpenChange={(open) => { if (!open) setTaskDraftFolderId(null); }}
         onTaskTitleChange={setTaskTitle}
         onTaskDescriptionChange={setTaskDescription}
         onTaskFolderChange={setTaskDraftFolderId}
         onTaskPriorityChange={setTaskPriority}
-        onTaskDueDateChange={setTaskDueDate}
+        onTaskEndDateChange={setTaskEndDate}
         onTaskSubmit={() => { if (canEditTasks && taskTitle.trim()) createTask.mutate(); }}
         onCreateFolder={canEditFiles ? handleCreateFolder : undefined}
         timeOpen={timeDraftFolderId != null}

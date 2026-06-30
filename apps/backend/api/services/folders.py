@@ -35,7 +35,7 @@ def build_task_tree_node(task):
         "folder": task.folder_id,
         "status": task.status,
         "priority": task.priority,
-        "due_date": task.due_date.isoformat() if task.due_date else None,
+        "end_date": task.end_date.isoformat() if task.end_date else None,
     }
 
 

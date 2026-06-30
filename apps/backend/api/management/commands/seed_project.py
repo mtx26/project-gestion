@@ -291,7 +291,7 @@ class Command(BaseCommand):
             start_offset = random.randint(-90, 30)
             duration = random.randint(1, 30)
             start_date = today + timedelta(days=start_offset)
-            due_date = start_date + timedelta(days=duration)
+            end_date = start_date + timedelta(days=duration)
 
             task = Task(
                 project=project,
@@ -304,7 +304,7 @@ class Command(BaseCommand):
                 status=status,
                 priority=priority,
                 start_date=start_date if random.random() > 0.2 else None,
-                due_date=due_date if random.random() > 0.2 else None,
+                end_date=end_date if random.random() > 0.2 else None,
             )
             tasks.append(task)
 

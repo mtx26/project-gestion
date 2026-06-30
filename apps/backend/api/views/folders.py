@@ -109,7 +109,7 @@ class FolderTreeView(generics.GenericAPIView):
             tasks = Task.objects.filter(
                 project_id=project_id,
                 status__in=["todo", "in_progress"],
-            ).order_by("due_date", "title", "id")
+            ).order_by("end_date", "title", "id")
         else:
             tasks = Task.objects.none()
 

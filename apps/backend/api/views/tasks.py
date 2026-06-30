@@ -46,14 +46,14 @@ class TaskFilter(django_filters.FilterSet):
         if date_to:
             return queryset.filter(
                 Q(start_date__gte=value, start_date__lte=date_to) |
-                Q(due_date__gte=value, due_date__lte=date_to)
+                Q(end_date__gte=value, end_date__lte=date_to)
             )
-        return queryset.filter(Q(start_date__gte=value) | Q(due_date__gte=value))
+        return queryset.filter(Q(start_date__gte=value) | Q(end_date__gte=value))
 
     def filter_date_to(self, queryset, _name, value):
         if self.data.get("date_from"):
             return queryset  # logique déjà appliquée par filter_date_from
-        return queryset.filter(Q(start_date__lte=value) | Q(due_date__lte=value))
+        return queryset.filter(Q(start_date__lte=value) | Q(end_date__lte=value))
 
 
 @extend_schema(tags=["tasks"])
@@ -63,9 +63,9 @@ class TaskFilter(django_filters.FilterSet):
         description=(
             "Retourne toutes les tâches actives d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `priority`, `created_by`, `assigned_to`, `exclude_done`.\n\n"
-            "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `due_date` tombe dans la plage.\n\n"
+            "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `end_date` tombe dans la plage.\n\n"
             "- Recherche disponible : `search` sur `title` et `description`.\n\n"
-            "- Tri disponible : `ordering` sur `title`, `folder__name`, `status_order`, `priority_order`, `due_date`, `created_at`. "
+            "- Tri disponible : `ordering` sur `title`, `folder__name`, `status_order`, `priority_order`, `end_date`, `created_at`. "
             "Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `task.view`."
@@ -82,7 +82,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
     filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = TaskFilter
     search_fields = ["title", "description"]
-    ordering_fields = ["title", "folder__name", "status_order", "priority_order", "due_date", "created_at"]
+    ordering_fields = ["title", "folder__name", "status_order", "priority_order", "end_date", "created_at"]
 
     def get_permissions(self):
         if self.request.method == "GET":
@@ -120,7 +120,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
             "created_by",
         ).prefetch_related(
             "assigned_to",
-        ).order_by("due_date", "created_at", "id")
+        ).order_by("end_date", "created_at", "id")
 
         return queryset
 
@@ -204,7 +204,7 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
         description=(
             "Retourne les tâches supprimées d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `priority`, `created_by`, `assigned_to`, `exclude_done`.\n\n"
-            "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `due_date` tombe dans la plage.\n\n"
+            "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `end_date` tombe dans la plage.\n\n"
             "- Recherche disponible : `search` sur `title` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `task.restore`."
@@ -235,7 +235,7 @@ class TaskTrashListView(generics.ListAPIView):
             "created_by",
         ).prefetch_related(
             "assigned_to",
-        ).order_by("due_date", "created_at", "id")
+        ).order_by("end_date", "created_at", "id")
 
         return queryset
 
