@@ -13,12 +13,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
-import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
+import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
+import { SelectItem } from "@/components/ui/select";
 import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
-import { SelectItem } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
@@ -212,15 +213,19 @@ function ProjectTasksContent({
         ) : null}
       </div>
 
-      <FilterBar>
-        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
-        <FilterSelect value={statusFilter} onValueChange={(value) => updateUrlFilter({ status: value as StatusFilter })}>
+      <CollapsibleFilterBar
+        primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
+        activeCount={[statusFilter !== "all", priorityFilter !== "all", createdByFilter !== null, folderId !== null, includeCompleted].filter(Boolean).length}
+        clearPath="/tasks"
+        clearKeys={["search", "status", "priority", "member", "folder", "include_completed", "sort", "order", "page"]}
+      >
+        <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v as StatusFilter })}>
           <SelectItem value="all">Tous statuts</SelectItem>
           <SelectItem value="todo">À faire</SelectItem>
           <SelectItem value="in_progress">En cours</SelectItem>
           <SelectItem value="done">Terminé</SelectItem>
         </FilterSelect>
-        <FilterSelect value={priorityFilter} onValueChange={(value) => updateUrlFilter({ priority: value as PriorityFilter })}>
+        <FilterSelect value={priorityFilter} onValueChange={(v) => updateUrlFilter({ priority: v as PriorityFilter })}>
           <SelectItem value="all">Toutes priorités</SelectItem>
           <SelectItem value="low">Basse</SelectItem>
           <SelectItem value="normal">Normale</SelectItem>
@@ -250,8 +255,7 @@ function ProjectTasksContent({
         >
           Inclure terminées
         </FilterToggle>
-        <FilterClear path="/tasks" removeKeys={["search", "status", "priority", "member", "folder", "include_completed", "sort", "order", "page"]} />
-      </FilterBar>
+      </CollapsibleFilterBar>
 
       {myTasks.length > 0 ? (
         <Card className="rounded-lg">

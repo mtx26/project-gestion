@@ -16,12 +16,13 @@ import { DocumentPreviewModal } from "@/components/dialogs/document-preview-moda
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
-import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
+import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
+import { SelectItem } from "@/components/ui/select";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
-import { SelectItem } from "@/components/ui/select";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
@@ -187,8 +188,12 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
         ) : null}
       </div>
 
-      <FilterBar>
-        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
+      <CollapsibleFilterBar
+        primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
+        activeCount={[statusFilter !== "all", userFilterId !== null, folderFilterId !== null, showRejected && statusFilter === "all", ordering !== "all"].filter(Boolean).length}
+        clearPath="/requests"
+        clearKeys={["search", "status", "member", "folder", "show_rejected", "ordering", "page"]}
+      >
         <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v })}>
           <SelectItem value="all">Tous statuts</SelectItem>
           <SelectItem value="pending">En attente</SelectItem>
@@ -212,10 +217,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
         />
         {statusFilter === "all" ? (
-          <FilterToggle
-            pressed={showRejected}
-            onPressedChange={(pressed) => updateUrlFilter({ show_rejected: pressed })}
-          >
+          <FilterToggle pressed={showRejected} onPressedChange={(pressed) => updateUrlFilter({ show_rejected: pressed })}>
             Inclure refusés
           </FilterToggle>
         ) : null}
@@ -226,8 +228,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           <SelectItem value="amount">Montant ↑</SelectItem>
           <SelectItem value="title">Titre A→Z</SelectItem>
         </FilterSelect>
-        <FilterClear path="/requests" removeKeys={["search", "status", "member", "folder", "show_rejected", "ordering", "page"]} />
-      </FilterBar>
+      </CollapsibleFilterBar>
 
       {requestsQuery.isLoading ? (
         <SkeletonLoader count={4} className="h-16 w-full rounded-lg" />

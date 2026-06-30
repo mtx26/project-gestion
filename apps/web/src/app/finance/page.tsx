@@ -18,11 +18,12 @@ import { useDocumentPreview } from "@/lib/use-document-preview";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
 import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
-import { FilterBar, FilterClear, FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/filters/filter-bar";
+import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
+import { FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/filters/filter-bar";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
+import { SelectItem } from "@/components/ui/select";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
-import { SelectItem } from "@/components/ui/select";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { toast } from "sonner";
 import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
@@ -204,8 +205,12 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
         ) : null}
       </div>
 
-      <FilterBar>
-        <FilterSearch value={searchQuery} onChange={handleSearchChange} />
+      <CollapsibleFilterBar
+        primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
+        activeCount={[typeFilter !== "all", userFilterId !== null, folderFilterId !== null, ordering !== "all"].filter(Boolean).length}
+        clearPath="/finance"
+        clearKeys={["search", "type", "member", "folder", "ordering", "page"]}
+      >
         <FilterSelect value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
           <SelectItem value="all">Tous types</SelectItem>
           <SelectItem value="expense">Dépenses</SelectItem>
@@ -233,8 +238,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
           <SelectItem value="-amount">Montant ↓</SelectItem>
           <SelectItem value="amount">Montant ↑</SelectItem>
         </FilterSelect>
-        <FilterClear path="/finance" removeKeys={["search", "type", "member", "folder", "ordering", "page"]} />
-      </FilterBar>
+      </CollapsibleFilterBar>
 
       <FinanceBarChart series={chartQuery.data?.series} isLoading={chartQuery.isLoading} />
 
