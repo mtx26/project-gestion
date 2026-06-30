@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.core.exceptions import ObjectDoesNotExist, ValidationError as DjangoValidationError
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -23,6 +23,7 @@ from .models import (
     Permission,
     RolePermission,
     ProjectMember,
+    ProjectOwnerRate,
     Folder,
     Document,
     Task,
@@ -191,6 +192,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
             "role",
             "role_name",
             "role_deleted",
+            "hourly_rate",
             "created_at",
             "updated_at",
             "deleted_at",
@@ -713,14 +715,19 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         documents = validated_data.pop("documents", [])
         time_entry = TimeEntry(**validated_data)
 
-        if "hourly_rate" not in validated_data:
-            try:
-                profile = time_entry.user.profile
-            except ObjectDoesNotExist:
-                profile = None
-
-            if profile is not None:
-                time_entry.hourly_rate = profile.default_hourly_rate
+        if "hourly_rate" not in validated_data and time_entry.user_id:
+            member = ProjectMember.objects.filter(
+                project_id=time_entry.project_id,
+                user_id=time_entry.user_id,
+            ).first()
+            if member is not None:
+                time_entry.hourly_rate = member.hourly_rate
+            else:
+                owner_rate = ProjectOwnerRate.objects.filter(
+                    project_id=time_entry.project_id,
+                ).first()
+                if owner_rate is not None:
+                    time_entry.hourly_rate = owner_rate.hourly_rate
 
         try:
             time_entry.full_clean()

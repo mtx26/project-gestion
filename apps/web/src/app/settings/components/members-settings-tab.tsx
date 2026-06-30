@@ -35,12 +35,18 @@ export function MembersSettingsTab({
   selectedProject,
   queryClient,
   roles,
+  userId,
   canManageMembers,
+  canEditOwnRate,
+  canEditRates,
 }: {
   selectedProject: Project;
   queryClient: QueryClient;
   roles: Role[];
+  userId: number | null;
   canManageMembers: boolean;
+  canEditOwnRate: boolean;
+  canEditRates: boolean;
 }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRoleId, setInviteRoleId] = useState("");
@@ -106,6 +112,23 @@ export function MembersSettingsTab({
     },
   });
 
+  const updateMemberRate = useMutation({
+    mutationFn: ({ memberId, rate }: { memberId: number; rate: string }) =>
+      api.members.update(selectedProject.id, memberId, { hourly_rate: rate }),
+    onSuccess: async () => {
+      toast.success("Taux horaire mis a jour");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
+    },
+  });
+
+  const updateOwnerRate = useMutation({
+    mutationFn: (rate: string) => api.members.updateOwnerRate(selectedProject.id, rate),
+    onSuccess: async () => {
+      toast.success("Taux horaire mis a jour");
+      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
+    },
+  });
+
   return (
     <Card className="rounded-lg">
       <CardHeader>
@@ -153,70 +176,103 @@ export function MembersSettingsTab({
         </p>
 
         <div className="grid gap-2 sm:grid-cols-2">
-          {members.map((member) => (
-            <div
-              key={member.id}
-              className={`rounded-md border p-3 text-sm ${
-                member.role_deleted ? "border-red-200 bg-red-50/70" : "bg-muted/30"
-              }`}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-2.5">
-                  <MemberAvatar name={member.user_display_name} pictureUrl={member.user_picture_url} />
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{member.user_display_name}</p>
-                    {member.user === selectedProject.owner ? null : canManageMembers ? (
-                      <Select
-                        value={member.role_deleted ? undefined : String(member.role)}
-                        onValueChange={(value) =>
-                          updateMemberRole.mutate({ memberId: member.id, roleId: Number(value) })
-                        }
+          {members.map((member) => {
+            const isOwnerEntry = member.id === 0;
+            const isOwnRow = member.user === userId;
+            const canEditThisRate =
+              isOwnerEntry
+                ? isOwnRow
+                : canEditRates || (canEditOwnRate && isOwnRow);
+
+            return (
+              <div
+                key={member.id}
+                className={`rounded-md border p-3 text-sm ${
+                  member.role_deleted ? "border-red-200 bg-red-50/70" : "bg-muted/30"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex min-w-0 items-start gap-2.5">
+                    <MemberAvatar name={member.user_display_name} pictureUrl={member.user_picture_url} />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium">{member.user_display_name}</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {isOwnerEntry ? (
+                          <span className="text-xs text-muted-foreground">Proprietaire</span>
+                        ) : canManageMembers ? (
+                          <Select
+                            value={member.role_deleted ? undefined : String(member.role)}
+                            onValueChange={(value) =>
+                              updateMemberRole.mutate({ memberId: member.id, roleId: Number(value) })
+                            }
+                          >
+                            <SelectTrigger className="h-7 w-36 bg-background text-xs">
+                              <SelectValue placeholder={member.role_deleted ? "Aucun role" : "Role"} />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {roles.map((role) => (
+                                <SelectItem key={role.id} value={String(role.id)}>
+                                  {role.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        ) : (
+                          <span
+                            className={`text-xs ${member.role_deleted ? "text-red-700" : "text-muted-foreground"}`}
+                          >
+                            {member.role_deleted ? "Aucun role actif" : member.role_name}
+                          </span>
+                        )}
+                        {canEditThisRate ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              className="h-7 w-20 bg-background text-xs"
+                              defaultValue={member.hourly_rate}
+                              onBlur={(e) => {
+                                const val = e.target.value;
+                                if (isOwnerEntry) {
+                                  updateOwnerRate.mutate(val);
+                                } else {
+                                  updateMemberRate.mutate({ memberId: member.id, rate: val });
+                                }
+                              }}
+                            />
+                            <span className="text-xs text-muted-foreground">€/h</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">{member.hourly_rate} €/h</span>
+                        )}
+                      </div>
+                      {member.role_deleted ? (
+                        <p className="mt-1.5 text-xs font-medium text-red-700">
+                          Ce membre n&apos;a plus de role actif.
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <MemberTypeBadge isOwner={isOwnerEntry} roleDeleted={member.role_deleted} />
+                    {canManageMembers && !isOwnerEntry ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Supprimer ${member.user_display_name}`}
+                        disabled={removeMember.isPending}
+                        onClick={() => removeMember.mutate(member.id)}
                       >
-                        <SelectTrigger className="mt-2 h-8 w-full bg-background sm:w-48">
-                          <SelectValue placeholder={member.role_deleted ? "Aucun role actif" : "Role"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {roles.map((role) => (
-                            <SelectItem key={role.id} value={String(role.id)}>
-                              {role.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <p
-                        className={`mt-1 truncate text-xs ${
-                          member.role_deleted ? "text-red-700" : "text-muted-foreground"
-                        }`}
-                      >
-                        {member.role_deleted ? "Aucun role actif" : member.role_name}
-                      </p>
-                    )}
-                    {member.role_deleted ? (
-                      <p className="mt-2 text-xs font-medium text-red-700">
-                        Probleme: ce membre n&apos;a plus de role actif.
-                      </p>
+                        <Trash2 className="size-4" />
+                      </Button>
                     ) : null}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <MemberTypeBadge isOwner={member.user === selectedProject.owner} roleDeleted={member.role_deleted} />
-                  {canManageMembers && member.user !== selectedProject.owner ? (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Supprimer ${member.user_display_name}`}
-                      disabled={removeMember.isPending}
-                      onClick={() => removeMember.mutate(member.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
-                  ) : null}
-                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {invitations.map((invitation) => (
             <div key={`invitation-${invitation.id}`} className="rounded-md border bg-muted/30 p-3 text-sm">
@@ -267,6 +323,8 @@ export function MembersSettingsTab({
 
         <FormError message={getErrorMessage(removeMember.error)} />
         <FormError message={getErrorMessage(updateMemberRole.error)} />
+        <FormError message={getErrorMessage(updateMemberRate.error)} />
+        <FormError message={getErrorMessage(updateOwnerRate.error)} />
         <FormError message={getErrorMessage(updateInvitationRole.error)} />
         <FormError message={getErrorMessage(removeInvitation.error)} />
       </CardContent>

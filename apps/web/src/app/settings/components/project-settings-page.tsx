@@ -218,7 +218,10 @@ function ProjectSettingsContent({
                 selectedProject={selectedProject}
                 queryClient={queryClient}
                 roles={roles}
+                userId={user?.id ?? null}
                 canManageMembers={canManageMembers}
+                canEditOwnRate={hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.memberEditOwnRate)}
+                canEditRates={hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.memberEditRates)}
               />
             </TabsContent>
           ) : null}

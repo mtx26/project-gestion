@@ -241,7 +241,7 @@ export function createApiClient({
         request<ProjectMember[] | PaginatedResponse<ProjectMember>>(
           `/api/projects/${projectId}/members/`,
         ),
-      update: (projectId: number, memberId: number, payload: { role: number }) =>
+      update: (projectId: number, memberId: number, payload: { role?: number; hourly_rate?: string }) =>
         request<ProjectMember>(`/api/projects/${projectId}/members/${memberId}/`, {
           method: "PATCH",
           body: payload,
@@ -249,6 +249,11 @@ export function createApiClient({
       remove: (projectId: number, memberId: number) =>
         request<void>(`/api/projects/${projectId}/members/${memberId}/`, {
           method: "DELETE",
+        }),
+      updateOwnerRate: (projectId: number, hourly_rate: string) =>
+        request<{ hourly_rate: string }>(`/api/projects/${projectId}/owner-rate/`, {
+          method: "PATCH",
+          body: { hourly_rate },
         }),
     },
     roles: {

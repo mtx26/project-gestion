@@ -12,7 +12,8 @@ from .views.roles import (
 )
 from .views.members import (
     ProjectMemberListView,
-    ProjectMemberDetailView
+    ProjectMemberDetailView,
+    ProjectOwnerRateView,
 )
 from .views.invitations import (
     InvitationAcceptView,
@@ -86,6 +87,7 @@ urlpatterns = [
     # Members
     path("projects/<int:project_id>/members/", ProjectMemberListView.as_view(), name="project-members"),
     path("projects/<int:project_id>/members/<int:pk>/", ProjectMemberDetailView.as_view(), name="project-member-detail"),
+    path("projects/<int:project_id>/owner-rate/", ProjectOwnerRateView.as_view(), name="project-owner-rate"),
     path("projects/<int:project_id>/invitations/", InvitationListCreateView.as_view(), name="project-invitations"),
     path("projects/<int:project_id>/invitations/<int:pk>/", InvitationDetailView.as_view(), name="project-invitation-detail"),
     path("invitations/accept/", InvitationAcceptView.as_view(), name="invitation-accept"),

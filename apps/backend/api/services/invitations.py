@@ -119,19 +119,33 @@ def send_invitation_email(invitation):
 def accept_project_invitation(*, token, user):
     now = timezone.now()
 
+    # Pre-checks outside the transaction so notification cleanup commits
+    # even when we raise a validation error below.
+    invitation = Invitation.objects.select_related(
+        "project", "role", "invited_by",
+    ).filter(token=token).first()
+
+    if invitation is None:
+        # Also handle soft-deleted (cancelled) invitations.
+        cancelled = Invitation.all_objects.filter(token=token).first()
+        if cancelled:
+            _dismiss_invitation_notification(user=user, invitation_id=cancelled.id, now=now)
+        raise ValidationError({"token": "errors.invitation.invalid_token"})
+
+    if invitation.expires_at <= now:
+        _dismiss_invitation_notification(user=user, invitation_id=invitation.id, now=now)
+        raise ValidationError({"token": "errors.invitation.expired"})
+
+    if normalize_invitation_email(user.email) != invitation.email:
+        raise ValidationError({"token": "errors.invitation.email_mismatch"})
+
     with transaction.atomic():
+        # Re-fetch with lock to guard against race conditions.
         invitation = Invitation.objects.select_for_update().select_related(
-            "project",
-            "role",
-            "invited_by",
-        ).filter(
-            token=token,
-        ).first()
+            "project", "role", "invited_by",
+        ).filter(token=token).first()
 
-        if invitation is None:
-            raise ValidationError({"token": "errors.invitation.invalid_token"})
-
-        if invitation.expires_at <= now:
+        if invitation is None or invitation.expires_at <= now:
             raise ValidationError({"token": "errors.invitation.expired"})
 
         if normalize_invitation_email(user.email) != invitation.email:
@@ -143,22 +157,14 @@ def accept_project_invitation(*, token, user):
                 user=user,
             ).first()
             if member:
+                _dismiss_invitation_notification(user=user, invitation_id=invitation.id, now=now)
                 return invitation, member
             raise ValidationError({"token": "errors.invitation.already_accepted"})
 
         member = _get_or_create_project_member(invitation, user)
         invitation.accepted_at = now
         invitation.save(update_fields=["accepted_at", "updated_at"])
-        Notification.objects.filter(
-            user=user,
-            type="project_invitation",
-            data__invitation_id=invitation.id,
-        ).update(
-            is_read=True,
-            deleted_at=now,
-            deleted_by=user,
-            updated_at=now,
-        )
+        _dismiss_invitation_notification(user=user, invitation_id=invitation.id, now=now)
 
         notify(
             user=invitation.invited_by,
@@ -170,6 +176,14 @@ def accept_project_invitation(*, token, user):
         )
 
     return invitation, member
+
+
+def _dismiss_invitation_notification(*, user, invitation_id, now):
+    Notification.objects.filter(
+        user=user,
+        type="project_invitation",
+        data__invitation_id=invitation_id,
+    ).update(is_read=True, deleted_at=now, deleted_by=user, updated_at=now)
 
 
 def _build_invitation_url(token):

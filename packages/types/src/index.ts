@@ -77,6 +77,7 @@ export type ProjectMember = {
   role: ID;
   role_name: string | null;
   role_deleted: boolean;
+  hourly_rate: string;
   created_at: string;
   updated_at: string;
   deleted_at: string | null;

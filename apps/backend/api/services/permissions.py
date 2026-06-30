@@ -6,6 +6,8 @@ PERMISSION_DEPENDENCY_CODES = {
     "role.delete": ["role.view"],
     "role.restore": ["role.view"],
     "member.edit": ["member.view"],
+    "member.edit_own_rate": [],
+    "member.edit_rates": ["member.view"],
     "file.edit": ["file.view"],
     "file.delete": ["file.view"],
     "file.restore": ["file.view"],

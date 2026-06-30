@@ -57,6 +57,7 @@ class ProjectMember(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
     def clean(self):
         super().clean()
@@ -73,6 +74,11 @@ class ProjectMember(BaseModel):
             )
         ]
         
+
+class ProjectOwnerRate(models.Model):
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name="owner_rate")
+    hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
 
 class Folder(BaseModel):
     project = models.ForeignKey(Project, on_delete=models.CASCADE)
