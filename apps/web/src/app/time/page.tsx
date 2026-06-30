@@ -317,7 +317,36 @@ function ProjectTimeContent({
         />
       ) : null}
 
-      <div className={canRecordTime && canViewTime ? "grid gap-4 lg:grid-cols-[1fr_320px] lg:items-start" : "grid gap-4"}>
+      <div className={canRecordTime && canViewTime ? "grid gap-4 lg:grid-cols-[320px_1fr] lg:items-start" : "grid gap-4"}>
+        {canRecordTime && canViewTime ? (
+          <TimeTotalsPanel
+            label={totalsLabel}
+            totals={totals}
+            entries={timeEntries}
+            userNameById={userNameById}
+            currentUserId={user?.id ?? null}
+          />
+        ) : null}
+
+        {!canRecordTime && canViewTime ? (
+          <div>
+            <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <TimeSummary label="Temps total" value={formatDuration(totals.durationMinutes)} />
+              <TimeSummary label="Montant total" value={formatMoney(totals.costAmount)} />
+              <TimeSummary label="Reste a payer" value={formatMoney(totals.remainingAmount)} />
+            </div>
+          </div>
+        ) : null}
+
+        {canRecordTime && !canViewTime ? (
+          <Alert>
+            <Lock className="size-4" />
+            <AlertTitle>Liste non visible</AlertTitle>
+            <AlertDescription>Tu peux enregistrer du temps, mais ton role ne permet pas de consulter les heures.</AlertDescription>
+          </Alert>
+        ) : null}
+
         {canViewTime ? (
           <Card className="rounded-lg">
             <CardHeader>
@@ -347,35 +376,6 @@ function ProjectTimeContent({
               />
             </CardContent>
           </Card>
-        ) : null}
-
-        {canRecordTime && canViewTime ? (
-          <TimeTotalsPanel
-            label={totalsLabel}
-            totals={totals}
-            entries={timeEntries}
-            userNameById={userNameById}
-            currentUserId={user?.id ?? null}
-          />
-        ) : null}
-
-        {!canRecordTime && canViewTime ? (
-          <div>
-            <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <TimeSummary label="Temps total" value={formatDuration(totals.durationMinutes)} />
-              <TimeSummary label="Montant total" value={formatMoney(totals.costAmount)} />
-              <TimeSummary label="Reste a payer" value={formatMoney(totals.remainingAmount)} />
-            </div>
-          </div>
-        ) : null}
-
-        {canRecordTime && !canViewTime ? (
-          <Alert>
-            <Lock className="size-4" />
-            <AlertTitle>Liste non visible</AlertTitle>
-            <AlertDescription>Tu peux enregistrer du temps, mais ton role ne permet pas de consulter les heures.</AlertDescription>
-          </Alert>
         ) : null}
       </div>
 
