@@ -20,6 +20,7 @@ import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
 import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/filters/filter-bar";
+import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
 import { NoProjectState } from "@/components/states/no-project-state";
@@ -77,6 +78,8 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
   const canViewTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryView);
   const projectId = selectedProject?.id ?? null;
   const searchFromUrl = searchParams.get("search") ?? "";
+  const dateFrom = searchParams.get("date_from") ?? undefined;
+  const dateTo = searchParams.get("date_to") ?? undefined;
   const typeFilter = parseTypeFilter(searchParams.get("type"));
   const userFilterId = parseIdParam(searchParams.get("member"));
   const folderFilterId = parseIdParam(searchParams.get("folder"));
@@ -114,6 +117,8 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
           folder: folderFilterId ?? undefined,
           ordering: ordering !== "all" ? ordering : undefined,
           page,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
         })
       : ["financial-entries", "disabled"],
     queryFn: () =>
@@ -124,6 +129,8 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
         folder: folderFilterId ?? undefined,
         ordering: ordering !== "all" ? ordering : undefined,
         page,
+        date_from: dateFrom,
+        date_to: dateTo,
       }),
     enabled: Boolean(projectId && canViewFinance),
     placeholderData: keepPreviousData,
@@ -207,10 +214,15 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
-        activeCount={[typeFilter !== "all", userFilterId !== null, folderFilterId !== null, ordering !== "all"].filter(Boolean).length}
+        activeCount={[Boolean(dateFrom), typeFilter !== "all", userFilterId !== null, folderFilterId !== null, ordering !== "all"].filter(Boolean).length}
         clearPath="/finance"
-        clearKeys={["search", "type", "member", "folder", "ordering", "page"]}
+        clearKeys={["search", "date_from", "date_to", "type", "member", "folder", "ordering", "page"]}
       >
+        <FilterPeriodPicker
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
+        />
         <FilterSelect value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
           <SelectItem value="all">Tous types</SelectItem>
           <SelectItem value="expense">Dépenses</SelectItem>

@@ -27,6 +27,8 @@ from ..utils import StableOrderingFilter
 
 class FinancialEntryFilter(django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
+    date_from = django_filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
+    date_to = django_filters.DateFilter(field_name="created_at__date", lookup_expr="lte")
 
     class Meta:
         model = FinancialEntry

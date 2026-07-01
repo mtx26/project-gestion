@@ -15,6 +15,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
 import { AccessDeniedState } from "@/components/states/access-denied-state";
@@ -73,6 +74,8 @@ function ProjectTasksContent({
   const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
   const projectId = selectedProject?.id ?? null;
   const searchFromUrl = searchParams.get("search") ?? "";
+  const dateFrom = searchParams.get("date_from") ?? undefined;
+  const dateTo = searchParams.get("date_to") ?? undefined;
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const priorityFilter = parsePriorityFilter(searchParams.get("priority"));
   const createdByFilter = parseIdParam(searchParams.get("member"));
@@ -107,6 +110,8 @@ function ProjectTasksContent({
           excludeDone: excludeDone || undefined,
           ordering,
           page,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
         })
       : ["tasks", "disabled"],
     queryFn: () =>
@@ -119,6 +124,8 @@ function ProjectTasksContent({
         exclude_done: excludeDone || undefined,
         ordering,
         page,
+        date_from: dateFrom,
+        date_to: dateTo,
       }),
     enabled: Boolean(projectId && canViewTasks),
     placeholderData: keepPreviousData,
@@ -132,6 +139,8 @@ function ProjectTasksContent({
           assignedTo: user.id,
           folderId: folderId ?? undefined,
           excludeDone: excludeDone || undefined,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
         })
       : ["tasks", "my-tasks", "disabled"],
     queryFn: () =>
@@ -141,6 +150,8 @@ function ProjectTasksContent({
         assigned_to: user!.id,
         ...(folderId == null ? {} : { folder: folderId }),
         exclude_done: excludeDone || undefined,
+        date_from: dateFrom,
+        date_to: dateTo,
       }),
     enabled: Boolean(projectId && canViewTasks && !!user),
     placeholderData: keepPreviousData,
@@ -215,10 +226,15 @@ function ProjectTasksContent({
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
-        activeCount={[statusFilter !== "all", priorityFilter !== "all", createdByFilter !== null, folderId !== null, includeCompleted].filter(Boolean).length}
+        activeCount={[Boolean(dateFrom), statusFilter !== "all", priorityFilter !== "all", createdByFilter !== null, folderId !== null, includeCompleted].filter(Boolean).length}
         clearPath="/tasks"
-        clearKeys={["search", "status", "priority", "member", "folder", "include_completed", "sort", "order", "page"]}
+        clearKeys={["search", "date_from", "date_to", "status", "priority", "member", "folder", "include_completed", "sort", "order", "page"]}
       >
+        <FilterPeriodPicker
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
+        />
         <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v as StatusFilter })}>
           <SelectItem value="all">Tous statuts</SelectItem>
           <SelectItem value="todo">À faire</SelectItem>

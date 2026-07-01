@@ -23,6 +23,8 @@ from ..services.projects import get_accessible_projects
 class ExpenseRequestFilter(django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
     exclude_rejected = django_filters.BooleanFilter(method="filter_exclude_rejected")
+    date_from = django_filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
+    date_to = django_filters.DateFilter(field_name="created_at__date", lookup_expr="lte")
 
     class Meta:
         model = ExpenseRequest

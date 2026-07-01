@@ -323,7 +323,7 @@ export function createApiClient({
     financialEntries: {
       list: (
         projectId: number,
-        query: { type?: string; folder?: number; created_by?: number; ordering?: string; page?: number; search?: string } = {},
+        query: { type?: string; folder?: number; created_by?: number; ordering?: string; page?: number; search?: string; date_from?: string; date_to?: string } = {},
       ) =>
         request<FinancialEntry[] | PaginatedResponse<FinancialEntry>>(
           `/api/projects/${projectId}/financial-entries/${buildQueryString({
@@ -333,6 +333,8 @@ export function createApiClient({
             ordering: query.ordering || undefined,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
             search: query.search || undefined,
+            date_from: query.date_from || undefined,
+            date_to: query.date_to || undefined,
           })}`,
         ),
       chart: (
@@ -555,7 +557,7 @@ export function createApiClient({
     expenseRequests: {
       list: (
         projectId: number,
-        query: { status?: string; folder?: number; requested_by?: number; exclude_rejected?: boolean; ordering?: string; page?: number; search?: string } = {},
+        query: { status?: string; folder?: number; requested_by?: number; exclude_rejected?: boolean; ordering?: string; page?: number; search?: string; date_from?: string; date_to?: string } = {},
       ) =>
         request<ExpenseRequest[] | PaginatedResponse<ExpenseRequest>>(
           `/api/projects/${projectId}/expense-requests/${buildQueryString({
@@ -566,6 +568,8 @@ export function createApiClient({
             ordering: query.ordering || undefined,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
             search: query.search || undefined,
+            date_from: query.date_from || undefined,
+            date_to: query.date_to || undefined,
           })}`,
         ),
       create: (projectId: number, payload: ExpenseRequestPayload) =>

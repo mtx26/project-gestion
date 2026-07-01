@@ -37,17 +37,16 @@ import { TimeEntryForm } from "./components/time-entry-form";
 import { TimeEntryList } from "./components/time-entry-list";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
 import { type EditTimeSubmitData, EditTimeEntryDialog, PaymentDialog, TimeEntryDetailDialog } from "./components/time-dialogs";
 import {
   type UserFilter,
-  getPeriodRange,
   getSelectedUserId,
   getTotalsLabel,
   invalidateTimeQueries,
   parsePaymentStatusFilter,
-  parsePeriodPreset,
   parseTargetFilter,
   parseUserFilter,
 } from "./lib/time-filters";
@@ -87,7 +86,8 @@ function ProjectTimeContent({
   const defaultUserFilter: UserFilter = canViewAllTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
-  const periodPreset = parsePeriodPreset(searchParams.get("period"));
+  const dateFrom = searchParams.get("date_from") ?? undefined;
+  const dateTo = searchParams.get("date_to") ?? undefined;
   const targetFilter = parseTargetFilter(searchParams.get("target"));
   const includeUnpaidOutsideMonth = parseBooleanParam(searchParams.get("include_unpaid"));
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
@@ -95,7 +95,10 @@ function ProjectTimeContent({
     userFilter === "all" ? null :
     userFilter === "mine" ? (user?.id ?? null) :
     Number(userFilter.replace("member-", ""));
-  const periodRange = useMemo(() => getPeriodRange(periodPreset), [periodPreset]);
+  const periodRange = useMemo(
+    () => ({ startDate: dateFrom, endDate: dateTo }),
+    [dateFrom, dateTo],
+  );
 
   const [targetValue, setTargetValue] = useState(parseTargetFilter(searchParams.get("target")) ?? "project");
   const [timeFormOpen, setTimeFormOpen] = useState(searchParams.get("new") === "1");
@@ -183,7 +186,7 @@ function ProjectTimeContent({
   const targetFilterLabel = targetFilter ? findTargetLabel(targetTree, targetFilter) : null;
   const selectedFolderFilterId = targetFilter?.startsWith("folder-") ? Number(targetFilter.replace("folder-", "")) : null;
   const filterFolderLabel = selectedFolderFilterId != null ? (folderNameById.get(selectedFolderFilterId) ?? "Dossier") : null;
-  const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, periodPreset, members, user?.id ?? null, targetFilterLabel);
+  const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, dateFrom, dateTo, members, user?.id ?? null, targetFilterLabel);
 
   const createTimeEntry = useMutation({
     mutationFn: (documentIds: number[]) => {
@@ -302,19 +305,22 @@ function ProjectTimeContent({
       {canViewTime ? (
         <CollapsibleFilterBar
           primary={
-            <FilterSelect value={periodPreset} onValueChange={(v) => updateUrlFilter({ period: v })}>
-              <SelectItem value="this-week">Cette semaine</SelectItem>
-              <SelectItem value="this-month">Ce mois</SelectItem>
-              <SelectItem value="last-month">Mois dernier</SelectItem>
-              <SelectItem value="last-30-days">30 derniers jours</SelectItem>
-              <SelectItem value="this-year">Cette année</SelectItem>
-              <SelectItem value="all">Tout</SelectItem>
-            </FilterSelect>
+            <FilterPeriodPicker
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
+            />
           }
           activeCount={[canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includeUnpaidOutsideMonth].filter(Boolean).length}
           clearPath="/time"
-          clearKeys={["period", "user", "payment", "target", "include_unpaid", "page"]}
+          clearKeys={["period", "date_from", "date_to", "user", "payment", "target", "include_unpaid", "page"]}
         >
+          <FilterSelect value={paymentStatusFilter} onValueChange={(v) => updateUrlFilter({ payment: v })}>
+            <SelectItem value="all">Tous statuts</SelectItem>
+            <SelectItem value="unpaid">À payer</SelectItem>
+            <SelectItem value="partial">Partiel</SelectItem>
+            <SelectItem value="paid">Payé</SelectItem>
+          </FilterSelect>
           {canViewAllTime ? (
             <MemberFilterSelect
               members={members}
@@ -332,12 +338,6 @@ function ProjectTimeContent({
             onSelect={(folderId) => updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })}
             onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
           />
-          <FilterSelect value={paymentStatusFilter} onValueChange={(v) => updateUrlFilter({ payment: v })}>
-            <SelectItem value="all">Tous statuts</SelectItem>
-            <SelectItem value="unpaid">À payer</SelectItem>
-            <SelectItem value="partial">Partiel</SelectItem>
-            <SelectItem value="paid">Payé</SelectItem>
-          </FilterSelect>
           <FilterToggle pressed={includeUnpaidOutsideMonth} onPressedChange={(v) => updateUrlFilter({ include_unpaid: v })}>
             Impayés hors période
           </FilterToggle>

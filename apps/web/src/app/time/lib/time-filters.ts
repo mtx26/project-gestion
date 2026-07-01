@@ -1,20 +1,13 @@
 import type { TimeEntry } from "@project-gestion/types";
 import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@project-gestion/query-keys";
+import { detectPreset, formatDate, getPeriodLabel } from "@/lib/period-utils";
 
 export type UserFilter = "mine" | "all" | `member-${number}`;
 export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
-export type PeriodPreset = "this-month" | "last-month" | "this-week" | "last-30-days" | "this-year" | "all";
 export type TimeViewMode = "list" | "calendar";
 
 
-export function formatDateInputValue(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
 
 export function parseUserFilter(value: string | null, fallback: UserFilter, canViewAllTime: boolean): UserFilter {
   if (value === "all" && canViewAllTime) return "all";
@@ -29,14 +22,6 @@ export function parseUserFilter(value: string | null, fallback: UserFilter, canV
 export function parsePaymentStatusFilter(value: string | null): PaymentStatusFilter {
   if (value === "unpaid" || value === "partial" || value === "paid") return value;
   return "all";
-}
-
-export function parsePeriodPreset(value: string | null): PeriodPreset {
-  if (
-    value === "this-month" || value === "last-month" || value === "this-week" ||
-    value === "last-30-days" || value === "this-year" || value === "all"
-  ) return value;
-  return "this-month";
 }
 
 export function parseTimeViewMode(value: string | null): TimeViewMode {
@@ -56,36 +41,6 @@ export function parseTargetFilter(value: string | null): string | null {
   return null;
 }
 
-export function getPeriodRange(period: PeriodPreset): { startDate?: string; endDate?: string } {
-  const now = new Date();
-  if (period === "all") return {};
-  if (period === "this-week") {
-    const dayOffset = (now.getDay() + 6) % 7;
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
-    return { startDate: formatDateInputValue(start), endDate: formatDateInputValue(now) };
-  }
-  if (period === "last-30-days") {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-    return { startDate: formatDateInputValue(start), endDate: formatDateInputValue(now) };
-  }
-  if (period === "this-year") {
-    const start = new Date(now.getFullYear(), 0, 1);
-    return { startDate: formatDateInputValue(start), endDate: formatDateInputValue(now) };
-  }
-  const monthOffset = period === "last-month" ? -1 : 0;
-  const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0);
-  return { startDate: formatDateInputValue(start), endDate: formatDateInputValue(end) };
-}
-
-export function getPeriodLabel(period: PeriodPreset): string {
-  if (period === "this-week") return "Cette semaine";
-  if (period === "this-month") return "Ce mois";
-  if (period === "last-month") return "Mois dernier";
-  if (period === "last-30-days") return "30 derniers jours";
-  if (period === "this-year") return "Cette annee";
-  return "Toute la periode";
-}
 
 export function getSelectedUserId(filter: UserFilter, currentUserId: number | null): number | null {
   if (filter === "all") return null;
@@ -121,7 +76,8 @@ export function getEntryTargetLabel(entry: TimeEntry): string {
 export function getTotalsLabel(
   userFilter: UserFilter,
   paymentStatusFilter: PaymentStatusFilter,
-  periodPreset: PeriodPreset,
+  dateFrom: string | undefined,
+  dateTo: string | undefined,
   members: Array<{ user: number; user_display_name: string }>,
   currentUserId: number | null,
   targetLabel: string | null,
@@ -133,7 +89,10 @@ export function getTotalsLabel(
         ? "mes heures"
         : (members.find((m) => m.user === getSelectedUserId(userFilter, currentUserId))?.user_display_name ?? "membre");
   const statusLabel = paymentStatusFilter === "all" ? "tous statuts" : getPaymentStatusLabel(paymentStatusFilter).toLowerCase();
-  const periodLabel = getPeriodLabel(periodPreset).toLowerCase();
+  const detected = detectPreset(dateFrom, dateTo);
+  const periodLabel = detected === "custom"
+    ? (dateFrom ? `${dateFrom}${dateTo ? ` → ${dateTo}` : ""}` : "toutes dates")
+    : getPeriodLabel(detected).toLowerCase();
   const targetSuffix = targetLabel ? ` - ${targetLabel}` : "";
   return `Totaux - ${periodLabel} - ${userLabel} - ${statusLabel}${targetSuffix}`;
 }
@@ -180,7 +139,7 @@ export function summarizeTimeEntries(entries: TimeEntry[]): { durationMinutes: n
 export function groupTimeEntriesByDay(entries: TimeEntry[]): Map<string, TimeEntry[]> {
   const groups = new Map<string, TimeEntry[]>();
   for (const entry of entries) {
-    const key = formatDateInputValue(new Date(entry.created_at));
+    const key = formatDate(new Date(entry.created_at));
     groups.set(key, [...(groups.get(key) ?? []), entry]);
   }
   for (const [key, dayEntries] of groups.entries()) {

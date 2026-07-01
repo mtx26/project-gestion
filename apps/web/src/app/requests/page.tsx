@@ -18,6 +18,7 @@ import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/u
 import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
 import { NoProjectState } from "@/components/states/no-project-state";
@@ -62,6 +63,8 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
   const projectId = selectedProject?.id ?? null;
 
   const searchFromUrl = searchParams.get("search") ?? "";
+  const dateFrom = searchParams.get("date_from") ?? undefined;
+  const dateTo = searchParams.get("date_to") ?? undefined;
   const statusFilter = parseStatusFilter(searchParams.get("status"));
   const userFilterId = parseIdParam(searchParams.get("member"));
   const folderFilterId = parseIdParam(searchParams.get("folder"));
@@ -90,6 +93,8 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
           excludeRejected,
           ordering: ordering !== "all" ? ordering : undefined,
           page,
+          dateFrom: dateFrom,
+          dateTo: dateTo,
         })
       : ["expense-requests", "disabled"],
     queryFn: () => api.expenseRequests.list(projectId!, {
@@ -100,6 +105,8 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       exclude_rejected: excludeRejected || undefined,
       ordering: ordering !== "all" ? ordering : undefined,
       page,
+      date_from: dateFrom,
+      date_to: dateTo,
     }),
     enabled: Boolean(projectId && canViewRequests),
     placeholderData: keepPreviousData,
@@ -190,10 +197,15 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
-        activeCount={[statusFilter !== "all", userFilterId !== null, folderFilterId !== null, showRejected && statusFilter === "all", ordering !== "all"].filter(Boolean).length}
+        activeCount={[Boolean(dateFrom), statusFilter !== "all", userFilterId !== null, folderFilterId !== null, showRejected && statusFilter === "all", ordering !== "all"].filter(Boolean).length}
         clearPath="/requests"
-        clearKeys={["search", "status", "member", "folder", "show_rejected", "ordering", "page"]}
+        clearKeys={["search", "date_from", "date_to", "status", "member", "folder", "show_rejected", "ordering", "page"]}
       >
+        <FilterPeriodPicker
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+          onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
+        />
         <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v })}>
           <SelectItem value="all">Tous statuts</SelectItem>
           <SelectItem value="pending">En attente</SelectItem>

@@ -29,7 +29,7 @@ export const queryKeys = {
   },
   financialEntries: {
     all: (projectId: number) => ["projects", projectId, "financial-entries"] as const,
-    list: (projectId: number, query: { type?: string; folder?: number; createdBy?: number; ordering?: string; page?: number; search?: string } = {}) =>
+    list: (projectId: number, query: { type?: string; folder?: number; createdBy?: number; ordering?: string; page?: number; search?: string; dateFrom?: string; dateTo?: string } = {}) =>
       ["projects", projectId, "financial-entries", {
         type: query.type ?? "all",
         folder: query.folder ?? "all",
@@ -37,6 +37,8 @@ export const queryKeys = {
         ordering: query.ordering ?? "",
         page: query.page ?? 1,
         search: query.search ?? "",
+        dateFrom: query.dateFrom ?? "",
+        dateTo: query.dateTo ?? "",
       }] as const,
     chart: (projectId: number, groupBy: "day" | "month", startDate?: string) =>
       ["projects", projectId, "financial-entries", "chart", groupBy, startDate ?? ""] as const,
@@ -48,7 +50,7 @@ export const queryKeys = {
   },
   expenseRequests: {
     all: (projectId: number) => ["projects", projectId, "expense-requests"] as const,
-    list: (projectId: number, query: { status?: string; folder?: number; requestedBy?: number; excludeRejected?: boolean; ordering?: string; page?: number; search?: string } = {}) =>
+    list: (projectId: number, query: { status?: string; folder?: number; requestedBy?: number; excludeRejected?: boolean; ordering?: string; page?: number; search?: string; dateFrom?: string; dateTo?: string } = {}) =>
       ["projects", projectId, "expense-requests", {
         status: query.status ?? "all",
         folder: query.folder ?? "all",
@@ -57,6 +59,8 @@ export const queryKeys = {
         ordering: query.ordering ?? "",
         page: query.page ?? 1,
         search: query.search ?? "",
+        dateFrom: query.dateFrom ?? "",
+        dateTo: query.dateTo ?? "",
       }] as const,
     trash: (projectId: number) => ["projects", projectId, "expense-requests", "trash"] as const,
   },
@@ -76,6 +80,8 @@ export const queryKeys = {
         page?: number;
         ordering?: string;
         search?: string;
+        dateFrom?: string;
+        dateTo?: string;
       } = {},
     ) =>
       ["projects", projectId, "tasks", {
@@ -88,6 +94,8 @@ export const queryKeys = {
         page: query.page ?? 1,
         ordering: query.ordering ?? "",
         search: query.search ?? "",
+        dateFrom: query.dateFrom ?? "",
+        dateTo: query.dateTo ?? "",
       }] as const,
     trash: (projectId: number) => ["projects", projectId, "tasks", "trash"] as const,
   },
