@@ -370,6 +370,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       />
       <ExpenseRequestDetailDialog
         request={viewingRequest}
+        projectId={projectId!}
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingRequest(null)}

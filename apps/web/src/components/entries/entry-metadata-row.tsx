@@ -1,5 +1,7 @@
-import { Calendar, FileText, Folder, ListTodo, UserRound } from "lucide-react";
+import type { DocumentInfo } from "@project-gestion/types";
+import { Calendar, Folder, ListTodo, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getDocumentIconConfig } from "@/lib/file-display";
 import { formatDate } from "@/lib/task-utils";
 
 interface EntryMetadataRowProps {
@@ -7,7 +9,7 @@ interface EntryMetadataRowProps {
   taskName?: string | null;
   folderId?: number | null;
   folderName?: string | null;
-  documents?: Array<{ id: number; name: string | null }>;
+  documents?: DocumentInfo[];
   userName?: string | null;
   userIconClassName?: string;
   userPrefix?: string;
@@ -41,13 +43,16 @@ export function EntryMetadataRow({
           {folderName ?? `Dossier #${folderId}`}
         </span>
       ) : null}
-      {docs.length > 0 ? (
-        <span className="inline-flex items-center gap-1">
-          <FileText className="size-3" />
-          {docs[0].name ?? `Document #${docs[0].id}`}
-          {docs.length > 1 ? ` +${docs.length - 1}` : ""}
-        </span>
-      ) : null}
+      {docs.length > 0 ? (() => {
+        const { Icon, className: iconClassName } = getDocumentIconConfig(docs[0]);
+        return (
+          <span className="inline-flex items-center gap-1">
+            <Icon className={cn("size-3", iconClassName)} />
+            {docs[0].name ?? `Document #${docs[0].id}`}
+            {docs.length > 1 ? ` +${docs.length - 1}` : ""}
+          </span>
+        );
+      })() : null}
       {userName ? (
         <span className="inline-flex items-center gap-1">
           <UserRound className={cn("size-3", userIconClassName)} />

@@ -17,10 +17,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
+import { DocumentPreviewModal } from "@/components/dialogs/document-preview-modal";
 import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
 import { buildProjectHref } from "@/lib/url-params";
 import { formatDateInputValue, getMonthCalendarDays } from "@/lib/calendar-utils";
+import { useDocumentPreview } from "@/lib/use-document-preview";
 
 const ProjectCalendarView = dynamic(
   () => import("./components/project-calendar-view").then((m) => m.ProjectCalendarView),
@@ -60,6 +62,7 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
   const [showTime, setShowTime] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
+  const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const monthRange = useMemo(() => getMonthRange(monthDate), [monthDate]);
   const calendarDays = useMemo(() => getMonthCalendarDays(monthDate), [monthDate]);
@@ -163,13 +166,24 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
 
       <TaskDetailModal
         task={selectedTask}
+        projectId={projectId ?? 0}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setSelectedTask(null)}
       />
 
       <TimeEntryDetailDialog
         entry={selectedTimeEntry}
+        projectId={projectId ?? 0}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setSelectedTimeEntry(null)}
         onTaskClick={canViewTasks ? handleTimeEntryTaskClick : undefined}
+      />
+
+      <DocumentPreviewModal
+        document={previewDocument}
+        onClose={() => setPreviewDocument(null)}
       />
     </div>
   );

@@ -21,11 +21,13 @@ import {
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
+import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
 import { findFolderName } from "@/lib/folder-utils";
+import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import type { FolderFilter } from "../lib/filters";
 import { getFolderId } from "../lib/filters";
 import type { TaskMember } from "./task-table";
@@ -49,6 +51,7 @@ export function TaskFormDialog({
   mode,
   open,
   task,
+  projectId,
   canViewFiles,
   folders,
   members,
@@ -62,6 +65,7 @@ export function TaskFormDialog({
   mode: "create" | "edit";
   open?: boolean;
   task?: Task | null;
+  projectId: number;
   canViewFiles: boolean;
   folders: FolderTreeNode[];
   members: TaskMember[];
@@ -73,6 +77,7 @@ export function TaskFormDialog({
   onSubmit: (payload: TaskPayload) => void;
 }) {
   const isOpen = mode === "create" ? (open ?? false) : task != null;
+  const docs = useDocumentAttachment(task?.documents_info ?? []);
 
   const form = useForm<TaskFormValues>({
     resolver: zodResolver(taskSchema),
@@ -91,20 +96,27 @@ export function TaskFormDialog({
   });
 
   function handleOpenChange(next: boolean) {
-    if (!next) form.reset();
+    if (!next) {
+      form.reset();
+      docs.reset();
+    }
     onOpenChange(next);
   }
 
-  function handleSubmit(values: TaskFormValues) {
+  async function handleSubmit(values: TaskFormValues) {
+    const folder = getFolderId(values.folder as FolderFilter);
+    const newDocIds = await docs.uploadPending(projectId, folder);
+    if (newDocIds === null) return;
     onSubmit({
       title: values.title.trim(),
       description: values.description.trim() || null,
-      folder: getFolderId(values.folder as FolderFilter),
+      folder,
       status: values.status,
       priority: values.priority,
       start_date: values.startDate || null,
       end_date: values.endDate || null,
       assigned_to: values.assignees,
+      documents: docs.getAllDocIds(newDocIds),
     });
   }
 
@@ -112,6 +124,7 @@ export function TaskFormDialog({
   const folderId = getFolderId(folderValue as FolderFilter);
   const startDateValue = useWatch({ control: form.control, name: "startDate" });
   const endDateValue = useWatch({ control: form.control, name: "endDate" });
+  const isSubmitting = docs.uploading || isPending;
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
@@ -275,14 +288,24 @@ export function TaskFormDialog({
             <Textarea id="task-form-description" rows={3} {...form.register("description")} />
           </Field>
 
-          <FormErrorAlert error={error} />
+          <MultiDocumentAttachmentField
+            projectId={projectId}
+            existingDocs={docs.existingDocs}
+            pendingFiles={docs.pendingFiles}
+            uploading={docs.uploading}
+            onRemoveDoc={docs.removeExistingDoc}
+            onAddFiles={docs.addPendingFiles}
+            onRemoveFile={docs.removePendingFile}
+          />
+
+          <FormErrorAlert error={docs.uploadError ?? error} />
 
           <DialogFooter>
             <DialogClose asChild>
               <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
-            <Button type="submit" disabled={isPending}>
-              {mode === "create" ? (isPending ? "Creation..." : "Creer") : (isPending ? "Enregistrement..." : "Enregistrer")}
+            <Button type="submit" disabled={isSubmitting}>
+              {docs.uploading ? "Upload…" : mode === "create" ? (isPending ? "Creation..." : "Creer") : (isPending ? "Enregistrement..." : "Enregistrer")}
             </Button>
           </DialogFooter>
         </form>

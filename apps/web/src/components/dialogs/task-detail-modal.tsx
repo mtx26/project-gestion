@@ -5,6 +5,8 @@ import { Calendar, CalendarClock, CircleCheck, Clock, Folder, Pencil, UserRound,
 import { Button } from "@/components/ui/button";
 import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
+import { DocumentThumbnail } from "@/components/documents/document-thumbnail";
+import { FileAttachment } from "@/components/documents/file-attachment";
 import {
   DetailField,
   DetailLabel,
@@ -13,13 +15,17 @@ import {
   ModalGrid,
   ModalHero,
 } from "@/components/dialogs/detail-layout";
+import { getDocumentIconConfig, isImageFile } from "@/lib/file-display";
 import { formatDate } from "@/lib/task-utils";
 
 interface TaskDetailModalProps {
   task: Task | null;
+  projectId: number;
   canEdit?: boolean;
   canDelete?: boolean;
   deletingId?: number | null;
+  isOpeningDocument?: boolean;
+  onOpenDocument?: (documentId: number) => void;
   onClose: () => void;
   onEdit?: (task: Task) => void;
   onDelete?: (task: Task) => void;
@@ -27,13 +33,19 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({
   task,
+  projectId,
   canEdit = false,
   canDelete = false,
   deletingId,
+  isOpeningDocument = false,
+  onOpenDocument,
   onClose,
   onEdit,
   onDelete,
 }: TaskDetailModalProps) {
+  const docs = task?.documents_info ?? [];
+  const photos = docs.filter(isImageFile);
+  const otherDocs = docs.filter((doc) => !isImageFile(doc));
   const folderName =
     task == null
       ? null
@@ -126,6 +138,62 @@ export function TaskDetailModal({
               <p className="mt-1.5 whitespace-pre-wrap text-sm leading-relaxed text-foreground/80">
                 {task.description}
               </p>
+            </div>
+          ) : null}
+
+          {photos.length > 0 ? (
+            <div className="pt-5">
+              <DetailLabel className="mb-3">Photos</DetailLabel>
+              <div className="grid grid-cols-4 gap-2 sm:grid-cols-6">
+                {photos.map((doc) => {
+                  const { Icon, className: iconClassName } = getDocumentIconConfig(doc);
+                  return (
+                    <button
+                      key={doc.id}
+                      type="button"
+                      aria-label={`Ouvrir ${doc.name ?? "la photo"}`}
+                      className="aspect-square overflow-hidden rounded-lg border bg-muted transition-opacity hover:opacity-80 disabled:opacity-60"
+                      disabled={isOpeningDocument}
+                      onClick={() => onOpenDocument?.(doc.id)}
+                    >
+                      <DocumentThumbnail
+                        projectId={projectId}
+                        documentId={doc.id}
+                        alt={doc.name ?? "Photo"}
+                        fallback={<Icon className={iconClassName} />}
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {otherDocs.length > 0 ? (
+            <div className="pt-5">
+              <DetailLabel className="mb-3">Documents</DetailLabel>
+              <div className="flex flex-col gap-2">
+                {otherDocs.map((doc) => (
+                  <FileAttachment
+                    key={doc.id}
+                    file={{ name: doc.name ?? `Document #${doc.id}`, mime_type: doc.mime_type, file_size: doc.file_size }}
+                    documentId={doc.id}
+                    projectId={projectId}
+                    size="sm"
+                    actions={
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isOpeningDocument}
+                        onClick={() => onOpenDocument?.(doc.id)}
+                      >
+                        Apercu
+                      </Button>
+                    }
+                  />
+                ))}
+              </div>
             </div>
           ) : null}
         </>

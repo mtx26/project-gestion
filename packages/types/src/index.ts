@@ -1,5 +1,12 @@
 export type ID = number;
 
+export type DocumentInfo = {
+  id: ID;
+  name: string | null;
+  mime_type?: string | null;
+  file_size?: number | null;
+};
+
 export type Profile = {
   picture_url: string;
   default_hourly_rate: string | null;
@@ -229,6 +236,7 @@ export type Task = {
   start_date: string | null;
   end_date: string | null;
   completed_at: string | null;
+  documents_info: DocumentInfo[];
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
@@ -242,6 +250,7 @@ export type TaskPayload = {
   description?: string | null;
   status?: "todo" | "in_progress" | "done";
   priority?: "low" | "normal" | "high";
+  documents?: ID[];
   start_date?: string | null;
   end_date?: string | null;
 };
@@ -261,7 +270,7 @@ export type TimeEntry = {
   cost_amount: string;
   paid_amount: string;
   remaining_amount: string;
-  documents_info: Array<{ id: ID; name: string | null }>;
+  documents_info: DocumentInfo[];
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -304,7 +313,7 @@ export type FinancialEntry = {
   project: ID;
   folder: ID | null;
   folder_name: string | null;
-  documents_info: Array<{ id: ID; name: string | null }>;
+  documents_info: DocumentInfo[];
   time_entry: ID | null;
   time_entry_user_name: string | null;
   task: ID | null;
@@ -342,7 +351,7 @@ export type ExpenseRequest = {
   description: string | null;
   folder: ID | null;
   folder_name: string | null;
-  documents_info: Array<{ id: ID; name: string | null }>;
+  documents_info: DocumentInfo[];
   task: ID | null;
   task_name: string | null;
   status: "pending" | "approved" | "rejected";

@@ -371,6 +371,7 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       />
       <FinancialEntryDetailDialog
         entry={viewingEntry}
+        projectId={projectId!}
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingEntry(null)}
@@ -378,6 +379,9 @@ function FinancePageContent({ user, selectedProject, openCreateProject }: Projec
       />
       <TimeEntryDetailDialog
         entry={viewingTimeEntry}
+        projectId={projectId!}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingTimeEntry(null)}
       />
       <DocumentPreviewModal

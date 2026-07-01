@@ -413,6 +413,10 @@ class TaskSerializer(serializers.ModelSerializer):
     folder_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     assigned_to_display_names = serializers.SerializerMethodField()
+    documents_info = serializers.SerializerMethodField()
+    documents = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Document.objects.all(), required=False, write_only=True,
+    )
 
     class Meta:
         model = Task
@@ -432,6 +436,8 @@ class TaskSerializer(serializers.ModelSerializer):
             "start_date",
             "end_date",
             "completed_at",
+            "documents",
+            "documents_info",
             "created_at",
             "updated_at",
             "deleted_at",
@@ -443,6 +449,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "folder_name",
             "created_by_name",
             "assigned_to_display_names",
+            "documents_info",
         ]
 
     def get_folder_name(self, obj):
@@ -453,6 +460,12 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_assigned_to_display_names(self, obj):
         return [_get_user_display_name(u) for u in obj.assigned_to.all()]
+
+    def get_documents_info(self, obj):
+        return [
+            {"id": doc.id, "name": doc.file_name, "mime_type": doc.mime_type, "file_size": doc.file_size}
+            for doc in obj.documents.all()
+        ]
 
     def validate_assigned_to(self, value):
         from .services.members import get_project_assignable_users
@@ -467,6 +480,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         assigned_to = validated_data.pop("assigned_to", [])
+        documents = validated_data.pop("documents", [])
 
         with transaction.atomic():
             task = Task(**validated_data)
@@ -478,6 +492,8 @@ class TaskSerializer(serializers.ModelSerializer):
 
             task.save()
             task.assigned_to.set(assigned_to)
+            if documents:
+                task.documents.set(documents)
 
             try:
                 task.full_clean()
@@ -488,6 +504,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         assigned_to = validated_data.pop("assigned_to", None)
+        documents = validated_data.pop("documents", None)
 
         new_status = validated_data.get("status")
         if new_status == "done" and instance.status != "done":
@@ -508,6 +525,9 @@ class TaskSerializer(serializers.ModelSerializer):
 
             if assigned_to is not None:
                 instance.assigned_to.set(assigned_to)
+
+            if documents is not None:
+                instance.documents.set(documents)
 
             try:
                 instance.full_clean()
@@ -710,7 +730,10 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         return _get_user_display_name(obj.user)
 
     def get_documents_info(self, obj):
-        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
+        return [
+            {"id": doc.id, "name": doc.file_name, "mime_type": doc.mime_type, "file_size": doc.file_size}
+            for doc in obj.documents.all()
+        ]
 
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
@@ -928,7 +951,10 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         return None
 
     def get_documents_info(self, obj):
-        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
+        return [
+            {"id": doc.id, "name": doc.file_name, "mime_type": doc.mime_type, "file_size": doc.file_size}
+            for doc in obj.documents.all()
+        ]
 
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
@@ -1016,7 +1042,10 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
         return _get_user_display_name(obj.requested_by)
 
     def get_documents_info(self, obj):
-        return [{"id": doc.id, "name": doc.file_name} for doc in obj.documents.all()]
+        return [
+            {"id": doc.id, "name": doc.file_name, "mime_type": doc.mime_type, "file_size": doc.file_size}
+            for doc in obj.documents.all()
+        ]
 
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])

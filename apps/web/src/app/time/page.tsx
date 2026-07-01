@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
+import { DocumentPreviewModal } from "@/components/dialogs/document-preview-modal";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
+import { useDocumentPreview } from "@/lib/use-document-preview";
 import {
   buildTargetTree,
   findTargetLabel,
@@ -114,6 +116,7 @@ function ProjectTimeContent({
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [viewingEntry, setViewingEntry] = useState<TimeEntry | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const page = parsePageParam(searchParams.get("page"));
 
@@ -457,10 +460,13 @@ function ProjectTimeContent({
       />
       <TimeEntryDetailDialog
         entry={viewingEntry}
+        projectId={projectId ?? 0}
         canEdit={canRecordTime}
         canPay={canPayTime}
         canDelete={canDeleteTime}
         deletingId={deleteTimeEntry.isPending ? deleteTimeEntry.variables : null}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingEntry(null)}
         onEdit={(entry) => { setViewingEntry(null); setEditingEntry(entry); }}
         onPay={(entry) => { setViewingEntry(null); setPaymentTarget(entry); }}
@@ -469,7 +475,14 @@ function ProjectTimeContent({
       />
       <TaskDetailModal
         task={viewingTask}
+        projectId={projectId ?? 0}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingTask(null)}
+      />
+      <DocumentPreviewModal
+        document={previewDocument}
+        onClose={() => setPreviewDocument(null)}
       />
     </div>
   );

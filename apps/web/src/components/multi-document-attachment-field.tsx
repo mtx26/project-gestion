@@ -1,70 +1,85 @@
 "use client";
 
-import { Paperclip, Plus, X } from "lucide-react";
-import { useRef } from "react";
+import type { DocumentInfo } from "@project-gestion/types";
+import { Plus, X } from "lucide-react";
+import { useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { FileAttachment } from "@/components/documents/file-attachment";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type ExistingDoc = { id: number; name: string | null };
-
 interface MultiDocumentAttachmentFieldProps {
-  existingDocs: ExistingDoc[];
+  projectId: number;
+  existingDocs: DocumentInfo[];
   pendingFiles: globalThis.File[];
+  uploading?: boolean;
   onRemoveDoc: (id: number) => void;
   onAddFiles: (files: globalThis.File[]) => void;
   onRemoveFile: (index: number) => void;
 }
 
 export function MultiDocumentAttachmentField({
+  projectId,
   existingDocs,
   pendingFiles,
+  uploading = false,
   onRemoveDoc,
   onAddFiles,
   onRemoveFile,
 }: MultiDocumentAttachmentFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewUrls = useMemo(() => pendingFiles.map((file) => URL.createObjectURL(file)), [pendingFiles]);
 
   return (
     <div className="flex flex-col gap-2">
       <Label>Documents justificatifs (optionnel)</Label>
 
-      {existingDocs.map((doc) => (
-        <div
-          key={doc.id}
-          className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm"
-        >
-          <Paperclip className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-muted-foreground">
-            {doc.name ?? `Document #${doc.id}`}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-destructive hover:text-destructive"
-            onClick={() => onRemoveDoc(doc.id)}
-          >
-            <X className="size-4" />
-          </Button>
-        </div>
-      ))}
+      {existingDocs.length > 0 || pendingFiles.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {existingDocs.map((doc) => (
+            <FileAttachment
+              key={doc.id}
+              file={{ name: doc.name ?? `Document #${doc.id}`, mime_type: doc.mime_type, file_size: doc.file_size }}
+              documentId={doc.id}
+              projectId={projectId}
+              size="sm"
+              actions={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onRemoveDoc(doc.id)}
+                >
+                  <X className="size-4" />
+                </Button>
+              }
+            />
+          ))}
 
-      {pendingFiles.map((file, index) => (
-        <div key={index} className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Paperclip className="size-3.5 shrink-0" />
-          <span className="min-w-0 flex-1 truncate">{file.name}</span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            className="shrink-0 text-destructive hover:text-destructive"
-            onClick={() => onRemoveFile(index)}
-          >
-            <X className="size-3.5" />
-          </Button>
+          {pendingFiles.map((file, index) => (
+            <FileAttachment
+              key={index}
+              file={{ name: file.name, mime_type: file.type }}
+              previewSrc={previewUrls[index]}
+              state={uploading ? "uploading" : "idle"}
+              size="sm"
+              actions={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => onRemoveFile(index)}
+                  disabled={uploading}
+                >
+                  <X className="size-4" />
+                </Button>
+              }
+            />
+          ))}
         </div>
-      ))}
+      ) : null}
 
       <Input
         ref={fileInputRef}

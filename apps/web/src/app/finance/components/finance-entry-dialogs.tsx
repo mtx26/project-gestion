@@ -79,7 +79,7 @@ export function FinancialEntryFormDialog({
   });
   const [targetValue, setTargetValue] = useState(initialTarget);
   const docs = useDocumentAttachment(
-    (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
+    entry?.documents_info ?? [],
   );
 
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
@@ -181,8 +181,10 @@ export function FinancialEntryFormDialog({
           </Field>
 
           <MultiDocumentAttachmentField
+            projectId={projectId}
             existingDocs={docs.existingDocs}
             pendingFiles={docs.pendingFiles}
+            uploading={docs.uploading}
             onRemoveDoc={docs.removeExistingDoc}
             onAddFiles={docs.addPendingFiles}
             onRemoveFile={docs.removePendingFile}
@@ -207,12 +209,14 @@ export function FinancialEntryFormDialog({
 
 export function FinancialEntryDetailDialog({
   entry,
+  projectId,
   isOpeningDocument,
   onOpenDocument,
   onClose,
   onTimeEntryClick,
 }: {
   entry: FinancialEntry | null;
+  projectId: number;
   isOpeningDocument: boolean;
   onOpenDocument: (documentId: number) => void;
   onClose: () => void;
@@ -294,6 +298,7 @@ export function FinancialEntryDetailDialog({
 
           <ModalDocs
             docs={entry.documents_info ?? []}
+            projectId={projectId}
             isOpening={isOpeningDocument}
             onOpen={onOpenDocument}
           />

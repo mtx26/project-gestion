@@ -73,7 +73,7 @@ export function ExpenseRequestFormDialog({
   });
   const [targetValue, setTargetValue] = useState(initialTarget);
   const docs = useDocumentAttachment(
-    (request?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
+    request?.documents_info ?? [],
   );
 
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
@@ -152,8 +152,10 @@ export function ExpenseRequestFormDialog({
           </Field>
 
           <MultiDocumentAttachmentField
+            projectId={projectId}
             existingDocs={docs.existingDocs}
             pendingFiles={docs.pendingFiles}
+            uploading={docs.uploading}
             onRemoveDoc={docs.removeExistingDoc}
             onAddFiles={docs.addPendingFiles}
             onRemoveFile={docs.removePendingFile}
@@ -177,11 +179,13 @@ export function ExpenseRequestFormDialog({
 
 export function ExpenseRequestDetailDialog({
   request,
+  projectId,
   isOpeningDocument,
   onOpenDocument,
   onClose,
 }: {
   request: ExpenseRequest | null;
+  projectId: number;
   isOpeningDocument: boolean;
   onOpenDocument: (documentId: number) => void;
   onClose: () => void;
@@ -244,6 +248,7 @@ export function ExpenseRequestDetailDialog({
 
           <ModalDocs
             docs={request.documents_info ?? []}
+            projectId={projectId}
             isOpening={isOpeningDocument}
             onOpen={onOpenDocument}
           />

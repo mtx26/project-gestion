@@ -143,8 +143,10 @@ export function TimeEntryForm({
       </Field>
 
       <MultiDocumentAttachmentField
+        projectId={projectId}
         existingDocs={[]}
         pendingFiles={pendingFiles}
+        uploading={uploading}
         onRemoveDoc={() => {}}
         onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
         onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}

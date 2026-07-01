@@ -13,11 +13,13 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { DocumentThumbnail } from "@/components/documents/document-thumbnail";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { isImageFile } from "@/lib/file-display";
 import {
   type FileActionTarget,
   formatFileSize,
@@ -26,8 +28,20 @@ import {
   getTreeRowPadding,
 } from "../lib/file-utils";
 
-function DocumentIcon({ node }: { node: FolderTreeNode }) {
+function DocumentIcon({ node, projectId }: { node: FolderTreeNode; projectId: number }) {
   const { Icon, className } = getDocumentIconConfig(node);
+  if (isImageFile(node)) {
+    return (
+      <span className="size-4 shrink-0 overflow-hidden rounded-xs">
+        <DocumentThumbnail
+          projectId={projectId}
+          documentId={node.id}
+          alt={node.name}
+          fallback={<Icon className={cn("size-4 shrink-0", className)} />}
+        />
+      </span>
+    );
+  }
   return <Icon className={cn("size-4 shrink-0", className)} />;
 }
 
@@ -70,6 +84,7 @@ function DraftFolderRow({
 function TreeNode({
   node,
   depth,
+  projectId,
   canEdit,
   canDelete,
   draftFolder,
@@ -93,6 +108,7 @@ function TreeNode({
 }: {
   node: FolderTreeNode;
   depth: number;
+  projectId: number;
   canEdit: boolean;
   canDelete: boolean;
   draftFolder: { parentFolder: number | null; name: string } | null;
@@ -215,7 +231,7 @@ function TreeNode({
           ) : isTask ? (
             <ListTodo className="size-4 shrink-0 text-sky-600" />
           ) : (
-            <DocumentIcon node={node} />
+            <DocumentIcon node={node} projectId={projectId} />
           )}
           <span
             className={cn(
@@ -293,6 +309,7 @@ function TreeNode({
               key={`${child.type}-${child.id}`}
               node={child}
               depth={depth + 1}
+              projectId={projectId}
               canEdit={canEdit}
               canDelete={canDelete}
               draftFolder={draftFolder}
@@ -323,6 +340,7 @@ function TreeNode({
 
 export function FileTree({
   nodes,
+  projectId,
   canEdit,
   canDelete,
   draftFolder,
@@ -342,6 +360,7 @@ export function FileTree({
   onMoveFolder,
 }: {
   nodes: FolderTreeNode[];
+  projectId: number;
   canEdit: boolean;
   canDelete: boolean;
   draftFolder: { parentFolder: number | null; name: string } | null;
@@ -400,6 +419,7 @@ export function FileTree({
           key={`${node.type}-${node.id}`}
           node={node}
           depth={0}
+          projectId={projectId}
           canEdit={canEdit}
           canDelete={canDelete}
           draftFolder={draftFolder}

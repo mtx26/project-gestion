@@ -468,6 +468,7 @@ function ProjectTreeView({
                 {!treeQuery.isLoading && canViewFiles ? (
                   <FileTree
                     nodes={treeQuery.data ?? []}
+                    projectId={selectedProject.id}
                     canEdit={canEditFiles}
                     canDelete={canDeleteFiles}
                     draftFolder={draftFolder}
@@ -619,6 +620,9 @@ function ProjectTreeView({
 
       <TaskDetailModal
         task={viewingTask}
+        projectId={selectedProject.id}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingTask(null)}
       />
 

@@ -198,6 +198,11 @@ class Task(BaseModel):
         blank=True,
         related_name="tasks_assigned"
     )
+    documents = models.ManyToManyField(
+        Document,
+        blank=True,
+        related_name="tasks",
+    )
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     status = models.CharField(max_length=50, choices=Status.choices, default=Status.TODO, db_index=True)

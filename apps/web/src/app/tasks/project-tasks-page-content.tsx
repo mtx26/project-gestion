@@ -24,11 +24,13 @@ import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
+import { DocumentPreviewModal } from "@/components/dialogs/document-preview-modal";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
 import { buildProjectHref, parseBooleanParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
+import { useDocumentPreview } from "@/lib/use-document-preview";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
@@ -91,6 +93,7 @@ function ProjectTasksContent({
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const updateUrlFilter = useUrlFilter("/tasks", searchParams, projectId);
   const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
@@ -344,6 +347,7 @@ function ProjectTasksContent({
       <TaskFormDialog
         mode="create"
         open={createDialogOpen}
+        projectId={projectId!}
         canViewFiles={canViewFiles}
         folders={folders}
         members={members}
@@ -358,6 +362,7 @@ function ProjectTasksContent({
         key={editingTask?.id ?? "edit-none"}
         mode="edit"
         task={editingTask}
+        projectId={projectId!}
         canViewFiles={canViewFiles}
         folders={folders}
         members={members}
@@ -369,12 +374,19 @@ function ProjectTasksContent({
       />
       <TaskDetailModal
         task={viewingTask}
+        projectId={projectId!}
         canEdit={canEditTasks}
         canDelete={canDeleteTasks}
         deletingId={deleteTask.isPending ? deleteTask.variables : null}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingTask(null)}
         onEdit={(task) => { setViewingTask(null); setEditingTask(task); }}
         onDelete={(task) => { setViewingTask(null); deleteTask.mutate(task.id); }}
+      />
+      <DocumentPreviewModal
+        document={previewDocument}
+        onClose={() => setPreviewDocument(null)}
       />
     </div>
   );

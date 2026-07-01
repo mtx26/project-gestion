@@ -47,6 +47,8 @@ export const queryKeys = {
   documents: {
     list: (projectId: number) => ["projects", projectId, "documents"] as const,
     trash: (projectId: number) => ["projects", projectId, "documents", "trash"] as const,
+    download: (projectId: number, documentId: number) =>
+      ["projects", projectId, "documents", documentId, "download"] as const,
   },
   expenseRequests: {
     all: (projectId: number) => ["projects", projectId, "expense-requests"] as const,

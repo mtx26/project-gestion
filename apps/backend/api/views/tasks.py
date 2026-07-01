@@ -120,6 +120,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
             "created_by",
         ).prefetch_related(
             "assigned_to",
+            "documents",
         ).order_by("end_date", "created_at", "id")
 
         return queryset
@@ -191,6 +192,7 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             "created_by",
         ).prefetch_related(
             "assigned_to",
+            "documents",
         )
 
     def perform_destroy(self, instance):
@@ -235,6 +237,7 @@ class TaskTrashListView(generics.ListAPIView):
             "created_by",
         ).prefetch_related(
             "assigned_to",
+            "documents",
         ).order_by("end_date", "created_at", "id")
 
         return queryset
@@ -266,6 +269,7 @@ class TaskRestoreView(generics.GenericAPIView):
             "created_by",
         ).prefetch_related(
             "assigned_to",
+            "documents",
         )
 
     def post(self, request, project_id, pk):

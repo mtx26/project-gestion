@@ -8,13 +8,14 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, Receipt, RotateCcw, Wallet } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
-import { formatBytes, formatDuration, formatMoney } from "@/lib/task-utils";
+import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { FileAttachment } from "@/components/documents/file-attachment";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
@@ -286,6 +287,7 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
         <TabsContent value="documents" className="mt-4">
           {!selectedProject ? noProjectMsg : !canRestoreFiles ? lockedMsg : (
             <DocumentTrashSection
+              projectId={selectedProject.id}
               isLoading={documentsTrashQuery.isLoading}
               items={documents}
               onRestore={(d) => restoreDocument.mutate(d.id)}
@@ -358,27 +360,14 @@ function TrashPageContent({ user, selectedProject, openCreateProject }: ProjectW
   );
 }
 
-function getFileTypeLabel(mimeType: string | null, fileName: string): string {
-  if (!mimeType) {
-    const ext = fileName.split(".").pop()?.toUpperCase();
-    return ext ?? "Fichier";
-  }
-  if (mimeType.startsWith("image/")) return "Image";
-  if (mimeType === "application/pdf") return "PDF";
-  if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return "Tableur";
-  if (mimeType.includes("word") || mimeType.includes("document")) return "Document";
-  if (mimeType.startsWith("video/")) return "Video";
-  if (mimeType.startsWith("audio/")) return "Audio";
-  const ext = fileName.split(".").pop()?.toUpperCase();
-  return ext ?? "Fichier";
-}
-
 function DocumentTrashSection({
+  projectId,
   isLoading,
   items,
   onRestore,
   isRestoring,
 }: {
+  projectId: number;
   isLoading: boolean;
   items: ApiFile[];
   onRestore: (item: ApiFile) => void;
@@ -401,21 +390,15 @@ function DocumentTrashSection({
   }
 
   return (
-    <ItemGroup>
+    <div className="flex flex-col gap-2">
       {items.map((doc) => (
-        <Item key={doc.id} variant="outline">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-md border bg-muted">
-            <FileText className="size-5 text-muted-foreground" />
-          </div>
-          <ItemContent>
-            <ItemTitle>{doc.name}</ItemTitle>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-0 text-xs text-muted-foreground">
-              <span>{getFileTypeLabel(doc.mime_type, doc.file_name)}</span>
-              {doc.file_size ? <span>{formatBytes(doc.file_size)}</span> : null}
-              <span>{formatDeletedAt(doc.deleted_at)}</span>
-            </div>
-          </ItemContent>
-          <ItemActions>
+        <FileAttachment
+          key={doc.id}
+          file={{ name: doc.name, file_name: doc.file_name, mime_type: doc.mime_type, file_size: doc.file_size }}
+          documentId={doc.id}
+          projectId={projectId}
+          descriptionSuffix={formatDeletedAt(doc.deleted_at)}
+          actions={
             <Button
               type="button"
               variant="outline"
@@ -426,10 +409,10 @@ function DocumentTrashSection({
               <RotateCcw className="size-3.5" />
               Restaurer
             </Button>
-          </ItemActions>
-        </Item>
+          }
+        />
       ))}
-    </ItemGroup>
+    </div>
   );
 }
 

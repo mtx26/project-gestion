@@ -33,7 +33,7 @@ import { formatDateTime } from "@/lib/date-utils";
 import { type TargetTreeNode, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
-import { DetailField, DetailLabel, DetailModal, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
+import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
 
 const editTimeSchema = z.object({
@@ -104,7 +104,7 @@ export function EditTimeEntryDialog({
   });
   const [targetValue, setTargetValue] = useState(entry ? getTargetValueFromEntry(entry) : "project");
   const docs = useDocumentAttachment(
-    (entry?.documents_info ?? []).map((d) => ({ id: d.id, name: d.name })),
+    entry?.documents_info ?? [],
   );
 
   const { startDate, endDate, hourlyRate } = form.watch();
@@ -194,8 +194,10 @@ export function EditTimeEntryDialog({
           </Field>
 
           <MultiDocumentAttachmentField
+            projectId={projectId}
             existingDocs={docs.existingDocs}
             pendingFiles={docs.pendingFiles}
+            uploading={docs.uploading}
             onRemoveDoc={docs.removeExistingDoc}
             onAddFiles={docs.addPendingFiles}
             onRemoveFile={docs.removePendingFile}
@@ -220,10 +222,13 @@ export function EditTimeEntryDialog({
 
 export function TimeEntryDetailDialog({
   entry,
+  projectId,
   canEdit = false,
   canPay = false,
   canDelete = false,
   deletingId,
+  isOpeningDocument = false,
+  onOpenDocument,
   onClose,
   onEdit,
   onPay,
@@ -231,10 +236,13 @@ export function TimeEntryDetailDialog({
   onTaskClick,
 }: {
   entry: TimeEntry | null;
+  projectId: number;
   canEdit?: boolean;
   canPay?: boolean;
   canDelete?: boolean;
   deletingId?: number | null;
+  isOpeningDocument?: boolean;
+  onOpenDocument?: (documentId: number) => void;
   onClose: () => void;
   onEdit?: (entry: TimeEntry) => void;
   onPay?: (entry: TimeEntry) => void;
@@ -344,6 +352,13 @@ export function TimeEntryDetailDialog({
           </div>
         </div>
       </div>
+
+      <ModalDocs
+        docs={entry.documents_info ?? []}
+        projectId={projectId}
+        isOpening={isOpeningDocument}
+        onOpen={(id) => onOpenDocument?.(id)}
+      />
     </DetailModal>
   );
 }

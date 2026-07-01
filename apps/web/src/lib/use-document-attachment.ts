@@ -1,11 +1,11 @@
 "use client";
 
-import type { File as ApiFile } from "@project-gestion/types";
+import type { DocumentInfo, File as ApiFile } from "@project-gestion/types";
 import { useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
-export function useDocumentAttachment(initialDocs: Array<{ id: number; name: string | null }>) {
+export function useDocumentAttachment(initialDocs: DocumentInfo[]) {
   const initial = useRef(initialDocs);
   const [existingDocs, setExistingDocs] = useState(() => initialDocs);
   const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);

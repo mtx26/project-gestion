@@ -140,13 +140,13 @@ export function FilterPeriodPicker({
           type="button"
           variant="outline"
           className={cn(
-            "h-8 w-full justify-start gap-2 bg-background px-3 font-normal",
+            "w-fit gap-2 bg-background px-3 font-normal",
             isActive && "border-primary/60 text-primary",
             className,
           )}
         >
           <CalendarIcon className="size-4 shrink-0" />
-          <span className="min-w-0 truncate">{label}</span>
+          <span className="truncate">{label}</span>
         </Button>
       </DialogTrigger>
 

@@ -1,9 +1,11 @@
 "use client";
 
+import type { DocumentInfo } from "@project-gestion/types";
 import type { LucideIcon } from "lucide-react";
-import { Eye, FileText, Trash2 } from "lucide-react";
+import { Eye, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { FileAttachment } from "@/components/documents/file-attachment";
 import {
   Dialog,
   DialogClose,
@@ -72,10 +74,12 @@ export function ModalGrid({ children, className }: { children: React.ReactNode; 
 
 export function ModalDocs({
   docs,
+  projectId,
   isOpening,
   onOpen,
 }: {
-  docs: Array<{ id: number; name: string | null }>;
+  docs: DocumentInfo[];
+  projectId: number;
   isOpening: boolean;
   onOpen: (id: number) => void;
 }) {
@@ -85,14 +89,19 @@ export function ModalDocs({
       <DetailLabel className="mb-3">Documents</DetailLabel>
       <div className="flex flex-col gap-2">
         {docs.map((doc) => (
-          <div key={doc.id} className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2.5">
-            <FileText className="size-4 shrink-0 text-muted-foreground" />
-            <span className="min-w-0 flex-1 truncate text-sm">{doc.name ?? `Document #${doc.id}`}</span>
-            <Button type="button" variant="outline" size="sm" disabled={isOpening} onClick={() => onOpen(doc.id)}>
-              <Eye className="size-3.5" />
-              Apercu
-            </Button>
-          </div>
+          <FileAttachment
+            key={doc.id}
+            file={{ name: doc.name ?? `Document #${doc.id}`, mime_type: doc.mime_type, file_size: doc.file_size }}
+            documentId={doc.id}
+            projectId={projectId}
+            size="sm"
+            actions={
+              <Button type="button" variant="outline" size="sm" disabled={isOpening} onClick={() => onOpen(doc.id)}>
+                <Eye className="size-3.5" />
+                Apercu
+              </Button>
+            }
+          />
         ))}
       </div>
     </div>
