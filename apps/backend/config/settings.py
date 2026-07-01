@@ -153,6 +153,11 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+# Media (utilise seulement en secours local quand S3/MinIO est injoignable en dev)
+MEDIA_URL = "/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+BACKEND_BASE_URL = env("BACKEND_BASE_URL", default="http://127.0.0.1:8000")
+
 S3_ENDPOINT_URL = env("S3_ENDPOINT_URL", default=None)
 S3_ACCESS_KEY_ID = env("S3_ACCESS_KEY_ID", default=None)
 S3_SECRET_ACCESS_KEY = env("S3_SECRET_ACCESS_KEY", default=None)

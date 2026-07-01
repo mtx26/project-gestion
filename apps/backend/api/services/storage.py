@@ -1,11 +1,37 @@
+import logging
 import uuid
-from pathlib import PurePosixPath
+from io import BytesIO
+from pathlib import Path, PurePosixPath
 from urllib.parse import quote, unquote, urlparse
 
 import boto3
+from botocore.exceptions import ConnectionError as BotoConnectionError
 from django.conf import settings
 from django.core.exceptions import ImproperlyConfigured
 from rest_framework.exceptions import ValidationError
+
+logger = logging.getLogger(__name__)
+
+# Prefixe marquant un fichier stocke sur disque local plutot que sur S3.
+# Utilise uniquement en secours en dev (DEBUG=True) quand S3/MinIO est
+# injoignable ou mal configure - jamais en production.
+LOCAL_STORAGE_PREFIX = "local://"
+
+
+def _local_media_path(relative_file_id):
+    return Path(settings.MEDIA_ROOT) / relative_file_id
+
+
+def _local_media_url(relative_file_id):
+    base_url = settings.BACKEND_BASE_URL.rstrip("/")
+    quoted_file_id = quote(relative_file_id, safe="/")
+    return f"{base_url}{settings.MEDIA_URL}{quoted_file_id}"
+
+
+def _write_local_bytes(data, relative_file_id):
+    path = _local_media_path(relative_file_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
 
 
 def get_s3_client():
@@ -101,20 +127,30 @@ def upload_document_file(file, project_id):
 
     file_id = build_document_file_id(file.name, project_id)
     content_type = getattr(file, "content_type", None) or "application/octet-stream"
+    # Lu une seule fois en memoire : si l'upload S3 echoue en cours de route,
+    # boto3/s3transfer peut avoir deja consomme ou ferme le flux d'origine.
+    data = file.read()
 
-    get_s3_client().upload_fileobj(
-        file,
-        settings.S3_BUCKET_NAME,
-        file_id,
-        ExtraArgs={
-            "ContentType": content_type,
-        },
-    )
+    try:
+        get_s3_client().upload_fileobj(
+            BytesIO(data),
+            settings.S3_BUCKET_NAME,
+            file_id,
+            ExtraArgs={
+                "ContentType": content_type,
+            },
+        )
+    except (ImproperlyConfigured, BotoConnectionError) as exc:
+        if not settings.DEBUG:
+            raise
+        logger.warning("S3 injoignable, stockage local de secours pour %s: %s", file_id, exc)
+        _write_local_bytes(data, file_id)
+        file_id = LOCAL_STORAGE_PREFIX + file_id
 
     return {
         "file_id": file_id,
         "file_name": PurePosixPath(file.name).name,
-        "file_size": getattr(file, "size", None),
+        "file_size": getattr(file, "size", None) or len(data),
         "mime_type": content_type,
     }
 
@@ -125,19 +161,29 @@ def upload_profile_picture_file(file, user_id):
     file_id = build_profile_picture_file_id(file.name, user_id)
     content_type = getattr(file, "content_type", None) or "application/octet-stream"
     bucket_name = settings.PROFILE_PICTURE_S3_BUCKET_NAME
+    data = file.read()
 
-    get_s3_client().upload_fileobj(
-        file,
-        bucket_name,
-        file_id,
-        ExtraArgs={
-            "ContentType": content_type,
-        },
-    )
+    try:
+        get_s3_client().upload_fileobj(
+            BytesIO(data),
+            bucket_name,
+            file_id,
+            ExtraArgs={
+                "ContentType": content_type,
+            },
+        )
+        url = build_s3_object_url(file_id, bucket_name)
+    except (ImproperlyConfigured, BotoConnectionError) as exc:
+        if not settings.DEBUG:
+            raise
+        logger.warning("S3 injoignable, stockage local de secours pour %s: %s", file_id, exc)
+        _write_local_bytes(data, file_id)
+        url = _local_media_url(file_id)
+        file_id = LOCAL_STORAGE_PREFIX + file_id
 
     return {
         "file_id": file_id,
-        "url": build_s3_object_url(file_id, bucket_name),
+        "url": url,
     }
 
 
@@ -151,7 +197,10 @@ def get_profile_picture_file_id_from_url(url, user_id):
     if marker_index < 0:
         return None
 
-    return path[marker_index:]
+    file_id = path[marker_index:]
+    if url.startswith(settings.BACKEND_BASE_URL):
+        return LOCAL_STORAGE_PREFIX + file_id
+    return file_id
 
 
 def get_document_file(file_id):
@@ -162,6 +211,10 @@ def get_document_file(file_id):
 
 
 def delete_document_file(file_id):
+    if file_id.startswith(LOCAL_STORAGE_PREFIX):
+        _local_media_path(file_id[len(LOCAL_STORAGE_PREFIX):]).unlink(missing_ok=True)
+        return
+
     get_s3_client().delete_object(
         Bucket=settings.S3_BUCKET_NAME,
         Key=file_id,
@@ -169,6 +222,10 @@ def delete_document_file(file_id):
 
 
 def delete_profile_picture_file(file_id):
+    if file_id.startswith(LOCAL_STORAGE_PREFIX):
+        _local_media_path(file_id[len(LOCAL_STORAGE_PREFIX):]).unlink(missing_ok=True)
+        return
+
     get_s3_client().delete_object(
         Bucket=settings.PROFILE_PICTURE_S3_BUCKET_NAME,
         Key=file_id,
@@ -176,6 +233,9 @@ def delete_profile_picture_file(file_id):
 
 
 def get_document_download_url(file_id, expires_in=None):
+    if file_id.startswith(LOCAL_STORAGE_PREFIX):
+        return _local_media_url(file_id[len(LOCAL_STORAGE_PREFIX):])
+
     return get_s3_client().generate_presigned_url(
         "get_object",
         Params={

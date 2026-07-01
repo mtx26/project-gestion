@@ -86,18 +86,25 @@ export function FilterPeriodPicker({
   }
 
   function handleApply() {
-    if (mode === "all") {
-      onChange({ date_from: null, date_to: null });
-    } else if (mode === "custom") {
-      onChange({
-        date_from: range?.from ? toDateStr(range.from) : null,
-        date_to: range?.to ? toDateStr(range.to) : null,
-      });
-    } else {
-      const { startDate, endDate } = getPeriodRange(mode);
-      onChange({ date_from: startDate ?? null, date_to: endDate ?? null });
-    }
+    // Ferme d'abord la popover, puis declenche le changement d'URL au tick suivant :
+    // sinon la navigation Next.js (router.replace dans onChange) peut re-render
+    // pendant la fermeture de la Dialog Radix et provoquer un clignotement
+    // ferme/rouvre/ferme.
     setOpen(false);
+    const applyChange = () => {
+      if (mode === "all") {
+        onChange({ date_from: null, date_to: null });
+      } else if (mode === "custom") {
+        onChange({
+          date_from: range?.from ? toDateStr(range.from) : null,
+          date_to: range?.to ? toDateStr(range.to) : null,
+        });
+      } else {
+        const { startDate, endDate } = getPeriodRange(mode);
+        onChange({ date_from: startDate ?? null, date_to: endDate ?? null });
+      }
+    };
+    setTimeout(applyChange, 0);
   }
 
   // Label du bouton déclencheur

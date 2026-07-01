@@ -47,3 +47,6 @@ __pycache__/
 
 # Local databases
 *.sqlite3
+
+# Stockage local de secours (voir apps/backend/api/services/storage.py)
+apps/backend/media/

@@ -50,20 +50,25 @@ export function DateTimePicker({
   const timeMax = maxDatePart && maxDatePart === datePart ? normalizedMax.split("T")[1] : undefined;
 
   function handleDateSelect(date: Date | undefined) {
-    if (date) {
-      let time = timePart;
-      const newDatePart = format(date, "yyyy-MM-dd");
-      if (minDatePart && newDatePart === minDatePart && normalizedMin.split("T")[1] > time) {
-        time = normalizedMin.split("T")[1];
-      }
-      if (maxDatePart && newDatePart === maxDatePart && normalizedMax.split("T")[1] < time) {
-        time = normalizedMax.split("T")[1];
-      }
-      onChange(`${newDatePart}T${time}`);
-    } else {
-      onChange("");
-    }
+    // Ferme d'abord la popover, puis notifie le parent au tick suivant : sinon
+    // le re-render declenche par onChange peut interrompre la fermeture de la
+    // Popover Radix et provoquer un clignotement ferme/rouvre/ferme.
     setOpen(false);
+    setTimeout(() => {
+      if (date) {
+        let time = timePart;
+        const newDatePart = format(date, "yyyy-MM-dd");
+        if (minDatePart && newDatePart === minDatePart && normalizedMin.split("T")[1] > time) {
+          time = normalizedMin.split("T")[1];
+        }
+        if (maxDatePart && newDatePart === maxDatePart && normalizedMax.split("T")[1] < time) {
+          time = normalizedMax.split("T")[1];
+        }
+        onChange(`${newDatePart}T${time}`);
+      } else {
+        onChange("");
+      }
+    }, 0);
   }
 
   function handleTimeChange(e: React.ChangeEvent<HTMLInputElement>) {

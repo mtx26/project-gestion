@@ -159,26 +159,6 @@ class Document(BaseModel):
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.document.folder_project_mismatch")
 
-    class Meta:
-        constraints = [
-            models.UniqueConstraint(
-                fields=["project", "folder", "name"],
-                condition=models.Q(
-                    deleted_at__isnull=True,
-                    folder__isnull=False,
-                ),
-                name="unique_active_document_name_per_folder"
-            ),
-            models.UniqueConstraint(
-                fields=["project", "name"],
-                condition=models.Q(
-                    deleted_at__isnull=True,
-                    folder__isnull=True,
-                ),
-                name="unique_active_root_document_name"
-            )
-        ]
-
 class Task(BaseModel):
     class Status(models.TextChoices):
         TODO = "todo", "todo"

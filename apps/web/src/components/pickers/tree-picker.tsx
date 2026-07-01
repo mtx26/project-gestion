@@ -79,13 +79,18 @@ export function TreePickerDialog(props: TreePickerProps) {
   }
 
   function handleSelect(value: string) {
-    if (props.mode === "folder") {
-      const { folder } = getTargetPayload(value);
-      props.onSelect(folder);
-    } else {
-      props.onSelect(value);
-    }
+    // Ferme d'abord la Dialog, puis notifie le parent au tick suivant : sinon
+    // le re-render declenche par onSelect peut interrompre la fermeture de la
+    // Dialog Radix et provoquer un clignotement ferme/rouvre/ferme.
     setOpen(false);
+    setTimeout(() => {
+      if (props.mode === "folder") {
+        const { folder } = getTargetPayload(value);
+        props.onSelect(folder);
+      } else {
+        props.onSelect(value);
+      }
+    }, 0);
   }
 
   function startCreate(nodeValue: string) {
