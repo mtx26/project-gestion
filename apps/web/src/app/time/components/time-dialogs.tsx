@@ -26,7 +26,7 @@ import { formatDateTime } from "@/lib/date-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
-import { getEntryDate, getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
+import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
 
 const editTimeSchema = z.object({
   startDate: z.string(),
@@ -81,7 +81,7 @@ export function EditTimeEntryDialog({
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: EditTimeSubmitData) => void;
 }) {
-  const referenceStart = entry ? getEntryDate(entry).slice(0, 16) : "";
+  const referenceStart = entry ? entry.start_date.slice(0, 16) : "";
 
   const form = useForm<EditTimeFormValues>({
     resolver: zodResolver(editTimeSchema),
@@ -287,7 +287,7 @@ export function TimeEntryDetailDialog({
           <span>{displayName}</span>
         </DetailField>
         <DetailField label="Date" icon={CalendarDays}>
-          <span>{formatDateTime(getEntryDate(entry))}</span>
+          <span>{formatDateTime(entry.start_date)}</span>
         </DetailField>
         {(entry.task != null || entry.folder != null) ? (
           <DetailField label="Cible" className="col-span-2">

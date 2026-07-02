@@ -1,6 +1,6 @@
 from django.db import models
 
-from ..models import Project, ProjectMember
+from ..models import Project
 
 
 def get_accessible_projects(user, include_deleted=False):
@@ -23,16 +23,3 @@ def get_accessible_deleted_projects(user):
     return get_accessible_projects(user, include_deleted=True).filter(
         deleted_at__isnull=False,
     )
-
-
-def is_project_member(user, project):
-    if not user or not user.is_authenticated or project is None:
-        return False
-
-    if project.owner_id == user.id:
-        return True
-
-    return ProjectMember.objects.filter(
-        project=project,
-        user=user,
-    ).exists()

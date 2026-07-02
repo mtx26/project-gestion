@@ -10,7 +10,6 @@ import { TreeIcon } from "@/components/pickers/tree-picker";
 import { formatDateTime } from "@/lib/date-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import {
-  getEntryDate,
   getEntryTargetLabel,
   getPaymentStatus,
   getTimeEntryCardClassName,
@@ -118,7 +117,7 @@ function TimeEntryRow({
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>{displayName}</span>
-            <span>{formatDateTime(getEntryDate(entry))}</span>
+            <span>{formatDateTime(entry.start_date)}</span>
             {targetType !== "project" ? (
               <span className="inline-flex max-w-full items-center gap-1">
                 <TreeIcon type={targetType} />

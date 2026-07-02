@@ -9,6 +9,8 @@ from .views.roles import (
     PermissionListView,
     RoleListCreateView,
     RoleDetailView,
+    RoleTrashListView,
+    RoleRestoreView,
 )
 from .views.members import (
     ProjectMemberListView,
@@ -82,7 +84,9 @@ urlpatterns = [
     path("projects/<int:pk>/restore/", ProjectRestoreView.as_view(), name="project-restore"),
     # Roles
     path("projects/<int:project_id>/roles/", RoleListCreateView.as_view(), name="project-roles"),
+    path("projects/<int:project_id>/roles/trash/", RoleTrashListView.as_view(), name="project-roles-trash"),
     path("projects/<int:project_id>/roles/<int:pk>/", RoleDetailView.as_view(), name="project-role-detail"),
+    path("projects/<int:project_id>/roles/<int:pk>/restore/", RoleRestoreView.as_view(), name="project-role-restore"),
     path("permissions/", PermissionListView.as_view(), name="permission-list"),
     # Members
     path("projects/<int:project_id>/members/", ProjectMemberListView.as_view(), name="project-members"),
@@ -99,9 +103,9 @@ urlpatterns = [
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/tree/", FolderTreeView.as_view(), name="project-folder-tree"),
     path("projects/<int:project_id>/folders/target-tree/", FolderTargetTreeView.as_view(), name="project-folder-target-tree"),
-    path("projects/<int:project_id>/folders/<int:pk>/", FolderDetailView.as_view(), name="project-folders"),
-    path("projects/<int:project_id>/folders/trash/", FolderTrashListView.as_view(), name="project-folders"),
-    path("projects/<int:project_id>/folders/<int:pk>/restore/", FolderRestoreView.as_view(), name="project-folders"),
+    path("projects/<int:project_id>/folders/<int:pk>/", FolderDetailView.as_view(), name="project-folder-detail"),
+    path("projects/<int:project_id>/folders/trash/", FolderTrashListView.as_view(), name="project-folders-trash"),
+    path("projects/<int:project_id>/folders/<int:pk>/restore/", FolderRestoreView.as_view(), name="project-folder-restore"),
     # Documents
     path("projects/<int:project_id>/documents/", DocumentListCreateView.as_view(), name="project-documents"),
     path("projects/<int:project_id>/documents/<int:pk>/", DocumentDetailView.as_view(), name="project-document-detail"),

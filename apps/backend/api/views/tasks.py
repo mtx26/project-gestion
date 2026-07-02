@@ -6,7 +6,6 @@ import django_filters
 from rest_framework import generics
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -17,6 +16,7 @@ from ..serializers import TaskSerializer
 from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
 from ..utils import StableOrderingFilter
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class TaskFilter(django_filters.FilterSet):
@@ -165,7 +165,7 @@ class TaskListCreateView(generics.ListCreateAPIView):
         description="Supprime une tâche via soft delete.\nPermission requise : `task.delete`.",
     ),
 )
-class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
+class TaskDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -194,9 +194,6 @@ class TaskDetailView(generics.RetrieveUpdateDestroyAPIView):
             "assigned_to",
             "documents",
         )
-
-    def perform_destroy(self, instance):
-        instance.soft_delete(self.request.user)
 
 
 @extend_schema(tags=["tasks"])
@@ -251,7 +248,7 @@ class TaskTrashListView(generics.ListAPIView):
         request=None,
     )
 )
-class TaskRestoreView(generics.GenericAPIView):
+class TaskRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "task.restore"
@@ -271,11 +268,3 @@ class TaskRestoreView(generics.GenericAPIView):
             "assigned_to",
             "documents",
         )
-
-    def post(self, request, project_id, pk):
-        task = self.get_object()
-
-        task.restore()
-
-        serializer = self.get_serializer(task)
-        return Response(serializer.data)

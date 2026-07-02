@@ -66,37 +66,3 @@ export function getTargetValueFromEntry(entry: Pick<TimeEntry, "folder" | "task"
   return "project";
 }
 
-export function collectTargetLabelsByType(node: TargetTreeNode, type: "folder" | "task"): Map<number, string> {
-  const labels = new Map<number, string>();
-  collectLabels(node, type, labels);
-  return labels;
-}
-
-function collectLabels(node: TargetTreeNode, type: "folder" | "task", labels: Map<number, string>) {
-  if (node.type === type) {
-    labels.set(Number(node.value.replace(`${type}-`, "")), node.label);
-  }
-  for (const child of node.children) {
-    collectLabels(child, type, labels);
-  }
-}
-
-export function collectTaskFolderIds(node: TargetTreeNode): Map<number, number> {
-  const taskFolderIds = new Map<number, number>();
-  collectTaskFolderIdsInPlace(node, null, taskFolderIds);
-  return taskFolderIds;
-}
-
-function collectTaskFolderIdsInPlace(
-  node: TargetTreeNode,
-  currentFolderId: number | null,
-  taskFolderIds: Map<number, number>,
-) {
-  const folderId = node.type === "folder" ? Number(node.value.replace("folder-", "")) : currentFolderId;
-  if (node.type === "task" && folderId != null) {
-    taskFolderIds.set(Number(node.value.replace("task-", "")), folderId);
-  }
-  for (const child of node.children) {
-    collectTaskFolderIdsInPlace(child, folderId, taskFolderIds);
-  }
-}

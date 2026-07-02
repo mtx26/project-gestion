@@ -23,6 +23,7 @@ from ..serializers import (
 from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
 from ..utils import StableOrderingFilter
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class FinancialEntryFilter(django_filters.FilterSet):
@@ -252,7 +253,7 @@ class FinancialEntryChartView(generics.GenericAPIView):
         description="Supprime une entrée financière via soft delete.\nPermission requise : `finance.delete`.",
     ),
 )
-class FinancialEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FinancialEntryDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -280,9 +281,6 @@ class FinancialEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
             "task",
             "created_by",
         ).prefetch_related("documents")
-
-    def perform_destroy(self, instance):
-        instance.soft_delete(self.request.user)
 
 
 @extend_schema(tags=["finance"])
@@ -333,7 +331,7 @@ class FinancialEntryTrashListView(generics.ListAPIView):
         request=None,
     )
 )
-class FinancialEntryRestoreView(generics.GenericAPIView):
+class FinancialEntryRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "finance.restore"
@@ -352,11 +350,3 @@ class FinancialEntryRestoreView(generics.GenericAPIView):
             "task",
             "created_by",
         ).prefetch_related("documents")
-
-    def post(self, request, project_id, pk):
-        financial_entry = self.get_object()
-
-        financial_entry.restore()
-
-        serializer = self.get_serializer(financial_entry)
-        return Response(serializer.data)

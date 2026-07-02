@@ -67,27 +67,6 @@ export function getApiPageSize<T>(data: T[] | PaginatedResponse<T> | undefined):
   return (data as PaginatedResponse<T>).page_size ?? 50;
 }
 
-export function summarizeFinancialEntries(entries: Pick<FinancialEntry, "amount" | "type">[]) {
-  const expenses = sumFinancialEntries(entries, "expense");
-  const refunds = sumFinancialEntries(entries, "refund");
-
-  return {
-    count: entries.length,
-    expenses,
-    refunds,
-    balance: expenses - refunds,
-  };
-}
-
-export function sumFinancialEntries(
-  entries: Pick<FinancialEntry, "amount" | "type">[],
-  type: FinancialEntry["type"],
-) {
-  return entries
-    .filter((entry) => entry.type === type)
-    .reduce((total, entry) => total + Number(entry.amount), 0);
-}
-
 export class ApiError extends Error {
   status: number;
   data: unknown;

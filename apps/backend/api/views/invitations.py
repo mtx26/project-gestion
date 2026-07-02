@@ -14,6 +14,7 @@ from ..serializers import (
 )
 from ..services.invitations import get_project_invitations
 from ..services.projects import get_accessible_projects
+from core.views import SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["member"])
@@ -104,7 +105,7 @@ class InvitationListCreateView(generics.ListCreateAPIView):
         description="Annule une invitation via soft delete.\nPermission requise : `member.edit`.",
     ),
 )
-class InvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
+class InvitationDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = InvitationSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -129,9 +130,6 @@ class InvitationDetailView(generics.RetrieveUpdateDestroyAPIView):
         context = super().get_serializer_context()
         context["project_id"] = self.kwargs["project_id"]
         return context
-
-    def perform_destroy(self, instance):
-        instance.soft_delete(self.request.user)
 
 
 @extend_schema(tags=["member"])

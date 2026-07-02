@@ -21,6 +21,7 @@ from ..services.folders import get_descendant_folder_ids
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..services.time_entries import compute_time_entry_stats
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class TimeEntryFilter(django_filters.FilterSet):
@@ -277,7 +278,7 @@ class TimeEntryStatsView(generics.GenericAPIView):
         description="Supprime une entrée de temps via soft delete.\nPermission requise : `time_entry.delete`.",
     ),
 )
-class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
+class TimeEntryDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -327,9 +328,6 @@ class TimeEntryDetailView(generics.RetrieveUpdateDestroyAPIView):
         )
         context["project"] = project
         return context
-
-    def perform_destroy(self, instance):
-        instance.soft_delete(self.request.user)
 
 
 @extend_schema(tags=["time entries"])
@@ -428,7 +426,7 @@ class TimeEntryTrashListView(generics.ListAPIView):
         request=None,
     )
 )
-class TimeEntryRestoreView(generics.GenericAPIView):
+class TimeEntryRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "time_entry.restore"
@@ -449,9 +447,3 @@ class TimeEntryRestoreView(generics.GenericAPIView):
             "financial_entries",
             "documents",
         )
-
-    def post(self, request, project_id, pk):
-        time_entry = self.get_object()
-        time_entry.restore()
-        serializer = self.get_serializer(time_entry)
-        return Response(serializer.data)

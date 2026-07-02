@@ -18,6 +18,7 @@ from ..serializers import (
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..permissions import HasProjectPermission
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 @extend_schema(tags=["folders"])
 @extend_schema_view(
@@ -182,7 +183,7 @@ class FolderTargetTreeView(generics.GenericAPIView):
         description="Supprime un dossier via soft delete.\nPermission requise : `file.delete`.",
     ),
 )
-class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
+class FolderDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -204,9 +205,6 @@ class FolderDetailView(generics.RetrieveUpdateDestroyAPIView):
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user)
         )
-
-    def perform_destroy(self, instance):
-        instance.soft_delete(self.request.user)
 
 @extend_schema(tags=["folders"])
 @extend_schema_view(
@@ -250,7 +248,7 @@ class FolderTrashListView(generics.ListAPIView):
         description="Restaure un dossier supprimé.\nPermission requise : `file.restore`.",
     )
 )
-class FolderRestoreView(generics.GenericAPIView):
+class FolderRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -266,11 +264,3 @@ class FolderRestoreView(generics.GenericAPIView):
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user)
         )
-
-    def post(self, request, project_id, pk):
-        folder = self.get_object()
-
-        folder.restore()
-
-        serializer = self.get_serializer(folder)
-        return Response(serializer.data)

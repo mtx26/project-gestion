@@ -186,24 +186,6 @@ def get_profile_picture_file_id_from_url(url, user_id):
     return file_id
 
 
-def get_document_file(file_id):
-    return get_s3_client().get_object(
-        Bucket=settings.S3_BUCKET_NAME,
-        Key=file_id,
-    )
-
-
-def delete_document_file(file_id):
-    if file_id.startswith(LOCAL_STORAGE_PREFIX):
-        _local_media_path(file_id[len(LOCAL_STORAGE_PREFIX):]).unlink(missing_ok=True)
-        return
-
-    get_s3_client().delete_object(
-        Bucket=settings.S3_BUCKET_NAME,
-        Key=file_id,
-    )
-
-
 def delete_profile_picture_file(file_id):
     if file_id.startswith(LOCAL_STORAGE_PREFIX):
         _local_media_path(file_id[len(LOCAL_STORAGE_PREFIX):]).unlink(missing_ok=True)

@@ -36,11 +36,6 @@ export function parseBooleanParam(value: string | null): boolean {
   return value === "1" || value === "true";
 }
 
-export function setOptionalParam(params: URLSearchParams, key: string, value: string | "all") {
-  if (value && value !== "all") params.set(key, value);
-  else params.delete(key);
-}
-
 export function parseEnumParam<T extends string>(
   value: string | null,
   valid: readonly T[],

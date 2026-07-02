@@ -20,6 +20,7 @@ from ..serializers import (
 from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
 from ..services.storage import upload_document_file
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class DocumentFilter(django_filters.FilterSet):
@@ -151,7 +152,7 @@ class DocumentListCreateView(generics.ListCreateAPIView):
         description="Supprime un document via soft delete.\nPermission requise : `file.delete`.",
     ),
 )
-class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
+class DocumentDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -173,9 +174,6 @@ class DocumentDetailView(generics.RetrieveUpdateDestroyAPIView):
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         )
-
-    def perform_destroy(self, instance):
-        instance.soft_delete(self.request.user)
 
 
 @extend_schema(tags=["documents"])
@@ -248,7 +246,7 @@ class DocumentTrashListView(generics.ListAPIView):
         request=None,
     )
 )
-class DocumentRestoreView(generics.GenericAPIView):
+class DocumentRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "file.restore"
@@ -261,9 +259,3 @@ class DocumentRestoreView(generics.GenericAPIView):
             project_id=self.kwargs["project_id"],
             project__in=get_accessible_projects(self.request.user),
         )
-
-    def post(self, request, project_id, pk):
-        document = self.get_object()
-        document.restore()
-        serializer = self.get_serializer(document)
-        return Response(serializer.data)

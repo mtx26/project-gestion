@@ -2,7 +2,6 @@ from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
@@ -12,6 +11,7 @@ from ..services.projects import (
     get_accessible_deleted_projects,
     get_accessible_projects,
 )
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["projects"])
@@ -61,7 +61,7 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         description="Supprime un projet via soft delete. Réservé au propriétaire du projet.",
     ),
 )
-class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ProjectDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -82,7 +82,7 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         if instance.owner_id != self.request.user.id:
             raise PermissionDenied("Seul le proprietaire du projet peut le supprimer.")
 
-        instance.soft_delete(self.request.user)
+        super().perform_destroy(instance)
 
 
 @extend_schema(tags=["projects"])
@@ -93,22 +93,18 @@ class ProjectDetailView(generics.RetrieveUpdateDestroyAPIView):
         request=None,
     ),
 )
-class ProjectRestoreView(generics.GenericAPIView):
+class ProjectRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         return get_accessible_deleted_projects(self.request.user)
 
-    def post(self, request, pk):
-        project = self.get_object()
-        if project.owner_id != request.user.id:
+    def perform_restore(self, instance):
+        if instance.owner_id != self.request.user.id:
             raise PermissionDenied("Seul le proprietaire du projet peut le restaurer.")
 
-        project.restore()
-
-        serializer = self.get_serializer(project)
-        return Response(serializer.data)
+        instance.restore()
 
 
 @extend_schema(tags=["projects"])

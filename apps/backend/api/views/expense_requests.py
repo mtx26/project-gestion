@@ -18,6 +18,7 @@ from ..permissions import HasProjectPermission
 from ..serializers import ExpenseRequestSerializer
 from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class ExpenseRequestFilter(django_filters.FilterSet):
@@ -124,7 +125,7 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
         description="Supprime une demande de remboursement via soft delete.\nPermission requise : `expense_request.delete`.",
     ),
 )
-class ExpenseRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ExpenseRequestDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
 
@@ -143,9 +144,6 @@ class ExpenseRequestDetailView(generics.RetrieveUpdateDestroyAPIView):
             return ExpenseRequest.objects.none()
 
         return _expense_request_qs(self.request.user, self.kwargs["project_id"])
-
-    def perform_destroy(self, instance):
-        instance.soft_delete(self.request.user)
 
 
 @extend_schema(tags=["expense-requests"])
@@ -276,7 +274,7 @@ class ExpenseRequestTrashListView(generics.ListAPIView):
         request=None,
     )
 )
-class ExpenseRequestRestoreView(generics.GenericAPIView):
+class ExpenseRequestRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "expense_request.restore"
@@ -295,9 +293,3 @@ class ExpenseRequestRestoreView(generics.GenericAPIView):
             "requested_by",
             "approved_by",
         ).prefetch_related("documents")
-
-    def post(self, request, project_id, pk):
-        expense_request = self.get_object()
-        expense_request.restore()
-        serializer = self.get_serializer(expense_request)
-        return Response(serializer.data)

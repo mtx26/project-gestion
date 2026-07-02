@@ -21,10 +21,6 @@ export function parsePaymentStatusFilter(value: string | null): PaymentStatusFil
   return "all";
 }
 
-export function parseTimeViewMode(value: string | null): TimeViewMode {
-  return value === "calendar" ? "calendar" : "list";
-}
-
 export function parseTargetFilter(value: string | null): string | null {
   if (value === "project") return "project";
   if (value?.startsWith("folder-")) {
@@ -92,80 +88,6 @@ export function getTotalsLabel(
     : getPeriodLabel(detected).toLowerCase();
   const targetSuffix = targetLabel ? ` - ${targetLabel}` : "";
   return `Totaux - ${periodLabel} - ${userLabel} - ${statusLabel}${targetSuffix}`;
-}
-
-export function filterTimeEntriesByPaymentStatus(entries: TimeEntry[], filter: PaymentStatusFilter): TimeEntry[] {
-  if (filter === "all") return entries;
-  return entries.filter((entry) => getPaymentStatus(entry) === filter);
-}
-
-export function filterTimeEntriesByTarget(
-  entries: TimeEntry[],
-  target: string | null,
-  taskFolderById: Map<number, number>,
-  descendantFolderIds: Set<number> | null,
-): TimeEntry[] {
-  if (!target) return entries;
-  if (target === "project") return entries.filter((entry) => entry.folder == null && entry.task == null);
-  if (target.startsWith("folder-")) {
-    const folderIds = descendantFolderIds ?? new Set([Number(target.replace("folder-", ""))]);
-    return entries.filter(
-      (entry) =>
-        (entry.folder != null && folderIds.has(entry.folder)) ||
-        (entry.task != null && folderIds.has(taskFolderById.get(entry.task) ?? -1)),
-    );
-  }
-  if (target.startsWith("task-")) {
-    const taskId = Number(target.replace("task-", ""));
-    return entries.filter((entry) => entry.task === taskId);
-  }
-  return entries;
-}
-
-export function summarizeTimeEntries(entries: TimeEntry[]): { durationMinutes: number; costAmount: number; remainingAmount: number } {
-  return entries.reduce(
-    (total, entry) => ({
-      durationMinutes: total.durationMinutes + entry.duration_minutes,
-      costAmount: total.costAmount + Number(entry.cost_amount),
-      remainingAmount: total.remainingAmount + Number(entry.remaining_amount),
-    }),
-    { durationMinutes: 0, costAmount: 0, remainingAmount: 0 },
-  );
-}
-
-/** Date de reference d'une entree de temps : son debut choisi par l'utilisateur. */
-export function getEntryDate(entry: TimeEntry): string {
-  return entry.start_date;
-}
-
-export function groupTimeEntriesByDay(entries: TimeEntry[]): Map<string, TimeEntry[]> {
-  const groups = new Map<string, TimeEntry[]>();
-  for (const entry of entries) {
-    const key = formatDate(new Date(getEntryDate(entry)));
-    groups.set(key, [...(groups.get(key) ?? []), entry]);
-  }
-  for (const [key, dayEntries] of groups.entries()) {
-    groups.set(key, dayEntries.sort((a, b) => new Date(getEntryDate(a)).getTime() - new Date(getEntryDate(b)).getTime()));
-  }
-  return groups;
-}
-
-export function getCalendarMonthDate(dateValue: string | undefined, entries: TimeEntry[]): Date {
-  if (dateValue) return new Date(`${dateValue}T12:00:00`);
-  if (entries[0]) return new Date(getEntryDate(entries[0]));
-  return new Date();
-}
-
-export function getMonthCalendarDays(monthDate: Date): Date[] {
-  const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-  const mondayOffset = (firstOfMonth.getDay() + 6) % 7;
-  const start = new Date(firstOfMonth);
-  start.setDate(firstOfMonth.getDate() - mondayOffset);
-  return Array.from({ length: 42 }, (_, index) => {
-    const day = new Date(start);
-    day.setDate(start.getDate() + index);
-    return day;
-  });
 }
 
 export async function invalidateTimeQueries(queryClient: QueryClient, projectId: number): Promise<void> {
