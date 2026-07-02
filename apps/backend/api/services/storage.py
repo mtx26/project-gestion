@@ -12,8 +12,9 @@ from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
-# Prefixe marquant un fichier stocke sur disque local plutot que sur S3,
-# utilise en secours quand S3/MinIO est injoignable ou mal configure.
+# Prefixe marquant un fichier stocke sur disque local plutot que sur S3.
+# Utilise uniquement en secours en dev (DEBUG=True) quand S3/MinIO est
+# injoignable ou mal configure - jamais en production.
 LOCAL_STORAGE_PREFIX = "local://"
 
 
@@ -129,7 +130,9 @@ def upload_document_file(file, project_id):
             BytesIO(data), settings.S3_BUCKET_NAME, file_id, ExtraArgs={"ContentType": content_type},
         )
     except (ImproperlyConfigured, BotoConnectionError) as exc:
-        logger.warning("S3 injoignable, stockage local pour %s: %s", file_id, exc)
+        if not settings.DEBUG:
+            raise
+        logger.warning("S3 injoignable, stockage local de secours pour %s: %s", file_id, exc)
         _write_local_bytes(data, file_id)
         file_id = LOCAL_STORAGE_PREFIX + file_id
 
@@ -155,7 +158,9 @@ def upload_profile_picture_file(file, user_id):
         )
         url = build_s3_object_url(file_id, bucket_name)
     except (ImproperlyConfigured, BotoConnectionError) as exc:
-        logger.warning("S3 injoignable, stockage local pour %s: %s", file_id, exc)
+        if not settings.DEBUG:
+            raise
+        logger.warning("S3 injoignable, stockage local de secours pour %s: %s", file_id, exc)
         _write_local_bytes(data, file_id)
         url = _local_media_url(file_id)
         file_id = LOCAL_STORAGE_PREFIX + file_id

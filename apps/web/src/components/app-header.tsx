@@ -6,6 +6,7 @@ import { ArrowLeft, Bell, LogOut, Settings, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { getInitials } from "@/lib/user-display";
 
 type AppHeaderProps = {
   user: User | null | undefined;
@@ -45,7 +46,7 @@ function AccountMenu({ user, onLogout }: { user: User | null | undefined; onLogo
   const [menuOpen, setMenuOpen] = useState(false);
   const displayName = user?.first_name || user?.username || "Compte";
   const pictureUrl = user?.profile?.picture_url;
-  const initials = getInitials(displayName);
+  const initials = getInitials(displayName, <UserRound className="size-4" />);
 
   return (
     <div className="relative">
@@ -87,14 +88,3 @@ function AccountMenu({ user, onLogout }: { user: User | null | undefined; onLogo
   );
 }
 
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return <UserRound className="size-4" />;
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
-}

@@ -9,7 +9,11 @@ from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
 from .services.folders import build_folder_tree
-from .services.permissions import expand_permissions, get_project_permission_codes
+from .services.permissions import (
+    expand_permissions,
+    get_project_permission_codes,
+    get_project_permission_codes_map,
+)
 from .services.invitations import (
     accept_project_invitation,
     create_project_invitation,
@@ -51,12 +55,24 @@ BASE_READ_ONLY_FIELDS = [
 ]
 
 
+class ProjectListSerializer(serializers.ListSerializer):
+    """Precomputes permission codes for the whole page in one batch (see
+    `get_project_permission_codes_map`) instead of once per project."""
+
+    def to_representation(self, data):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        self.context["permission_codes_by_project"] = get_project_permission_codes_map(user, data)
+        return super().to_representation(data)
+
+
 class ProjectSerializer(serializers.ModelSerializer):
     owner_display_name = serializers.SerializerMethodField()
     current_user_permission_codes = serializers.SerializerMethodField()
 
     class Meta:
         model = Project
+        list_serializer_class = ProjectListSerializer
         fields = [
             "id",
             "owner",
@@ -81,6 +97,10 @@ class ProjectSerializer(serializers.ModelSerializer):
         return full_name or owner.username or owner.email
 
     def get_current_user_permission_codes(self, project):
+        codes_by_project = self.context.get("permission_codes_by_project")
+        if codes_by_project is not None:
+            return codes_by_project.get(project.id, [])
+
         request = self.context.get("request")
         user = getattr(request, "user", None)
         return get_project_permission_codes(user, project)

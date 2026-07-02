@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sidebar";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { getInitials } from "@/lib/user-display";
 
 type Theme = "light" | "dark";
 
@@ -377,16 +378,4 @@ function applyTheme(theme: Theme) {
 
 function getUserDisplayName(user: User | null | undefined) {
   return [user?.first_name, user?.last_name].filter(Boolean).join(" ") || user?.username || "Parametres";
-}
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "U";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }

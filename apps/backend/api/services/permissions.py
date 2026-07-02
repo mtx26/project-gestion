@@ -86,3 +86,43 @@ def get_project_permission_codes(user, project):
         .values_list("code", flat=True)
         .distinct()
     )
+
+
+def get_project_permission_codes_map(user, projects):
+    """Same result as calling `get_project_permission_codes` per project, batched.
+
+    Avoids one query per project when serializing a list: one query covers the
+    "all codes" case (shared by every project the user owns) and one covers every
+    project where the user is a member.
+    """
+    projects = list(projects)
+
+    if not user or not user.is_authenticated:
+        return {project.id: [] for project in projects}
+
+    owned_ids = {project.id for project in projects if project.owner_id == user.id}
+    member_ids = [project.id for project in projects if project.id not in owned_ids]
+
+    codes_by_project = {}
+
+    if owned_ids:
+        all_codes = list(Permission.objects.order_by("code").values_list("code", flat=True))
+        for project_id in owned_ids:
+            codes_by_project[project_id] = all_codes
+
+    if member_ids:
+        member_codes = {}
+        rows = Permission.objects.filter(
+            rolepermission__role__projectmember__project_id__in=member_ids,
+            rolepermission__role__projectmember__user=user,
+            rolepermission__deleted_at__isnull=True,
+            rolepermission__role__projectmember__deleted_at__isnull=True,
+        ).values_list("rolepermission__role__projectmember__project_id", "code").distinct()
+
+        for project_id, code in rows:
+            member_codes.setdefault(project_id, set()).add(code)
+
+        for project_id in member_ids:
+            codes_by_project[project_id] = sorted(member_codes.get(project_id, set()))
+
+    return codes_by_project
