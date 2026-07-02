@@ -18,7 +18,7 @@ from ..serializers import (
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..permissions import HasProjectPermission
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 @extend_schema(tags=["folders"])
 @extend_schema_view(
@@ -37,20 +37,13 @@ from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
         description="Crée un nouveau dossier dans un projet.\nPermission requise : `file.edit`.",
     ),
 )
-class FolderListCreateView(generics.ListCreateAPIView):
+class FolderListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_codes_by_method = {"GET": "file.view", "POST": "file.edit"}
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["parent_folder"]
     search_fields = ["name", "description"]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "file.view"
-        elif self.request.method == "POST":
-            self.permission_code = "file.edit"
-
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -183,19 +176,15 @@ class FolderTargetTreeView(generics.GenericAPIView):
         description="Supprime un dossier via soft delete.\nPermission requise : `file.delete`.",
     ),
 )
-class FolderDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class FolderDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "file.view"
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "file.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = "file.delete"
-
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "file.view",
+        "PUT": "file.edit",
+        "PATCH": "file.edit",
+        "DELETE": "file.delete",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -222,13 +211,10 @@ class FolderDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPI
 class FolderTrashListView(generics.ListAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "file.restore"
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["parent_folder"]
     search_fields = ["name", "description"]
-
-    def get_permissions(self):
-        self.permission_code = "file.restore"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -251,10 +237,7 @@ class FolderTrashListView(generics.ListAPIView):
 class FolderRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        self.permission_code = "file.restore"
-        return super().get_permissions()
+    permission_code = "file.restore"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

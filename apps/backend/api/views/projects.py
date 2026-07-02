@@ -11,7 +11,7 @@ from ..services.projects import (
     get_accessible_deleted_projects,
     get_accessible_projects,
 )
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["projects"])
@@ -61,19 +61,12 @@ class ProjectListCreateView(generics.ListCreateAPIView):
         description="Supprime un projet via soft delete. Réservé au propriétaire du projet.",
     ),
 )
-class ProjectDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class ProjectDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = None
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "project.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = None
-
-        return super().get_permissions()
+    # GET/DELETE need no fixed code beyond project access (DELETE is gated in
+    # perform_destroy by ownership instead).
+    permission_codes_by_method = {"PUT": "project.edit", "PATCH": "project.edit"}
 
     def get_queryset(self):
         return get_accessible_projects(self.request.user)

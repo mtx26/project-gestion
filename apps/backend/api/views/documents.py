@@ -20,7 +20,7 @@ from ..serializers import (
 from ..services.projects import get_accessible_projects
 from ..services.storage import upload_document_file
 from ..utils import FolderScopedFilterMixin
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class DocumentFilter(FolderScopedFilterMixin, django_filters.FilterSet):
@@ -50,21 +50,14 @@ class DocumentFilter(FolderScopedFilterMixin, django_filters.FilterSet):
         responses={status.HTTP_201_CREATED: DocumentSerializer},
     ),
 )
-class DocumentListCreateView(generics.ListCreateAPIView):
+class DocumentListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_codes_by_method = {"GET": "file.view", "POST": "file.edit"}
     parser_classes = [MultiPartParser]
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DocumentFilter
     search_fields = ["name", "description", "file_name", "mime_type"]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "file.view"
-        elif self.request.method == "POST":
-            self.permission_code = "file.edit"
-
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -145,19 +138,15 @@ class DocumentListCreateView(generics.ListCreateAPIView):
         description="Supprime un document via soft delete.\nPermission requise : `file.delete`.",
     ),
 )
-class DocumentDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class DocumentDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "file.view"
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "file.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = "file.delete"
-
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "file.view",
+        "PUT": "file.edit",
+        "PATCH": "file.edit",
+        "DELETE": "file.delete",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -213,13 +202,10 @@ class DocumentDownloadView(generics.GenericAPIView):
 class DocumentTrashListView(generics.ListAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "file.restore"
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DocumentFilter
     search_fields = ["name", "description", "file_name", "mime_type"]
-
-    def get_permissions(self):
-        self.permission_code = "file.restore"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

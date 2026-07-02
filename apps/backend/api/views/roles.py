@@ -16,7 +16,7 @@ from ..services.roles import (
     get_deleted_project_roles,
     get_project_roles,
 )
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["roles"])
@@ -35,19 +35,12 @@ from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
         description="Crée un nouveau rôle dans le projet.\nPermission requise : `role.edit`.",
     ),
 )
-class RoleListCreateView(generics.ListCreateAPIView):
+class RoleListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_codes_by_method = {"GET": "role.view", "POST": "role.edit"}
     filter_backends = [SearchFilter]
     search_fields = ["name", "description"]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "role.view"
-        elif self.request.method == "POST":
-            self.permission_code = "role.edit"
-
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -85,19 +78,15 @@ class RoleListCreateView(generics.ListCreateAPIView):
         description="Supprime un rôle du projet via soft delete.\nPermission requise : `role.delete`.",
     ),
 )
-class RoleDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class RoleDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "role.view"
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "role.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = "role.delete"
-
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "role.view",
+        "PUT": "role.edit",
+        "PATCH": "role.edit",
+        "DELETE": "role.delete",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -124,12 +113,9 @@ class RoleDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIVi
 class RoleTrashListView(generics.ListAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "role.view"
     filter_backends = [SearchFilter]
     search_fields = ["name", "description"]
-
-    def get_permissions(self):
-        self.permission_code = "role.view"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -152,10 +138,7 @@ class RoleTrashListView(generics.ListAPIView):
 class RoleRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        self.permission_code = "role.restore"
-        return super().get_permissions()
+    permission_code = "role.restore"
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

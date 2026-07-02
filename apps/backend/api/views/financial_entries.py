@@ -19,7 +19,7 @@ from ..serializers import (
 from ..services.financial_entries import build_financial_entry_chart
 from ..services.projects import get_accessible_projects
 from ..utils import FolderScopedFilterMixin, StableOrderingFilter
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class FinancialEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
@@ -50,21 +50,14 @@ class FinancialEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
         description="Crée une nouvelle entrée financière dans un projet.\nPermission requise : `finance.edit`.",
     ),
 )
-class FinancialEntryListCreateView(generics.ListCreateAPIView):
+class FinancialEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_codes_by_method = {"GET": "finance.view", "POST": "finance.edit"}
     filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = FinancialEntryFilter
     search_fields = ["category", "description"]
     ordering_fields = ["amount", "created_at"]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "finance.view"
-        elif self.request.method == "POST":
-            self.permission_code = "finance.edit"
-
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -162,19 +155,15 @@ class FinancialEntryChartView(generics.GenericAPIView):
         description="Supprime une entrée financière via soft delete.\nPermission requise : `finance.delete`.",
     ),
 )
-class FinancialEntryDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class FinancialEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "finance.view"
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "finance.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = "finance.delete"
-
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "finance.view",
+        "PUT": "finance.edit",
+        "PATCH": "finance.edit",
+        "DELETE": "finance.delete",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -208,13 +197,10 @@ class FinancialEntryDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDe
 class FinancialEntryTrashListView(generics.ListAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "finance.restore"
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = FinancialEntryFilter
     search_fields = ["category", "description"]
-
-    def get_permissions(self):
-        self.permission_code = "finance.restore"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

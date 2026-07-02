@@ -9,12 +9,16 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from ..permissions import HasProjectPermission
 from ..serializers import ProjectMemberSerializer
-from ..services.members import get_project_members
-from ..services.permissions import has_project_permission
+from ..services.members import (
+    authorize_member_update,
+    detach_member_from_project,
+    get_project_members,
+)
 from ..services.projects import get_accessible_projects
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.views import APIView
 from ..models import ProjectMember, Project, ProjectOwnerRate
+from core.views import PermissionCodeByMethodMixin
 
 
 @extend_schema(tags=["member"])
@@ -121,21 +125,12 @@ def _build_owner_entry(project):
         description="Supprime un membre du projet via soft delete.\nPermission requise : `member.edit`.",
     ),
 )
-class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
+class ProjectMemberDetailView(PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectMemberSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "member.view"
-        elif self.request.method == "DELETE":
-            self.permission_code = "member.edit"
-        elif self.request.method in ["PUT", "PATCH"]:
-            # Fine-grained check happens in perform_update; allow through
-            # if the user has at least one relevant permission.
-            self.permission_code = None
-
-        return super().get_permissions()
+    # PUT/PATCH resolve to no fixed code: the fine-grained check happens in
+    # perform_update via authorize_member_update.
+    permission_codes_by_method = {"GET": "member.view", "DELETE": "member.edit"}
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -156,47 +151,11 @@ class ProjectMemberDetailView(generics.RetrieveUpdateDestroyAPIView):
             get_accessible_projects(self.request.user),
             pk=self.kwargs["project_id"],
         )
-        user = self.request.user
-        member = serializer.instance
-        data = serializer.validated_data
-
-        changing_rate = "hourly_rate" in data
-        changing_role = "role" in data
-
-        if changing_role:
-            if not has_project_permission(user, project, "member.edit"):
-                raise PermissionDenied("errors.member.no_permission_edit")
-
-        if changing_rate:
-            is_own = member.user_id == user.id
-            can_edit_rates = has_project_permission(user, project, "member.edit_rates")
-            can_edit_own_rate = has_project_permission(user, project, "member.edit_own_rate")
-
-            if is_own:
-                if not (can_edit_own_rate or can_edit_rates):
-                    raise PermissionDenied("errors.member.no_permission_edit_own_rate")
-            else:
-                if not can_edit_rates:
-                    raise PermissionDenied("errors.member.no_permission_edit_rates")
-
-        if not changing_rate and not changing_role:
-            raise PermissionDenied("errors.member.no_fields_to_update")
-
+        authorize_member_update(self.request.user, project, serializer.instance, serializer.validated_data)
         serializer.save()
 
     def perform_destroy(self, instance):
-        from ..models import Task, TimeEntry, FinancialEntry, ExpenseRequest
-        user_id = instance.user_id
-        project_id = instance.project_id
-
-        Task.all_objects.filter(project_id=project_id, created_by_id=user_id).update(created_by=None)
-        TimeEntry.all_objects.filter(project_id=project_id, user_id=user_id).update(user=None)
-        FinancialEntry.all_objects.filter(project_id=project_id, created_by_id=user_id).update(created_by=None)
-        ExpenseRequest.all_objects.filter(project_id=project_id, requested_by_id=user_id).update(requested_by=None)
-
-        TaskUser = Task._meta.get_field("assigned_to").remote_field.through
-        TaskUser.objects.filter(task__project_id=project_id, user_id=user_id).delete()
-
+        detach_member_from_project(instance)
         instance.soft_delete(self.request.user)
 
 

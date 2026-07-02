@@ -20,7 +20,7 @@ from ..services.expense_requests import (
     reject_expense_request,
 )
 from ..services.projects import get_accessible_projects
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class ExpenseRequestFilter(FolderScopedFilterMixin, django_filters.FilterSet):
@@ -57,21 +57,14 @@ class ExpenseRequestFilter(FolderScopedFilterMixin, django_filters.FilterSet):
         description="Crée une nouvelle demande de remboursement.\nPermission requise : `expense_request.edit`.",
     ),
 )
-class ExpenseRequestListCreateView(generics.ListCreateAPIView):
+class ExpenseRequestListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_codes_by_method = {"GET": "expense_request.view", "POST": "expense_request.edit"}
     filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = ExpenseRequestFilter
     search_fields = ["title", "category", "description"]
     ordering_fields = ["title", "amount", "created_at"]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "expense_request.view"
-        elif self.request.method == "POST":
-            self.permission_code = "expense_request.edit"
-
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -106,19 +99,15 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
         description="Supprime une demande de remboursement via soft delete.\nPermission requise : `expense_request.delete`.",
     ),
 )
-class ExpenseRequestDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class ExpenseRequestDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "expense_request.view"
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "expense_request.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = "expense_request.delete"
-
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "expense_request.view",
+        "PUT": "expense_request.edit",
+        "PATCH": "expense_request.edit",
+        "DELETE": "expense_request.delete",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -205,13 +194,10 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
 class ExpenseRequestTrashListView(generics.ListAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "expense_request.restore"
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = ExpenseRequestFilter
     search_fields = ["title", "category", "description"]
-
-    def get_permissions(self):
-        self.permission_code = "expense_request.restore"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

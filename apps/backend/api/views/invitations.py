@@ -14,7 +14,7 @@ from ..serializers import (
 )
 from ..services.invitations import get_project_invitations
 from ..services.projects import get_accessible_projects
-from core.views import SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["member"])
@@ -39,16 +39,9 @@ from core.views import SoftDeleteDestroyMixin
         responses={status.HTTP_201_CREATED: InvitationSerializer},
     ),
 )
-class InvitationListCreateView(generics.ListCreateAPIView):
+class InvitationListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "member.view"
-        elif self.request.method == "POST":
-            self.permission_code = "member.edit"
-
-        return super().get_permissions()
+    permission_codes_by_method = {"GET": "member.view", "POST": "member.edit"}
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -105,17 +98,15 @@ class InvitationListCreateView(generics.ListCreateAPIView):
         description="Annule une invitation via soft delete.\nPermission requise : `member.edit`.",
     ),
 )
-class InvitationDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class InvitationDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = InvitationSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "member.view"
-        elif self.request.method in ["PUT", "PATCH", "DELETE"]:
-            self.permission_code = "member.edit"
-
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "member.view",
+        "PUT": "member.edit",
+        "PATCH": "member.edit",
+        "DELETE": "member.edit",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

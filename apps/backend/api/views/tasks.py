@@ -15,7 +15,7 @@ from ..permissions import HasProjectPermission
 from ..serializers import TaskSerializer
 from ..services.projects import get_accessible_projects
 from ..utils import FolderScopedFilterMixin, StableOrderingFilter
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class TaskFilter(FolderScopedFilterMixin, django_filters.FilterSet):
@@ -68,21 +68,14 @@ class TaskFilter(FolderScopedFilterMixin, django_filters.FilterSet):
         description="Crée une nouvelle tâche dans un projet.\nPermission requise : `task.edit`.",
     ),
 )
-class TaskListCreateView(generics.ListCreateAPIView):
+class TaskListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_codes_by_method = {"GET": "task.view", "POST": "task.edit"}
     filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = TaskFilter
     search_fields = ["title", "description"]
     ordering_fields = ["title", "folder__name", "status_order", "priority_order", "end_date", "created_at"]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "task.view"
-        elif self.request.method == "POST":
-            self.permission_code = "task.edit"
-
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -157,19 +150,15 @@ class TaskListCreateView(generics.ListCreateAPIView):
         description="Supprime une tâche via soft delete.\nPermission requise : `task.delete`.",
     ),
 )
-class TaskDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class TaskDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "task.view"
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "task.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = "task.delete"
-
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "task.view",
+        "PUT": "task.edit",
+        "PATCH": "task.edit",
+        "DELETE": "task.delete",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -205,13 +194,10 @@ class TaskDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIVi
 class TaskTrashListView(generics.ListAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "task.restore"
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = TaskFilter
     search_fields = ["title", "description"]
-
-    def get_permissions(self):
-        self.permission_code = "task.restore"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

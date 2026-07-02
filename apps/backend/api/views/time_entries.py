@@ -22,7 +22,7 @@ from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..services.time_entries import compute_time_entry_stats
 from ..utils import FolderScopedFilterMixin
-from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class TimeEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
@@ -155,19 +155,13 @@ def apply_time_entry_financial_filters(queryset, request):
         description="Crée une nouvelle entrée de temps dans un projet.\nPermission requise : `time_entry.edit`.",
     ),
 )
-class TimeEntryListCreateView(generics.ListCreateAPIView):
+class TimeEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_codes_by_method = {"GET": "time_entry.view", "POST": "time_entry.edit"}
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = TimeEntryFilter
     search_fields = ["description"]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "time_entry.view"
-        elif self.request.method == "POST":
-            self.permission_code = "time_entry.edit"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -272,18 +266,15 @@ class TimeEntryStatsView(generics.GenericAPIView):
         description="Supprime une entrée de temps via soft delete.\nPermission requise : `time_entry.delete`.",
     ),
 )
-class TimeEntryDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDestroyAPIView):
+class TimeEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-
-    def get_permissions(self):
-        if self.request.method == "GET":
-            self.permission_code = "time_entry.view"
-        elif self.request.method in ["PUT", "PATCH"]:
-            self.permission_code = "time_entry.edit"
-        elif self.request.method == "DELETE":
-            self.permission_code = "time_entry.delete"
-        return super().get_permissions()
+    permission_codes_by_method = {
+        "GET": "time_entry.view",
+        "PUT": "time_entry.edit",
+        "PATCH": "time_entry.edit",
+        "DELETE": "time_entry.delete",
+    }
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -388,13 +379,10 @@ class TimeEntryPaymentView(generics.GenericAPIView):
 class TimeEntryTrashListView(generics.ListAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "time_entry.restore"
     filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = TimeEntryFilter
     search_fields = ["description"]
-
-    def get_permissions(self):
-        self.permission_code = "time_entry.restore"
-        return super().get_permissions()
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
