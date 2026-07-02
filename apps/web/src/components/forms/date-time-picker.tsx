@@ -5,6 +5,7 @@ import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { closeThenNotify } from "@/lib/close-then-notify";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
@@ -50,11 +51,7 @@ export function DateTimePicker({
   const timeMax = maxDatePart && maxDatePart === datePart ? normalizedMax.split("T")[1] : undefined;
 
   function handleDateSelect(date: Date | undefined) {
-    // Ferme d'abord la popover, puis notifie le parent au tick suivant : sinon
-    // le re-render declenche par onChange peut interrompre la fermeture de la
-    // Popover Radix et provoquer un clignotement ferme/rouvre/ferme.
-    setOpen(false);
-    setTimeout(() => {
+    closeThenNotify(setOpen, () => {
       if (date) {
         let time = timePart;
         const newDatePart = format(date, "yyyy-MM-dd");
@@ -68,7 +65,7 @@ export function DateTimePicker({
       } else {
         onChange("");
       }
-    }, 0);
+    });
   }
 
   function handleTimeChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -107,6 +104,7 @@ export function DateTimePicker({
         <PopoverContent className="w-auto p-0" align="start">
           <Calendar
             mode="single"
+            locale={fr}
             selected={selected}
             onSelect={handleDateSelect}
             defaultMonth={selected}

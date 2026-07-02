@@ -3115,6 +3115,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=90,
             hourly_rate="45.00",
             description="Folder work",
+            start_date=timezone.now(),
         )
         self.root_entry = TimeEntry.objects.create(
             project=self.project,
@@ -3122,6 +3123,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=30,
             hourly_rate="0.00",
             description="Root work",
+            start_date=timezone.now(),
         )
         self.deleted_entry = TimeEntry.objects.create(
             project=self.project,
@@ -3129,6 +3131,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=15,
             hourly_rate="0.00",
             description="Deleted work",
+            start_date=timezone.now(),
         )
         self.deleted_entry.soft_delete(self.owner)
         self.other_project_entry = TimeEntry.objects.create(
@@ -3137,6 +3140,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=60,
             hourly_rate="50.00",
             description="Other project work",
+            start_date=timezone.now(),
         )
         self.url = f"/api/projects/{self.project.id}/time-entries/"
         self.other_project_url = f"/api/projects/{self.other_project.id}/time-entries/"
@@ -3182,6 +3186,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=45,
             hourly_rate="30.00",
             description="Own member work",
+            start_date=timezone.now(),
         )
 
         response = self.when_list_time_entries()
@@ -3234,12 +3239,12 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
 
-    def test_list_can_filter_by_created_date_range(self):
+    def test_list_can_filter_by_date_range(self):
         TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
-            created_at=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
+            start_date=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
         )
         TimeEntry.objects.filter(pk=self.root_entry.pk).update(
-            created_at=timezone.make_aware(datetime(2025, 7, 1, 12, 0)),
+            start_date=timezone.make_aware(datetime(2025, 7, 1, 12, 0)),
         )
         self.given_authenticated(self.owner)
 
@@ -3248,50 +3253,57 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
 
-    def test_list_can_include_unpaid_entries_outside_date_range(self):
-        TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
-            created_at=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
-        )
-        TimeEntry.objects.filter(pk=self.root_entry.pk).update(
-            created_at=timezone.make_aware(datetime(2025, 7, 1, 12, 0)),
-        )
-        old_unpaid_entry = TimeEntry.objects.create(
-            project=self.project,
-            user=self.owner,
-            duration_minutes=60,
-            hourly_rate="50.00",
-            description="Old unpaid work",
-        )
-        TimeEntry.objects.filter(pk=old_unpaid_entry.pk).update(
-            created_at=timezone.make_aware(datetime(2025, 5, 1, 12, 0)),
-        )
-        old_paid_entry = TimeEntry.objects.create(
+    def test_list_hides_fully_paid_entries_by_default(self):
+        paid_entry = TimeEntry.objects.create(
             project=self.project,
             user=self.owner,
             duration_minutes=60,
             hourly_rate="20.00",
-            description="Old paid work",
+            description="Fully paid work",
+            start_date=timezone.now(),
         )
         FinancialEntry.objects.create(
             project=self.project,
-            time_entry=old_paid_entry,
+            time_entry=paid_entry,
             created_by=self.owner,
             amount="20.00",
             type=FinancialEntry.FinancialType.EXPENSE,
             category="labor",
             description="Full payment",
         )
-        TimeEntry.objects.filter(pk=old_paid_entry.pk).update(
-            created_at=timezone.make_aware(datetime(2025, 5, 2, 12, 0)),
+        self.given_authenticated(self.owner)
+
+        response = self.when_list_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+
+    def test_list_can_include_paid_entries(self):
+        paid_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="20.00",
+            description="Fully paid work",
+            start_date=timezone.now(),
+        )
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=paid_entry,
+            created_by=self.owner,
+            amount="20.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Full payment",
         )
         self.given_authenticated(self.owner)
 
-        response = self.when_list_time_entries(
-            "?start_date=2025-06-01&end_date=2025-06-30&include_unpaid=true"
-        )
+        response = self.when_list_time_entries("?include_paid=true")
 
         self.assert_ok(response)
-        self.assert_visible_time_descriptions(response, ["Folder work", "Old unpaid work"])
+        self.assert_visible_time_descriptions(
+            response, ["Folder work", "Root work", "Fully paid work"],
+        )
 
     def test_list_can_search_by_description(self):
         self.given_authenticated(self.owner)
@@ -3333,7 +3345,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         )
         self.given_authenticated(self.owner)
 
-        response = self.when_list_time_entries(f"?folder={self.folder.id}")
+        response = self.when_list_time_entries(f"?folder={self.folder.id}&include_paid=true")
 
         self.assert_ok(response)
         entry = self.response_results(response)[0]
@@ -3388,6 +3400,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             "user": self.owner.id,
             "duration_minutes": 60,
             "description": "Created root time",
+            "start_date": "2025-06-01T10:00:00Z",
         })
 
         self.assert_created(response)
@@ -3404,6 +3417,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             "duration_minutes": 45,
             "hourly_rate": "35.00",
             "description": "Member time",
+            "start_date": "2025-06-01T10:00:00Z",
         })
 
         self.assert_created(response)
@@ -3431,6 +3445,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             "user": self.owner.id,
             "duration_minutes": 60,
             "description": "Invalid target time",
+            "start_date": "2025-06-01T10:00:00Z",
         })
 
         self.assert_bad_request(response)
@@ -3443,6 +3458,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             "user": self.other_user.id,
             "duration_minutes": 60,
             "description": "Invalid user time",
+            "start_date": "2025-06-01T10:00:00Z",
         })
 
         self.assert_bad_request(response)
@@ -3456,6 +3472,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             "user": self.owner.id,
             "duration_minutes": 60,
             "description": "Invalid folder time",
+            "start_date": "2025-06-01T10:00:00Z",
         })
 
         self.assert_bad_request(response)
@@ -3472,6 +3489,7 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=60,
             hourly_rate="40.00",
             description="Target time",
+            start_date=timezone.now(),
         )
         self.other_project_entry = TimeEntry.objects.create(
             project=self.other_project,
@@ -3479,6 +3497,7 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=60,
             hourly_rate="40.00",
             description="Other time",
+            start_date=timezone.now(),
         )
         self.url = f"/api/projects/{self.project.id}/time-entries/{self.entry.id}/"
 
@@ -3616,6 +3635,7 @@ class TimeEntryPaymentRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=60,
             hourly_rate="40.00",
             description="Payable time",
+            start_date=timezone.now(),
         )
         self.url = f"/api/projects/{self.project.id}/time-entries/{self.entry.id}/pay/"
 
@@ -3673,6 +3693,7 @@ class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=30,
             hourly_rate="0.00",
             description="Deleted time",
+            start_date=timezone.now(),
         )
         self.deleted_entry.soft_delete(self.owner)
         self.other_project_deleted_entry = TimeEntry.objects.create(
@@ -3681,6 +3702,7 @@ class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=30,
             hourly_rate="0.00",
             description="Other deleted time",
+            start_date=timezone.now(),
         )
         self.other_project_deleted_entry.soft_delete(self.other_user)
         self.url = f"/api/projects/{self.project.id}/time-entries/trash/"
@@ -3748,6 +3770,7 @@ class TimeEntryRestoreRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=30,
             hourly_rate="0.00",
             description="Deleted time",
+            start_date=timezone.now(),
         )
         self.deleted_entry.soft_delete(self.owner)
         self.other_project_deleted_entry = TimeEntry.objects.create(
@@ -3756,6 +3779,7 @@ class TimeEntryRestoreRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=30,
             hourly_rate="0.00",
             description="Other deleted time",
+            start_date=timezone.now(),
         )
         self.other_project_deleted_entry.soft_delete(self.other_user)
         self.url = f"/api/projects/{self.project.id}/time-entries/{self.deleted_entry.id}/restore/"
@@ -3855,6 +3879,7 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=60,
             hourly_rate="50.00",
             description="Finance time",
+            start_date=timezone.now(),
         )
         self.other_project_time_entry = TimeEntry.objects.create(
             project=self.other_project,
@@ -3862,6 +3887,7 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=60,
             hourly_rate="50.00",
             description="Other finance time",
+            start_date=timezone.now(),
         )
         self.expense = FinancialEntry.objects.create(
             project=self.project,
@@ -4355,6 +4381,7 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
             duration_minutes=60,
             hourly_rate="50.00",
             description="Finance detail time",
+            start_date=timezone.now(),
         )
         self.entry = FinancialEntry.objects.create(
             project=self.project,

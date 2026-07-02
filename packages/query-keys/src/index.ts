@@ -116,7 +116,7 @@ export const queryKeys = {
         userId?: number | "all";
         startDate?: string;
         endDate?: string;
-        includeUnpaid?: boolean;
+        includePaid?: boolean;
         paymentStatus?: string;
         target?: string;
         page?: number;
@@ -126,7 +126,7 @@ export const queryKeys = {
         user: query.userId ?? "mine",
         startDate: query.startDate ?? "",
         endDate: query.endDate ?? "",
-        includeUnpaid: query.includeUnpaid ?? false,
+        includePaid: query.includePaid ?? false,
         paymentStatus: query.paymentStatus ?? "all",
         target: query.target ?? "",
         page: query.page ?? 1,
@@ -137,7 +137,7 @@ export const queryKeys = {
         userId?: number | "all";
         startDate?: string;
         endDate?: string;
-        includeUnpaid?: boolean;
+        includePaid?: boolean;
         paymentStatus?: string;
         target?: string;
       } = {},
@@ -146,7 +146,7 @@ export const queryKeys = {
         user: query.userId ?? "all",
         startDate: query.startDate ?? "",
         endDate: query.endDate ?? "",
-        includeUnpaid: query.includeUnpaid ?? false,
+        includePaid: query.includePaid ?? false,
         paymentStatus: query.paymentStatus ?? "all",
         target: query.target ?? "",
       }] as const,

@@ -6,10 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
-import { TargetIcon } from "@/components/pickers/target-tree-picker";
+import { TreeIcon } from "@/components/pickers/tree-picker";
 import { formatDateTime } from "@/lib/date-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import {
+  getEntryDate,
   getEntryTargetLabel,
   getPaymentStatus,
   getTimeEntryCardClassName,
@@ -117,10 +118,10 @@ function TimeEntryRow({
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>{displayName}</span>
-            <span>{formatDateTime(entry.created_at)}</span>
+            <span>{formatDateTime(getEntryDate(entry))}</span>
             {targetType !== "project" ? (
               <span className="inline-flex max-w-full items-center gap-1">
-                <TargetIcon type={targetType} />
+                <TreeIcon type={targetType} />
                 <span className="min-w-0 truncate">{targetLabel}</span>
               </span>
             ) : null}

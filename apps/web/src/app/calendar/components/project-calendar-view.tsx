@@ -53,7 +53,7 @@ function buildEvents(timeEntries: TimeEntry[], tasks: Task[]): CalEvent[] {
   const events: CalEvent[] = [];
 
   for (const e of timeEntries) {
-    const dateStr = e.created_at.slice(0, 10);
+    const dateStr = e.start_date.slice(0, 10);
     const durationLabel = formatDurationShort(e.duration_minutes);
     const label = [durationLabel, e.description || e.user_display_name].filter(Boolean).join(" · ");
     events.push({

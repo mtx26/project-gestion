@@ -2,7 +2,7 @@
 
 import type { DocumentInfo } from "@project-gestion/types";
 import { Plus, X } from "lucide-react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { FileAttachment } from "@/components/documents/file-attachment";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,11 @@ export function MultiDocumentAttachmentField({
 }: MultiDocumentAttachmentFieldProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const previewUrls = useMemo(() => pendingFiles.map((file) => URL.createObjectURL(file)), [pendingFiles]);
+  // Revoque le lot precedent d'URLs objet a chaque changement de pendingFiles
+  // (et au demontage) pour eviter de fuir un blob par fichier ajoute/retire.
+  useEffect(() => {
+    return () => previewUrls.forEach((url) => URL.revokeObjectURL(url));
+  }, [previewUrls]);
 
   return (
     <div className="flex flex-col gap-2">

@@ -15,6 +15,7 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
+import { format } from "date-fns";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -242,6 +243,7 @@ function ProjectTreeView({
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
         folder: timeDraftFolderId,
+        start_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
         duration_minutes: Number(timeHours) * 60 + Number(timeMinutes),
         hourly_rate: timeHourlyRate === "" ? undefined : timeHourlyRate,
         description: timeDescription.trim() || null,

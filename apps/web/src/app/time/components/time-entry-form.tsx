@@ -1,22 +1,21 @@
 "use client";
 
-import type { File as ApiFile } from "@project-gestion/types";
-import { Clock3 } from "lucide-react";
+import type { FolderTreeNode, File as ApiFile } from "@project-gestion/types";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { DateRangeField } from "@/components/forms/date-range-field";
 import { DialogFooter } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
-import { TargetPickerDialog } from "@/components/pickers/target-tree-picker";
+import { TreePickerDialog } from "@/components/pickers/tree-picker";
 import { Textarea } from "@/components/ui/textarea";
-import { DateTimePicker } from "@/components/forms/date-time-picker";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
-import { type TargetTreeNode, getTargetPayload } from "@/lib/target-utils";
+import { getTargetPayload } from "@/lib/target-utils";
 import { api } from "@/lib/api";
 
 export function TimeEntryForm({
@@ -27,7 +26,7 @@ export function TimeEntryForm({
   hourlyRate,
   description,
   targetValue,
-  targetTree,
+  targetFolders,
   selectedTargetLabel,
   isPending,
   error,
@@ -46,7 +45,7 @@ export function TimeEntryForm({
   hourlyRate: string;
   description: string;
   targetValue: string;
-  targetTree: TargetTreeNode;
+  targetFolders: FolderTreeNode[];
   selectedTargetLabel: string;
   isPending: boolean;
   error: string | null;
@@ -105,16 +104,12 @@ export function TimeEntryForm({
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <div className="grid grid-cols-2 gap-3">
-        <Field>
-          <FieldLabel>Date de début</FieldLabel>
-          <DateTimePicker value={startDate} onChange={onStartDateChange} placeholder="Début" maxDate={endDate} />
-        </Field>
-        <Field>
-          <FieldLabel>Date de fin</FieldLabel>
-          <DateTimePicker value={endDate} onChange={onEndDateChange} placeholder="Fin" minDate={startDate} />
-        </Field>
-      </div>
+      <DateRangeField
+        startValue={startDate}
+        endValue={endDate}
+        onStartChange={onStartDateChange}
+        onEndChange={onEndDateChange}
+      />
 
       <div className="flex items-end gap-3">
         <Field className="flex-1">
@@ -128,8 +123,9 @@ export function TimeEntryForm({
 
       <Field>
         <FieldLabel>Cible</FieldLabel>
-        <TargetPickerDialog
-          targetTree={targetTree}
+        <TreePickerDialog
+          mode="target"
+          folders={targetFolders}
           selectedValue={targetValue}
           selectedLabel={selectedTargetLabel}
           onSelect={onTargetValueChange}
@@ -155,10 +151,12 @@ export function TimeEntryForm({
       <FormErrorAlert error={uploadError ?? error} />
 
       <DialogFooter>
-        <Button type="submit" disabled={durationMinutes <= 0 || isSubmitting}>
-          <Clock3 className="size-4" />
-          {isSubmitting ? "Enregistrement..." : "Enregistrer"}
-        </Button>
+        <FormSubmitButton
+          pending={isSubmitting}
+          disabled={durationMinutes <= 0 || isSubmitting}
+          label="Enregistrer"
+          pendingLabel="Enregistrement..."
+        />
       </DialogFooter>
     </form>
   );

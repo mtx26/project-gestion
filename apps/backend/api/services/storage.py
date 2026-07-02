@@ -12,9 +12,8 @@ from rest_framework.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
-# Prefixe marquant un fichier stocke sur disque local plutot que sur S3.
-# Utilise uniquement en secours en dev (DEBUG=True) quand S3/MinIO est
-# injoignable ou mal configure - jamais en production.
+# Prefixe marquant un fichier stocke sur disque local plutot que sur S3,
+# utilise en secours quand S3/MinIO est injoignable ou mal configure.
 LOCAL_STORAGE_PREFIX = "local://"
 
 
@@ -127,23 +126,14 @@ def upload_document_file(file, project_id):
 
     file_id = build_document_file_id(file.name, project_id)
     content_type = getattr(file, "content_type", None) or "application/octet-stream"
-    # Lu une seule fois en memoire : si l'upload S3 echoue en cours de route,
-    # boto3/s3transfer peut avoir deja consomme ou ferme le flux d'origine.
     data = file.read()
 
     try:
         get_s3_client().upload_fileobj(
-            BytesIO(data),
-            settings.S3_BUCKET_NAME,
-            file_id,
-            ExtraArgs={
-                "ContentType": content_type,
-            },
+            BytesIO(data), settings.S3_BUCKET_NAME, file_id, ExtraArgs={"ContentType": content_type},
         )
     except (ImproperlyConfigured, BotoConnectionError) as exc:
-        if not settings.DEBUG:
-            raise
-        logger.warning("S3 injoignable, stockage local de secours pour %s: %s", file_id, exc)
+        logger.warning("S3 injoignable, stockage local pour %s: %s", file_id, exc)
         _write_local_bytes(data, file_id)
         file_id = LOCAL_STORAGE_PREFIX + file_id
 
@@ -165,18 +155,11 @@ def upload_profile_picture_file(file, user_id):
 
     try:
         get_s3_client().upload_fileobj(
-            BytesIO(data),
-            bucket_name,
-            file_id,
-            ExtraArgs={
-                "ContentType": content_type,
-            },
+            BytesIO(data), bucket_name, file_id, ExtraArgs={"ContentType": content_type},
         )
         url = build_s3_object_url(file_id, bucket_name)
     except (ImproperlyConfigured, BotoConnectionError) as exc:
-        if not settings.DEBUG:
-            raise
-        logger.warning("S3 injoignable, stockage local de secours pour %s: %s", file_id, exc)
+        logger.warning("S3 injoignable, stockage local pour %s: %s", file_id, exc)
         _write_local_bytes(data, file_id)
         url = _local_media_url(file_id)
         file_id = LOCAL_STORAGE_PREFIX + file_id

@@ -16,52 +16,46 @@ export type FileLike = {
   mime_type?: string | null;
 };
 
-export function isImageFile(file: FileLike): boolean {
+function getExtension(file: FileLike): string {
   const fileName = (file.file_name || file.name || "").toLowerCase();
-  const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
-  const mimeType = file.mime_type?.toLowerCase() ?? "";
-  return (
-    mimeType.startsWith("image/") ||
-    ["jpg", "jpeg", "png", "webp", "gif", "svg", "heic", "heif"].includes(extension ?? "")
-  );
+  return fileName.includes(".") ? fileName.split(".").pop()! : "";
 }
+
+const IMAGE_EXTENSIONS = ["jpg", "jpeg", "png", "webp", "gif", "svg", "heic", "heif"];
+
+export function isImageFile(file: FileLike): boolean {
+  const mimeType = file.mime_type?.toLowerCase() ?? "";
+  return mimeType.startsWith("image/") || IMAGE_EXTENSIONS.includes(getExtension(file));
+}
+
+const ICON_BY_EXTENSION: Array<{ extensions: string[]; Icon: ComponentType<{ className?: string }>; className: string }> = [
+  { extensions: ["xls", "xlsx", "csv"], Icon: FileSpreadsheet, className: "text-emerald-600" },
+  { extensions: ["zip", "rar", "7z", "tar", "gz"], Icon: FileArchive, className: "text-violet-600" },
+  { extensions: ["html", "css", "js", "jsx", "ts", "tsx", "json", "xml"], Icon: FileCode, className: "text-fuchsia-600" },
+  { extensions: ["pdf", "doc", "docx", "txt", "md", "rtf"], Icon: FileText, className: "text-muted-foreground" },
+];
 
 export function getDocumentIconConfig(file: FileLike): {
   Icon: ComponentType<{ className?: string }>;
   className: string;
 } {
-  const fileName = (file.file_name || file.name || "").toLowerCase();
-  const extension = fileName.includes(".") ? fileName.split(".").pop() : "";
-
   if (isImageFile(file)) {
     return { Icon: FileImage, className: "text-sky-600" };
   }
-  if (["xls", "xlsx", "csv"].includes(extension ?? "")) {
-    return { Icon: FileSpreadsheet, className: "text-emerald-600" };
-  }
-  if (["zip", "rar", "7z", "tar", "gz"].includes(extension ?? "")) {
-    return { Icon: FileArchive, className: "text-violet-600" };
-  }
-  if (["html", "css", "js", "jsx", "ts", "tsx", "json", "xml"].includes(extension ?? "")) {
-    return { Icon: FileCode, className: "text-fuchsia-600" };
-  }
-  if (["pdf", "doc", "docx", "txt", "md", "rtf"].includes(extension ?? "")) {
-    return { Icon: FileText, className: "text-muted-foreground" };
-  }
-  return { Icon: FileType, className: "text-muted-foreground" };
+  const extension = getExtension(file);
+  const match = ICON_BY_EXTENSION.find((entry) => entry.extensions.includes(extension));
+  return match ?? { Icon: FileType, className: "text-muted-foreground" };
 }
 
 export function getFileTypeLabel(file: FileLike): string {
-  const fileName = file.file_name || file.name || "";
   const mimeType = file.mime_type?.toLowerCase() ?? "";
-  const ext = fileName.split(".").pop()?.toUpperCase();
+  const extensionLabel = getExtension(file).toUpperCase() || "Fichier";
 
-  if (!mimeType) return ext || "Fichier";
   if (mimeType.startsWith("image/")) return "Image";
   if (mimeType === "application/pdf") return "PDF";
   if (mimeType.includes("spreadsheet") || mimeType.includes("excel")) return "Tableur";
   if (mimeType.includes("word") || mimeType.includes("document")) return "Document";
   if (mimeType.startsWith("video/")) return "Video";
   if (mimeType.startsWith("audio/")) return "Audio";
-  return ext || "Fichier";
+  return extensionLabel;
 }

@@ -336,6 +336,7 @@ class Command(BaseCommand):
                 duration_minutes=random.choice([30, 45, 60, 90, 120, 180, 240, 300, 360, 480]),
                 hourly_rate=Decimal(str(random.choice(rates))),
                 description=random.choice(TIME_DESCRIPTIONS),
+                start_date=created_at,
                 created_at=created_at,
             ))
 

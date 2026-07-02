@@ -8,18 +8,11 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/forms/date-picker";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogClose } from "@/components/ui/dialog";
 import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/forms/form-error-alert";
+import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -113,15 +106,27 @@ export function FinancialEntryFormDialog({
   const isSubmitting = docs.uploading || isPending;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Nouvelle entree" : "Modifier l'entree"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create" ? "Ajouter une depense ou un remboursement." : "Modifier les details de cette entree."}
-          </DialogDescription>
-        </DialogHeader>
-
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={mode === "create" ? "Nouvelle entree" : "Modifier l'entree"}
+      description={mode === "create" ? "Ajouter une depense ou un remboursement." : "Modifier les details de cette entree."}
+      error={docs.uploadError ?? error}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Annuler</Button>
+          </DialogClose>
+          <FormSubmitButton
+            form="finance-form"
+            pending={isSubmitting}
+            disabled={isSubmitting}
+            label={mode === "create" ? "Creer" : "Enregistrer"}
+            pendingLabel={docs.uploading ? "Upload…" : mode === "create" ? "Creation..." : "Enregistrement..."}
+          />
+        </>
+      }
+    >
         <form id="finance-form" onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Field>
@@ -189,21 +194,8 @@ export function FinancialEntryFormDialog({
             onAddFiles={docs.addPendingFiles}
             onRemoveFile={docs.removePendingFile}
           />
-
-          <FormErrorAlert error={docs.uploadError} />
-          <FormErrorAlert error={error} />
         </form>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Annuler</Button>
-          </DialogClose>
-          <Button type="submit" form="finance-form" disabled={isSubmitting}>
-            {docs.uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormDialog>
   );
 }
 

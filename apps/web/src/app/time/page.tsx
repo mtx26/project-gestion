@@ -91,7 +91,7 @@ function ProjectTimeContent({
   const dateFrom = searchParams.get("date_from") ?? undefined;
   const dateTo = searchParams.get("date_to") ?? undefined;
   const targetFilter = parseTargetFilter(searchParams.get("target"));
-  const includeUnpaidOutsideMonth = parseBooleanParam(searchParams.get("include_unpaid"));
+  const includePaid = parseBooleanParam(searchParams.get("include_paid"));
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
   const userFilterId: number | null =
     userFilter === "all" ? null :
@@ -133,7 +133,7 @@ function ProjectTimeContent({
           userId: selectedUserId ?? "all",
           startDate: periodRange.startDate,
           endDate: periodRange.endDate,
-          includeUnpaid: includeUnpaidOutsideMonth,
+          includePaid,
           paymentStatus: paymentStatusFilter,
           target: targetFilter ?? undefined,
           page,
@@ -144,7 +144,7 @@ function ProjectTimeContent({
         ...(selectedUserId == null ? {} : { user: selectedUserId }),
         start_date: periodRange.startDate,
         end_date: periodRange.endDate,
-        include_unpaid: includeUnpaidOutsideMonth,
+        include_paid: includePaid,
         payment_status: paymentStatusFilter,
         target: targetFilter ?? undefined,
         page,
@@ -159,7 +159,7 @@ function ProjectTimeContent({
           userId: selectedUserId ?? "all",
           startDate: periodRange.startDate,
           endDate: periodRange.endDate,
-          includeUnpaid: includeUnpaidOutsideMonth,
+          includePaid,
           paymentStatus: paymentStatusFilter,
           target: targetFilter ?? undefined,
         })
@@ -169,7 +169,7 @@ function ProjectTimeContent({
         ...(selectedUserId == null ? {} : { user: selectedUserId }),
         start_date: periodRange.startDate,
         end_date: periodRange.endDate,
-        include_unpaid: includeUnpaidOutsideMonth,
+        include_paid: includePaid,
         payment_status: paymentStatusFilter,
         target: targetFilter ?? undefined,
       }),
@@ -198,7 +198,7 @@ function ProjectTimeContent({
         : 0;
       return api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
-        start_date: startDate || null,
+        start_date: startDate,
         duration_minutes: durationMinutes,
         hourly_rate: hourlyRate === "" ? undefined : hourlyRate,
         description: description.trim() || null,
@@ -314,11 +314,14 @@ function ProjectTimeContent({
               onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
             />
           }
-          activeCount={[canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includeUnpaidOutsideMonth].filter(Boolean).length}
+          activeCount={[canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includePaid].filter(Boolean).length}
           clearPath="/time"
-          clearKeys={["period", "date_from", "date_to", "user", "payment", "target", "include_unpaid", "page"]}
+          clearKeys={["period", "date_from", "date_to", "user", "payment", "target", "include_paid", "page"]}
         >
-          <FilterSelect value={paymentStatusFilter} onValueChange={(v) => updateUrlFilter({ payment: v })}>
+          <FilterSelect
+            value={paymentStatusFilter}
+            onValueChange={(v) => updateUrlFilter({ payment: v, ...(v === "paid" ? { include_paid: true } : {}) })}
+          >
             <SelectItem value="all">Tous statuts</SelectItem>
             <SelectItem value="unpaid">À payer</SelectItem>
             <SelectItem value="partial">Partiel</SelectItem>
@@ -341,8 +344,8 @@ function ProjectTimeContent({
             onSelect={(folderId) => updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })}
             onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
           />
-          <FilterToggle pressed={includeUnpaidOutsideMonth} onPressedChange={(v) => updateUrlFilter({ include_unpaid: v })}>
-            Impayés hors période
+          <FilterToggle pressed={includePaid} onPressedChange={(v) => updateUrlFilter({ include_paid: v })}>
+            Inclure payés
           </FilterToggle>
         </CollapsibleFilterBar>
       ) : null}
@@ -424,7 +427,7 @@ function ProjectTimeContent({
             hourlyRate={hourlyRate}
             description={description}
             targetValue={targetValue}
-            targetTree={targetTree}
+            targetFolders={targetFolders}
             selectedTargetLabel={selectedTargetLabel}
             isPending={createTimeEntry.isPending}
             error={getErrorMessage(createTimeEntry.error)}
@@ -451,7 +454,7 @@ function ProjectTimeContent({
         key={editingEntry?.id ?? "none"}
         entry={editingEntry}
         projectId={selectedProject?.id ?? 0}
-        targetTree={targetTree}
+        targetFolders={targetFolders}
         isPending={updateTimeEntry.isPending}
         error={getErrorMessage(updateTimeEntry.error)}
         onCreateFolder={canRecordTime ? handleCreateFolder : undefined}

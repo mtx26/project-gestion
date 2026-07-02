@@ -27,7 +27,7 @@ import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { toastError } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
 import { buildProjectHref, parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
@@ -75,6 +75,7 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
 
   const [createOpen, setCreateOpen] = useState(false);
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [viewingRequest, setViewingRequest] = useState<ExpenseRequest | null>(null);
   const updateUrlFilter = useUrlFilter("/requests", searchParams, projectId);
@@ -118,8 +119,9 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       toast.success("Remboursement cree");
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setCreateOpen(false);
+      setFormError(null);
     },
-    onError: toastError,
+    onError: (err) => setFormError(getErrorMessage(err)),
   });
 
   const updateRequest = useMutation({
@@ -129,8 +131,9 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       toast.success("Remboursement mis a jour");
       queryClient.invalidateQueries({ queryKey: queryKeys.expenseRequests.all(projectId!) });
       setEditingRequest(null);
+      setFormError(null);
     },
-    onError: toastError,
+    onError: (err) => setFormError(getErrorMessage(err)),
   });
 
   const deleteRequest = useMutation({
@@ -342,9 +345,10 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
       <ExpenseRequestFormDialog
         mode="create"
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(open) => { setCreateOpen(open); if (!open) setFormError(null); }}
         projectId={projectId!}
         targetFolders={targetFolders}
+        error={formError}
         isPending={createRequest.isPending}
         onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
         onSubmit={(payload) => createRequest.mutate(payload)}
@@ -354,9 +358,10 @@ function RequestsPageContent({ user, selectedProject, openCreateProject }: Proje
         mode="edit"
         request={editingRequest ?? undefined}
         open={editingRequest != null}
-        onOpenChange={(open) => { if (!open) setEditingRequest(null); }}
+        onOpenChange={(open) => { if (!open) { setEditingRequest(null); setFormError(null); } }}
         projectId={projectId!}
         targetFolders={targetFolders}
+        error={formError}
         isPending={updateRequest.isPending}
         onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}

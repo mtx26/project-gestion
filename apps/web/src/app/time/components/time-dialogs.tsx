@@ -1,40 +1,32 @@
 "use client";
 
-import type { TimeEntry } from "@project-gestion/types";
+import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarDays, CheckCircle2, Clock, CreditCard, Folder, ListTodo, Pencil, Trash2, UserRound } from "lucide-react";
+import { CalendarDays, Clock, CreditCard, Folder, ListTodo, Pencil, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogClose } from "@/components/ui/dialog";
+import { DateRangeField } from "@/components/forms/date-range-field";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/forms/form-error-alert";
+import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
 import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TargetPickerDialog } from "@/components/pickers/target-tree-picker";
+import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/components/pickers/tree-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { addMinutes, format, parseISO } from "date-fns";
-import { DateTimePicker } from "@/components/forms/date-time-picker";
 import { formatDateTime } from "@/lib/date-utils";
-import { type TargetTreeNode, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
-import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
+import { getEntryDate, getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
 
 const editTimeSchema = z.object({
   startDate: z.string(),
@@ -63,7 +55,7 @@ type PaymentFormValues = { mode: "full" | "partial"; amount: string };
 export type EditTimeSubmitData = {
   documentIds: number[];
   durationMinutes: number;
-  startDate: string | null;
+  startDate: string;
   hourlyRate: string | undefined;
   description: string | null;
   folder: number | null;
@@ -73,7 +65,7 @@ export type EditTimeSubmitData = {
 export function EditTimeEntryDialog({
   entry,
   projectId,
-  targetTree,
+  targetFolders,
   isPending,
   error,
   onCreateFolder,
@@ -82,21 +74,21 @@ export function EditTimeEntryDialog({
 }: {
   entry: TimeEntry | null;
   projectId: number;
-  targetTree: TargetTreeNode;
+  targetFolders: FolderTreeNode[];
   isPending: boolean;
   error: string | null;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: EditTimeSubmitData) => void;
 }) {
+  const referenceStart = entry ? getEntryDate(entry).slice(0, 16) : "";
+
   const form = useForm<EditTimeFormValues>({
     resolver: zodResolver(editTimeSchema),
     defaultValues: {
-      startDate: entry?.start_date
-        ? entry.start_date.slice(0, 16)
-        : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-      endDate: entry?.start_date
-        ? format(addMinutes(parseISO(entry.start_date.slice(0, 16)), entry.duration_minutes), "yyyy-MM-dd'T'HH:mm")
+      startDate: referenceStart || format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      endDate: referenceStart && entry
+        ? format(addMinutes(parseISO(referenceStart), entry.duration_minutes), "yyyy-MM-dd'T'HH:mm")
         : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       hourlyRate: entry?.hourly_rate ?? "0",
       description: entry?.description ?? "",
@@ -113,6 +105,7 @@ export function EditTimeEntryDialog({
     : 0;
   const durationHours = durationMinutes / 60;
   const computedTotal = durationHours > 0 ? durationHours * Number(hourlyRate) : 0;
+  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const selectedTargetLabel = findTargetLabel(targetTree, targetValue) ?? "Projet";
 
   async function handleSubmit(values: EditTimeFormValues) {
@@ -125,7 +118,7 @@ export function EditTimeEntryDialog({
     onSubmit({
       documentIds: docs.getAllDocIds(newDocIds),
       durationMinutes: duration,
-      startDate: values.startDate || null,
+      startDate: values.startDate,
       hourlyRate: values.hourlyRate === "" ? undefined : values.hourlyRate,
       description: values.description.trim() || null,
       folder,
@@ -136,87 +129,73 @@ export function EditTimeEntryDialog({
   const isSubmitting = docs.uploading || isPending;
 
   return (
-    <Dialog open={entry != null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Modifier l&apos;entree</DialogTitle>
-          <DialogDescription>Ajuste la duree, le taux, la cible ou la description.</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel>Date de début</FieldLabel>
-              <Controller
-                control={form.control}
-                name="startDate"
-                render={({ field }) => (
-                  <DateTimePicker value={field.value} onChange={field.onChange} placeholder="Début" maxDate={endDate} />
-                )}
-              />
-            </Field>
-            <Field>
-              <FieldLabel>Date de fin</FieldLabel>
-              <Controller
-                control={form.control}
-                name="endDate"
-                render={({ field }) => (
-                  <DateTimePicker value={field.value} onChange={field.onChange} placeholder="Fin" minDate={startDate} />
-                )}
-              />
-            </Field>
-          </div>
-
-          <div className="flex items-end gap-3">
-            <Field className="flex-1">
-              <FieldLabel htmlFor="edit-time-rate">Taux horaire</FieldLabel>
-              <Input id="edit-time-rate" type="number" min="0" step="0.01" {...form.register("hourlyRate")} />
-            </Field>
-            <p className="pb-2 text-xs text-muted-foreground">
-              {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
-            </p>
-          </div>
-
-          <Field>
-            <FieldLabel>Cible</FieldLabel>
-            <TargetPickerDialog
-              targetTree={targetTree}
-              selectedValue={targetValue}
-              selectedLabel={selectedTargetLabel}
-              onSelect={setTargetValue}
-              onCreateFolder={onCreateFolder}
-            />
-          </Field>
-
-          <Field>
-            <FieldLabel htmlFor="edit-time-description">Description</FieldLabel>
-            <Textarea id="edit-time-description" rows={4} {...form.register("description")} />
-          </Field>
-
-          <MultiDocumentAttachmentField
-            projectId={projectId}
-            existingDocs={docs.existingDocs}
-            pendingFiles={docs.pendingFiles}
-            uploading={docs.uploading}
-            onRemoveDoc={docs.removeExistingDoc}
-            onAddFiles={docs.addPendingFiles}
-            onRemoveFile={docs.removePendingFile}
-          />
-
-          <FormErrorAlert error={docs.uploadError ?? error} />
-        </div>
-
-        <DialogFooter>
+    <FormDialog
+      open={entry != null}
+      onOpenChange={onOpenChange}
+      title="Modifier l'entree"
+      description="Ajuste la duree, le taux, la cible ou la description."
+      error={docs.uploadError ?? error}
+      footer={
+        <>
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
-          <Button type="button" disabled={durationMinutes <= 0 || isSubmitting} onClick={form.handleSubmit(handleSubmit)}>
-            <Pencil className="size-4" />
-            {isSubmitting ? "Modification..." : "Enregistrer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <FormSubmitButton
+            onClick={form.handleSubmit(handleSubmit)}
+            pending={isSubmitting}
+            disabled={durationMinutes <= 0 || isSubmitting}
+            label="Enregistrer"
+            pendingLabel="Modification..."
+          />
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <DateRangeField
+          startValue={startDate}
+          endValue={endDate}
+          onStartChange={(v) => form.setValue("startDate", v)}
+          onEndChange={(v) => form.setValue("endDate", v)}
+        />
+
+        <div className="flex items-end gap-3">
+          <Field className="flex-1">
+            <FieldLabel htmlFor="edit-time-rate">Taux horaire</FieldLabel>
+            <Input id="edit-time-rate" type="number" min="0" step="0.01" {...form.register("hourlyRate")} />
+          </Field>
+          <p className="pb-2 text-xs text-muted-foreground">
+            {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
+          </p>
+        </div>
+
+        <Field>
+          <FieldLabel>Cible</FieldLabel>
+          <TreePickerDialog
+            mode="target"
+            folders={targetFolders}
+            selectedValue={targetValue}
+            selectedLabel={selectedTargetLabel}
+            onSelect={setTargetValue}
+            onCreateFolder={onCreateFolder}
+          />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="edit-time-description">Description</FieldLabel>
+          <Textarea id="edit-time-description" rows={4} {...form.register("description")} />
+        </Field>
+
+        <MultiDocumentAttachmentField
+          projectId={projectId}
+          existingDocs={docs.existingDocs}
+          pendingFiles={docs.pendingFiles}
+          uploading={docs.uploading}
+          onRemoveDoc={docs.removeExistingDoc}
+          onAddFiles={docs.addPendingFiles}
+          onRemoveFile={docs.removePendingFile}
+        />
+      </div>
+    </FormDialog>
   );
 }
 
@@ -308,7 +287,7 @@ export function TimeEntryDetailDialog({
           <span>{displayName}</span>
         </DetailField>
         <DetailField label="Date" icon={CalendarDays}>
-          <span>{formatDateTime(entry.created_at)}</span>
+          <span>{formatDateTime(getEntryDate(entry))}</span>
         </DetailField>
         {(entry.task != null || entry.folder != null) ? (
           <DetailField label="Cible" className="col-span-2">
@@ -391,62 +370,60 @@ export function PaymentDialog({
   }
 
   return (
-    <Dialog open={entry != null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Marquer comme paye</DialogTitle>
-          <DialogDescription>Reste a payer : {formatMoney(remainingAmount)}.</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <Controller
-            control={form.control}
-            name="mode"
-            render={({ field }) => (
-              <Select value={field.value} onValueChange={field.onChange}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="full">Payer le reste complet</SelectItem>
-                  <SelectItem value="partial">Paiement partiel</SelectItem>
-                </SelectContent>
-              </Select>
-            )}
-          />
-
-          {mode === "partial" ? (
-            <Field>
-              <Label htmlFor="payment-amount">Montant paye</Label>
-              <Input
-                id="payment-amount"
-                type="number"
-                min="0.01"
-                max={remainingAmount}
-                step="0.01"
-                {...form.register("amount")}
-              />
-              <FieldError errors={[form.formState.errors.amount]} />
-            </Field>
-          ) : null}
-
-          <FormErrorAlert error={error} />
-        </div>
-
-        <DialogFooter>
+    <FormDialog
+      open={entry != null}
+      onOpenChange={onOpenChange}
+      title="Marquer comme paye"
+      description={`Reste a payer : ${formatMoney(remainingAmount)}.`}
+      maxWidth="md"
+      error={error}
+      footer={
+        <>
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
-          <Button
-            type="button"
-            disabled={isPending || remainingAmount <= 0}
+          <FormSubmitButton
             onClick={form.handleSubmit(handleSubmit)}
-          >
-            <CheckCircle2 className="size-4" />
-            {isPending ? "Paiement..." : "Confirmer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            pending={isPending}
+            disabled={remainingAmount <= 0}
+            label="Confirmer"
+            pendingLabel="Paiement..."
+          />
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Controller
+          control={form.control}
+          name="mode"
+          render={({ field }) => (
+            <Select value={field.value} onValueChange={field.onChange}>
+              <SelectTrigger className="bg-background">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="full">Payer le reste complet</SelectItem>
+                <SelectItem value="partial">Paiement partiel</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        />
+
+        {mode === "partial" ? (
+          <Field>
+            <Label htmlFor="payment-amount">Montant paye</Label>
+            <Input
+              id="payment-amount"
+              type="number"
+              min="0.01"
+              max={remainingAmount}
+              step="0.01"
+              {...form.register("amount")}
+            />
+            <FieldError errors={[form.formState.errors.amount]} />
+          </Field>
+        ) : null}
+      </div>
+    </FormDialog>
   );
 }

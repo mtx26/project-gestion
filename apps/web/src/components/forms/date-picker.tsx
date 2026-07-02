@@ -5,6 +5,7 @@ import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { closeThenNotify } from "@/lib/close-then-notify";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -29,12 +30,9 @@ export function DatePicker({
   const selected = value ? parseISO(value) : undefined;
 
   function handleSelect(date: Date | undefined) {
-    if (date) {
-      onChange(format(date, "yyyy-MM-dd"));
-    } else {
-      onChange("");
-    }
-    setOpen(false);
+    closeThenNotify(setOpen, () => {
+      onChange(date ? format(date, "yyyy-MM-dd") : "");
+    });
   }
 
   return (
@@ -60,6 +58,7 @@ export function DatePicker({
       <PopoverContent className="w-auto p-0" align="start">
         <Calendar
           mode="single"
+          locale={fr}
           selected={selected}
           onSelect={handleSelect}
           defaultMonth={selected}

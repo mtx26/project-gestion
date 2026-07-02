@@ -3,18 +3,12 @@
 import type { FolderTreeNode, Task } from "@project-gestion/types";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/forms/date-picker";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PrioritySelect } from "@/components/forms/priority-select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
 
@@ -128,65 +122,59 @@ export function TaskDraftDialog({
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Nouvelle tache</DialogTitle>
-          <DialogDescription>
-            {folderName ? `La tache sera liee au dossier ${folderName}.` : "La tache sera liee au projet."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <Field>
-            <FieldLabel>Dossier</FieldLabel>
-            <TreePickerDialog
-              mode="folder"
-              folders={folders}
-              selectedFolderId={folderId}
-              buttonLabel={folderName ?? "Projet"}
-              description="Selectionne le dossier qui recevra la tache."
-              onSelect={onFolderChange}
-              onCreateFolder={onCreateFolder}
-            />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="project-task-title">Titre</FieldLabel>
-            <Input id="project-task-title" value={title} onChange={(e) => onTitleChange(e.target.value)} />
-          </Field>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field>
-              <FieldLabel>Priorite</FieldLabel>
-              <Select value={priority} onValueChange={(v) => onPriorityChange(v as Task["priority"])}>
-                <SelectTrigger className="bg-background">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="low">Basse</SelectItem>
-                  <SelectItem value="normal">Normale</SelectItem>
-                  <SelectItem value="high">Haute</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field>
-              <FieldLabel>Date de fin</FieldLabel>
-              <DatePicker value={endDate} onChange={onEndDateChange} />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel htmlFor="project-task-description">Description</FieldLabel>
-            <Textarea id="project-task-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
-          </Field>
-        </div>
-        <DialogFooter>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Nouvelle tache"
+      description={folderName ? `La tache sera liee au dossier ${folderName}.` : "La tache sera liee au projet."}
+      footer={
+        <>
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
-          <Button type="button" disabled={!title.trim() || isPending} onClick={onSubmit}>
-            {isPending ? "Creation..." : "Creer la tache"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <FormSubmitButton
+            onClick={onSubmit}
+            pending={isPending}
+            disabled={!title.trim() || isPending}
+            label="Creer la tache"
+            pendingLabel="Creation..."
+          />
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field>
+          <FieldLabel>Dossier</FieldLabel>
+          <TreePickerDialog
+            mode="folder"
+            folders={folders}
+            selectedFolderId={folderId}
+            buttonLabel={folderName ?? "Projet"}
+            description="Selectionne le dossier qui recevra la tache."
+            onSelect={onFolderChange}
+            onCreateFolder={onCreateFolder}
+          />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="project-task-title">Titre</FieldLabel>
+          <Input id="project-task-title" value={title} onChange={(e) => onTitleChange(e.target.value)} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field>
+            <FieldLabel>Priorite</FieldLabel>
+            <PrioritySelect value={priority} onChange={onPriorityChange} />
+          </Field>
+          <Field>
+            <FieldLabel>Date de fin</FieldLabel>
+            <DatePicker value={endDate} onChange={onEndDateChange} />
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor="project-task-description">Description</FieldLabel>
+          <Textarea id="project-task-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
+        </Field>
+      </div>
+    </FormDialog>
   );
 }
 
@@ -222,43 +210,46 @@ export function TimeDraftDialog({
   const durationMinutes = Number(hours) * 60 + Number(minutes);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Ajouter du temps</DialogTitle>
-          <DialogDescription>
-            {folderName ? `Le temps sera lie au dossier ${folderName}.` : "Le temps sera lie au projet."}
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Field>
-              <FieldLabel htmlFor="project-time-hours">Heures</FieldLabel>
-              <Input id="project-time-hours" type="number" min="0" value={hours} onChange={(e) => onHoursChange(e.target.value)} />
-            </Field>
-            <Field>
-              <FieldLabel htmlFor="project-time-minutes">Minutes</FieldLabel>
-              <Input id="project-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(e) => onMinutesChange(e.target.value)} />
-            </Field>
-          </div>
-          <Field>
-            <FieldLabel htmlFor="project-time-rate">Taux horaire</FieldLabel>
-            <Input id="project-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(e) => onHourlyRateChange(e.target.value)} />
-          </Field>
-          <Field>
-            <FieldLabel htmlFor="project-time-description">Description</FieldLabel>
-            <Textarea id="project-time-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
-          </Field>
-        </div>
-        <DialogFooter>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Ajouter du temps"
+      description={folderName ? `Le temps sera lie au dossier ${folderName}.` : "Le temps sera lie au projet."}
+      footer={
+        <>
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
-          <Button type="button" disabled={durationMinutes <= 0 || isPending} onClick={onSubmit}>
-            {isPending ? "Enregistrement..." : "Enregistrer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <FormSubmitButton
+            onClick={onSubmit}
+            pending={isPending}
+            disabled={durationMinutes <= 0 || isPending}
+            label="Enregistrer"
+            pendingLabel="Enregistrement..."
+          />
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <Field>
+            <FieldLabel htmlFor="project-time-hours">Heures</FieldLabel>
+            <Input id="project-time-hours" type="number" min="0" value={hours} onChange={(e) => onHoursChange(e.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="project-time-minutes">Minutes</FieldLabel>
+            <Input id="project-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(e) => onMinutesChange(e.target.value)} />
+          </Field>
+        </div>
+        <Field>
+          <FieldLabel htmlFor="project-time-rate">Taux horaire</FieldLabel>
+          <Input id="project-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(e) => onHourlyRateChange(e.target.value)} />
+        </Field>
+        <Field>
+          <FieldLabel htmlFor="project-time-description">Description</FieldLabel>
+          <Textarea id="project-time-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
+        </Field>
+      </div>
+    </FormDialog>
   );
 }

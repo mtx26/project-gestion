@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Folder, FolderPlus, ListTodo } from "lucide-
 import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { closeThenNotify } from "@/lib/close-then-notify";
 import {
   Dialog,
   DialogClose,
@@ -79,18 +80,14 @@ export function TreePickerDialog(props: TreePickerProps) {
   }
 
   function handleSelect(value: string) {
-    // Ferme d'abord la Dialog, puis notifie le parent au tick suivant : sinon
-    // le re-render declenche par onSelect peut interrompre la fermeture de la
-    // Dialog Radix et provoquer un clignotement ferme/rouvre/ferme.
-    setOpen(false);
-    setTimeout(() => {
+    closeThenNotify(setOpen, () => {
       if (props.mode === "folder") {
         const { folder } = getTargetPayload(value);
         props.onSelect(folder);
       } else {
         props.onSelect(value);
       }
-    }, 0);
+    });
   }
 
   function startCreate(nodeValue: string) {

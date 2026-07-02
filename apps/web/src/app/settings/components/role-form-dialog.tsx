@@ -8,20 +8,12 @@ import {
   normalizePermissionIds,
   removePermissionIdWithDependents,
 } from "@project-gestion/permissions";
-import { Plus, Save } from "lucide-react";
-import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -83,17 +75,33 @@ export function RoleFormDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Nouveau role" : "Modifier le role"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create"
-              ? "Definis un nom et les permissions associees a ce role."
-              : "Mets a jour le nom ou les permissions de ce role."}
-          </DialogDescription>
-        </DialogHeader>
-
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={mode === "create" ? "Nouveau role" : "Modifier le role"}
+      description={
+        mode === "create"
+          ? "Definis un nom et les permissions associees a ce role."
+          : "Mets a jour le nom ou les permissions de ce role."
+      }
+      error={error}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              Annuler
+            </Button>
+          </DialogClose>
+          <FormSubmitButton
+            form="role-form"
+            pending={isPending}
+            disabled={!canSubmit || isPending}
+            label={mode === "create" ? "Creer le role" : "Enregistrer"}
+            pendingLabel="Enregistrement..."
+          />
+        </>
+      }
+    >
         <form
           id="role-form"
           className="space-y-4"
@@ -179,22 +187,7 @@ export function RoleFormDialog({
               Un role doit avoir un nom et au moins une permission.
             </p>
           ) : null}
-
-          <FormError message={error} />
         </form>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              Annuler
-            </Button>
-          </DialogClose>
-          <Button type="submit" form="role-form" disabled={!canSubmit || isPending}>
-            {mode === "create" ? <Plus className="size-4" /> : <Save className="size-4" />}
-            {isPending ? "Enregistrement..." : mode === "create" ? "Creer le role" : "Enregistrer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormDialog>
   );
 }

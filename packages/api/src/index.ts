@@ -375,7 +375,7 @@ export function createApiClient({
           user?: number;
           start_date?: string;
           end_date?: string;
-          include_unpaid?: boolean;
+          include_paid?: boolean;
           payment_status?: string;
           target?: string;
           page?: number;
@@ -386,7 +386,7 @@ export function createApiClient({
             user: query.user ? String(query.user) : undefined,
             start_date: query.start_date,
             end_date: query.end_date,
-            include_unpaid: query.include_unpaid ? "true" : undefined,
+            include_paid: query.include_paid ? "true" : undefined,
             payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
             target: query.target && query.target !== "project" ? query.target : undefined,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
@@ -398,7 +398,7 @@ export function createApiClient({
           user?: number;
           start_date?: string;
           end_date?: string;
-          include_unpaid?: boolean;
+          include_paid?: boolean;
           payment_status?: string;
           target?: string;
         } = {},
@@ -408,7 +408,7 @@ export function createApiClient({
             user: query.user ? String(query.user) : undefined,
             start_date: query.start_date,
             end_date: query.end_date,
-            include_unpaid: query.include_unpaid ? "true" : undefined,
+            include_paid: query.include_paid ? "true" : undefined,
             payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
             target: query.target && query.target !== "project" ? query.target : undefined,
           })}`,

@@ -1,13 +1,10 @@
 import type { TimeEntry } from "@project-gestion/types";
 import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@project-gestion/query-keys";
-import { detectPreset, formatDate, getPeriodLabel } from "@/lib/period-utils";
+import { detectPreset, getPeriodLabel } from "@/lib/period-utils";
 
 export type UserFilter = "mine" | "all" | `member-${number}`;
 export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
-export type TimeViewMode = "list" | "calendar";
-
-
 
 export function parseUserFilter(value: string | null, fallback: UserFilter, canViewAllTime: boolean): UserFilter {
   if (value === "all" && canViewAllTime) return "all";
@@ -136,21 +133,26 @@ export function summarizeTimeEntries(entries: TimeEntry[]): { durationMinutes: n
   );
 }
 
+/** Date de reference d'une entree de temps : son debut choisi par l'utilisateur. */
+export function getEntryDate(entry: TimeEntry): string {
+  return entry.start_date;
+}
+
 export function groupTimeEntriesByDay(entries: TimeEntry[]): Map<string, TimeEntry[]> {
   const groups = new Map<string, TimeEntry[]>();
   for (const entry of entries) {
-    const key = formatDate(new Date(entry.created_at));
+    const key = formatDate(new Date(getEntryDate(entry)));
     groups.set(key, [...(groups.get(key) ?? []), entry]);
   }
   for (const [key, dayEntries] of groups.entries()) {
-    groups.set(key, dayEntries.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()));
+    groups.set(key, dayEntries.sort((a, b) => new Date(getEntryDate(a)).getTime() - new Date(getEntryDate(b)).getTime()));
   }
   return groups;
 }
 
 export function getCalendarMonthDate(dateValue: string | undefined, entries: TimeEntry[]): Date {
   if (dateValue) return new Date(`${dateValue}T12:00:00`);
-  if (entries[0]) return new Date(entries[0].created_at);
+  if (entries[0]) return new Date(getEntryDate(entries[0]));
   return new Date();
 }
 

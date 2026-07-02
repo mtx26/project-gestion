@@ -7,17 +7,10 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/forms/form-error-alert";
+import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
@@ -42,6 +35,7 @@ export function ExpenseRequestFormDialog({
   onOpenChange,
   projectId,
   targetFolders,
+  error,
   isPending,
   onCreateFolder,
   onSubmit,
@@ -52,6 +46,7 @@ export function ExpenseRequestFormDialog({
   onOpenChange: (open: boolean) => void;
   projectId: number;
   targetFolders: FolderTreeNode[];
+  error: string | null;
   isPending: boolean;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: ExpenseRequestPayload) => void;
@@ -106,15 +101,27 @@ export function ExpenseRequestFormDialog({
   const isSubmitting = docs.uploading || isPending;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{mode === "create" ? "Nouvelle demande" : "Modifier la demande"}</DialogTitle>
-          <DialogDescription>
-            {mode === "create" ? "Creer une demande de remboursement." : "Modifier les details de cette demande."}
-          </DialogDescription>
-        </DialogHeader>
-
+    <FormDialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      title={mode === "create" ? "Nouvelle demande" : "Modifier la demande"}
+      description={mode === "create" ? "Creer une demande de remboursement." : "Modifier les details de cette demande."}
+      error={docs.uploadError ?? error}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Annuler</Button>
+          </DialogClose>
+          <FormSubmitButton
+            form="request-form"
+            pending={isSubmitting}
+            disabled={isSubmitting}
+            label={mode === "create" ? "Creer" : "Enregistrer"}
+            pendingLabel={docs.uploading ? "Upload…" : mode === "create" ? "Creation..." : "Enregistrement..."}
+          />
+        </>
+      }
+    >
         <form id="request-form" onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
           <Field>
             <FieldLabel htmlFor="req-title">Titre</FieldLabel>
@@ -160,20 +167,8 @@ export function ExpenseRequestFormDialog({
             onAddFiles={docs.addPendingFiles}
             onRemoveFile={docs.removePendingFile}
           />
-
-          <FormErrorAlert error={docs.uploadError} />
         </form>
-
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">Annuler</Button>
-          </DialogClose>
-          <Button type="submit" form="request-form" disabled={isSubmitting}>
-            {docs.uploading ? "Upload…" : mode === "create" ? "Creer" : "Enregistrer"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    </FormDialog>
   );
 }
 

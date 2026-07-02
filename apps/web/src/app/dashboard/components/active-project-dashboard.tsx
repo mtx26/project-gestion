@@ -58,13 +58,11 @@ export function ActiveProjectDashboard({
     queryKey: project
       ? queryKeys.timeEntries.stats(project.id, {
           userId: defaultTimeUserFilter === "all" ? "all" : userId ?? undefined,
-          includeUnpaid: true,
           paymentStatus: "not_paid",
         })
       : ["time-entries", "stats", "disabled"],
     queryFn: () => api.timeEntries.stats(project!.id, {
       ...(defaultTimeUserFilter === "all" || userId == null ? {} : { user: userId }),
-      include_unpaid: true,
       payment_status: "not_paid",
     }),
     enabled: Boolean(project && canViewTime),
@@ -428,7 +426,6 @@ function buildUnpaidTimeHref(projectId: number, userFilter: "mine" | "all") {
   const params = new URLSearchParams({
     project: String(projectId),
     payment: "unpaid",
-    include_unpaid: "1",
     user: userFilter,
   });
   return `/time?${params.toString()}`;

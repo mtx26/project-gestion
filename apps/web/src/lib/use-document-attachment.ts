@@ -22,23 +22,19 @@ export function useDocumentAttachment(initialDocs: DocumentInfo[]) {
     setUploadError(null);
     if (pendingFiles.length === 0) return [];
     setUploading(true);
-    const newDocIds: number[] = [];
     try {
-      for (const file of pendingFiles) {
-        const uploaded: ApiFile = await api.documents.upload(projectId, {
-          file,
-          folder: folderId ?? undefined,
-          name: file.name,
-        });
-        newDocIds.push(uploaded.id);
-      }
+      const uploaded = await Promise.all(
+        pendingFiles.map((file): Promise<ApiFile> =>
+          api.documents.upload(projectId, { file, folder: folderId ?? undefined, name: file.name }),
+        ),
+      );
+      return uploaded.map((doc) => doc.id);
     } catch (err) {
       setUploadError(getErrorMessage(err));
-      setUploading(false);
       return null;
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
-    return newDocIds;
   }
 
   return {

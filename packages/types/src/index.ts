@@ -264,7 +264,7 @@ export type TimeEntry = {
   task_name: string | null;
   user: ID | null;
   user_display_name: string;
-  start_date: string | null;
+  start_date: string;
   duration_minutes: number;
   hourly_rate: string;
   cost_amount: string;
@@ -282,7 +282,7 @@ export type TimeEntryPayload = {
   folder?: ID | null;
   task?: ID | null;
   user: ID;
-  start_date?: string | null;
+  start_date: string;
   duration_minutes: number;
   hourly_rate?: string;
   description?: string | null;

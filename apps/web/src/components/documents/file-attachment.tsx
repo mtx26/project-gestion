@@ -41,7 +41,7 @@ export function FileAttachment({
   className,
 }: FileAttachmentProps) {
   const { Icon, className: iconClassName } = getDocumentIconConfig(file);
-  const showThumbnail = isImageFile(file) && (previewSrc || (documentId != null && projectId != null));
+  const showThumbnail = isImageFile(file) && Boolean(previewSrc || (documentId != null && projectId != null));
   const name = file.file_name || file.name || "Document";
   const sizeLabel = file.file_size ? formatFileSize(file.file_size) : null;
   const typeLabel = getFileTypeLabel(file);

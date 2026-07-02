@@ -88,13 +88,19 @@ def _annotate_financial_fields(queryset):
 
 
 def apply_time_entry_financial_filters(queryset, request):
-    """Applies date range, payment_status, and include_unpaid filters. Annotates when needed."""
+    """Applies date range and payment_status filters. Annotates when needed.
+
+    Par defaut (payment_status="all"), les entrees deja entierement payees sont
+    masquees ; `include_paid=true` les reintegre. Un `payment_status` explicite
+    (paid/unpaid/partial/not_paid) prend le dessus sur ce masquage.
+    """
     payment_status = request.query_params.get("payment_status", "all")
-    include_unpaid = request.query_params.get("include_unpaid") == "true"
+    include_paid = request.query_params.get("include_paid") == "true"
     start_date = parse_date(request.query_params.get("start_date", "") or "")
     end_date = parse_date(request.query_params.get("end_date", "") or "")
 
-    needs_annotation = include_unpaid or (payment_status and payment_status not in ("all", ""))
+    has_status_filter = bool(payment_status) and payment_status not in ("all", "")
+    needs_annotation = has_status_filter or not include_paid
 
     if needs_annotation:
         queryset = _annotate_financial_fields(queryset)
@@ -102,31 +108,36 @@ def apply_time_entry_financial_filters(queryset, request):
     if start_date or end_date:
         date_filter = Q()
         if start_date:
-            date_filter &= Q(created_at__date__gte=start_date)
+            date_filter &= Q(start_date__date__gte=start_date)
         if end_date:
-            date_filter &= Q(created_at__date__lte=end_date)
-        if include_unpaid:
-            queryset = queryset.filter(date_filter | Q(filter_paid_amount__lt=F("filter_cost_amount")))
-        else:
-            queryset = queryset.filter(date_filter)
+            date_filter &= Q(start_date__date__lte=end_date)
+        queryset = queryset.filter(date_filter)
 
-    if not needs_annotation or payment_status in ("all", ""):
+    if has_status_filter:
+        if payment_status == "paid":
+            return queryset.filter(filter_paid_amount__gte=F("filter_cost_amount"))
+        if payment_status == "unpaid":
+            return queryset.filter(
+                filter_paid_amount__lte=Value(Decimal("0")),
+                filter_cost_amount__gt=Value(Decimal("0")),
+            )
+        if payment_status == "partial":
+            return queryset.filter(
+                filter_paid_amount__gt=Value(Decimal("0")),
+                filter_paid_amount__lt=F("filter_cost_amount"),
+            )
+        if payment_status == "not_paid":
+            return queryset.filter(filter_cost_amount__gt=F("filter_paid_amount"))
         return queryset
 
-    if payment_status == "paid":
-        return queryset.filter(filter_paid_amount__gte=F("filter_cost_amount"))
-    if payment_status == "unpaid":
+    if not include_paid:
+        # Masque uniquement les entrees avec un cout reel deja entierement paye ;
+        # les entrees a cout nul (ex: taux horaire 0) restent visibles.
         return queryset.filter(
-            filter_paid_amount__lte=Value(Decimal("0")),
-            filter_cost_amount__gt=Value(Decimal("0")),
+            Q(filter_cost_amount__lte=Value(Decimal("0")))
+            | Q(filter_paid_amount__lt=F("filter_cost_amount"))
         )
-    if payment_status == "partial":
-        return queryset.filter(
-            filter_paid_amount__gt=Value(Decimal("0")),
-            filter_paid_amount__lt=F("filter_cost_amount"),
-        )
-    if payment_status == "not_paid":
-        return queryset.filter(filter_cost_amount__gt=F("filter_paid_amount"))
+
     return queryset
 
 
@@ -137,7 +148,7 @@ def apply_time_entry_financial_filters(queryset, request):
         description=(
             "Retourne les entrées de temps actives d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}),\n"
-            "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`, `include_unpaid`.\n\n"
+            "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`, `include_paid`.\n\n"
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.view`.\n\n"
@@ -182,7 +193,7 @@ class TimeEntryListCreateView(generics.ListCreateAPIView):
             queryset
             .select_related("project", "folder", "task", "user")
             .prefetch_related("financial_entries", "documents")
-            .order_by("-created_at", "-id")
+            .order_by("-start_date", "-id")
         )
 
     def get_serializer_context(self):
@@ -397,14 +408,15 @@ class TimeEntryTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.deleted_objects.none()
 
+        queryset = TimeEntry.deleted_objects.filter(
+            project_id=self.kwargs["project_id"],
+            project__in=get_accessible_projects(self.request.user),
+        )
         return (
-            TimeEntry.deleted_objects.filter(
-                project_id=self.kwargs["project_id"],
-                project__in=get_accessible_projects(self.request.user),
-            )
+            queryset
             .select_related("project", "folder", "task", "user")
             .prefetch_related("financial_entries", "documents")
-            .order_by("-created_at", "-id")
+            .order_by("-start_date", "-id")
         )
 
 
