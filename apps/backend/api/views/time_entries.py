@@ -21,23 +21,17 @@ from ..services.folders import get_descendant_folder_ids
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..services.time_entries import compute_time_entry_stats
+from ..utils import FolderScopedFilterMixin
 from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class TimeEntryFilter(django_filters.FilterSet):
+class TimeEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
     target = django_filters.CharFilter(method="filter_target")
 
     class Meta:
         model = TimeEntry
         fields = ["user", "task"]
-
-    def filter_folder(self, queryset, name, value):
-        project_id = self.request.parser_context["kwargs"].get("project_id")
-        if not project_id:
-            return queryset
-        folder_ids = get_descendant_folder_ids(value, project_id)
-        return queryset.filter(folder_id__in=folder_ids)
 
     def filter_target(self, queryset, name, value):
         project_id = self.request.parser_context["kwargs"].get("project_id")

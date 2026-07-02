@@ -15,21 +15,9 @@ import { InvitationStatusBadge } from "@/components/badges/invitation-status-bad
 import { MemberTypeBadge } from "@/components/badges/member-type-badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { MemberAvatar } from "@/components/member-avatar";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-
-function MemberAvatar({ name, pictureUrl }: { name: string; pictureUrl: string | null }) {
-  const initial = name.charAt(0).toUpperCase();
-  if (pictureUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={pictureUrl} alt={name} className="size-8 shrink-0 rounded-full object-cover" />;
-  }
-  return (
-    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-      {initial}
-    </div>
-  );
-}
 
 export function MembersSettingsTab({
   selectedProject,

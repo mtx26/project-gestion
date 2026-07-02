@@ -20,7 +20,7 @@ export function detectPreset(from?: string, to?: string): PeriodPreset | "custom
   return "custom";
 }
 
-export function formatDate(date: Date): string {
+export function toIsoDateString(date: Date): string {
   return [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
@@ -34,18 +34,18 @@ export function getPeriodRange(period: PeriodPreset): { startDate?: string; endD
   if (period === "this-week") {
     const dayOffset = (now.getDay() + 6) % 7;
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dayOffset);
-    return { startDate: formatDate(start), endDate: formatDate(now) };
+    return { startDate: toIsoDateString(start), endDate: toIsoDateString(now) };
   }
   if (period === "last-30-days") {
     const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
-    return { startDate: formatDate(start), endDate: formatDate(now) };
+    return { startDate: toIsoDateString(start), endDate: toIsoDateString(now) };
   }
   if (period === "this-year") {
     const start = new Date(now.getFullYear(), 0, 1);
-    return { startDate: formatDate(start), endDate: formatDate(now) };
+    return { startDate: toIsoDateString(start), endDate: toIsoDateString(now) };
   }
   const monthOffset = period === "last-month" ? -1 : 0;
   const start = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
   const end = new Date(now.getFullYear(), now.getMonth() + monthOffset + 1, 0);
-  return { startDate: formatDate(start), endDate: formatDate(end) };
+  return { startDate: toIsoDateString(start), endDate: toIsoDateString(end) };
 }

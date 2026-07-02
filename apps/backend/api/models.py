@@ -301,6 +301,30 @@ class TimeEntry(BaseModel):
         if self.task and self.task.project_id != self.project_id:
             raise ValidationError("errors.time_entry.task_project_mismatch")
 
+    def get_cost_amount(self):
+        """Montant total facturable de l'entrée (durée x taux horaire)."""
+        return Decimal(self.duration_minutes) * self.hourly_rate / Decimal("60")
+
+    def get_paid_amount(self, exclude_pk=None):
+        """Solde net des entrées financières liées (dépenses - remboursements), jamais négatif."""
+        entries = self.financial_entries.all()
+        if exclude_pk:
+            entries = entries.exclude(pk=exclude_pk)
+
+        paid_amount = Decimal("0.00")
+        for entry in entries:
+            if entry.type == FinancialEntry.FinancialType.EXPENSE:
+                paid_amount += entry.amount
+            elif entry.type == FinancialEntry.FinancialType.REFUND:
+                paid_amount -= entry.amount
+
+        return max(paid_amount, Decimal("0.00"))
+
+    def get_remaining_amount(self, exclude_pk=None):
+        """Montant restant à payer avant que l'entrée soit intégralement couverte."""
+        remaining = self.get_cost_amount() - self.get_paid_amount(exclude_pk=exclude_pk)
+        return max(remaining, Decimal("0.00"))
+
 
 class FinancialEntry(BaseModel):
     class FinancialType(models.TextChoices):
@@ -345,31 +369,13 @@ class FinancialEntry(BaseModel):
             raise ValidationError("errors.financial_entry.multiple_targets")
 
         if self.time_entry and self.amount is not None and self.type == self.FinancialType.EXPENSE:
-            paid_amount = self._get_time_entry_paid_amount_excluding_self()
-            cost_amount = self._get_time_entry_cost_amount()
+            paid_amount = self.time_entry.get_paid_amount(exclude_pk=self.pk)
+            cost_amount = self.time_entry.get_cost_amount()
 
             if paid_amount + self.amount > cost_amount:
                 raise ValidationError({
                     "amount": "errors.financial_entry.amount_exceeds_time_entry_remaining"
                 })
-
-    def _get_time_entry_cost_amount(self):
-        return Decimal(self.time_entry.duration_minutes) * self.time_entry.hourly_rate / Decimal("60")
-
-    def _get_time_entry_paid_amount_excluding_self(self):
-        entries = FinancialEntry.objects.filter(time_entry=self.time_entry)
-
-        if self.pk:
-            entries = entries.exclude(pk=self.pk)
-
-        paid_amount = Decimal("0.00")
-        for entry in entries:
-            if entry.type == self.FinancialType.EXPENSE:
-                paid_amount += entry.amount
-            elif entry.type == self.FinancialType.REFUND:
-                paid_amount -= entry.amount
-
-        return max(paid_amount, Decimal("0.00"))
 
 
 class ExpenseRequest(BaseModel):

@@ -1,6 +1,4 @@
-from django.db import transaction
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 
 import django_filters
 from rest_framework import generics
@@ -11,17 +9,21 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..utils import StableOrderingFilter
+from ..utils import FolderScopedFilterMixin, StableOrderingFilter
 
-from ..models import ExpenseRequest, FinancialEntry
+from ..models import ExpenseRequest
 from ..permissions import HasProjectPermission
 from ..serializers import ExpenseRequestSerializer
-from ..services.folders import get_descendant_folder_ids
+from ..services.expense_requests import (
+    approve_expense_request,
+    get_project_expense_requests,
+    reject_expense_request,
+)
 from ..services.projects import get_accessible_projects
 from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class ExpenseRequestFilter(django_filters.FilterSet):
+class ExpenseRequestFilter(FolderScopedFilterMixin, django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
     exclude_rejected = django_filters.BooleanFilter(method="filter_exclude_rejected")
     date_from = django_filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
@@ -31,31 +33,10 @@ class ExpenseRequestFilter(django_filters.FilterSet):
         model = ExpenseRequest
         fields = ["status", "requested_by"]
 
-    def filter_folder(self, queryset, name, value):
-        project_id = self.request.parser_context["kwargs"].get("project_id")
-        if not project_id:
-            return queryset
-        folder_ids = get_descendant_folder_ids(value, project_id)
-        return queryset.filter(folder_id__in=folder_ids)
-
     def filter_exclude_rejected(self, queryset, _name, value):
         if value:
             return queryset.exclude(status="rejected")
         return queryset
-
-
-def _expense_request_qs(user, project_id, **extra_filters):
-    return ExpenseRequest.objects.filter(
-        project_id=project_id,
-        project__in=get_accessible_projects(user),
-        **extra_filters,
-    ).select_related(
-        "project",
-        "folder",
-        "task",
-        "requested_by",
-        "approved_by",
-    ).prefetch_related("documents")
 
 
 @extend_schema(tags=["expense-requests"])
@@ -96,7 +77,7 @@ class ExpenseRequestListCreateView(generics.ListCreateAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return _expense_request_qs(self.request.user, self.kwargs["project_id"]).order_by("-created_at", "-id")
+        return get_project_expense_requests(self.request.user, self.kwargs["project_id"]).order_by("-created_at", "-id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
@@ -143,7 +124,7 @@ class ExpenseRequestDetailView(SoftDeleteDestroyMixin, generics.RetrieveUpdateDe
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return _expense_request_qs(self.request.user, self.kwargs["project_id"])
+        return get_project_expense_requests(self.request.user, self.kwargs["project_id"])
 
 
 @extend_schema(tags=["expense-requests"])
@@ -167,31 +148,13 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return _expense_request_qs(
+        return get_project_expense_requests(
             self.request.user, self.kwargs["project_id"], status=ExpenseRequest.STATUS_PENDING
         )
 
     def post(self, request, project_id, pk):
         expense_request = self.get_object()
-
-        with transaction.atomic():
-            expense_request.status = ExpenseRequest.STATUS_APPROVED
-            expense_request.approved_by = request.user
-            expense_request.approved_at = timezone.now()
-            expense_request.save()
-
-            financial_entry = FinancialEntry.objects.create(
-                project=expense_request.project,
-                folder=expense_request.folder,
-                task=expense_request.task,
-                created_by=request.user,
-                amount=expense_request.amount,
-                type=FinancialEntry.FinancialType.EXPENSE,
-                category=expense_request.category,
-                description=expense_request.title,
-            )
-            if expense_request.documents.exists():
-                financial_entry.documents.set(expense_request.documents.all())
+        approve_expense_request(expense_request, approved_by=request.user)
 
         serializer = self.get_serializer(expense_request)
         return Response(serializer.data)
@@ -214,14 +177,14 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.objects.none()
 
-        return _expense_request_qs(
+        return get_project_expense_requests(
             self.request.user, self.kwargs["project_id"], status=ExpenseRequest.STATUS_PENDING
         )
 
     def post(self, request, project_id, pk):
         expense_request = self.get_object()
-        expense_request.status = ExpenseRequest.STATUS_REJECTED
-        expense_request.save()
+        reject_expense_request(expense_request)
+
         serializer = self.get_serializer(expense_request)
         return Response(serializer.data)
 

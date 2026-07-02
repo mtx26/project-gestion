@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MemberAvatar } from "@/components/member-avatar";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 
@@ -160,7 +161,7 @@ export function ActiveProjectDashboard({
                   <div key={member.id} className="rounded-md border bg-muted/30 p-3 text-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex min-w-0 items-start gap-2.5">
-                        <DashboardMemberAvatar
+                        <MemberAvatar
                           name={member.user_display_name}
                           pictureUrl={member.user_picture_url}
                         />
@@ -453,18 +454,6 @@ function EmptyProjectState({ onCreateProject }: { onCreateProject: () => void })
   );
 }
 
-function DashboardMemberAvatar({ name, pictureUrl }: { name: string; pictureUrl: string | null }) {
-  const initial = name.charAt(0).toUpperCase();
-  if (pictureUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={pictureUrl} alt={name} className="size-8 shrink-0 rounded-full object-cover" />;
-  }
-  return (
-    <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold text-muted-foreground">
-      {initial}
-    </div>
-  );
-}
 
 function ProjectDashboardSkeleton() {
   return (

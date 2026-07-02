@@ -38,3 +38,16 @@ def get_user_display_name(user):
         return None
     full_name = (user.get_full_name() or "").strip()
     return full_name or user.username or user.email
+
+
+class FolderScopedFilterMixin:
+    """Adds a `folder` filter method that also matches all descendant folders."""
+
+    def filter_folder(self, queryset, name, value):
+        from .services.folders import get_descendant_folder_ids
+
+        project_id = self.request.parser_context["kwargs"].get("project_id")
+        if not project_id:
+            return queryset
+        folder_ids = get_descendant_folder_ids(value, project_id)
+        return queryset.filter(folder_id__in=folder_ids)

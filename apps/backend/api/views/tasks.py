@@ -13,13 +13,12 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models import Task
 from ..permissions import HasProjectPermission
 from ..serializers import TaskSerializer
-from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
-from ..utils import StableOrderingFilter
+from ..utils import FolderScopedFilterMixin, StableOrderingFilter
 from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class TaskFilter(django_filters.FilterSet):
+class TaskFilter(FolderScopedFilterMixin, django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
     exclude_done = django_filters.BooleanFilter(method="filter_exclude_done")
     date_from = django_filters.DateFilter(method="filter_date_from")
@@ -28,13 +27,6 @@ class TaskFilter(django_filters.FilterSet):
     class Meta:
         model = Task
         fields = ["status", "priority", "created_by", "assigned_to"]
-
-    def filter_folder(self, queryset, name, value):
-        project_id = self.request.parser_context["kwargs"].get("project_id")
-        if not project_id:
-            return queryset
-        folder_ids = get_descendant_folder_ids(value, project_id)
-        return queryset.filter(folder_id__in=folder_ids)
 
     def filter_exclude_done(self, queryset, _name, value):
         if value:

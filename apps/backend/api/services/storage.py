@@ -75,50 +75,46 @@ def build_s3_object_url(file_id, bucket_name=None):
     return f"{endpoint_url}/{bucket_name or settings.S3_BUCKET_NAME}/{quoted_file_id}"
 
 
-def validate_document_file(file):
+def _validate_upload_file(file, *, max_size_bytes, allowed_extensions, allowed_mime_types, error_prefix):
     file_name = PurePosixPath(file.name).name
     extension = PurePosixPath(file_name).suffix.lower()
     file_size = getattr(file, "size", None)
     content_type = (getattr(file, "content_type", None) or "").lower()
 
-    if file_size is not None and file_size > settings.DOCUMENT_MAX_UPLOAD_SIZE_BYTES:
+    if file_size is not None and file_size > max_size_bytes:
         raise ValidationError({
-            "file": ["errors.document.file_too_large"],
+            "file": [f"errors.{error_prefix}.file_too_large"],
         })
 
-    if extension not in settings.DOCUMENT_ALLOWED_FILE_EXTENSIONS:
+    if extension not in allowed_extensions:
         raise ValidationError({
-            "file": ["errors.document.file_type_not_allowed"],
+            "file": [f"errors.{error_prefix}.file_type_not_allowed"],
         })
 
-    allowed_mime_types = settings.DOCUMENT_ALLOWED_MIME_TYPES
-    fallback_mime_types = settings.DOCUMENT_FALLBACK_MIME_TYPES
-    if content_type and content_type not in allowed_mime_types | fallback_mime_types:
+    if content_type and content_type not in allowed_mime_types:
         raise ValidationError({
-            "file": ["errors.document.file_type_not_allowed"],
+            "file": [f"errors.{error_prefix}.file_type_not_allowed"],
         })
+
+
+def validate_document_file(file):
+    _validate_upload_file(
+        file,
+        max_size_bytes=settings.DOCUMENT_MAX_UPLOAD_SIZE_BYTES,
+        allowed_extensions=settings.DOCUMENT_ALLOWED_FILE_EXTENSIONS,
+        allowed_mime_types=settings.DOCUMENT_ALLOWED_MIME_TYPES | settings.DOCUMENT_FALLBACK_MIME_TYPES,
+        error_prefix="document",
+    )
 
 
 def validate_profile_picture_file(file):
-    file_name = PurePosixPath(file.name).name
-    extension = PurePosixPath(file_name).suffix.lower()
-    file_size = getattr(file, "size", None)
-    content_type = (getattr(file, "content_type", None) or "").lower()
-
-    if file_size is not None and file_size > settings.PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES:
-        raise ValidationError({
-            "file": ["errors.profile_picture.file_too_large"],
-        })
-
-    if extension not in settings.PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS:
-        raise ValidationError({
-            "file": ["errors.profile_picture.file_type_not_allowed"],
-        })
-
-    if content_type and content_type not in settings.PROFILE_PICTURE_ALLOWED_MIME_TYPES:
-        raise ValidationError({
-            "file": ["errors.profile_picture.file_type_not_allowed"],
-        })
+    _validate_upload_file(
+        file,
+        max_size_bytes=settings.PROFILE_PICTURE_MAX_UPLOAD_SIZE_BYTES,
+        allowed_extensions=settings.PROFILE_PICTURE_ALLOWED_FILE_EXTENSIONS,
+        allowed_mime_types=settings.PROFILE_PICTURE_ALLOWED_MIME_TYPES,
+        error_prefix="profile_picture",
+    )
 
 
 def upload_document_file(file, project_id):

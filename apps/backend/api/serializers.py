@@ -495,11 +495,6 @@ class TaskSerializer(serializers.ModelSerializer):
             if documents:
                 task.documents.set(documents)
 
-            try:
-                task.full_clean()
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.message_dict) from exc
-
         return task
 
     def update(self, instance, validated_data):
@@ -528,11 +523,6 @@ class TaskSerializer(serializers.ModelSerializer):
 
             if documents is not None:
                 instance.documents.set(documents)
-
-            try:
-                instance.full_clean()
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.message_dict) from exc
 
         return instance
 
@@ -780,32 +770,15 @@ class TimeEntrySerializer(serializers.ModelSerializer):
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_cost_amount(self, time_entry):
-        return self._money(self._get_cost_amount(time_entry))
+        return self._money(time_entry.get_cost_amount())
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_paid_amount(self, time_entry):
-        return self._money(self._get_paid_amount(time_entry))
+        return self._money(time_entry.get_paid_amount())
 
     @extend_schema_field(OpenApiTypes.STR)
     def get_remaining_amount(self, time_entry):
-        remaining_amount = self._get_cost_amount(time_entry) - self._get_paid_amount(time_entry)
-        return self._money(max(remaining_amount, Decimal("0.00")))
-
-    def _get_cost_amount(self, time_entry):
-        return Decimal(time_entry.duration_minutes) * time_entry.hourly_rate / Decimal("60")
-
-    def _get_paid_amount(self, time_entry):
-        financial_entries = getattr(time_entry, "financial_entries", None)
-        if financial_entries is None:
-            return Decimal("0.00")
-
-        total = Decimal("0.00")
-        for financial_entry in financial_entries.all():
-            if financial_entry.type == FinancialEntry.FinancialType.EXPENSE:
-                total += financial_entry.amount
-            elif financial_entry.type == FinancialEntry.FinancialType.REFUND:
-                total -= financial_entry.amount
-        return max(total, Decimal("0.00"))
+        return self._money(time_entry.get_remaining_amount())
 
     def _money(self, value):
         return str(value.quantize(Decimal("0.01")))
@@ -828,7 +801,7 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
 
     def validate(self, attrs):
         time_entry = self.context["time_entry"]
-        remaining_amount = self._get_remaining_amount(time_entry)
+        remaining_amount = time_entry.get_remaining_amount()
 
         if remaining_amount <= Decimal("0.00"):
             raise serializers.ValidationError({
@@ -877,18 +850,6 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_financial_entry(self, payment):
         return FinancialEntrySerializer(payment["financial_entry"]).data
-
-    def _get_remaining_amount(self, time_entry):
-        cost_amount = Decimal(time_entry.duration_minutes) * time_entry.hourly_rate / Decimal("60")
-        paid_amount = Decimal("0.00")
-
-        for financial_entry in time_entry.financial_entries.all():
-            if financial_entry.type == FinancialEntry.FinancialType.EXPENSE:
-                paid_amount += financial_entry.amount
-            elif financial_entry.type == FinancialEntry.FinancialType.REFUND:
-                paid_amount -= financial_entry.amount
-
-        return max(cost_amount - max(paid_amount, Decimal("0.00")), Decimal("0.00"))
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):

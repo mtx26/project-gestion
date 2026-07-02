@@ -17,25 +17,18 @@ from ..serializers import (
     DocumentSerializer,
     DocumentUploadSerializer,
 )
-from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
 from ..services.storage import upload_document_file
+from ..utils import FolderScopedFilterMixin
 from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class DocumentFilter(django_filters.FilterSet):
+class DocumentFilter(FolderScopedFilterMixin, django_filters.FilterSet):
     folder = django_filters.NumberFilter(method="filter_folder")
 
     class Meta:
         model = Document
         fields = ["mime_type"]
-
-    def filter_folder(self, queryset, name, value):
-        project_id = self.request.parser_context["kwargs"].get("project_id")
-        if not project_id:
-            return queryset
-        folder_ids = get_descendant_folder_ids(value, project_id)
-        return queryset.filter(folder_id__in=folder_ids)
 
 
 @extend_schema(tags=["documents"])
