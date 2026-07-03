@@ -3176,7 +3176,9 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+        # "Root work" a un cout nul (taux horaire 0) : elle est consideree deja
+        # couverte et masquee par defaut, comme n'importe quelle entree payee.
+        self.assert_visible_time_descriptions(response, ["Folder work"])
 
     def test_member_with_time_entry_view_can_list_own_time_entries_only(self):
         self.given_member_authenticated(["time_entry.view"])
@@ -3200,7 +3202,8 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+        # "Root work" a un cout nul : masquee par defaut (voir plus haut).
+        self.assert_visible_time_descriptions(response, ["Folder work"])
 
     def test_member_with_time_entry_pay_only_cannot_list_time_entries(self):
         self.given_member_authenticated(["time_entry.pay"])
@@ -3276,7 +3279,8 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
+        # "Fully paid work" est masquee (payee) et "Root work" aussi (cout nul).
+        self.assert_visible_time_descriptions(response, ["Folder work"])
 
     def test_list_can_include_paid_entries(self):
         paid_entry = TimeEntry.objects.create(
@@ -3308,7 +3312,9 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
     def test_list_can_search_by_description(self):
         self.given_authenticated(self.owner)
 
-        response = self.when_list_time_entries("?search=Root")
+        # "Root work" a un cout nul et serait masquee par le filtre par defaut ;
+        # include_paid=true isole ce test sur le comportement de la recherche.
+        response = self.when_list_time_entries("?search=Root&include_paid=true")
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Root work"])

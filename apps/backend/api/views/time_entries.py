@@ -1,10 +1,6 @@
-from decimal import Decimal
-
 import django_filters
-from django.db.models import Case, DecimalField, ExpressionWrapper, F, Q, Sum, Value, When
-from django.db.models.functions import Coalesce, Round
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from django.utils.dateparse import parse_date
 
 from rest_framework import generics, status
 from rest_framework.filters import SearchFilter
@@ -14,13 +10,13 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..models import FinancialEntry, TimeEntry
+from ..models import TimeEntry
 from ..permissions import HasProjectPermission
-from ..serializers import TimeEntryPaymentSerializer, TimeEntrySerializer
+from ..serializers import TimeEntryPaymentCorrectionSerializer, TimeEntryPaymentSerializer, TimeEntrySerializer
 from ..services.folders import get_descendant_folder_ids
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
-from ..services.time_entries import compute_time_entry_stats
+from ..services.time_entries import annotate_financial_fields, apply_time_entry_financial_filters, compute_time_entry_stats
 from ..utils import FolderScopedFilterMixin
 from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
@@ -51,89 +47,6 @@ class TimeEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
             folder_ids = get_descendant_folder_ids(folder_id, project_id)
             return queryset.filter(Q(folder_id__in=folder_ids) | Q(task__folder_id__in=folder_ids))
         return queryset
-
-
-def _annotate_financial_fields(queryset):
-    cost_amount = Round(
-        ExpressionWrapper(
-            F("duration_minutes") * F("hourly_rate") / Value(60),
-            output_field=DecimalField(max_digits=12, decimal_places=2),
-        ),
-        precision=2,
-    )
-    paid_amount = Coalesce(
-        Sum(
-            Case(
-                When(
-                    financial_entries__type=FinancialEntry.FinancialType.EXPENSE,
-                    then=F("financial_entries__amount"),
-                ),
-                When(
-                    financial_entries__type=FinancialEntry.FinancialType.REFUND,
-                    then=-F("financial_entries__amount"),
-                ),
-                default=Value(0),
-                output_field=DecimalField(max_digits=12, decimal_places=2),
-            )
-        ),
-        Value(0),
-        output_field=DecimalField(max_digits=12, decimal_places=2),
-    )
-    return queryset.annotate(filter_cost_amount=cost_amount, filter_paid_amount=paid_amount)
-
-
-def apply_time_entry_financial_filters(queryset, request):
-    """Applies date range and payment_status filters. Annotates when needed.
-
-    Par defaut (payment_status="all"), les entrees deja entierement payees sont
-    masquees ; `include_paid=true` les reintegre. Un `payment_status` explicite
-    (paid/unpaid/partial/not_paid) prend le dessus sur ce masquage.
-    """
-    payment_status = request.query_params.get("payment_status", "all")
-    include_paid = request.query_params.get("include_paid") == "true"
-    start_date = parse_date(request.query_params.get("start_date", "") or "")
-    end_date = parse_date(request.query_params.get("end_date", "") or "")
-
-    has_status_filter = bool(payment_status) and payment_status not in ("all", "")
-    needs_annotation = has_status_filter or not include_paid
-
-    if needs_annotation:
-        queryset = _annotate_financial_fields(queryset)
-
-    if start_date or end_date:
-        date_filter = Q()
-        if start_date:
-            date_filter &= Q(start_date__date__gte=start_date)
-        if end_date:
-            date_filter &= Q(start_date__date__lte=end_date)
-        queryset = queryset.filter(date_filter)
-
-    if has_status_filter:
-        if payment_status == "paid":
-            return queryset.filter(filter_paid_amount__gte=F("filter_cost_amount"))
-        if payment_status == "unpaid":
-            return queryset.filter(
-                filter_paid_amount__lte=Value(Decimal("0")),
-                filter_cost_amount__gt=Value(Decimal("0")),
-            )
-        if payment_status == "partial":
-            return queryset.filter(
-                filter_paid_amount__gt=Value(Decimal("0")),
-                filter_paid_amount__lt=F("filter_cost_amount"),
-            )
-        if payment_status == "not_paid":
-            return queryset.filter(filter_cost_amount__gt=F("filter_paid_amount"))
-        return queryset
-
-    if not include_paid:
-        # Masque uniquement les entrees avec un cout reel deja entierement paye ;
-        # les entrees a cout nul (ex: taux horaire 0) restent visibles.
-        return queryset.filter(
-            Q(filter_cost_amount__lte=Value(Decimal("0")))
-            | Q(filter_paid_amount__lt=F("filter_cost_amount"))
-        )
-
-    return queryset
 
 
 @extend_schema(tags=["time entries"])
@@ -242,7 +155,7 @@ class TimeEntryStatsView(generics.GenericAPIView):
         queryset = apply_time_entry_financial_filters(queryset, request)
 
         if "filter_cost_amount" not in queryset.query.annotations:
-            queryset = _annotate_financial_fields(queryset)
+            queryset = annotate_financial_fields(queryset)
 
         return Response(compute_time_entry_stats(queryset))
 
@@ -326,7 +239,18 @@ class TimeEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, g
         ),
         request=TimeEntryPaymentSerializer,
         responses=TimeEntryPaymentSerializer,
-    )
+    ),
+    patch=extend_schema(
+        summary="Corriger le montant payé d'une entrée de temps",
+        description=(
+            "Ajuste le montant total payé sans modifier les paiements existants : crée une "
+            "nouvelle entrée financière de dépense (si le nouveau montant est supérieur au "
+            "montant payé actuel) ou de remboursement (s'il est inférieur).\n"
+            "Permission requise : `time_entry.pay`."
+        ),
+        request=TimeEntryPaymentCorrectionSerializer,
+        responses=TimeEntryPaymentCorrectionSerializer,
+    ),
 )
 class TimeEntryPaymentView(generics.GenericAPIView):
     serializer_class = TimeEntryPaymentSerializer
@@ -361,6 +285,12 @@ class TimeEntryPaymentView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         payment = serializer.save()
         return Response(self.get_serializer(payment).data, status=status.HTTP_201_CREATED)
+
+    def patch(self, request, project_id, pk):
+        serializer = TimeEntryPaymentCorrectionSerializer(data=request.data, context=self.get_serializer_context())
+        serializer.is_valid(raise_exception=True)
+        correction = serializer.save()
+        return Response(TimeEntryPaymentCorrectionSerializer(correction, context=self.get_serializer_context()).data)
 
 
 @extend_schema(tags=["time entries"])

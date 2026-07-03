@@ -872,6 +872,72 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
         return FinancialEntrySerializer(payment["financial_entry"]).data
 
 
+class TimeEntryPaymentCorrectionSerializer(serializers.Serializer):
+    """Corrige le montant total payé sur une entrée de temps.
+
+    Ne modifie aucune entrée financière existante : crée une nouvelle entrée de
+    correction (dépense si le nouveau montant est supérieur au montant payé actuel,
+    remboursement s'il est inférieur), pour garder un historique complet.
+    """
+
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+    financial_entry = serializers.SerializerMethodField(read_only=True)
+    time_entry = TimeEntrySerializer(read_only=True)
+
+    def validate(self, attrs):
+        amount = attrs.get("amount")
+        if amount is None:
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_required"
+            })
+
+        if amount < Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_must_be_positive"
+            })
+
+        time_entry = self.context["time_entry"]
+        cost_amount = time_entry.get_cost_amount()
+
+        if amount > cost_amount:
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_exceeds_remaining"
+            })
+
+        delta = amount - time_entry.get_paid_amount()
+        if delta == Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_unchanged"
+            })
+
+        attrs["amount"] = amount
+        attrs["delta"] = delta
+        return attrs
+
+    def create(self, validated_data):
+        time_entry = self.context["time_entry"]
+        request = self.context["request"]
+        delta = validated_data["delta"]
+
+        financial_entry = FinancialEntry.objects.create(
+            project=time_entry.project,
+            time_entry=time_entry,
+            created_by=request.user,
+            amount=abs(delta),
+            type=FinancialEntry.FinancialType.EXPENSE if delta > 0 else FinancialEntry.FinancialType.REFUND,
+            category="Correction de paiement",
+        )
+
+        return {
+            "financial_entry": financial_entry,
+            "time_entry": time_entry,
+        }
+
+    @extend_schema_field(OpenApiTypes.OBJECT)
+    def get_financial_entry(self, payment):
+        return FinancialEntrySerializer(payment["financial_entry"]).data
+
+
 class FinancialEntrySerializer(serializers.ModelSerializer):
     folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()

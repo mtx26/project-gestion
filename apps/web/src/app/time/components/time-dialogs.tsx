@@ -52,6 +52,21 @@ function makePaymentSchema(remaining: number) {
 }
 type PaymentFormValues = { mode: "full" | "partial"; amount: string };
 
+function makeCorrectionSchema(costAmount: number) {
+  return z.object({
+    amount: z.string(),
+  })
+    .refine(
+      (v) => Number(v.amount) >= 0,
+      { message: "Le montant ne peut pas etre negatif", path: ["amount"] },
+    )
+    .refine(
+      (v) => Number(v.amount) <= costAmount,
+      { message: "Le montant ne peut pas depasser le cout total", path: ["amount"] },
+    );
+}
+type CorrectionFormValues = { amount: string };
+
 export type EditTimeSubmitData = {
   documentIds: number[];
   durationMinutes: number;
@@ -211,6 +226,7 @@ export function TimeEntryDetailDialog({
   onClose,
   onEdit,
   onPay,
+  onCorrectPayment,
   onDelete,
   onTaskClick,
 }: {
@@ -225,6 +241,7 @@ export function TimeEntryDetailDialog({
   onClose: () => void;
   onEdit?: (entry: TimeEntry) => void;
   onPay?: (entry: TimeEntry) => void;
+  onCorrectPayment?: (entry: TimeEntry) => void;
   onDelete?: (entry: TimeEntry) => void;
   onTaskClick?: (taskId: number) => void;
 }) {
@@ -256,6 +273,12 @@ export function TimeEntryDetailDialog({
                 <Button type="button" variant="outline" size="sm" onClick={() => onPay(entry)}>
                   <CreditCard className="size-4" />
                   Payer
+                </Button>
+              ) : null}
+              {canPay && onCorrectPayment && paymentStatus !== "unpaid" ? (
+                <Button type="button" variant="outline" size="sm" onClick={() => onCorrectPayment(entry)}>
+                  <Pencil className="size-4" />
+                  Corriger le paiement
                 </Button>
               ) : null}
               {canEdit && onEdit ? (
@@ -424,6 +447,73 @@ export function PaymentDialog({
           </Field>
         ) : null}
       </div>
+    </FormDialog>
+  );
+}
+
+export function CorrectPaymentDialog({
+  entry,
+  isPending,
+  error,
+  onOpenChange,
+  onSubmit,
+}: {
+  entry: TimeEntry | null;
+  isPending: boolean;
+  error: string | null;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (amount: string) => void;
+}) {
+  const costAmount = Number(entry?.cost_amount ?? 0);
+  const paidAmount = entry?.paid_amount ?? "0";
+  const schema = useMemo(() => makeCorrectionSchema(costAmount), [costAmount]);
+
+  const form = useForm<CorrectionFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { amount: paidAmount },
+  });
+
+  function handleSubmit(values: CorrectionFormValues) {
+    onSubmit(values.amount);
+  }
+
+  return (
+    <FormDialog
+      open={entry != null}
+      onOpenChange={onOpenChange}
+      title="Corriger le paiement"
+      description={`Actuellement paye : ${formatMoney(paidAmount)} sur ${formatMoney(costAmount)}.`}
+      maxWidth="md"
+      error={error}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Annuler</Button>
+          </DialogClose>
+          <FormSubmitButton
+            onClick={form.handleSubmit(handleSubmit)}
+            pending={isPending}
+            label="Corriger"
+            pendingLabel="Correction..."
+          />
+        </>
+      }
+    >
+      <Field>
+        <Label htmlFor="payment-correction-amount">Nouveau montant paye</Label>
+        <Input
+          id="payment-correction-amount"
+          type="number"
+          min="0"
+          max={costAmount}
+          step="0.01"
+          {...form.register("amount")}
+        />
+        <FieldError errors={[form.formState.errors.amount]} />
+        <p className="text-xs text-muted-foreground">
+          Une entree de correction (depense ou remboursement) sera creee pour la difference.
+        </p>
+      </Field>
     </FormDialog>
   );
 }

@@ -295,6 +295,10 @@ export type TimeEntryPaymentPayload = {
   description?: string | null;
 };
 
+export type TimeEntryPaymentCorrectionPayload = {
+  amount: string;
+};
+
 export type TimeEntryPayment = {
   financial_entry: FinancialEntry;
   time_entry: TimeEntry;

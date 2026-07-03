@@ -24,6 +24,7 @@ import type {
   TaskPayload,
   TimeEntry,
   TimeEntryPayment,
+  TimeEntryPaymentCorrectionPayload,
   TimeEntryPaymentPayload,
   TimeEntryPayload,
   TimeEntryStats,
@@ -409,6 +410,11 @@ export function createApiClient({
       pay: (projectId: number, timeEntryId: number, payload: TimeEntryPaymentPayload) =>
         request<TimeEntryPayment>(`/api/projects/${projectId}/time-entries/${timeEntryId}/pay/`, {
           method: "POST",
+          body: payload,
+        }),
+      correctPayment: (projectId: number, timeEntryId: number, payload: TimeEntryPaymentCorrectionPayload) =>
+        request<TimeEntryPayment>(`/api/projects/${projectId}/time-entries/${timeEntryId}/pay/`, {
+          method: "PATCH",
           body: payload,
         }),
       get: (projectId: number, timeEntryId: number) =>

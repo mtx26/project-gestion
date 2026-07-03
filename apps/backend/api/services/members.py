@@ -1,8 +1,10 @@
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
-from ..models import ProjectMember
+from ..models import ProjectMember, ProjectOwnerRate
+from ..utils import get_user_display_name
 from .permissions import has_project_permission
 from .projects import get_accessible_projects
 
@@ -12,6 +14,37 @@ def get_project_members(user, project_id):
         project_id=project_id,
         project__in=get_accessible_projects(user),
     ).order_by("id")
+
+
+def build_owner_member_entry(project):
+    """Synthesizes a ProjectMemberSerializer-shaped entry for the project owner,
+    who has no real ProjectMember row unless explicitly added as one."""
+    display_name = get_user_display_name(project.owner)
+    now = timezone.now().isoformat()
+    try:
+        picture_url = project.owner.profile.picture_url or None
+    except AttributeError:
+        picture_url = None
+    try:
+        hourly_rate = str(project.owner_rate.hourly_rate)
+    except ProjectOwnerRate.DoesNotExist:
+        hourly_rate = "0.00"
+    return {
+        "id": 0,
+        "project": project.id,
+        "user": project.owner_id,
+        "user_display_name": display_name,
+        "user_email": project.owner.email,
+        "user_picture_url": picture_url,
+        "role": 0,
+        "role_name": "Proprietaire",
+        "role_deleted": False,
+        "hourly_rate": hourly_rate,
+        "created_at": now,
+        "updated_at": now,
+        "deleted_at": None,
+        "deleted_by": None,
+    }
 
 
 def get_project_assignable_users(project):

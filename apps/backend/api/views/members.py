@@ -1,7 +1,6 @@
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 
-from rest_framework import generics, serializers as drf_serializers
+from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
@@ -11,13 +10,14 @@ from ..permissions import HasProjectPermission
 from ..serializers import ProjectMemberSerializer
 from ..services.members import (
     authorize_member_update,
+    build_owner_member_entry,
     detach_member_from_project,
     get_project_members,
 )
 from ..services.projects import get_accessible_projects
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.views import APIView
-from ..models import ProjectMember, Project, ProjectOwnerRate
+from ..models import ProjectMember, ProjectOwnerRate
 from core.views import PermissionCodeByMethodMixin
 
 
@@ -66,48 +66,14 @@ class ProjectMemberListView(generics.ListAPIView):
         owner_is_member = queryset.filter(user_id=project.owner_id).exists()
 
         page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            data = list(serializer.data)
-            if not owner_is_member:
-                data = [_build_owner_entry(project)] + data
-            return self.get_paginated_response(data)
-
-        serializer = self.get_serializer(queryset, many=True)
+        serializer = self.get_serializer(page if page is not None else queryset, many=True)
         data = list(serializer.data)
         if not owner_is_member:
-            data = [_build_owner_entry(project)] + data
+            data = [build_owner_member_entry(project)] + data
+
+        if page is not None:
+            return self.get_paginated_response(data)
         return Response(data)
-
-
-def _build_owner_entry(project):
-    from ..utils import get_user_display_name
-    display_name = get_user_display_name(project.owner)
-    now = timezone.now().isoformat()
-    try:
-        picture_url = project.owner.profile.picture_url or None
-    except AttributeError:
-        picture_url = None
-    try:
-        hourly_rate = str(project.owner_rate.hourly_rate)
-    except ProjectOwnerRate.DoesNotExist:
-        hourly_rate = "0.00"
-    return {
-        "id": 0,
-        "project": project.id,
-        "user": project.owner_id,
-        "user_display_name": display_name,
-        "user_email": project.owner.email,
-        "user_picture_url": picture_url,
-        "role": 0,
-        "role_name": "Proprietaire",
-        "role_deleted": False,
-        "hourly_rate": hourly_rate,
-        "created_at": now,
-        "updated_at": now,
-        "deleted_at": None,
-        "deleted_by": None,
-    }
 
 
 @extend_schema(tags=["member"])

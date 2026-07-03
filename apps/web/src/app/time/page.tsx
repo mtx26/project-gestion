@@ -42,7 +42,7 @@ import { FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/fil
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
-import { type EditTimeSubmitData, EditTimeEntryDialog, PaymentDialog, TimeEntryDetailDialog } from "./components/time-dialogs";
+import { type EditTimeSubmitData, CorrectPaymentDialog, EditTimeEntryDialog, PaymentDialog, TimeEntryDetailDialog } from "./components/time-dialogs";
 import {
   type UserFilter,
   getSelectedUserId,
@@ -113,6 +113,7 @@ function ProjectTimeContent({
   const hourlyRate = hourlyRateDraft ?? defaultHourlyRate;
   const [description, setDescription] = useState("");
   const [paymentTarget, setPaymentTarget] = useState<TimeEntry | null>(null);
+  const [correctionTarget, setCorrectionTarget] = useState<TimeEntry | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
   const [viewingEntry, setViewingEntry] = useState<TimeEntry | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -233,6 +234,19 @@ function ProjectTimeContent({
     onSuccess: async () => {
       toast.success("Paiement enregistre");
       setPaymentTarget(null);
+      await Promise.all([
+        invalidateTimeQueries(queryClient, selectedProject!.id),
+        queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(selectedProject!.id) }),
+      ]);
+    },
+    onError: toastError,
+  });
+  const correctTimeEntryPayment = useMutation({
+    mutationFn: (amount: string) =>
+      api.timeEntries.correctPayment(selectedProject!.id, correctionTarget!.id, { amount }),
+    onSuccess: async () => {
+      toast.success("Paiement corrige");
+      setCorrectionTarget(null);
       await Promise.all([
         invalidateTimeQueries(queryClient, selectedProject!.id),
         queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(selectedProject!.id) }),
@@ -450,6 +464,14 @@ function ProjectTimeContent({
         onOpenChange={(open) => { if (!open) { setPaymentTarget(null); payTimeEntry.reset(); } }}
         onSubmit={(values) => payTimeEntry.mutate(values)}
       />
+      <CorrectPaymentDialog
+        key={correctionTarget?.id ?? "correction-none"}
+        entry={correctionTarget}
+        isPending={correctTimeEntryPayment.isPending}
+        error={getErrorMessage(correctTimeEntryPayment.error)}
+        onOpenChange={(open) => { if (!open) { setCorrectionTarget(null); correctTimeEntryPayment.reset(); } }}
+        onSubmit={(amount) => correctTimeEntryPayment.mutate(amount)}
+      />
       <EditTimeEntryDialog
         key={editingEntry?.id ?? "none"}
         entry={editingEntry}
@@ -473,6 +495,7 @@ function ProjectTimeContent({
         onClose={() => setViewingEntry(null)}
         onEdit={(entry) => { setViewingEntry(null); setEditingEntry(entry); }}
         onPay={(entry) => { setViewingEntry(null); setPaymentTarget(entry); }}
+        onCorrectPayment={(entry) => { setViewingEntry(null); setCorrectionTarget(entry); }}
         onDelete={(entry) => { setViewingEntry(null); deleteTimeEntry.mutate(entry.id); }}
         onTaskClick={canViewTasks ? (taskId) => { setViewingEntry(null); handleTaskClick(taskId); } : undefined}
       />
