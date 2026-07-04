@@ -1,16 +1,15 @@
 from rest_framework import generics
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..permissions import HasProjectPermission
+from ..authorization import OWNER_ONLY, HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import ProjectSerializer
 from ..services.projects import (
     get_accessible_deleted_projects,
     get_accessible_projects,
 )
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["projects"])
@@ -62,18 +61,11 @@ class ProjectListCreateView(generics.ListCreateAPIView):
 class ProjectDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProjectSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    # GET/DELETE need no fixed code beyond project access (DELETE is gated in
-    # perform_destroy by ownership instead).
-    permission_codes_by_method = {"PUT": "project.edit", "PATCH": "project.edit"}
+    # GET needs no fixed code beyond project access.
+    permission_codes_by_method = {"PUT": "project.edit", "PATCH": "project.edit", "DELETE": OWNER_ONLY}
 
     def get_queryset(self):
         return get_accessible_projects(self.request.user)
-
-    def perform_destroy(self, instance):
-        if instance.owner_id != self.request.user.id:
-            raise PermissionDenied("Seul le proprietaire du projet peut le supprimer.")
-
-        super().perform_destroy(instance)
 
 
 @extend_schema(tags=["projects"])
@@ -86,16 +78,11 @@ class ProjectDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, gen
 )
 class ProjectRestoreView(RestoreModelMixin, generics.GenericAPIView):
     serializer_class = ProjectSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = OWNER_ONLY
 
     def get_queryset(self):
         return get_accessible_deleted_projects(self.request.user)
-
-    def perform_restore(self, instance):
-        if instance.owner_id != self.request.user.id:
-            raise PermissionDenied("Seul le proprietaire du projet peut le restaurer.")
-
-        instance.restore()
 
 
 @extend_schema(tags=["projects"])

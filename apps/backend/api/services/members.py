@@ -3,9 +3,9 @@ from django.db import models
 from django.utils import timezone
 from rest_framework.exceptions import PermissionDenied
 
+from ..authorization import ProjectAuthorization
 from ..models import ProjectMember, ProjectOwnerRate
 from ..utils import get_user_display_name
-from .permissions import has_project_permission
 
 
 def get_project_members(user, project_id):
@@ -102,14 +102,15 @@ def authorize_member_update(user, project, member, data):
     """Raise PermissionDenied unless `user` may apply this ProjectMember update."""
     changing_role = "role" in data
     changing_rate = "hourly_rate" in data
+    auth = ProjectAuthorization(user, project)
 
-    if changing_role and not has_project_permission(user, project, "member.edit"):
+    if changing_role and not auth.has("member.edit"):
         raise PermissionDenied("errors.member.no_permission_edit")
 
     if changing_rate:
         is_own = member.user_id == user.id
-        can_edit_rates = has_project_permission(user, project, "member.edit_rates")
-        can_edit_own_rate = has_project_permission(user, project, "member.edit_own_rate")
+        can_edit_rates = auth.has("member.edit_rates")
+        can_edit_own_rate = auth.has("member.edit_own_rate")
 
         if is_own:
             if not (can_edit_own_rate or can_edit_rates):

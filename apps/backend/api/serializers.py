@@ -7,10 +7,10 @@ from django.utils import timezone
 from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
-from .services.permissions import (
+from .authorization import ProjectAuthorization, ProjectAuthorizationMap
+from .services.roles import (
     expand_permissions,
-    get_project_permission_codes,
-    get_project_permission_codes_map,
+    get_role_permissions_map,
 )
 from .services.invitations import (
     accept_project_invitation,
@@ -49,12 +49,12 @@ BASE_READ_ONLY_FIELDS = [
 
 class ProjectListSerializer(serializers.ListSerializer):
     """Precomputes permission codes for the whole page in one batch (see
-    `get_project_permission_codes_map`) instead of once per project."""
+    `ProjectAuthorizationMap`) instead of once per project."""
 
     def to_representation(self, data):
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        self.context["permission_codes_by_project"] = get_project_permission_codes_map(user, data)
+        self.context["permission_map"] = ProjectAuthorizationMap(user, data)
         return super().to_representation(data)
 
 
@@ -87,13 +87,13 @@ class ProjectSerializer(serializers.ModelSerializer):
         return get_user_display_name(project.owner)
 
     def get_current_user_permission_codes(self, project):
-        codes_by_project = self.context.get("permission_codes_by_project")
-        if codes_by_project is not None:
-            return codes_by_project.get(project.id, [])
+        permission_map = self.context.get("permission_map")
+        if permission_map is not None:
+            return permission_map.codes_for(project)
 
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        return get_project_permission_codes(user, project)
+        return ProjectAuthorization(user, project).codes()
 
 
 class PermissionSerializer(serializers.ModelSerializer):
@@ -113,6 +113,15 @@ class PermissionSerializer(serializers.ModelSerializer):
         ]
 
 
+class RoleListSerializer(serializers.ListSerializer):
+    """Precomputes permissions for the whole page in one batch (see
+    `get_role_permissions_map`) instead of once per role."""
+
+    def to_representation(self, data):
+        self.context["permissions_by_role"] = get_role_permissions_map(data)
+        return super().to_representation(data)
+
+
 class RoleSerializer(serializers.ModelSerializer):
     permission_ids = serializers.PrimaryKeyRelatedField(
         queryset=Permission.objects.all(),
@@ -124,6 +133,7 @@ class RoleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Role
+        list_serializer_class = RoleListSerializer
         fields = [
             "id",
             "project",
@@ -175,6 +185,10 @@ class RoleSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(PermissionSerializer(many=True))
     def get_permissions(self, role):
+        permissions_by_role = self.context.get("permissions_by_role")
+        if permissions_by_role is not None:
+            return permissions_by_role.get(role.id, [])
+
         return list(
             Permission.objects.filter(
                 rolepermission__role=role,

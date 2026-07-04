@@ -8,7 +8,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Document, Folder
-from ..permissions import HasProjectPermission
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import (
     DocumentDownloadSerializer,
     DocumentSerializer,
@@ -18,7 +18,7 @@ from ..services.documents import get_project_deleted_documents, get_project_docu
 from ..services.projects import get_accessible_projects
 from ..services.storage import upload_document_file
 from ..utils import FolderScopedFilterSet
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class DocumentFilter(FolderScopedFilterSet):

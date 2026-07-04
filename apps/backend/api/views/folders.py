@@ -19,10 +19,9 @@ from ..services.folders import (
     get_project_deleted_folders,
     get_project_folders,
 )
-from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
-from ..permissions import HasProjectPermission
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin, ProjectAuthorization
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 @extend_schema(tags=["folders"])
 @extend_schema_view(
@@ -95,7 +94,7 @@ class FolderTreeView(generics.GenericAPIView):
             documents = Document.objects.none()
 
         project = get_object_or_404(get_accessible_projects(request.user), pk=project_id)
-        if params["include_tasks"] and has_project_permission(request.user, project, "task.view"):
+        if params["include_tasks"] and ProjectAuthorization(request.user, project).has("task.view"):
             tasks = Task.objects.filter(
                 project_id=project_id,
                 status__in=["todo", "in_progress"],
@@ -140,7 +139,7 @@ class FolderTargetTreeView(generics.GenericAPIView):
             project=project,
         ).select_related("created_by").order_by("name", "id")
 
-        if has_project_permission(request.user, project, "task.view"):
+        if ProjectAuthorization(request.user, project).has("task.view"):
             tasks = Task.objects.filter(
                 project=project,
             ).order_by("title", "id")

@@ -1,10 +1,9 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from ..permissions import HasProjectPermission
+from ..authorization import OWNER_ONLY, HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import ProjectMemberSerializer, ProjectOwnerRateSerializer
 from ..services.members import (
     authorize_member_update,
@@ -17,7 +16,6 @@ from ..services.projects import get_accessible_projects
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework.views import APIView
 from ..models import ProjectMember, ProjectOwnerRate
-from core.views import PermissionCodeByMethodMixin
 
 
 @extend_schema(tags=["member"])
@@ -150,19 +148,14 @@ class ProjectMemberDetailView(PermissionCodeByMethodMixin, generics.RetrieveUpda
 )
 class ProjectOwnerRateView(APIView):
     serializer_class = ProjectOwnerRateSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = OWNER_ONLY
 
-    def _get_project(self, request, project_id):
+    def patch(self, request, project_id):
         project = get_object_or_404(
             get_accessible_projects(request.user),
             pk=project_id,
         )
-        if project.owner_id != request.user.id:
-            raise PermissionDenied("errors.project.not_owner")
-        return project
-
-    def patch(self, request, project_id):
-        project = self._get_project(request, project_id)
         serializer = ProjectOwnerRateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 

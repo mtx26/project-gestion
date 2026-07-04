@@ -6,7 +6,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from ..models import Invitation
-from ..permissions import HasProjectPermission
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import (
     InvitationAcceptSerializer,
     InvitationCreateSerializer,
@@ -14,7 +14,7 @@ from ..serializers import (
 )
 from ..services.invitations import get_project_invitations
 from ..services.projects import get_accessible_projects
-from core.views import PermissionCodeByMethodMixin, SoftDeleteDestroyMixin
+from core.views import SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["member"])

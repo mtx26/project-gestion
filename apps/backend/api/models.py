@@ -486,12 +486,12 @@ class TimeEntryQuerySet(models.QuerySet):
     def accessible_to(self, user):
         return self.filter(project__in=Project.objects.accessible_to(user))
 
-    def visible_to(self, user, project):
+    def own_unless_can_view_all(self, user, project):
         """Restricts to `user`'s own entries unless they hold `time_entry.view_all`
         on `project`."""
-        from .services.permissions import has_project_permission
+        from .authorization import ProjectAuthorization
 
-        if has_project_permission(user, project, "time_entry.view_all"):
+        if ProjectAuthorization(user, project).has("time_entry.view_all"):
             return self
         return self.filter(user=user)
 

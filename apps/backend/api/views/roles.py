@@ -6,14 +6,14 @@ from rest_framework.permissions import IsAuthenticated
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Permission, Role
-from ..permissions import HasProjectPermission
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import RoleSerializer, PermissionSerializer
 from ..services.projects import get_accessible_projects
 from ..services.roles import (
     get_project_deleted_roles,
     get_project_roles,
 )
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 @extend_schema(tags=["roles"])
@@ -102,14 +102,14 @@ class RoleDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generi
             "Retourne les rôles supprimés d'un projet.\n\n"
             "- Recherche disponible : `search` sur `name` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
-            "- Permission requise : `role.view`."
+            "- Permission requise : `role.restore`."
         ),
     )
 )
 class RoleTrashListView(generics.ListAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "role.view"
+    permission_code = "role.restore"
     search_fields = ["name", "description"]
 
     def get_queryset(self):

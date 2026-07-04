@@ -10,7 +10,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import FinancialEntry
-from ..permissions import HasProjectPermission
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import (
     FinancialEntryChartQuerySerializer,
     FinancialEntryChartSerializer,
@@ -23,7 +23,7 @@ from ..services.financial_entries import (
 )
 from ..services.projects import get_accessible_projects
 from ..utils import FolderScopedFilterSet, StableOrderingFilter
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class FinancialEntryFilter(FolderScopedFilterSet):

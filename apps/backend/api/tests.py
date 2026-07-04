@@ -5431,14 +5431,20 @@ class RoleTrashRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_role_names(response, ["Deleted role"])
 
-    def test_member_with_role_view_can_list_deleted_roles(self):
-        self.given_member_authenticated(["role.view"])
+    def test_member_with_role_restore_can_list_deleted_roles(self):
+        self.given_member_authenticated(["role.restore"])
 
         response = self.when_list_deleted_roles()
 
         self.assert_ok(response)
         self.assert_visible_role_names(response, ["Deleted role"])
 
+    def test_member_with_role_view_only_cannot_list_deleted_roles(self):
+        self.given_member_authenticated(["role.view"])
+
+        response = self.when_list_deleted_roles()
+
+        self.assert_forbidden(response)
 
     def test_member_without_role_view_cannot_list_deleted_roles(self):
         self.given_member_authenticated([])
@@ -5564,17 +5570,18 @@ class DeletedRoleRevokesPermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
     def test_has_project_permission_returns_false_for_deleted_role(self):
-        from .services.permissions import get_project_permission_codes, has_project_permission
+        from .authorization import ProjectAuthorization
 
-        self.assertFalse(has_project_permission(self.member, self.project, "task.view"))
-        self.assertEqual(get_project_permission_codes(self.member, self.project), [])
+        auth = ProjectAuthorization(self.member, self.project)
+        self.assertFalse(auth.has("task.view"))
+        self.assertEqual(auth.codes(), [])
 
     def test_get_project_permission_codes_map_excludes_deleted_role(self):
-        from .services.permissions import get_project_permission_codes_map
+        from .authorization import ProjectAuthorizationMap
 
-        codes_by_project = get_project_permission_codes_map(self.member, [self.project])
+        permission_map = ProjectAuthorizationMap(self.member, [self.project])
 
-        self.assertEqual(codes_by_project[self.project.id], [])
+        self.assertEqual(permission_map.codes_for(self.project), [])
 
 
 class ProjectMemberRoutePermissionTests(ProjectApiTestCase):
@@ -5806,6 +5813,57 @@ class ProjectMemberDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
         self.other_project_member.refresh_from_db()
         self.assertIsNone(self.other_project_member.deleted_at)
+
+
+class ProjectOwnerRateRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+        self.url = f"/api/projects/{self.project.id}/owner-rate/"
+
+    def when_patch_owner_rate(self, payload):
+        return self.api_patch(self.url, payload)
+
+    def test_anonymous_cannot_patch_owner_rate(self):
+        response = self.when_patch_owner_rate({"hourly_rate": "60.00"})
+
+        self.assert_unauthorized(response)
+
+    def test_owner_can_patch_owner_rate(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_owner_rate({"hourly_rate": "60.00"})
+
+        self.assert_ok(response)
+        self.assertEqual(self.response_data(response)["hourly_rate"], "60.00")
+
+    def test_member_cannot_patch_owner_rate(self):
+        self.given_member_authenticated(["member.edit", "member.edit_rates"])
+
+        response = self.when_patch_owner_rate({"hourly_rate": "60.00"})
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_patch_owner_rate(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_patch_owner_rate({"hourly_rate": "60.00"})
+
+        self.assert_forbidden(response)
+
+    def test_owner_cannot_patch_owner_rate_of_another_project(self):
+        self.given_authenticated(self.owner)
+        self.url = f"/api/projects/{self.other_project.id}/owner-rate/"
+
+        response = self.when_patch_owner_rate({"hourly_rate": "60.00"})
+
+        self.assert_forbidden(response)
+
+    def test_patch_rejects_missing_hourly_rate(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_owner_rate({})
+
+        self.assert_bad_request(response)
 
 
 class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):

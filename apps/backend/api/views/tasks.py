@@ -10,12 +10,12 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Task
-from ..permissions import HasProjectPermission
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import TaskSerializer
 from ..services.projects import get_accessible_projects
 from ..services.tasks import get_project_deleted_tasks, get_project_tasks
 from ..utils import FolderScopedFilterSet, StableOrderingFilter
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class TaskFilter(FolderScopedFilterSet):

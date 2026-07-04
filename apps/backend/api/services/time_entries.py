@@ -24,7 +24,7 @@ def get_project_time_entries(user, project_id):
     `time_entry.view_all`, and annotated for `TimeEntryFilter` (payment_status,
     include_paid) and for `compute_time_entry_stats`."""
     project = get_object_or_404(Project.objects.accessible_to(user), pk=project_id)
-    queryset = get_project_time_entries_base(user, project_id).visible_to(user, project)
+    queryset = get_project_time_entries_base(user, project_id).own_unless_can_view_all(user, project)
     return queryset.with_financial_totals()
 
 

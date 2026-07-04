@@ -12,7 +12,7 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..utils import FolderScopedFilterSet, StableOrderingFilter
 
 from ..models import ExpenseRequest
-from ..permissions import HasProjectPermission
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import ExpenseRequestSerializer
 from ..services.expense_requests import (
     approve_expense_request,
@@ -21,7 +21,7 @@ from ..services.expense_requests import (
     reject_expense_request,
 )
 from ..services.projects import get_accessible_projects
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
 class ExpenseRequestFilter(FolderScopedFilterSet):

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from functools import cached_property
 
 import django_filters
 from django.db.models import F, Q
@@ -11,10 +12,9 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import TimeEntry
-from ..permissions import HasProjectPermission
+from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import TimeEntryPaymentCorrectionSerializer, TimeEntryPaymentSerializer, TimeEntrySerializer
 from ..services.folders import get_descendant_folder_ids
-from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
 from ..services.time_entries import (
     compute_time_entry_stats,
@@ -24,7 +24,7 @@ from ..services.time_entries import (
     get_project_time_entries_base,
 )
 from ..utils import FolderScopedFilterSet
-from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
+from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 PAYMENT_STATUS_CHOICES = [
     ("all", "all"),
@@ -236,8 +236,7 @@ class TimeEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, g
                 get_accessible_projects(self.request.user),
                 pk=self.kwargs["project_id"],
             )
-            if not has_project_permission(self.request.user, project, "time_entry.view_all"):
-                queryset = queryset.filter(user=self.request.user)
+            queryset = queryset.own_unless_can_view_all(self.request.user, project)
 
         return queryset
 
@@ -278,9 +277,13 @@ class TimeEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, g
     ),
 )
 class TimeEntryPaymentView(generics.GenericAPIView):
-    serializer_class = TimeEntryPaymentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "time_entry.pay"
+
+    def get_serializer_class(self):
+        if self.request.method == "PATCH":
+            return TimeEntryPaymentCorrectionSerializer
+        return TimeEntryPaymentSerializer
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -288,10 +291,14 @@ class TimeEntryPaymentView(generics.GenericAPIView):
 
         return get_project_time_entries_base(self.request.user, self.kwargs["project_id"])
 
+    @cached_property
+    def time_entry(self):
+        return self.get_object()
+
     def get_serializer_context(self):
         context = super().get_serializer_context()
         if not getattr(self, "swagger_fake_view", False):
-            context["time_entry"] = self.get_object()
+            context["time_entry"] = self.time_entry
         return context
 
     def post(self, request, project_id, pk):
@@ -301,10 +308,10 @@ class TimeEntryPaymentView(generics.GenericAPIView):
         return Response(self.get_serializer(payment).data, status=status.HTTP_201_CREATED)
 
     def patch(self, request, project_id, pk):
-        serializer = TimeEntryPaymentCorrectionSerializer(data=request.data, context=self.get_serializer_context())
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         correction = serializer.save()
-        return Response(TimeEntryPaymentCorrectionSerializer(correction, context=self.get_serializer_context()).data)
+        return Response(self.get_serializer(correction).data)
 
 
 @extend_schema(tags=["time entries"])
