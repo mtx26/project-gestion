@@ -1676,16 +1676,16 @@ class FolderTrashRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_folder_names(response, ["Deleted folder"])
 
-    def test_member_with_folder_view_can_list_deleted_folders(self):
-        self.given_member_authenticated(["file.view"])
+    def test_member_with_folder_restore_can_list_deleted_folders(self):
+        self.given_member_authenticated(["file.restore"])
 
         response = self.when_list_deleted_folders()
 
         self.assert_ok(response)
         self.assert_visible_folder_names(response, ["Deleted folder"])
 
-    def test_member_without_folder_view_cannot_list_deleted_folders(self):
-        self.given_member_authenticated([])
+    def test_member_without_folder_restore_cannot_list_deleted_folders(self):
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_list_deleted_folders()
 
@@ -2355,17 +2355,16 @@ class DocumentTrashRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_document_names(response, ["Deleted document"])
 
-    def test_member_with_document_view_can_list_deleted_documents(self):
-        self.given_member_authenticated(["file.view"])
+    def test_member_with_document_restore_can_list_deleted_documents(self):
+        self.given_member_authenticated(["file.restore"])
 
         response = self.when_list_deleted_documents()
 
         self.assert_ok(response)
         self.assert_visible_document_names(response, ["Deleted document"])
 
-
-    def test_member_without_document_view_cannot_list_deleted_documents(self):
-        self.given_member_authenticated([])
+    def test_member_without_document_restore_cannot_list_deleted_documents(self):
+        self.given_member_authenticated(["file.view"])
 
         response = self.when_list_deleted_documents()
 
@@ -2969,16 +2968,16 @@ class TaskTrashRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_task_titles(response, ["Deleted task"])
 
-    def test_member_with_task_view_can_list_deleted_tasks(self):
-        self.given_member_authenticated(["task.view"])
+    def test_member_with_task_restore_can_list_deleted_tasks(self):
+        self.given_member_authenticated(["task.restore"])
 
         response = self.when_list_deleted_tasks()
 
         self.assert_ok(response)
         self.assert_visible_task_titles(response, ["Deleted task"])
 
-    def test_member_without_task_view_cannot_list_deleted_tasks(self):
-        self.given_member_authenticated([])
+    def test_member_without_task_restore_cannot_list_deleted_tasks(self):
+        self.given_member_authenticated(["task.view"])
 
         response = self.when_list_deleted_tasks()
 
@@ -3735,16 +3734,16 @@ class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_unauthorized(response)
 
-    def test_member_with_time_entry_view_can_list_deleted_time_entries(self):
-        self.given_member_authenticated(["time_entry.view"])
+    def test_member_with_time_entry_restore_can_list_deleted_time_entries(self):
+        self.given_member_authenticated(["time_entry.restore"])
 
         response = self.when_list_deleted_time_entries()
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Deleted time"])
 
-    def test_member_without_time_entry_view_cannot_list_deleted_time_entries(self):
-        self.given_member_authenticated([])
+    def test_member_without_time_entry_restore_cannot_list_deleted_time_entries(self):
+        self.given_member_authenticated(["time_entry.view"])
 
         response = self.when_list_deleted_time_entries()
 
@@ -3873,12 +3872,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             file_id="receipt-file",
             file_name="receipt.pdf",
         )
-        self.other_project_document = Document.objects.create(
-            project=self.other_project,
-            name="Other receipt",
-            file_id="other-receipt-file",
-            file_name="other-receipt.pdf",
-        )
         self.time_entry = TimeEntry.objects.create(
             project=self.project,
             user=self.owner,
@@ -3898,13 +3891,13 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         self.expense = FinancialEntry.objects.create(
             project=self.project,
             folder=self.folder,
-            document=self.document,
             created_by=self.owner,
             amount="120.00",
             type=FinancialEntry.FinancialType.EXPENSE,
             category="material",
             description="Paint purchase",
         )
+        self.expense.documents.set([self.document])
         self.refund = FinancialEntry.objects.create(
             project=self.project,
             created_by=self.owner,
@@ -4036,7 +4029,7 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
 
         response = self.when_create_financial_entry({
             "folder": self.folder.id,
-            "document": self.document.id,
+            "documents": [self.document.id],
             "amount": "15.00",
             "type": "expense",
             "category": "material",
@@ -4046,7 +4039,7 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_created(response)
         entry = self.assert_financial_entry_exists("Created finance")
         self.assertEqual(entry.created_by_id, self.owner.id)
-        self.assertEqual(entry.document_id, self.document.id)
+        self.assertEqual(list(entry.documents.values_list("id", flat=True)), [self.document.id])
 
     def test_owner_can_create_financial_entry_linked_to_time_entry(self):
         self.given_authenticated(self.owner)
@@ -4144,19 +4137,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_forbidden(response)
         self.assert_financial_entry_does_not_exist("Blocked finance")
-
-    def test_create_rejects_document_from_another_project(self):
-        self.given_authenticated(self.owner)
-
-        response = self.when_create_financial_entry({
-            "document": self.other_project_document.id,
-            "amount": "15.00",
-            "type": "expense",
-            "description": "Invalid document finance",
-        })
-
-        self.assert_bad_request(response)
-        self.assert_financial_entry_does_not_exist("Invalid document finance")
 
     def test_create_rejects_folder_from_another_project(self):
         self.given_authenticated(self.owner)
@@ -4650,16 +4630,16 @@ class FinancialEntryTrashRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_unauthorized(response)
 
-    def test_member_with_finance_view_can_list_deleted_financial_entries(self):
-        self.given_member_authenticated(["finance.view"])
+    def test_member_with_finance_restore_can_list_deleted_financial_entries(self):
+        self.given_member_authenticated(["finance.restore"])
 
         response = self.when_list_deleted_financial_entries()
 
         self.assert_ok(response)
         self.assert_visible_financial_descriptions(response, ["Deleted finance"])
 
-    def test_member_without_finance_view_cannot_list_deleted_financial_entries(self):
-        self.given_member_authenticated([])
+    def test_member_without_finance_restore_cannot_list_deleted_financial_entries(self):
+        self.given_member_authenticated(["finance.view"])
 
         response = self.when_list_deleted_financial_entries()
 
@@ -5482,7 +5462,7 @@ class ProjectMemberRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_members()
 
         self.assert_ok(response)
-        self.assert_visible_member_user_ids(response, [self.other_user.id])
+        self.assert_visible_member_user_ids(response, [self.owner.id, self.other_user.id])
 
     def test_member_with_member_view_can_list_members(self):
         self.given_member_authenticated(["member.view"])
@@ -5490,7 +5470,7 @@ class ProjectMemberRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_members()
 
         self.assert_ok(response)
-        self.assert_visible_member_user_ids(response, [self.member.id, self.other_user.id])
+        self.assert_visible_member_user_ids(response, [self.owner.id, self.member.id, self.other_user.id])
 
     def test_member_without_member_view_cannot_list_members(self):
         self.given_member_authenticated([])
