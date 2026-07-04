@@ -699,6 +699,14 @@ class FinancialEntry(BaseModel):
                     "amount": "errors.financial_entry.amount_exceeds_time_entry_remaining"
                 })
 
+        if self.time_entry and self.amount is not None and self.type == self.FinancialType.REFUND:
+            paid_amount = self.time_entry.get_paid_amount(exclude_pk=self.pk)
+
+            if self.amount > paid_amount:
+                raise ValidationError({
+                    "amount": "errors.financial_entry.refund_exceeds_time_entry_paid_amount"
+                })
+
 
 class ExpenseRequestQuerySet(models.QuerySet):
     def for_project(self, project_id):

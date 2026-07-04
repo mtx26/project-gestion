@@ -3679,6 +3679,88 @@ class TimeEntryPaymentRoutePermissionTests(ProjectApiTestCase):
         self.assert_bad_request(response)
 
 
+class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
+    """`TimeEntry.get_cost_amount`/`get_paid_amount` (Python, per-instance) and
+    `TimeEntryQuerySet.with_financial_totals` (SQL, for filtering/aggregating across
+    rows) independently implement the same cost/paid formula — see the docstring on
+    `with_financial_totals` for why they can't be unified. This locks them in sync:
+    if a future change to one formula isn't mirrored in the other, this test catches
+    the drift instead of it surfacing as a silent inconsistency between the
+    `payment_status` filter and the displayed `remaining_amount`.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=120,
+            hourly_rate="50.00",
+            description="Formula consistency entry",
+            start_date=timezone.now(),
+        )
+
+    def assert_formulas_match(self):
+        self.entry.refresh_from_db()
+        annotated = TimeEntry.objects.filter(pk=self.entry.pk).with_financial_totals().values(
+            "filter_cost_amount", "filter_paid_amount",
+        ).get()
+
+        self.assertEqual(annotated["filter_cost_amount"], self.entry.get_cost_amount())
+        self.assertEqual(max(annotated["filter_paid_amount"], Decimal("0.00")), self.entry.get_paid_amount())
+        self.assertEqual(
+            max(annotated["filter_cost_amount"] - annotated["filter_paid_amount"], Decimal("0.00")),
+            self.entry.get_remaining_amount(),
+        )
+
+    def test_formulas_match_with_no_payment(self):
+        self.assert_formulas_match()
+
+    def test_formulas_match_with_partial_payment(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.entry,
+            created_by=self.owner,
+            amount=Decimal("40.00"),
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="Main d'oeuvre",
+        )
+
+        self.assert_formulas_match()
+
+    def test_formulas_match_with_payment_and_refund(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.entry,
+            created_by=self.owner,
+            amount=Decimal("40.00"),
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="Main d'oeuvre",
+        )
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.entry,
+            created_by=self.owner,
+            amount=Decimal("15.00"),
+            type=FinancialEntry.FinancialType.REFUND,
+            category="Correction de paiement",
+        )
+
+        self.assert_formulas_match()
+
+    def test_formulas_match_when_fully_paid(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.entry,
+            created_by=self.owner,
+            amount=Decimal("100.00"),
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="Main d'oeuvre",
+        )
+
+        self.assert_formulas_match()
+
+
 class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()
@@ -4096,6 +4178,51 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             "type": "expense",
             "category": "labor",
             "description": "Exact remaining time payment",
+            "time_entry": self.time_entry.id,
+        })
+
+        self.assert_created(response)
+
+    def test_create_rejects_refund_exceeding_time_entry_paid_amount(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.time_entry,
+            created_by=self.owner,
+            amount="25.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Existing time payment",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "amount": "25.01",
+            "type": "refund",
+            "category": "labor",
+            "description": "Refund larger than paid amount",
+            "time_entry": self.time_entry.id,
+        })
+
+        self.assert_bad_request(response)
+        self.assert_financial_entry_does_not_exist("Refund larger than paid amount")
+
+    def test_create_allows_refund_exactly_matching_time_entry_paid_amount(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.time_entry,
+            created_by=self.owner,
+            amount="25.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            category="labor",
+            description="Existing time payment",
+        )
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_financial_entry({
+            "amount": "25.00",
+            "type": "refund",
+            "category": "labor",
+            "description": "Full refund of time payment",
             "time_entry": self.time_entry.id,
         })
 
