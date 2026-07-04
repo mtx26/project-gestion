@@ -2,7 +2,6 @@ from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.db import transaction
-from django.core.exceptions import ValidationError as DjangoValidationError
 from django.utils import timezone
 
 from rest_framework import serializers
@@ -46,18 +45,6 @@ BASE_READ_ONLY_FIELDS = [
     "deleted_at",
     "deleted_by",
 ]
-
-
-class FullCleanModelSerializer(serializers.ModelSerializer):
-    """ModelSerializer whose create()/update() need to trigger `instance.full_clean()`
-    (model-level cross-field validation via `clean()`) and surface failures as DRF
-    ValidationErrors."""
-
-    def full_clean_or_raise(self, instance):
-        try:
-            instance.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
 
 
 class ProjectListSerializer(serializers.ListSerializer):
@@ -263,7 +250,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         return role
 
 
-class FolderSerializer(FullCleanModelSerializer):
+class FolderSerializer(serializers.ModelSerializer):
     is_root = serializers.BooleanField(read_only=True)
     created_by_name = serializers.SerializerMethodField()
 
@@ -296,7 +283,7 @@ class FolderSerializer(FullCleanModelSerializer):
         
     def create(self, validated_data):
         folder = Folder(**validated_data)
-        self.full_clean_or_raise(folder)
+        folder.full_clean()
         folder.save()
         return folder
 
@@ -304,7 +291,7 @@ class FolderSerializer(FullCleanModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        self.full_clean_or_raise(instance)
+        instance.full_clean()
         instance.save()
         return instance
 
@@ -422,7 +409,7 @@ class FolderTargetTreeSerializer(serializers.Serializer):
         return FolderTreeNodeSerializer(roots, many=True).data
 
 
-class DocumentSerializer(FullCleanModelSerializer):
+class DocumentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Document
         fields = [
@@ -450,7 +437,7 @@ class DocumentSerializer(FullCleanModelSerializer):
 
     def create(self, validated_data):
         document = Document(**validated_data)
-        self.full_clean_or_raise(document)
+        document.full_clean()
         document.save()
         return document
 
@@ -458,7 +445,7 @@ class DocumentSerializer(FullCleanModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        self.full_clean_or_raise(instance)
+        instance.full_clean()
         instance.save()
         return instance
 
@@ -496,7 +483,7 @@ class DocumentDownloadSerializer(serializers.Serializer):
         }
 
 
-class TaskSerializer(FullCleanModelSerializer):
+class TaskSerializer(serializers.ModelSerializer):
     folder_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     assigned_to_display_names = serializers.SerializerMethodField()
@@ -571,7 +558,7 @@ class TaskSerializer(FullCleanModelSerializer):
 
         with transaction.atomic():
             task = Task(**validated_data)
-            self.full_clean_or_raise(task)
+            task.full_clean()
             task.save()
             task.assigned_to.set(assigned_to)
             if documents:
@@ -593,7 +580,7 @@ class TaskSerializer(FullCleanModelSerializer):
             for field, value in validated_data.items():
                 setattr(instance, field, value)
 
-            self.full_clean_or_raise(instance)
+            instance.full_clean()
             instance.save()
 
             if assigned_to is not None:
@@ -676,15 +663,12 @@ class InvitationCreateSerializer(serializers.ModelSerializer):
         return normalize_invitation_email(email)
 
     def create(self, validated_data):
-        try:
-            return create_project_invitation(
-                project=self.context["project"],
-                email=validated_data["email"],
-                role=validated_data["role"],
-                invited_by=self.context["request"].user,
-            )
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        return create_project_invitation(
+            project=self.context["project"],
+            email=validated_data["email"],
+            role=validated_data["role"],
+            invited_by=self.context["request"].user,
+        )
 
 
 class InvitationAcceptSerializer(serializers.Serializer):
@@ -693,13 +677,10 @@ class InvitationAcceptSerializer(serializers.Serializer):
     member = ProjectMemberSerializer(read_only=True)
 
     def create(self, validated_data):
-        try:
-            invitation, member = accept_project_invitation(
-                token=validated_data["token"],
-                user=self.context["request"].user,
-            )
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        invitation, member = accept_project_invitation(
+            token=validated_data["token"],
+            user=self.context["request"].user,
+        )
 
         return {
             "invitation": invitation,
@@ -731,7 +712,7 @@ class NotificationSerializer(serializers.ModelSerializer):
         ]
 
 
-class TimeEntrySerializer(FullCleanModelSerializer):
+class TimeEntrySerializer(serializers.ModelSerializer):
     cost_amount = serializers.SerializerMethodField()
     paid_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
@@ -821,7 +802,7 @@ class TimeEntrySerializer(FullCleanModelSerializer):
                 if owner_rate is not None:
                     time_entry.hourly_rate = owner_rate.hourly_rate
 
-        self.full_clean_or_raise(time_entry)
+        time_entry.full_clean()
 
         time_entry.save()
         if documents:
@@ -833,7 +814,7 @@ class TimeEntrySerializer(FullCleanModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        self.full_clean_or_raise(instance)
+        instance.full_clean()
 
         instance.save()
         if documents is not None:
@@ -990,7 +971,7 @@ class TimeEntryPaymentCorrectionSerializer(serializers.Serializer):
         return FinancialEntrySerializer(payment["financial_entry"]).data
 
 
-class FinancialEntrySerializer(FullCleanModelSerializer):
+class FinancialEntrySerializer(serializers.ModelSerializer):
     folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
@@ -1058,7 +1039,7 @@ class FinancialEntrySerializer(FullCleanModelSerializer):
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
         financial_entry = FinancialEntry(**validated_data)
-        self.full_clean_or_raise(financial_entry)
+        financial_entry.full_clean()
 
         financial_entry.save()
         if documents:
@@ -1070,7 +1051,7 @@ class FinancialEntrySerializer(FullCleanModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        self.full_clean_or_raise(instance)
+        instance.full_clean()
 
         instance.save()
         if documents is not None:
@@ -1078,7 +1059,7 @@ class FinancialEntrySerializer(FullCleanModelSerializer):
         return instance
 
 
-class ExpenseRequestSerializer(FullCleanModelSerializer):
+class ExpenseRequestSerializer(serializers.ModelSerializer):
     folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     requested_by_name = serializers.SerializerMethodField()
@@ -1142,7 +1123,7 @@ class ExpenseRequestSerializer(FullCleanModelSerializer):
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
         expense_request = ExpenseRequest(**validated_data)
-        self.full_clean_or_raise(expense_request)
+        expense_request.full_clean()
 
         expense_request.save()
         if documents:
@@ -1154,7 +1135,7 @@ class ExpenseRequestSerializer(FullCleanModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        self.full_clean_or_raise(instance)
+        instance.full_clean()
 
         instance.save()
         if documents is not None:
