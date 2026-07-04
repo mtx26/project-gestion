@@ -4182,6 +4182,8 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_created(response)
+        entry = self.assert_financial_entry_exists("Exact remaining time payment")
+        self.assertEqual(entry.time_entry_id, self.time_entry.id)
 
     def test_create_rejects_refund_exceeding_time_entry_paid_amount(self):
         FinancialEntry.objects.create(
@@ -4227,8 +4229,7 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         })
 
         self.assert_created(response)
-        entry = self.assert_financial_entry_exists("Exact remaining time payment")
-        self.assertEqual(entry.time_entry_id, self.time_entry.id)
+        self.assert_financial_entry_exists("Full refund of time payment")
 
     def test_member_with_finance_edit_can_create_financial_entry(self):
         self.given_member_authenticated(["finance.edit"])
@@ -5839,7 +5840,7 @@ class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
             project=self.project,
             title="Approved request",
             amount="100.00",
-            status=ExpenseRequest.STATUS_APPROVED,
+            status=ExpenseRequest.Status.APPROVED,
             requested_by=self.owner,
             approved_by=self.owner,
         )
@@ -5951,7 +5952,7 @@ class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
         self.assert_created(response)
         req = self.assert_request_exists("Owner request")
         self.assertEqual(req.requested_by_id, self.owner.id)
-        self.assertEqual(req.status, ExpenseRequest.STATUS_PENDING)
+        self.assertEqual(req.status, ExpenseRequest.Status.PENDING)
 
     def test_member_with_edit_can_create_expense_request(self):
         self.given_member_authenticated(["expense_request.view", "expense_request.edit"])
@@ -6034,7 +6035,7 @@ class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_unauthorized(response)
         self.pending_request.refresh_from_db()
-        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_PENDING)
+        self.assertEqual(self.pending_request.status, ExpenseRequest.Status.PENDING)
 
     def test_owner_can_approve_pending_expense_request(self):
         self.given_authenticated(self.owner)
@@ -6043,7 +6044,7 @@ class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.pending_request.refresh_from_db()
-        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_APPROVED)
+        self.assertEqual(self.pending_request.status, ExpenseRequest.Status.APPROVED)
         self.assertEqual(self.pending_request.approved_by_id, self.owner.id)
         self.assertIsNotNone(self.pending_request.approved_at)
 
@@ -6073,7 +6074,7 @@ class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_ok(response)
         self.pending_request.refresh_from_db()
-        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_APPROVED)
+        self.assertEqual(self.pending_request.status, ExpenseRequest.Status.APPROVED)
 
     def test_member_without_approve_cannot_approve(self):
         self.given_member_authenticated(["expense_request.view"])
@@ -6082,7 +6083,7 @@ class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_forbidden(response)
         self.pending_request.refresh_from_db()
-        self.assertEqual(self.pending_request.status, ExpenseRequest.STATUS_PENDING)
+        self.assertEqual(self.pending_request.status, ExpenseRequest.Status.PENDING)
 
     def test_cannot_approve_already_approved_request(self):
         self.given_authenticated(self.owner)

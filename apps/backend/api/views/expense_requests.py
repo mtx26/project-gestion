@@ -139,7 +139,7 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
 
         return get_project_expense_requests(
             self.request.user, self.kwargs["project_id"],
-        ).filter(status=ExpenseRequest.STATUS_PENDING)
+        ).filter(status=ExpenseRequest.Status.PENDING)
 
     def post(self, request, project_id, pk):
         expense_request = self.get_object()
@@ -168,7 +168,7 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
 
         return get_project_expense_requests(
             self.request.user, self.kwargs["project_id"],
-        ).filter(status=ExpenseRequest.STATUS_PENDING)
+        ).filter(status=ExpenseRequest.Status.PENDING)
 
     def post(self, request, project_id, pk):
         expense_request = self.get_object()

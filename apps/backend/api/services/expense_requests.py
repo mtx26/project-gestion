@@ -15,7 +15,7 @@ def get_project_deleted_expense_requests(user, project_id):
 def approve_expense_request(expense_request, approved_by):
     """Approve a pending expense request and create the matching expense entry."""
     with transaction.atomic():
-        expense_request.status = ExpenseRequest.STATUS_APPROVED
+        expense_request.status = ExpenseRequest.Status.APPROVED
         expense_request.approved_by = approved_by
         expense_request.approved_at = timezone.now()
         expense_request.save()
@@ -37,6 +37,6 @@ def approve_expense_request(expense_request, approved_by):
 
 
 def reject_expense_request(expense_request):
-    expense_request.status = ExpenseRequest.STATUS_REJECTED
+    expense_request.status = ExpenseRequest.Status.REJECTED
     expense_request.save()
     return expense_request

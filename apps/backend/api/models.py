@@ -730,14 +730,10 @@ class DeletedExpenseRequestManager(DeletedManagerMixin, models.Manager.from_quer
 
 
 class ExpenseRequest(BaseModel):
-    STATUS_PENDING = "pending"
-    STATUS_APPROVED = "approved"
-    STATUS_REJECTED = "rejected"
-    STATUS_CHOICES = [
-        (STATUS_PENDING, "En attente"),
-        (STATUS_APPROVED, "Approuve"),
-        (STATUS_REJECTED, "Refuse"),
-    ]
+    class Status(models.TextChoices):
+        PENDING = "pending", "En attente"
+        APPROVED = "approved", "Approuve"
+        REJECTED = "rejected", "Refuse"
 
     objects = ActiveExpenseRequestManager()
     deleted_objects = DeletedExpenseRequestManager()
@@ -755,7 +751,7 @@ class ExpenseRequest(BaseModel):
         related_name="expense_requests_docs",
     )
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests")
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING, db_index=True)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING, db_index=True)
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_made")
     approved_at = models.DateTimeField(null=True, blank=True)
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name="expense_requests_approved")
