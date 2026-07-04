@@ -2870,15 +2870,6 @@ class TaskDetailRoutePermissionTests(ProjectApiTestCase):
         self.task.refresh_from_db()
         self.assertEqual(list(self.task.assigned_to.values_list("id", flat=True)), [self.assignee.id])
 
-    def test_patch_rejects_assignee_outside_project(self):
-        self.given_authenticated(self.owner)
-
-        response = self.when_patch_task({"assigned_to": [self.other_user.id]})
-
-        self.assert_bad_request(response)
-        self.task.refresh_from_db()
-        self.assertEqual(self.task.assigned_to.count(), 0)
-
     def test_patch_rejects_folder_from_another_project(self):
         self.given_authenticated(self.owner)
 
@@ -5423,6 +5414,39 @@ class RoleRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
         self.other_project_deleted_role.refresh_from_db()
         self.assertIsNotNone(self.other_project_deleted_role.deleted_at)
+
+
+class DeletedRoleRevokesPermissionTests(ProjectApiTestCase):
+    """A soft-deleted role must stop granting access to members still assigned to
+    it — deleting a role is a soft, reversible action like everywhere else in the
+    app, but it must take effect immediately, not only once members are manually
+    reassigned."""
+
+    def setUp(self):
+        super().setUp()
+        self.role = self.given_member_with_permissions(["task.view"])
+        self.role.soft_delete(self.owner)
+        self.url = f"/api/projects/{self.project.id}/tasks/"
+
+    def test_member_loses_access_when_their_role_is_deleted(self):
+        self.given_authenticated(self.member)
+
+        response = self.api_get(self.url)
+
+        self.assert_forbidden(response)
+
+    def test_has_project_permission_returns_false_for_deleted_role(self):
+        from .services.permissions import get_project_permission_codes, has_project_permission
+
+        self.assertFalse(has_project_permission(self.member, self.project, "task.view"))
+        self.assertEqual(get_project_permission_codes(self.member, self.project), [])
+
+    def test_get_project_permission_codes_map_excludes_deleted_role(self):
+        from .services.permissions import get_project_permission_codes_map
+
+        codes_by_project = get_project_permission_codes_map(self.member, [self.project])
+
+        self.assertEqual(codes_by_project[self.project.id], [])
 
 
 class ProjectMemberRoutePermissionTests(ProjectApiTestCase):

@@ -95,6 +95,7 @@ class PermissionQuerySet(models.QuerySet):
             rolepermission__role__projectmember__project=project,
             rolepermission__role__projectmember__user=user,
             rolepermission__deleted_at__isnull=True,
+            rolepermission__role__deleted_at__isnull=True,
             rolepermission__role__projectmember__deleted_at__isnull=True,
         ).distinct()
 

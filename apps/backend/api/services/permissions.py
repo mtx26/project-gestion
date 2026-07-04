@@ -93,6 +93,7 @@ def get_project_permission_codes_map(user, projects):
             rolepermission__role__projectmember__project_id__in=member_ids,
             rolepermission__role__projectmember__user=user,
             rolepermission__deleted_at__isnull=True,
+            rolepermission__role__deleted_at__isnull=True,
             rolepermission__role__projectmember__deleted_at__isnull=True,
         ).values_list("rolepermission__role__projectmember__project_id", "code").distinct()
 
