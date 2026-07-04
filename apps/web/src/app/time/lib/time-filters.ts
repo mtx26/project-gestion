@@ -4,7 +4,7 @@ import { queryKeys } from "@project-gestion/query-keys";
 import { detectPreset, getPeriodLabel } from "@/lib/period-utils";
 
 export type UserFilter = "mine" | "all" | `member-${number}`;
-export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid";
+export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid" | "not_paid";
 
 export function parseUserFilter(value: string | null, fallback: UserFilter, canViewAllTime: boolean): UserFilter {
   if (value === "all" && canViewAllTime) return "all";
@@ -17,7 +17,7 @@ export function parseUserFilter(value: string | null, fallback: UserFilter, canV
 }
 
 export function parsePaymentStatusFilter(value: string | null): PaymentStatusFilter {
-  if (value === "unpaid" || value === "partial" || value === "paid") return value;
+  if (value === "unpaid" || value === "partial" || value === "paid" || value === "not_paid") return value;
   return "all";
 }
 
@@ -41,7 +41,7 @@ export function getSelectedUserId(filter: UserFilter, currentUserId: number | nu
   return Number(filter.replace("member-", ""));
 }
 
-export function getPaymentStatus(entry: TimeEntry): Exclude<PaymentStatusFilter, "all"> {
+export function getPaymentStatus(entry: TimeEntry): "paid" | "partial" | "unpaid" {
   if (Number(entry.remaining_amount) <= 0) return "paid";
   if (Number(entry.paid_amount) > 0) return "partial";
   return "unpaid";
@@ -50,10 +50,11 @@ export function getPaymentStatus(entry: TimeEntry): Exclude<PaymentStatusFilter,
 export function getPaymentStatusLabel(status: Exclude<PaymentStatusFilter, "all">): string {
   if (status === "paid") return "Paye";
   if (status === "partial") return "Partiel";
+  if (status === "not_paid") return "Non regle";
   return "A payer";
 }
 
-export function getTimeEntryCardClassName(status: Exclude<PaymentStatusFilter, "all">): string {
+export function getTimeEntryCardClassName(status: "paid" | "partial" | "unpaid"): string {
   const base = "rounded-md border bg-card p-4 text-sm";
   if (status === "paid") return `${base} border-l-4 border-l-emerald-500`;
   if (status === "partial") return `${base} border-l-4 border-l-amber-500`;

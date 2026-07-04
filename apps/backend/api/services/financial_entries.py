@@ -10,6 +10,14 @@ ZERO_MONEY = Decimal("0.00")
 MONEY_QUANTIZE = Decimal("0.01")
 
 
+def get_project_financial_entries(user, project_id):
+    return FinancialEntry.objects.for_project(project_id).accessible_to(user).with_relations()
+
+
+def get_project_deleted_financial_entries(user, project_id):
+    return FinancialEntry.deleted_objects.for_project(project_id).accessible_to(user).with_relations()
+
+
 def build_financial_entry_chart(entries, *, group_by, start_date, end_date):
     """Build totals/series/categories buckets from a FinancialEntry `.values()` queryset."""
     totals = _empty_bucket()

@@ -1,13 +1,10 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics, status
-from rest_framework.filters import SearchFilter
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-import django_filters
-from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Document, Folder
@@ -17,15 +14,14 @@ from ..serializers import (
     DocumentSerializer,
     DocumentUploadSerializer,
 )
+from ..services.documents import get_project_deleted_documents, get_project_documents
 from ..services.projects import get_accessible_projects
 from ..services.storage import upload_document_file
-from ..utils import FolderScopedFilterMixin
+from ..utils import FolderScopedFilterSet
 from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class DocumentFilter(FolderScopedFilterMixin, django_filters.FilterSet):
-    folder = django_filters.NumberFilter(method="filter_folder")
-
+class DocumentFilter(FolderScopedFilterSet):
     class Meta:
         model = Document
         fields = ["mime_type"]
@@ -55,7 +51,6 @@ class DocumentListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPI
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_codes_by_method = {"GET": "file.view", "POST": "file.edit"}
     parser_classes = [MultiPartParser]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DocumentFilter
     search_fields = ["name", "description", "file_name", "mime_type"]
 
@@ -63,10 +58,7 @@ class DocumentListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPI
         if getattr(self, "swagger_fake_view", False):
             return Document.objects.none()
 
-        return Document.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).order_by("name", "id")
+        return get_project_documents(self.request.user, self.kwargs["project_id"]).order_by("name", "id")
 
     def create(self, request, *args, **kwargs):
         uploaded_file = request.FILES.get("file")
@@ -152,10 +144,7 @@ class DocumentDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, ge
         if getattr(self, "swagger_fake_view", False):
             return Document.objects.none()
 
-        return Document.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        )
+        return get_project_documents(self.request.user, self.kwargs["project_id"])
 
 
 @extend_schema(tags=["documents"])
@@ -174,10 +163,7 @@ class DocumentDownloadView(generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Document.objects.none()
 
-        return Document.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        )
+        return get_project_documents(self.request.user, self.kwargs["project_id"])
 
     def get(self, request, project_id, pk):
         document = self.get_object()
@@ -203,7 +189,6 @@ class DocumentTrashListView(generics.ListAPIView):
     serializer_class = DocumentSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "file.restore"
-    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = DocumentFilter
     search_fields = ["name", "description", "file_name", "mime_type"]
 
@@ -211,10 +196,7 @@ class DocumentTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Document.deleted_objects.none()
 
-        return Document.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).order_by("name", "id")
+        return get_project_deleted_documents(self.request.user, self.kwargs["project_id"]).order_by("name", "id")
 
 
 @extend_schema(tags=["documents"])
@@ -234,7 +216,4 @@ class DocumentRestoreView(RestoreModelMixin, generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Document.deleted_objects.none()
 
-        return Document.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        )
+        return get_project_deleted_documents(self.request.user, self.kwargs["project_id"])

@@ -1,6 +1,5 @@
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -32,7 +31,6 @@ from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDelet
 class ProjectListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
-    filter_backends = [SearchFilter]
     search_fields = ["name", "description"]
 
     def get_queryset(self):
@@ -114,7 +112,6 @@ class ProjectRestoreView(RestoreModelMixin, generics.GenericAPIView):
 class ProjectTrashListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = ProjectSerializer
-    filter_backends = [SearchFilter]
     search_fields = ["name", "description"]
 
     def get_queryset(self):

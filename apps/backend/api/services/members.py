@@ -6,19 +6,60 @@ from rest_framework.exceptions import PermissionDenied
 from ..models import ProjectMember, ProjectOwnerRate
 from ..utils import get_user_display_name
 from .permissions import has_project_permission
-from .projects import get_accessible_projects
 
 
 def get_project_members(user, project_id):
-    return ProjectMember.objects.select_related("user__profile", "role").filter(
-        project_id=project_id,
-        project__in=get_accessible_projects(user),
-    ).order_by("id")
+    return ProjectMember.objects.for_project(project_id).accessible_to(user).with_relations().order_by("id")
+
+
+def owner_matches_member_filters(project, request):
+    """Est-ce que la ligne "propriétaire" fictive (voir `build_owner_member_entry`)
+    correspond aux paramètres `user`/`role`/`search` actifs de `ProjectMemberListView` ?
+    Sans ça, cette ligne fictive apparaîtrait toujours, même sous un filtre qui ne la
+    concerne pas.
+
+    À garder synchronisé avec `ProjectMemberListView.filterset_fields`/`search_fields` :
+    ces mêmes paramètres sont revérifiés à la main ici car la ligne fictive n'a pas de
+    ligne `ProjectMember` en base pour que `SearchFilter`/`DjangoFilterBackend` puisse
+    la traiter. Un nouveau filtre ajouté à cette vue doit avoir son équivalent ici,
+    sinon il sera silencieusement ignoré pour cette ligne.
+    """
+    params = request.query_params
+
+    user_param = params.get("user")
+    if user_param and user_param != str(project.owner_id):
+        return False
+
+    if params.get("role"):
+        # La ligne fictive n'a pas de vrai rôle (id sentinelle 0) : aucun filtre
+        # `role` par un vrai id ne peut donc jamais la concerner.
+        return False
+
+    search = params.get("search", "").strip().lower()
+    if search:
+        fields = [
+            project.owner.email,
+            project.owner.first_name,
+            project.owner.last_name,
+            project.owner.username,
+            "Proprietaire",
+        ]
+        if not any(search in (field or "").lower() for field in fields):
+            return False
+
+    return True
 
 
 def build_owner_member_entry(project):
-    """Synthesizes a ProjectMemberSerializer-shaped entry for the project owner,
-    who has no real ProjectMember row unless explicitly added as one."""
+    """Fabrique une entrée au format `ProjectMemberSerializer` pour le propriétaire du
+    projet.
+
+    Le flux applicatif normal (invitations) ne peut jamais créer de vraie ligne
+    `ProjectMember` pour le propriétaire : `create_project_invitation` refuse toute
+    invitation vers son propre email (voir `_is_already_project_member`). Le seul cas
+    où une telle ligne existerait est une création manuelle via le Django admin — d'où
+    la vérification défensive faite par les appelants plutôt qu'une hypothèse
+    "le propriétaire n'a jamais de ligne"."""
     display_name = get_user_display_name(project.owner)
     now = timezone.now().isoformat()
     try:

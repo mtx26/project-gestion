@@ -23,6 +23,8 @@ from core.views import PermissionCodeByMethodMixin, SoftDeleteDestroyMixin
         summary="Lister les invitations d'un projet",
         description=(
             "Retourne les invitations d'un projet.\n\n"
+            "- Filtres disponibles : `role`.\n\n"
+            "- Recherche disponible : `search` sur l'email invité et le nom du rôle.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `member.view`."
         ),
@@ -42,6 +44,8 @@ from core.views import PermissionCodeByMethodMixin, SoftDeleteDestroyMixin
 class InvitationListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_codes_by_method = {"GET": "member.view", "POST": "member.edit"}
+    filterset_fields = ["role"]
+    search_fields = ["email", "role__name"]
 
     def get_serializer_class(self):
         if self.request.method == "POST":

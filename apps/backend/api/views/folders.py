@@ -1,11 +1,9 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
-from rest_framework.filters import SearchFilter
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Document, Folder, Task
@@ -13,7 +11,13 @@ from ..serializers import (
     FolderSerializer,
     FolderTargetTreeSerializer,
     FolderTreeNodeSerializer,
+    FolderTreeQuerySerializer,
     FolderTreeSerializer,
+)
+from ..services.documents import get_project_documents
+from ..services.folders import (
+    get_project_deleted_folders,
+    get_project_folders,
 )
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
@@ -41,7 +45,6 @@ class FolderListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIVi
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_codes_by_method = {"GET": "file.view", "POST": "file.edit"}
-    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["parent_folder"]
     search_fields = ["name", "description"]
 
@@ -49,10 +52,7 @@ class FolderListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIVi
         if getattr(self, "swagger_fake_view", False):
             return Folder.objects.none()
 
-        return Folder.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user)
-        ).select_related("created_by").order_by("name", "id")
+        return get_project_folders(self.request.user, self.kwargs["project_id"]).order_by("name", "id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
@@ -73,6 +73,7 @@ class FolderListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIVi
             "- Permission requise : `file.view`."
         ),
         responses=FolderTreeNodeSerializer(many=True),
+        parameters=[FolderTreeQuerySerializer],
     )
 )
 class FolderTreeView(generics.GenericAPIView):
@@ -82,24 +83,19 @@ class FolderTreeView(generics.GenericAPIView):
     permission_code = "file.view"
 
     def get(self, request, project_id):
-        folders = Folder.objects.filter(
-            project_id=project_id,
-            project__in=get_accessible_projects(request.user),
-        ).select_related("created_by").order_by("name", "id")
+        query_serializer = FolderTreeQuerySerializer(data=request.query_params)
+        query_serializer.is_valid(raise_exception=True)
+        params = query_serializer.validated_data
 
-        include_files = request.query_params.get("include_files", "true") != "false"
-        if include_files:
-            documents = Document.objects.filter(
-                project_id=project_id,
-                project__in=get_accessible_projects(request.user),
-            ).order_by("name", "id")
+        folders = get_project_folders(request.user, project_id).order_by("name", "id")
+
+        if params["include_files"]:
+            documents = get_project_documents(request.user, project_id).order_by("name", "id")
         else:
             documents = Document.objects.none()
 
-        if (
-            request.query_params.get("include_tasks") == "true"
-            and has_project_permission(request.user, get_object_or_404(get_accessible_projects(request.user), pk=project_id), "task.view")
-        ):
+        project = get_object_or_404(get_accessible_projects(request.user), pk=project_id)
+        if params["include_tasks"] and has_project_permission(request.user, project, "task.view"):
             tasks = Task.objects.filter(
                 project_id=project_id,
                 status__in=["todo", "in_progress"],
@@ -190,10 +186,7 @@ class FolderDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, gene
         if getattr(self, "swagger_fake_view", False):
             return Folder.objects.none()
 
-        return Folder.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user)
-        )
+        return get_project_folders(self.request.user, self.kwargs["project_id"])
 
 @extend_schema(tags=["folders"])
 @extend_schema_view(
@@ -212,7 +205,6 @@ class FolderTrashListView(generics.ListAPIView):
     serializer_class = FolderSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "file.restore"
-    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["parent_folder"]
     search_fields = ["name", "description"]
 
@@ -220,10 +212,7 @@ class FolderTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Folder.deleted_objects.none()
 
-        return Folder.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user)
-        ).order_by("name", "id")
+        return get_project_deleted_folders(self.request.user, self.kwargs["project_id"]).order_by("name", "id")
 
 
 @extend_schema(tags=["folders"])
@@ -243,7 +232,4 @@ class FolderRestoreView(RestoreModelMixin, generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Folder.deleted_objects.none()
 
-        return Folder.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user)
-        )
+        return get_project_deleted_folders(self.request.user, self.kwargs["project_id"])

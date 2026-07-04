@@ -8,7 +8,6 @@ from django.utils import timezone
 from rest_framework import serializers
 from drf_spectacular.utils import OpenApiTypes, extend_schema_field
 
-from .services.folders import build_folder_tree
 from .services.permissions import (
     expand_permissions,
     get_project_permission_codes,
@@ -20,6 +19,7 @@ from .services.invitations import (
     normalize_invitation_email,
 )
 from .services.storage import get_document_download_url
+from .utils import get_user_display_name
 
 from .models import (
     Project,
@@ -39,13 +39,6 @@ from .models import (
 )
 
 
-def _get_user_display_name(user):
-    if user is None:
-        return None
-    full_name = user.get_full_name().strip()
-    return full_name or user.username or user.email
-
-
 BASE_READ_ONLY_FIELDS = [
     "id",
     "created_at",
@@ -53,6 +46,18 @@ BASE_READ_ONLY_FIELDS = [
     "deleted_at",
     "deleted_by",
 ]
+
+
+class FullCleanModelSerializer(serializers.ModelSerializer):
+    """ModelSerializer whose create()/update() need to trigger `instance.full_clean()`
+    (model-level cross-field validation via `clean()`) and surface failures as DRF
+    ValidationErrors."""
+
+    def full_clean_or_raise(self, instance):
+        try:
+            instance.full_clean()
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(exc.message_dict) from exc
 
 
 class ProjectListSerializer(serializers.ListSerializer):
@@ -92,9 +97,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         ]
 
     def get_owner_display_name(self, project):
-        owner = project.owner
-        full_name = owner.get_full_name().strip()
-        return full_name or owner.username or owner.email
+        return get_user_display_name(project.owner)
 
     def get_current_user_permission_codes(self, project):
         codes_by_project = self.context.get("permission_codes_by_project")
@@ -193,6 +196,10 @@ class RoleSerializer(serializers.ModelSerializer):
         )
 
 
+class ProjectOwnerRateSerializer(serializers.Serializer):
+    hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+
+
 class ProjectMemberSerializer(serializers.ModelSerializer):
     user_display_name = serializers.SerializerMethodField()
     user_email = serializers.EmailField(source="user.email", read_only=True)
@@ -228,8 +235,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         ]
 
     def get_user_display_name(self, member):
-        full_name = member.user.get_full_name().strip()
-        return full_name or member.user.username or member.user.email
+        return get_user_display_name(member.user)
 
     def get_user_picture_url(self, member):
         try:
@@ -257,7 +263,7 @@ class ProjectMemberSerializer(serializers.ModelSerializer):
         return role
 
 
-class FolderSerializer(serializers.ModelSerializer):
+class FolderSerializer(FullCleanModelSerializer):
     is_root = serializers.BooleanField(read_only=True)
     created_by_name = serializers.SerializerMethodField()
 
@@ -286,14 +292,11 @@ class FolderSerializer(serializers.ModelSerializer):
         ]
 
     def get_created_by_name(self, obj):
-        return _get_user_display_name(obj.created_by)
+        return get_user_display_name(obj.created_by)
         
     def create(self, validated_data):
         folder = Folder(**validated_data)
-        try:
-            folder.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(folder)
         folder.save()
         return folder
 
@@ -301,12 +304,77 @@ class FolderSerializer(serializers.ModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        try:
-            instance.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(instance)
         instance.save()
         return instance
+
+
+def _build_document_tree_node(document):
+    return {
+        "type": "document",
+        "id": document.id,
+        "name": document.name,
+        "description": document.description,
+        "file_name": document.file_name,
+        "file_size": document.file_size,
+        "mime_type": document.mime_type,
+    }
+
+
+def _build_task_tree_node(task):
+    return {
+        "type": "task",
+        "id": task.id,
+        "name": task.title,
+        "description": task.description,
+        "folder": task.folder_id,
+        "status": task.status,
+        "priority": task.priority,
+        "end_date": task.end_date.isoformat() if task.end_date else None,
+    }
+
+
+def build_folder_tree(folders, documents=None, tasks=None):
+    """Transforms flat `folders`/`documents`/`tasks` querysets into the nested tree
+    structure `FolderTreeNodeSerializer` expects. Pure data reshaping (no DB access,
+    no business rule), so it lives with the serializers rather than in a service."""
+    folder_nodes = {}
+    roots = []
+
+    for folder in folders:
+        created_by_name = get_user_display_name(getattr(folder, "created_by", None))
+        folder_nodes[folder.id] = {
+            "type": "folder",
+            "id": folder.id,
+            "name": folder.name,
+            "description": folder.description,
+            "color": folder.color,
+            "icon": folder.icon,
+            "created_by_name": created_by_name,
+            "children": [],
+        }
+
+    for folder in folders:
+        node = folder_nodes[folder.id]
+        parent_id = folder.parent_folder_id
+        if parent_id and parent_id in folder_nodes:
+            folder_nodes[parent_id]["children"].append(node)
+        else:
+            roots.append(node)
+
+    for items, build_fn in [
+        (tasks or [], _build_task_tree_node),
+        (documents or [], _build_document_tree_node),
+    ]:
+        for obj in items:
+            node = build_fn(obj)
+            parent_id = getattr(obj, "folder_id", None)
+            if parent_id and parent_id in folder_nodes:
+                folder_nodes[parent_id]["children"].append(node)
+            else:
+                roots.append(node)
+
+    return roots
 
 
 class FolderTreeNodeSerializer(serializers.Serializer):
@@ -330,6 +398,11 @@ class FolderTreeNodeSerializer(serializers.Serializer):
     )
 
 
+class FolderTreeQuerySerializer(serializers.Serializer):
+    include_files = serializers.BooleanField(required=False, default=True)
+    include_tasks = serializers.BooleanField(required=False, default=False)
+
+
 class FolderTreeSerializer(serializers.Serializer):
     def to_representation(self, instance):
         roots = build_folder_tree(
@@ -349,7 +422,7 @@ class FolderTargetTreeSerializer(serializers.Serializer):
         return FolderTreeNodeSerializer(roots, many=True).data
 
 
-class DocumentSerializer(serializers.ModelSerializer):
+class DocumentSerializer(FullCleanModelSerializer):
     class Meta:
         model = Document
         fields = [
@@ -377,10 +450,7 @@ class DocumentSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         document = Document(**validated_data)
-        try:
-            document.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(document)
         document.save()
         return document
 
@@ -388,10 +458,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        try:
-            instance.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(instance)
         instance.save()
         return instance
 
@@ -429,7 +496,7 @@ class DocumentDownloadSerializer(serializers.Serializer):
         }
 
 
-class TaskSerializer(serializers.ModelSerializer):
+class TaskSerializer(FullCleanModelSerializer):
     folder_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
     assigned_to_display_names = serializers.SerializerMethodField()
@@ -476,10 +543,10 @@ class TaskSerializer(serializers.ModelSerializer):
         return obj.folder.name if obj.folder_id else None
 
     def get_created_by_name(self, obj):
-        return _get_user_display_name(obj.created_by)
+        return get_user_display_name(obj.created_by)
 
     def get_assigned_to_display_names(self, obj):
-        return [_get_user_display_name(u) for u in obj.assigned_to.all()]
+        return [get_user_display_name(u) for u in obj.assigned_to.all()]
 
     def get_documents_info(self, obj):
         return [
@@ -504,12 +571,7 @@ class TaskSerializer(serializers.ModelSerializer):
 
         with transaction.atomic():
             task = Task(**validated_data)
-
-            try:
-                task.full_clean()
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.message_dict) from exc
-
+            self.full_clean_or_raise(task)
             task.save()
             task.assigned_to.set(assigned_to)
             if documents:
@@ -531,11 +593,7 @@ class TaskSerializer(serializers.ModelSerializer):
             for field, value in validated_data.items():
                 setattr(instance, field, value)
 
-            try:
-                instance.full_clean()
-            except DjangoValidationError as exc:
-                raise serializers.ValidationError(exc.message_dict) from exc
-
+            self.full_clean_or_raise(instance)
             instance.save()
 
             if assigned_to is not None:
@@ -673,7 +731,7 @@ class NotificationSerializer(serializers.ModelSerializer):
         ]
 
 
-class TimeEntrySerializer(serializers.ModelSerializer):
+class TimeEntrySerializer(FullCleanModelSerializer):
     cost_amount = serializers.SerializerMethodField()
     paid_amount = serializers.SerializerMethodField()
     remaining_amount = serializers.SerializerMethodField()
@@ -737,7 +795,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         return obj.task.title if obj.task_id else None
 
     def get_user_display_name(self, obj):
-        return _get_user_display_name(obj.user)
+        return get_user_display_name(obj.user)
 
     def get_documents_info(self, obj):
         return [
@@ -763,10 +821,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
                 if owner_rate is not None:
                     time_entry.hourly_rate = owner_rate.hourly_rate
 
-        try:
-            time_entry.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(time_entry)
 
         time_entry.save()
         if documents:
@@ -778,10 +833,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        try:
-            instance.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(instance)
 
         instance.save()
         if documents is not None:
@@ -938,7 +990,7 @@ class TimeEntryPaymentCorrectionSerializer(serializers.Serializer):
         return FinancialEntrySerializer(payment["financial_entry"]).data
 
 
-class FinancialEntrySerializer(serializers.ModelSerializer):
+class FinancialEntrySerializer(FullCleanModelSerializer):
     folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()
@@ -990,11 +1042,11 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         return obj.task.title if obj.task_id else None
 
     def get_created_by_name(self, obj):
-        return _get_user_display_name(obj.created_by)
+        return get_user_display_name(obj.created_by)
 
     def get_time_entry_user_name(self, obj):
         if obj.time_entry_id and obj.time_entry:
-            return _get_user_display_name(obj.time_entry.user)
+            return get_user_display_name(obj.time_entry.user)
         return None
 
     def get_documents_info(self, obj):
@@ -1006,11 +1058,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
         financial_entry = FinancialEntry(**validated_data)
-
-        try:
-            financial_entry.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(financial_entry)
 
         financial_entry.save()
         if documents:
@@ -1022,10 +1070,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        try:
-            instance.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(instance)
 
         instance.save()
         if documents is not None:
@@ -1033,7 +1078,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         return instance
 
 
-class ExpenseRequestSerializer(serializers.ModelSerializer):
+class ExpenseRequestSerializer(FullCleanModelSerializer):
     folder_name = serializers.SerializerMethodField()
     task_name = serializers.SerializerMethodField()
     requested_by_name = serializers.SerializerMethodField()
@@ -1086,7 +1131,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
         return obj.task.title if obj.task_id else None
 
     def get_requested_by_name(self, obj):
-        return _get_user_display_name(obj.requested_by)
+        return get_user_display_name(obj.requested_by)
 
     def get_documents_info(self, obj):
         return [
@@ -1097,11 +1142,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
         expense_request = ExpenseRequest(**validated_data)
-
-        try:
-            expense_request.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(expense_request)
 
         expense_request.save()
         if documents:
@@ -1113,10 +1154,7 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
         for field, value in validated_data.items():
             setattr(instance, field, value)
 
-        try:
-            instance.full_clean()
-        except DjangoValidationError as exc:
-            raise serializers.ValidationError(exc.message_dict) from exc
+        self.full_clean_or_raise(instance)
 
         instance.save()
         if documents is not None:

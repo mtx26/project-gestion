@@ -303,8 +303,15 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 50,
+    # `SearchFilter` is a no-op unless a view declares `search_fields`, so it is safe
+    # to default everywhere. `OrderingFilter`/`StableOrderingFilter` is NOT included
+    # here: with no `ordering_fields` declared on the view, DRF falls back to allowing
+    # ordering by *any* serializer field, which would silently grant new (and
+    # potentially crash-prone) sorting capability to every list view that doesn't
+    # opt in today. It stays an explicit, per-view opt-in alongside `ordering_fields`.
     "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend"
+        "django_filters.rest_framework.DjangoFilterBackend",
+        "rest_framework.filters.SearchFilter",
     ],
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.ScopedRateThrottle",

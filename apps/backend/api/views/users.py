@@ -2,7 +2,6 @@ from rest_framework import generics
 from ..models import User
 from accounts.serializers import UserSerializer
 from drf_spectacular.utils import extend_schema, extend_schema_view
-from rest_framework.filters import SearchFilter
 
 
 @extend_schema(tags=["user"])
@@ -20,6 +19,4 @@ from rest_framework.filters import SearchFilter
 class UserListView(generics.ListAPIView):
     queryset = User.objects.all().order_by("id")
     serializer_class = UserSerializer
-
-    filter_backends = [SearchFilter]
     search_fields = ["email", "first_name", "last_name", "username"]

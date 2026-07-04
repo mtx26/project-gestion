@@ -1,6 +1,5 @@
-from django.db.models import Case, IntegerField, Q, Value, When
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from django.utils.dateparse import parse_date
 
 import django_filters
 from rest_framework import generics
@@ -14,15 +13,17 @@ from ..models import Task
 from ..permissions import HasProjectPermission
 from ..serializers import TaskSerializer
 from ..services.projects import get_accessible_projects
-from ..utils import FolderScopedFilterMixin, StableOrderingFilter
+from ..services.tasks import get_project_deleted_tasks, get_project_tasks
+from ..utils import FolderScopedFilterSet, StableOrderingFilter
 from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class TaskFilter(FolderScopedFilterMixin, django_filters.FilterSet):
-    folder = django_filters.NumberFilter(method="filter_folder")
+class TaskFilter(FolderScopedFilterSet):
     exclude_done = django_filters.BooleanFilter(method="filter_exclude_done")
-    date_from = django_filters.DateFilter(method="filter_date_from")
-    date_to = django_filters.DateFilter(method="filter_date_to")
+    # Both bounds only validate/parse the input here; the actual OR-across-columns
+    # filtering happens once in `qs`, since it needs both values together.
+    date_from = django_filters.DateFilter(method="noop")
+    date_to = django_filters.DateFilter(method="noop")
 
     class Meta:
         model = Task
@@ -33,19 +34,26 @@ class TaskFilter(FolderScopedFilterMixin, django_filters.FilterSet):
             return queryset.exclude(status="done")
         return queryset
 
-    def filter_date_from(self, queryset, _name, value):
-        date_to = parse_date(self.data.get("date_to") or "")
-        if date_to:
-            return queryset.filter(
-                Q(start_date__gte=value, start_date__lte=date_to) |
-                Q(end_date__gte=value, end_date__lte=date_to)
-            )
-        return queryset.filter(Q(start_date__gte=value) | Q(end_date__gte=value))
+    def noop(self, queryset, _name, _value):
+        return queryset
 
-    def filter_date_to(self, queryset, _name, value):
-        if self.data.get("date_from"):
-            return queryset  # logique déjà appliquée par filter_date_from
-        return queryset.filter(Q(start_date__lte=value) | Q(end_date__lte=value))
+    @property
+    def qs(self):
+        queryset = super().qs
+        date_from = self.form.cleaned_data.get("date_from")
+        date_to = self.form.cleaned_data.get("date_to")
+
+        # A task matches if its start OR its end date falls within [date_from, date_to].
+        if date_from and date_to:
+            return queryset.filter(
+                Q(start_date__gte=date_from, start_date__lte=date_to) |
+                Q(end_date__gte=date_from, end_date__lte=date_to)
+            )
+        if date_from:
+            return queryset.filter(Q(start_date__gte=date_from) | Q(end_date__gte=date_from))
+        if date_to:
+            return queryset.filter(Q(start_date__lte=date_to) | Q(end_date__lte=date_to))
+        return queryset
 
 
 @extend_schema(tags=["tasks"])
@@ -81,34 +89,8 @@ class TaskListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView
         if getattr(self, "swagger_fake_view", False):
             return Task.objects.none()
 
-        queryset = Task.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).annotate(
-            status_order=Case(
-                When(status="todo", then=Value(0)),
-                When(status="in_progress", then=Value(1)),
-                When(status="done", then=Value(2)),
-                default=Value(0),
-                output_field=IntegerField(),
-            ),
-            priority_order=Case(
-                When(priority="low", then=Value(0)),
-                When(priority="normal", then=Value(1)),
-                When(priority="high", then=Value(2)),
-                default=Value(1),
-                output_field=IntegerField(),
-            ),
-        ).select_related(
-            "project",
-            "folder",
-            "created_by",
-        ).prefetch_related(
-            "assigned_to",
-            "documents",
-        ).order_by("end_date", "created_at", "id")
-
-        return queryset
+        queryset = get_project_tasks(self.request.user, self.kwargs["project_id"])
+        return queryset.with_ordering_annotations().order_by("end_date", "created_at", "id")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -164,17 +146,7 @@ class TaskDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generi
         if getattr(self, "swagger_fake_view", False):
             return Task.objects.none()
 
-        return Task.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "created_by",
-        ).prefetch_related(
-            "assigned_to",
-            "documents",
-        )
+        return get_project_tasks(self.request.user, self.kwargs["project_id"])
 
 
 @extend_schema(tags=["tasks"])
@@ -186,6 +158,8 @@ class TaskDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generi
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `priority`, `created_by`, `assigned_to`, `exclude_done`.\n\n"
             "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `end_date` tombe dans la plage.\n\n"
             "- Recherche disponible : `search` sur `title` et `description`.\n\n"
+            "- Tri disponible : `ordering` sur `title`, `folder__name`, `status_order`, `priority_order`, `end_date`, `created_at`. "
+            "Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `task.restore`."
         ),
@@ -195,27 +169,17 @@ class TaskTrashListView(generics.ListAPIView):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "task.restore"
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = TaskFilter
     search_fields = ["title", "description"]
+    ordering_fields = ["title", "folder__name", "status_order", "priority_order", "end_date", "created_at"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Task.deleted_objects.none()
 
-        queryset = Task.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "created_by",
-        ).prefetch_related(
-            "assigned_to",
-            "documents",
-        ).order_by("end_date", "created_at", "id")
-
-        return queryset
+        queryset = get_project_deleted_tasks(self.request.user, self.kwargs["project_id"])
+        return queryset.with_ordering_annotations().order_by("end_date", "created_at", "id")
 
 
 @extend_schema(tags=["tasks"])
@@ -235,14 +199,4 @@ class TaskRestoreView(RestoreModelMixin, generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Task.deleted_objects.none()
 
-        return Task.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "created_by",
-        ).prefetch_related(
-            "assigned_to",
-            "documents",
-        )
+        return get_project_deleted_tasks(self.request.user, self.kwargs["project_id"])

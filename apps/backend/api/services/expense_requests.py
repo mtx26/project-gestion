@@ -2,21 +2,14 @@ from django.db import transaction
 from django.utils import timezone
 
 from ..models import ExpenseRequest, FinancialEntry
-from .projects import get_accessible_projects
 
 
-def get_project_expense_requests(user, project_id, **extra_filters):
-    return ExpenseRequest.objects.filter(
-        project_id=project_id,
-        project__in=get_accessible_projects(user),
-        **extra_filters,
-    ).select_related(
-        "project",
-        "folder",
-        "task",
-        "requested_by",
-        "approved_by",
-    ).prefetch_related("documents")
+def get_project_expense_requests(user, project_id):
+    return ExpenseRequest.objects.for_project(project_id).accessible_to(user).with_relations()
+
+
+def get_project_deleted_expense_requests(user, project_id):
+    return ExpenseRequest.deleted_objects.for_project(project_id).accessible_to(user).with_relations()
 
 
 def approve_expense_request(expense_request, approved_by):

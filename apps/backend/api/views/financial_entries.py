@@ -16,14 +16,17 @@ from ..serializers import (
     FinancialEntryChartSerializer,
     FinancialEntrySerializer,
 )
-from ..services.financial_entries import build_financial_entry_chart
+from ..services.financial_entries import (
+    build_financial_entry_chart,
+    get_project_deleted_financial_entries,
+    get_project_financial_entries,
+)
 from ..services.projects import get_accessible_projects
-from ..utils import FolderScopedFilterMixin, StableOrderingFilter
+from ..utils import FolderScopedFilterSet, StableOrderingFilter
 from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class FinancialEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
-    folder = django_filters.NumberFilter(method="filter_folder")
+class FinancialEntryFilter(FolderScopedFilterSet):
     date_from = django_filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
     date_to = django_filters.DateFilter(field_name="created_at__date", lookup_expr="lte")
 
@@ -63,16 +66,8 @@ class FinancialEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCre
         if getattr(self, "swagger_fake_view", False):
             return FinancialEntry.objects.none()
 
-        return FinancialEntry.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "time_entry__user",
-            "task",
-            "created_by",
-        ).prefetch_related("documents").order_by("-created_at", "-id")
+        queryset = get_project_financial_entries(self.request.user, self.kwargs["project_id"])
+        return queryset.order_by("-created_at", "-id")
 
     def perform_create(self, serializer):
         project = get_object_or_404(
@@ -105,10 +100,7 @@ class FinancialEntryChartView(generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return FinancialEntry.objects.none()
 
-        return FinancialEntry.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        )
+        return FinancialEntry.objects.for_project(self.kwargs["project_id"]).accessible_to(self.request.user)
 
     def get(self, request, project_id):
         query_serializer = FinancialEntryChartQuerySerializer(data=request.query_params)
@@ -169,16 +161,7 @@ class FinancialEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMix
         if getattr(self, "swagger_fake_view", False):
             return FinancialEntry.objects.none()
 
-        return FinancialEntry.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "time_entry",
-            "task",
-            "created_by",
-        ).prefetch_related("documents")
+        return get_project_financial_entries(self.request.user, self.kwargs["project_id"])
 
 
 @extend_schema(tags=["finance"])
@@ -189,6 +172,7 @@ class FinancialEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMix
             "Retourne les entrées financières supprimées d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `type`, `created_by`.\n\n"
             "- Recherche disponible : `search` sur `category` et `description`.\n\n"
+            "- Tri disponible : `ordering` sur `amount`, `created_at`. Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `finance.restore`."
         ),
@@ -198,24 +182,17 @@ class FinancialEntryTrashListView(generics.ListAPIView):
     serializer_class = FinancialEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "finance.restore"
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = FinancialEntryFilter
     search_fields = ["category", "description"]
+    ordering_fields = ["amount", "created_at"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return FinancialEntry.deleted_objects.none()
 
-        return FinancialEntry.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "time_entry",
-            "task",
-            "created_by",
-        ).prefetch_related("documents").order_by("-created_at", "-id")
+        queryset = get_project_deleted_financial_entries(self.request.user, self.kwargs["project_id"])
+        return queryset.order_by("-created_at", "-id")
 
 
 @extend_schema(tags=["finance"])
@@ -235,13 +212,4 @@ class FinancialEntryRestoreView(RestoreModelMixin, generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return FinancialEntry.deleted_objects.none()
 
-        return FinancialEntry.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "time_entry",
-            "task",
-            "created_by",
-        ).prefetch_related("documents")
+        return get_project_deleted_financial_entries(self.request.user, self.kwargs["project_id"])

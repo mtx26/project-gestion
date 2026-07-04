@@ -1,3 +1,4 @@
+import django_filters
 from rest_framework.filters import OrderingFilter
 
 
@@ -40,8 +41,15 @@ def get_user_display_name(user):
     return full_name or user.username or user.email
 
 
-class FolderScopedFilterMixin:
-    """Adds a `folder` filter method that also matches all descendant folders."""
+class FolderScopedFilterSet(django_filters.FilterSet):
+    """Base FilterSet for resources scoped to a project folder.
+
+    Declares `folder` once so consuming FilterSets don't each repeat the same
+    `NumberFilter(method="filter_folder")` line; matches the folder and all of its
+    descendants.
+    """
+
+    folder = django_filters.NumberFilter(method="filter_folder")
 
     def filter_folder(self, queryset, name, value):
         from .services.folders import get_descendant_folder_ids

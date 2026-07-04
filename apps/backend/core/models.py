@@ -2,14 +2,32 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-class ActiveManager(models.Manager):
+class ActiveManagerMixin:
+    """Mixin for a soft-delete "active rows only" manager. Combine with
+    `models.Manager` directly (see `ActiveManager` below), or with
+    `models.Manager.from_queryset(SomeQuerySet)` when a model has its own custom
+    QuerySet — e.g. `class ActiveTaskManager(ActiveManagerMixin,
+    models.Manager.from_queryset(TaskQuerySet)): pass` — so the soft-delete filter
+    isn't reimplemented once per model.
+    """
+
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=True)
 
 
-class DeletedManager(models.Manager):
+class DeletedManagerMixin:
+    """Same as `ActiveManagerMixin` but for soft-deleted rows."""
+
     def get_queryset(self):
         return super().get_queryset().filter(deleted_at__isnull=False)
+
+
+class ActiveManager(ActiveManagerMixin, models.Manager):
+    pass
+
+
+class DeletedManager(DeletedManagerMixin, models.Manager):
+    pass
 
 
 class BaseModel(models.Model):

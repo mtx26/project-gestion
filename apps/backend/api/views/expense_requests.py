@@ -9,13 +9,14 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..utils import FolderScopedFilterMixin, StableOrderingFilter
+from ..utils import FolderScopedFilterSet, StableOrderingFilter
 
 from ..models import ExpenseRequest
 from ..permissions import HasProjectPermission
 from ..serializers import ExpenseRequestSerializer
 from ..services.expense_requests import (
     approve_expense_request,
+    get_project_deleted_expense_requests,
     get_project_expense_requests,
     reject_expense_request,
 )
@@ -23,8 +24,7 @@ from ..services.projects import get_accessible_projects
 from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
 
-class ExpenseRequestFilter(FolderScopedFilterMixin, django_filters.FilterSet):
-    folder = django_filters.NumberFilter(method="filter_folder")
+class ExpenseRequestFilter(FolderScopedFilterSet):
     exclude_rejected = django_filters.BooleanFilter(method="filter_exclude_rejected")
     date_from = django_filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
     date_to = django_filters.DateFilter(field_name="created_at__date", lookup_expr="lte")
@@ -138,8 +138,8 @@ class ExpenseRequestApproveView(generics.GenericAPIView):
             return ExpenseRequest.objects.none()
 
         return get_project_expense_requests(
-            self.request.user, self.kwargs["project_id"], status=ExpenseRequest.STATUS_PENDING
-        )
+            self.request.user, self.kwargs["project_id"],
+        ).filter(status=ExpenseRequest.STATUS_PENDING)
 
     def post(self, request, project_id, pk):
         expense_request = self.get_object()
@@ -167,8 +167,8 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
             return ExpenseRequest.objects.none()
 
         return get_project_expense_requests(
-            self.request.user, self.kwargs["project_id"], status=ExpenseRequest.STATUS_PENDING
-        )
+            self.request.user, self.kwargs["project_id"],
+        ).filter(status=ExpenseRequest.STATUS_PENDING)
 
     def post(self, request, project_id, pk):
         expense_request = self.get_object()
@@ -186,6 +186,7 @@ class ExpenseRequestRejectView(generics.GenericAPIView):
             "Retourne les demandes de remboursement supprimées d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `requested_by`, `exclude_rejected`.\n\n"
             "- Recherche disponible : `search` sur `title`, `category` et `description`.\n\n"
+            "- Tri disponible : `ordering` sur `title`, `amount`, `created_at`. Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `expense_request.restore`."
         ),
@@ -195,24 +196,17 @@ class ExpenseRequestTrashListView(generics.ListAPIView):
     serializer_class = ExpenseRequestSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "expense_request.restore"
-    filter_backends = [DjangoFilterBackend, SearchFilter]
+    filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = ExpenseRequestFilter
     search_fields = ["title", "category", "description"]
+    ordering_fields = ["title", "amount", "created_at"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.deleted_objects.none()
 
-        return ExpenseRequest.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "task",
-            "requested_by",
-            "approved_by",
-        ).prefetch_related("documents").order_by("-created_at", "-id")
+        queryset = get_project_deleted_expense_requests(self.request.user, self.kwargs["project_id"])
+        return queryset.order_by("-created_at", "-id")
 
 
 @extend_schema(tags=["expense-requests"])
@@ -232,13 +226,4 @@ class ExpenseRequestRestoreView(RestoreModelMixin, generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return ExpenseRequest.deleted_objects.none()
 
-        return ExpenseRequest.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "task",
-            "requested_by",
-            "approved_by",
-        ).prefetch_related("documents")
+        return get_project_deleted_expense_requests(self.request.user, self.kwargs["project_id"])

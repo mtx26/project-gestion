@@ -1,19 +1,16 @@
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
-from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 
-from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import Permission, Role
 from ..permissions import HasProjectPermission
 from ..serializers import RoleSerializer, PermissionSerializer
-from ..services.permissions import get_permissions
 from ..services.projects import get_accessible_projects
 from ..services.roles import (
-    get_deleted_project_roles,
+    get_project_deleted_roles,
     get_project_roles,
 )
 from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
@@ -39,7 +36,6 @@ class RoleListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIView
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_codes_by_method = {"GET": "role.view", "POST": "role.edit"}
-    filter_backends = [SearchFilter]
     search_fields = ["name", "description"]
 
     def get_queryset(self):
@@ -114,14 +110,13 @@ class RoleTrashListView(generics.ListAPIView):
     serializer_class = RoleSerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "role.view"
-    filter_backends = [SearchFilter]
     search_fields = ["name", "description"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return Role.deleted_objects.none()
 
-        return get_deleted_project_roles(
+        return get_project_deleted_roles(
             self.request.user,
             self.kwargs["project_id"],
         )
@@ -144,7 +139,7 @@ class RoleRestoreView(RestoreModelMixin, generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Role.deleted_objects.none()
 
-        return get_deleted_project_roles(
+        return get_project_deleted_roles(
             self.request.user,
             self.kwargs["project_id"],
         )
@@ -165,7 +160,6 @@ class RoleRestoreView(RestoreModelMixin, generics.GenericAPIView):
 class PermissionListView(generics.ListAPIView):
     serializer_class = PermissionSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["code"]
     search_fields = ["code", "name", "description"]
 
@@ -173,4 +167,4 @@ class PermissionListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return Permission.objects.none()
 
-        return get_permissions()
+        return Permission.objects.order_by("id")

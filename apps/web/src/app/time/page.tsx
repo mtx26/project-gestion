@@ -337,6 +337,7 @@ function ProjectTimeContent({
             onValueChange={(v) => updateUrlFilter({ payment: v, ...(v === "paid" ? { include_paid: true } : {}) })}
           >
             <SelectItem value="all">Tous statuts</SelectItem>
+            <SelectItem value="not_paid">Non réglé</SelectItem>
             <SelectItem value="unpaid">À payer</SelectItem>
             <SelectItem value="partial">Partiel</SelectItem>
             <SelectItem value="paid">Payé</SelectItem>

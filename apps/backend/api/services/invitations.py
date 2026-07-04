@@ -11,7 +11,6 @@ from django.utils import timezone
 from ..models import Invitation, Notification, ProjectMember
 from .mail import send_email
 from .notifications import notify
-from .projects import get_accessible_projects
 
 
 def normalize_invitation_email(email):
@@ -19,15 +18,13 @@ def normalize_invitation_email(email):
 
 
 def get_project_invitations(user, project_id):
-    return Invitation.objects.select_related(
-        "project",
-        "role",
-        "invited_by",
-    ).filter(
-        project_id=project_id,
-        project__in=get_accessible_projects(user),
-        accepted_at__isnull=True,
-    ).order_by("-created_at", "-id")
+    return (
+        Invitation.objects.for_project(project_id)
+        .accessible_to(user)
+        .with_relations()
+        .pending()
+        .order_by("-created_at", "-id")
+    )
 
 
 def create_project_invitation(*, project, email, role, invited_by):

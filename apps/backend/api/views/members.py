@@ -2,17 +2,16 @@ from django.shortcuts import get_object_or_404
 
 from rest_framework import generics
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from django_filters.rest_framework import DjangoFilterBackend
 from ..permissions import HasProjectPermission
-from ..serializers import ProjectMemberSerializer
+from ..serializers import ProjectMemberSerializer, ProjectOwnerRateSerializer
 from ..services.members import (
     authorize_member_update,
     build_owner_member_entry,
     detach_member_from_project,
     get_project_members,
+    owner_matches_member_filters,
 )
 from ..services.projects import get_accessible_projects
 from drf_spectacular.utils import extend_schema, extend_schema_view
@@ -38,7 +37,6 @@ class ProjectMemberListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "member.view"
     serializer_class = ProjectMemberSerializer
-    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_fields = ["user", "role"]
     search_fields = [
         "user__email",
@@ -63,17 +61,35 @@ class ProjectMemberListView(generics.ListAPIView):
             pk=self.kwargs["project_id"],
         )
         queryset = self.filter_queryset(self.get_queryset())
-        owner_is_member = queryset.filter(user_id=project.owner_id).exists()
-
         page = self.paginate_queryset(queryset)
         serializer = self.get_serializer(page if page is not None else queryset, many=True)
         data = list(serializer.data)
-        if not owner_is_member:
+
+        if self._should_show_synthetic_owner(project, request, page):
             data = [build_owner_member_entry(project)] + data
 
         if page is not None:
             return self.get_paginated_response(data)
         return Response(data)
+
+    def _should_show_synthetic_owner(self, project, request, page):
+        """Faut-il ajouter la ligne "propriétaire" fictive (`build_owner_member_entry`) ?
+
+        Les 3 conditions doivent être vraies :
+        - on est sur la première page (`paginate_queryset` s'exécute à chaque requête
+          quelle que soit la page, donc les pages suivantes ne doivent pas la dupliquer) ;
+        - le propriétaire n'a pas de vraie ligne `ProjectMember`, vérifié sur le
+          queryset non filtré (une vraie ligne juste masquée par les filtres actifs ne
+          doit pas être re-rajoutée en double) ;
+        - les filtres actifs (`user`/`role`/`search`) le concernent bien.
+        """
+        is_first_page = page is None or self.paginator.page.number == 1
+        owner_has_member_row = self.get_queryset().filter(user_id=project.owner_id).exists()
+        return (
+            is_first_page
+            and not owner_has_member_row
+            and owner_matches_member_filters(project, request)
+        )
 
 
 @extend_schema(tags=["member"])
@@ -133,6 +149,7 @@ class ProjectMemberDetailView(PermissionCodeByMethodMixin, generics.RetrieveUpda
     ),
 )
 class ProjectOwnerRateView(APIView):
+    serializer_class = ProjectOwnerRateSerializer
     permission_classes = [IsAuthenticated]
 
     def _get_project(self, request, project_id):
@@ -146,16 +163,13 @@ class ProjectOwnerRateView(APIView):
 
     def patch(self, request, project_id):
         project = self._get_project(request, project_id)
-        hourly_rate = request.data.get("hourly_rate")
-        if hourly_rate is None:
-            return Response(
-                {"hourly_rate": ["errors.owner_rate.required"]},
-                status=400,
-            )
+        serializer = ProjectOwnerRateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         rate, _ = ProjectOwnerRate.objects.get_or_create(
             project=project,
             defaults={"hourly_rate": 0},
         )
-        rate.hourly_rate = hourly_rate
+        rate.hourly_rate = serializer.validated_data["hourly_rate"]
         rate.save(update_fields=["hourly_rate"])
         return Response({"hourly_rate": str(rate.hourly_rate)})

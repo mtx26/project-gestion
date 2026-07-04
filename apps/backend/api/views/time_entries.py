@@ -1,13 +1,13 @@
+from decimal import Decimal
+
 import django_filters
-from django.db.models import Q
+from django.db.models import F, Q
 from django.shortcuts import get_object_or_404
 
 from rest_framework import generics, status
-from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import TimeEntry
@@ -16,18 +16,40 @@ from ..serializers import TimeEntryPaymentCorrectionSerializer, TimeEntryPayment
 from ..services.folders import get_descendant_folder_ids
 from ..services.permissions import has_project_permission
 from ..services.projects import get_accessible_projects
-from ..services.time_entries import annotate_financial_fields, apply_time_entry_financial_filters, compute_time_entry_stats
-from ..utils import FolderScopedFilterMixin
+from ..services.time_entries import (
+    compute_time_entry_stats,
+    get_project_deleted_time_entries,
+    get_project_deleted_time_entries_base,
+    get_project_time_entries,
+    get_project_time_entries_base,
+)
+from ..utils import FolderScopedFilterSet
 from core.views import PermissionCodeByMethodMixin, RestoreModelMixin, SoftDeleteDestroyMixin
 
+PAYMENT_STATUS_CHOICES = [
+    ("all", "all"),
+    ("paid", "paid"),
+    ("unpaid", "unpaid"),
+    ("partial", "partial"),
+    ("not_paid", "not_paid"),
+]
 
-class TimeEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
-    folder = django_filters.NumberFilter(method="filter_folder")
+
+class TimeEntryFilter(FolderScopedFilterSet):
+    # Ordre des champs imposé par le Filtering Style Guide §5 : (a) folder — hérité
+    # de FolderScopedFilterSet —, (b) booléens, (c) dates, (d) enum/mini-langage.
+    include_paid = django_filters.BooleanFilter(method="noop")
+    start_date = django_filters.DateFilter(field_name="start_date__date", lookup_expr="gte")
+    end_date = django_filters.DateFilter(field_name="start_date__date", lookup_expr="lte")
     target = django_filters.CharFilter(method="filter_target")
+    payment_status = django_filters.ChoiceFilter(choices=PAYMENT_STATUS_CHOICES, method="filter_payment_status")
 
     class Meta:
         model = TimeEntry
         fields = ["user", "task"]
+
+    def noop(self, queryset, name, value):
+        return queryset
 
     def filter_target(self, queryset, name, value):
         project_id = self.request.parser_context["kwargs"].get("project_id")
@@ -46,6 +68,48 @@ class TimeEntryFilter(FolderScopedFilterMixin, django_filters.FilterSet):
                 return queryset
             folder_ids = get_descendant_folder_ids(folder_id, project_id)
             return queryset.filter(Q(folder_id__in=folder_ids) | Q(task__folder_id__in=folder_ids))
+        return queryset
+
+    def filter_payment_status(self, queryset, name, value):
+        if value in (None, "", "all"):
+            return queryset
+        if value == "paid":
+            return queryset.filter(filter_paid_amount__gte=F("filter_cost_amount"))
+        if value == "unpaid":
+            return queryset.filter(
+                filter_paid_amount__lte=Decimal("0"),
+                filter_cost_amount__gt=Decimal("0"),
+            )
+        if value == "partial":
+            return queryset.filter(
+                filter_paid_amount__gt=Decimal("0"),
+                filter_paid_amount__lt=F("filter_cost_amount"),
+            )
+        if value == "not_paid":
+            return queryset.filter(filter_cost_amount__gt=F("filter_paid_amount"))
+        return queryset
+
+
+class TimeEntryListFilter(TimeEntryFilter):
+    """Same filters as `TimeEntryFilter`, but hides fully-paid entries by default.
+
+    Only the active list/stats endpoints have this default masking (a UX choice to
+    keep already-settled entries out of the way); the trash endpoint shows every
+    deleted entry regardless of payment status, as it always has.
+    """
+
+    @property
+    def qs(self):
+        queryset = super().qs
+
+        # Par defaut (payment_status absent/"all"), les entrees deja entierement
+        # payees sont masquees ; `include_paid=true` les reintegre. Un payment_status
+        # explicite (paid/unpaid/partial/not_paid) prend le dessus sur ce masquage.
+        payment_status = self.form.cleaned_data.get("payment_status")
+        if payment_status in (None, "", "all"):
+            include_paid = self.form.cleaned_data.get("include_paid") or False
+            if not include_paid:
+                queryset = queryset.filter(filter_paid_amount__lt=F("filter_cost_amount"))
         return queryset
 
 
@@ -72,31 +136,15 @@ class TimeEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAP
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_codes_by_method = {"GET": "time_entry.view", "POST": "time_entry.edit"}
-    filter_backends = [DjangoFilterBackend, SearchFilter]
-    filterset_class = TimeEntryFilter
+    filterset_class = TimeEntryListFilter
     search_fields = ["description"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.objects.none()
 
-        project_id = self.kwargs["project_id"]
-        queryset = TimeEntry.objects.filter(
-            project_id=project_id,
-            project__in=get_accessible_projects(self.request.user),
-        )
-        project = get_object_or_404(get_accessible_projects(self.request.user), pk=project_id)
-        if not has_project_permission(self.request.user, project, "time_entry.view_all"):
-            queryset = queryset.filter(user=self.request.user)
-
-        queryset = apply_time_entry_financial_filters(queryset, self.request)
-
-        return (
-            queryset
-            .select_related("project", "folder", "task", "user")
-            .prefetch_related("financial_entries", "documents")
-            .order_by("-start_date", "-id")
-        )
+        queryset = get_project_time_entries(self.request.user, self.kwargs["project_id"])
+        return queryset.order_by("-start_date", "-id")
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -142,22 +190,10 @@ class TimeEntryStatsView(generics.GenericAPIView):
                 "entry_count": 0,
             })
 
-        queryset = TimeEntry.objects.filter(
-            project_id=project_id,
-            project__in=get_accessible_projects(request.user),
-        )
-        project = get_object_or_404(get_accessible_projects(request.user), pk=project_id)
-        if not has_project_permission(request.user, project, "time_entry.view_all"):
-            queryset = queryset.filter(user=request.user)
+        queryset = get_project_time_entries(request.user, project_id)
+        filterset = TimeEntryListFilter(request.query_params, queryset=queryset, request=request)
 
-        filterset = TimeEntryFilter(request.query_params, queryset=queryset, request=request)
-        queryset = filterset.qs
-        queryset = apply_time_entry_financial_filters(queryset, request)
-
-        if "filter_cost_amount" not in queryset.query.annotations:
-            queryset = annotate_financial_fields(queryset)
-
-        return Response(compute_time_entry_stats(queryset))
+        return Response(compute_time_entry_stats(filterset.qs))
 
 
 @extend_schema(tags=["time entries"])
@@ -193,18 +229,7 @@ class TimeEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, g
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.objects.none()
 
-        queryset = TimeEntry.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "task",
-            "user",
-        ).prefetch_related(
-            "financial_entries",
-            "documents",
-        )
+        queryset = get_project_time_entries_base(self.request.user, self.kwargs["project_id"])
 
         if self.request.method == "GET":
             project = get_object_or_404(
@@ -261,18 +286,7 @@ class TimeEntryPaymentView(generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.objects.none()
 
-        return TimeEntry.objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "task",
-            "user",
-        ).prefetch_related(
-            "financial_entries",
-            "documents",
-        )
+        return get_project_time_entries_base(self.request.user, self.kwargs["project_id"])
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -299,7 +313,8 @@ class TimeEntryPaymentView(generics.GenericAPIView):
         summary="Lister les entrées de temps supprimées",
         description=(
             "Retourne les entrées de temps supprimées d'un projet.\n\n"
-            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}).\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}),\n"
+            "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`, `include_paid`.\n\n"
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.restore`."
@@ -310,7 +325,6 @@ class TimeEntryTrashListView(generics.ListAPIView):
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "time_entry.restore"
-    filter_backends = [DjangoFilterBackend, SearchFilter]
     filterset_class = TimeEntryFilter
     search_fields = ["description"]
 
@@ -318,16 +332,8 @@ class TimeEntryTrashListView(generics.ListAPIView):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.deleted_objects.none()
 
-        queryset = TimeEntry.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        )
-        return (
-            queryset
-            .select_related("project", "folder", "task", "user")
-            .prefetch_related("financial_entries", "documents")
-            .order_by("-start_date", "-id")
-        )
+        queryset = get_project_deleted_time_entries(self.request.user, self.kwargs["project_id"])
+        return queryset.order_by("-start_date", "-id")
 
 
 @extend_schema(tags=["time entries"])
@@ -347,15 +353,4 @@ class TimeEntryRestoreView(RestoreModelMixin, generics.GenericAPIView):
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.deleted_objects.none()
 
-        return TimeEntry.deleted_objects.filter(
-            project_id=self.kwargs["project_id"],
-            project__in=get_accessible_projects(self.request.user),
-        ).select_related(
-            "project",
-            "folder",
-            "task",
-            "user",
-        ).prefetch_related(
-            "financial_entries",
-            "documents",
-        )
+        return get_project_deleted_time_entries_base(self.request.user, self.kwargs["project_id"])
