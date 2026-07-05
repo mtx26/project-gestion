@@ -172,7 +172,7 @@ export function TaskDetailModal({
           {otherDocs.length > 0 ? (
             <div className="pt-5">
               <DetailLabel className="mb-3">Documents</DetailLabel>
-              <div className="flex flex-col gap-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {otherDocs.map((doc) => (
                   <FileAttachment
                     key={doc.id}
@@ -180,6 +180,7 @@ export function TaskDetailModal({
                     documentId={doc.id}
                     projectId={projectId}
                     size="sm"
+                    className="w-full"
                     actions={
                       <Button
                         type="button"

@@ -87,7 +87,7 @@ export function ModalDocs({
   return (
     <div className="pt-5">
       <DetailLabel className="mb-3">Documents</DetailLabel>
-      <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {docs.map((doc) => (
           <FileAttachment
             key={doc.id}
@@ -95,6 +95,7 @@ export function ModalDocs({
             documentId={doc.id}
             projectId={projectId}
             size="sm"
+            className="w-full"
             actions={
               <Button type="button" variant="outline" size="sm" disabled={isOpening} onClick={() => onOpen(doc.id)}>
                 <Eye className="size-3.5" />
