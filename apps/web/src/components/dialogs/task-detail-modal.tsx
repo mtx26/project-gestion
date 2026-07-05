@@ -6,11 +6,11 @@ import { Button } from "@/components/ui/button";
 import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { DocumentThumbnail } from "@/components/documents/document-thumbnail";
-import { FileAttachment } from "@/components/documents/file-attachment";
 import {
   DetailField,
   DetailLabel,
   DetailModal,
+  ModalDocs,
   ModalFooter,
   ModalGrid,
   ModalHero,
@@ -169,34 +169,12 @@ export function TaskDetailModal({
             </div>
           ) : null}
 
-          {otherDocs.length > 0 ? (
-            <div className="pt-5">
-              <DetailLabel className="mb-3">Documents</DetailLabel>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                {otherDocs.map((doc) => (
-                  <FileAttachment
-                    key={doc.id}
-                    file={{ name: doc.name ?? `Document #${doc.id}`, mime_type: doc.mime_type, file_size: doc.file_size }}
-                    documentId={doc.id}
-                    projectId={projectId}
-                    size="sm"
-                    className="w-full"
-                    actions={
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isOpeningDocument}
-                        onClick={() => onOpenDocument?.(doc.id)}
-                      >
-                        Apercu
-                      </Button>
-                    }
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <ModalDocs
+            docs={otherDocs}
+            projectId={projectId}
+            isOpening={isOpeningDocument}
+            onOpen={(id) => onOpenDocument?.(id)}
+          />
         </>
       ) : null}
     </DetailModal>
