@@ -1,14 +1,15 @@
 "use client";
 
 import type { Task, TaskPayload } from "@project-gestion/types";
-import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
+import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, UserCheck } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
+import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
@@ -24,13 +25,14 @@ import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
-import { DocumentPreviewModal } from "@/components/dialogs/document-preview-modal";
+import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
-import { buildProjectHref, parseBooleanParam, parseIdParam, parsePageParam } from "@/lib/url-params";
+import { parseBooleanParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useDocumentPreview } from "@/lib/use-document-preview";
+import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
@@ -44,25 +46,17 @@ import {
   parseFolderFilter,
   parsePriorityFilter,
   parseStatusFilter,
-} from "./lib/filters";
+} from "./lib/task-filters";
 
-export function ProjectTasksPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
+export function TasksPageContent() {
   return (
-    <ProjectWorkspaceShell
-      activeItem="tasks"
-      selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildProjectHref("/tasks", id, searchParams))}
-      onProjectCreated={(project) => router.push(buildProjectHref("/tasks", project.id, searchParams))}
-    >
-      {(state) => <ProjectTasksContent {...state} />}
+    <ProjectWorkspaceShell>
+      {(state) => <TasksView {...state} />}
     </ProjectWorkspaceShell>
   );
 }
 
-function ProjectTasksContent({
+function TasksView({
   user,
   selectedProject,
   projectsQuery,
@@ -70,10 +64,11 @@ function ProjectTasksContent({
 }: ProjectWorkspaceState) {
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
-  const canViewTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskView);
-  const canEditTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskEdit);
-  const canDeleteTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskDelete);
-  const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
+  const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
+  const canViewTasks = can(permissionCodes.taskView);
+  const canEditTasks = can(permissionCodes.taskEdit);
+  const canDeleteTasks = can(permissionCodes.taskDelete);
+  const canViewFiles = can(permissionCodes.fileView);
   const projectId = selectedProject?.id ?? null;
   const searchFromUrl = searchParams.get("search") ?? "";
   const dateFrom = searchParams.get("date_from") ?? undefined;
@@ -93,6 +88,7 @@ function ProjectTasksContent({
   const [createDialogOpen, setCreateDialogOpen] = useState(searchParams.get("new") === "1");
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const updateUrlFilter = useUrlFilter("/tasks", searchParams, projectId);
@@ -187,6 +183,7 @@ function ProjectTasksContent({
     mutationFn: (taskId: number) => api.tasks.remove(selectedProject!.id, taskId),
     onSuccess: async () => {
       toast.success("Tache supprimee");
+      setDeletingTask(null);
       await invalidateTasks(queryClient, selectedProject!.id);
     },
     onError: toastError,
@@ -296,7 +293,7 @@ function ProjectTasksContent({
               onSortChange={(field, dir) => updateUrlFilter({ sort: field, order: dir })}
               onOpenDetail={setViewingTask}
               onEdit={setEditingTask}
-              onDelete={(task) => deleteTask.mutate(task.id)}
+              onDelete={setDeletingTask}
               onStatusChange={handleStatusChange}
             />
           </CardContent>
@@ -330,7 +327,7 @@ function ProjectTasksContent({
                 onSortChange={(field, dir) => updateUrlFilter({ sort: field, order: dir })}
                 onOpenDetail={setViewingTask}
                 onEdit={setEditingTask}
-                onDelete={(task) => deleteTask.mutate(task.id)}
+                onDelete={setDeletingTask}
                 onStatusChange={handleStatusChange}
               />
               <PaginationBar
@@ -353,7 +350,7 @@ function ProjectTasksContent({
         members={members}
         initialFolder={folderFilter}
         isPending={createTask.isPending}
-        error={getErrorMessage(createTask.error)}
+        error={createTask.error}
         onOpenChange={setCreateDialogOpen}
         onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
         onSubmit={(payload) => { if (selectedProject && canEditTasks) createTask.mutate(payload); }}
@@ -367,7 +364,7 @@ function ProjectTasksContent({
         folders={folders}
         members={members}
         isPending={updateTask.isPending}
-        error={getErrorMessage(updateTask.error)}
+        error={updateTask.error}
         onOpenChange={(open) => { if (!open) setEditingTask(null); }}
         onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingTask && updateTask.mutate({ taskId: editingTask.id, payload })}
@@ -382,11 +379,18 @@ function ProjectTasksContent({
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingTask(null)}
         onEdit={(task) => { setViewingTask(null); setEditingTask(task); }}
-        onDelete={(task) => { setViewingTask(null); deleteTask.mutate(task.id); }}
+        onDelete={(task) => { setViewingTask(null); setDeletingTask(task); }}
       />
-      <DocumentPreviewModal
+      <DocumentPreviewDialog
         document={previewDocument}
         onClose={() => setPreviewDocument(null)}
+      />
+      <ConfirmDeleteDialog
+        open={deletingTask != null}
+        title={`Supprimer "${deletingTask?.title}" ?`}
+        isPending={deleteTask.isPending}
+        onConfirm={() => deletingTask && deleteTask.mutate(deletingTask.id)}
+        onClose={() => setDeletingTask(null)}
       />
     </div>
   );

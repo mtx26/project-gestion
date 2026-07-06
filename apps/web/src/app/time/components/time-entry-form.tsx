@@ -1,24 +1,27 @@
 "use client";
 
-import type { FolderTreeNode, File as ApiFile } from "@project-gestion/types";
+import type { FolderTreeNode } from "@project-gestion/types";
 import type { FormEvent } from "react";
-import { useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { DateRangeField } from "@/components/forms/date-range-field";
-import { DialogFooter } from "@/components/ui/dialog";
+import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
-import { FormErrorAlert } from "@/components/forms/form-error-alert";
+import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
-import { Input } from "@/components/ui/input";
-import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
+import { MoneyInput } from "@/components/forms/money-input";
+import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
 import { Textarea } from "@/components/ui/textarea";
-import { getErrorMessage } from "@/lib/errors";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { getTargetPayload } from "@/lib/target-utils";
-import { api } from "@/lib/api";
+import { useDocumentAttachment } from "@/lib/use-document-attachment";
+
+const CREATE_FORM_ID = "time-entry-create-form";
 
 export function TimeEntryForm({
+  open,
+  onOpenChange,
   canRecordTime,
   projectId,
   startDate,
@@ -38,6 +41,8 @@ export function TimeEntryForm({
   onCreateFolder,
   onSubmit,
 }: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   canRecordTime: boolean;
   projectId: number;
   startDate: string;
@@ -62,102 +67,92 @@ export function TimeEntryForm({
     : 0;
   const durationHours = durationMinutes / 60;
   const computedTotal = durationHours > 0 ? durationHours * Number(hourlyRate) : 0;
-  const [pendingFiles, setPendingFiles] = useState<globalThis.File[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const docs = useDocumentAttachment([]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setUploadError(null);
-    const newDocIds: number[] = [];
-    if (pendingFiles.length > 0) {
-      setUploading(true);
-      const { folder } = getTargetPayload(targetValue);
-      try {
-        for (const file of pendingFiles) {
-          const uploaded: ApiFile = await api.documents.upload(projectId, {
-            file,
-            folder: folder ?? undefined,
-            name: file.name,
-          });
-          newDocIds.push(uploaded.id);
-        }
-      } catch (err) {
-        setUploadError(getErrorMessage(err));
-        setUploading(false);
-        return;
-      }
-      setUploading(false);
-    }
+    const { folder } = getTargetPayload(targetValue);
+    const newDocIds = await docs.uploadPending(projectId, folder);
+    if (newDocIds === null) return;
     onSubmit(event, newDocIds);
   }
 
-  const isSubmitting = uploading || isPending;
-
-  if (!canRecordTime) {
-    return (
-      <Alert>
-        <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
-      </Alert>
-    );
-  }
+  const isSubmitting = docs.uploading || isPending;
 
   return (
-    <form className="space-y-4" onSubmit={handleSubmit}>
-      <DateRangeField
-        startValue={startDate}
-        endValue={endDate}
-        onStartChange={onStartDateChange}
-        onEndChange={onEndDateChange}
-      />
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Nouvelle entree"
+      description="Encode une duree et lie-la au projet, a un dossier ou a une tache."
+      error={canRecordTime ? (docs.uploadError ?? error) : undefined}
+      footer={
+        canRecordTime ? (
+          <FormSubmitButton
+            form={CREATE_FORM_ID}
+            pending={isSubmitting}
+            disabled={durationMinutes <= 0 || isSubmitting}
+            label="Enregistrer"
+            pendingLabel="Enregistrement..."
+          />
+        ) : (
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Fermer</Button>
+          </DialogClose>
+        )
+      }
+    >
+      {!canRecordTime ? (
+        <Alert>
+          <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
+        </Alert>
+      ) : (
+        <form id={CREATE_FORM_ID} className="space-y-4" onSubmit={handleSubmit}>
+          <DateRangeField
+            startValue={startDate}
+            endValue={endDate}
+            onStartChange={onStartDateChange}
+            onEndChange={onEndDateChange}
+          />
 
-      <div className="flex items-end gap-3">
-        <Field className="flex-1">
-          <FieldLabel htmlFor="time-rate">Taux horaire</FieldLabel>
-          <Input id="time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(e) => onHourlyRateChange(e.target.value)} />
-        </Field>
-        <p className="pb-2 text-xs text-muted-foreground">
-          {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
-        </p>
-      </div>
+          <div className="flex items-end gap-3">
+            <Field className="flex-1">
+              <FieldLabel htmlFor="time-rate">Taux horaire</FieldLabel>
+              <MoneyInput id="time-rate" value={hourlyRate} onChange={(e) => onHourlyRateChange(e.target.value)} />
+            </Field>
+            <p className="pb-2 text-xs text-muted-foreground">
+              {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
+            </p>
+          </div>
 
-      <Field>
-        <FieldLabel>Cible</FieldLabel>
-        <TreePickerDialog
-          mode="target"
-          folders={targetFolders}
-          selectedValue={targetValue}
-          selectedLabel={selectedTargetLabel}
-          onSelect={onTargetValueChange}
-          onCreateFolder={onCreateFolder}
-        />
-      </Field>
+          <Field>
+            <FieldLabel>Cible</FieldLabel>
+            <TreePickerDialog
+              mode="target"
+              folders={targetFolders}
+              selectedValue={targetValue}
+              selectedLabel={selectedTargetLabel}
+              onSelect={onTargetValueChange}
+              onCreateFolder={onCreateFolder}
+            />
+          </Field>
 
-      <Field>
-        <FieldLabel htmlFor="time-description">Description</FieldLabel>
-        <Textarea id="time-description" rows={4} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
-      </Field>
+          <Field>
+            <FieldLabel htmlFor="time-description">Description</FieldLabel>
+            <Textarea id="time-description" rows={4} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
+          </Field>
 
-      <MultiDocumentAttachmentField
-        projectId={projectId}
-        existingDocs={[]}
-        pendingFiles={pendingFiles}
-        uploading={uploading}
-        onRemoveDoc={() => {}}
-        onAddFiles={(files) => setPendingFiles((prev) => [...prev, ...files])}
-        onRemoveFile={(index) => setPendingFiles((prev) => prev.filter((_, i) => i !== index))}
-      />
-
-      <FormErrorAlert error={uploadError ?? error} />
-
-      <DialogFooter>
-        <FormSubmitButton
-          pending={isSubmitting}
-          disabled={durationMinutes <= 0 || isSubmitting}
-          label="Enregistrer"
-          pendingLabel="Enregistrement..."
-        />
-      </DialogFooter>
-    </form>
+          <MultiDocumentAttachmentField
+            projectId={projectId}
+            existingDocs={docs.existingDocs}
+            pendingFiles={docs.pendingFiles}
+            uploading={docs.uploading}
+            onRemoveDoc={docs.removeExistingDoc}
+            onAddFiles={docs.addPendingFiles}
+            onRemoveFile={docs.removePendingFile}
+          />
+        </form>
+      )}
+    </FormDialog>
   );
 }

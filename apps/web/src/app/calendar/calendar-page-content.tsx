@@ -1,12 +1,11 @@
 "use client";
 
 import type { Task, TimeEntry } from "@project-gestion/types";
-import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
+import { permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
@@ -17,12 +16,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
-import { DocumentPreviewModal } from "@/components/dialogs/document-preview-modal";
-import { TimeEntryDetailDialog } from "@/app/time/components/time-dialogs";
+import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
+import { TimeEntryDetailModal } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
-import { buildProjectHref } from "@/lib/url-params";
-import { formatDateInputValue, getMonthCalendarDays } from "@/lib/calendar-utils";
+import { getMonthCalendarDays } from "./lib/calendar-utils";
+import { toIsoDateString } from "@/lib/period-utils";
 import { useDocumentPreview } from "@/lib/use-document-preview";
+import { useProjectPermissions } from "@/lib/use-project-permissions";
 
 const ProjectCalendarView = dynamic(
   () => import("./components/project-calendar-view").then((m) => m.ProjectCalendarView),
@@ -33,29 +33,22 @@ const ProjectCalendarView = dynamic(
 function getMonthRange(monthDate: Date): { startDate: string; endDate: string } {
   const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const last = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-  return { startDate: formatDateInputValue(first), endDate: formatDateInputValue(last) };
+  return { startDate: toIsoDateString(first), endDate: toIsoDateString(last) };
 }
 
-export function ProjectCalendarPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
+export function CalendarPageContent() {
   return (
-    <ProjectWorkspaceShell
-      activeItem="calendar"
-      selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      onProjectSelected={(id) => router.push(buildProjectHref("/calendar", id, searchParams))}
-      onProjectCreated={(project) => router.push(buildProjectHref("/calendar", project.id, searchParams))}
-    >
-      {(state) => <ProjectCalendarContent {...state} />}
+    <ProjectWorkspaceShell>
+      {(state) => <CalendarView {...state} />}
     </ProjectWorkspaceShell>
   );
 }
 
-function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
+function CalendarView({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
   const projectId = selectedProject?.id ?? null;
-  const canViewTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryView);
-  const canViewTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskView);
+  const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
+  const canViewTime = can(permissionCodes.timeEntryView);
+  const canViewTasks = can(permissionCodes.taskView);
 
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [showTasks, setShowTasks] = useState(true);
@@ -66,8 +59,8 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
 
   const monthRange = useMemo(() => getMonthRange(monthDate), [monthDate]);
   const calendarDays = useMemo(() => getMonthCalendarDays(monthDate), [monthDate]);
-  const firstCalStr = useMemo(() => formatDateInputValue(calendarDays[0]!), [calendarDays]);
-  const lastCalStr = useMemo(() => formatDateInputValue(calendarDays[calendarDays.length - 1]!), [calendarDays]);
+  const firstCalStr = useMemo(() => toIsoDateString(calendarDays[0]!), [calendarDays]);
+  const lastCalStr = useMemo(() => toIsoDateString(calendarDays[calendarDays.length - 1]!), [calendarDays]);
 
   const timeEntriesQuery = useQuery({
     queryKey: projectId && canViewTime
@@ -172,7 +165,7 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
         onClose={() => setSelectedTask(null)}
       />
 
-      <TimeEntryDetailDialog
+      <TimeEntryDetailModal
         entry={selectedTimeEntry}
         projectId={projectId ?? 0}
         isOpeningDocument={openDocument.isPending}
@@ -181,7 +174,7 @@ function ProjectCalendarContent({ user, selectedProject, projectsQuery, openCrea
         onTaskClick={canViewTasks ? handleTimeEntryTaskClick : undefined}
       />
 
-      <DocumentPreviewModal
+      <DocumentPreviewDialog
         document={previewDocument}
         onClose={() => setPreviewDocument(null)}
       />

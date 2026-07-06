@@ -12,17 +12,21 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
-import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
+import { MoneyInput } from "@/components/forms/money-input";
+import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
+import { amountSchema } from "@/lib/amount-schema";
+import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero, ModalSection } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 const requestSchema = z.object({
   title: z.string().min(1, "Le titre est requis"),
-  amount: z.string().min(1, "Le montant est requis"),
+  amount: amountSchema,
   category: z.string(),
   description: z.string(),
 });
@@ -46,7 +50,7 @@ export function ExpenseRequestFormDialog({
   onOpenChange: (open: boolean) => void;
   projectId: number;
   targetFolders: FolderTreeNode[];
-  error: string | null;
+  error: unknown;
   isPending: boolean;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: ExpenseRequestPayload) => void;
@@ -74,6 +78,8 @@ export function ExpenseRequestFormDialog({
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
 
+  useServerFieldErrors(form, error, ["title", "amount", "category", "description"]);
+
   function handleOpenChange(next: boolean) {
     if (!next) {
       form.reset();
@@ -89,7 +95,7 @@ export function ExpenseRequestFormDialog({
     if (newDocIds === null) return;
     onSubmit({
       title: values.title.trim(),
-      amount: values.amount.replace(",", "."),
+      amount: values.amount,
       category: values.category.trim() || null,
       description: values.description.trim() || null,
       folder,
@@ -106,7 +112,7 @@ export function ExpenseRequestFormDialog({
       onOpenChange={handleOpenChange}
       title={mode === "create" ? "Nouvelle demande" : "Modifier la demande"}
       description={mode === "create" ? "Creer une demande de remboursement." : "Modifier les details de cette demande."}
-      error={docs.uploadError ?? error}
+      error={docs.uploadError ?? getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
@@ -132,7 +138,7 @@ export function ExpenseRequestFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="req-amount">Montant (€)</FieldLabel>
-              <Input id="req-amount" type="text" inputMode="decimal" placeholder="0.00" {...form.register("amount")} />
+              <MoneyInput id="req-amount" {...form.register("amount")} />
               <FieldError errors={[form.formState.errors.amount]} />
             </Field>
             <Field>
@@ -172,7 +178,7 @@ export function ExpenseRequestFormDialog({
   );
 }
 
-export function ExpenseRequestDetailDialog({
+export function ExpenseRequestDetailModal({
   request,
   projectId,
   isOpeningDocument,

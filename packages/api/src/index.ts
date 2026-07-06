@@ -338,9 +338,11 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/financial-entries/${entryId}/`, {
           method: "DELETE",
         }),
-      trash: (projectId: number) =>
+      trash: (projectId: number, query: { page?: number } = {}) =>
         request<FinancialEntry[] | PaginatedResponse<FinancialEntry>>(
-          `/api/projects/${projectId}/financial-entries/trash/`,
+          `/api/projects/${projectId}/financial-entries/trash/${buildQueryString({
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+          })}`,
         ),
       restore: (projectId: number, entryId: number) =>
         request<FinancialEntry>(
@@ -419,8 +421,12 @@ export function createApiClient({
         }),
       get: (projectId: number, timeEntryId: number) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/`),
-      trash: (projectId: number) =>
-        request<TimeEntry[] | PaginatedResponse<TimeEntry>>(`/api/projects/${projectId}/time-entries/trash/`),
+      trash: (projectId: number, query: { page?: number } = {}) =>
+        request<TimeEntry[] | PaginatedResponse<TimeEntry>>(
+          `/api/projects/${projectId}/time-entries/trash/${buildQueryString({
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+          })}`,
+        ),
       restore: (projectId: number, timeEntryId: number) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/restore/`, { method: "POST" }),
     },
@@ -472,8 +478,12 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/tasks/${taskId}/`, {
           method: "DELETE",
         }),
-      trash: (projectId: number) =>
-        request<Task[] | PaginatedResponse<Task>>(`/api/projects/${projectId}/tasks/trash/`),
+      trash: (projectId: number, query: { page?: number } = {}) =>
+        request<Task[] | PaginatedResponse<Task>>(
+          `/api/projects/${projectId}/tasks/trash/${buildQueryString({
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+          })}`,
+        ),
       restore: (projectId: number, taskId: number) =>
         request<Task>(`/api/projects/${projectId}/tasks/${taskId}/restore/`, { method: "POST" }),
     },
@@ -499,8 +509,12 @@ export function createApiClient({
         request<void>(`/api/projects/${projectId}/folders/${folderId}/`, {
           method: "DELETE",
         }),
-      trash: (projectId: number) =>
-        request<Folder[] | PaginatedResponse<Folder>>(`/api/projects/${projectId}/folders/trash/`),
+      trash: (projectId: number, query: { page?: number } = {}) =>
+        request<Folder[] | PaginatedResponse<Folder>>(
+          `/api/projects/${projectId}/folders/trash/${buildQueryString({
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+          })}`,
+        ),
       restore: (projectId: number, folderId: number) =>
         request<Folder>(`/api/projects/${projectId}/folders/${folderId}/restore/`, { method: "POST" }),
     },
@@ -508,6 +522,11 @@ export function createApiClient({
       download: (projectId: number, documentId: number) =>
         request<{ url: string; file_name: string; mime_type: string | null }>(
           `/api/projects/${projectId}/documents/${documentId}/download/`,
+        ),
+      downloadBatch: (projectId: number, documentIds: number[]) =>
+        request<{ id: number; url: string; file_name: string; mime_type: string | null }[]>(
+          `/api/projects/${projectId}/documents/download-urls/`,
+          { method: "POST", body: { ids: documentIds } },
         ),
       update: (
         projectId: number,
@@ -534,8 +553,12 @@ export function createApiClient({
           body: formData,
         });
       },
-      trash: (projectId: number) =>
-        request<File[] | PaginatedResponse<File>>(`/api/projects/${projectId}/documents/trash/`),
+      trash: (projectId: number, query: { page?: number } = {}) =>
+        request<File[] | PaginatedResponse<File>>(
+          `/api/projects/${projectId}/documents/trash/${buildQueryString({
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+          })}`,
+        ),
       restore: (projectId: number, id: number) =>
         request<File>(`/api/projects/${projectId}/documents/${id}/restore/`, { method: "POST" }),
     },
@@ -581,9 +604,11 @@ export function createApiClient({
           `/api/projects/${projectId}/expense-requests/${id}/reject/`,
           { method: "POST" },
         ),
-      trash: (projectId: number) =>
+      trash: (projectId: number, query: { page?: number } = {}) =>
         request<ExpenseRequest[] | PaginatedResponse<ExpenseRequest>>(
-          `/api/projects/${projectId}/expense-requests/trash/`,
+          `/api/projects/${projectId}/expense-requests/trash/${buildQueryString({
+            page: query.page && query.page > 1 ? String(query.page) : undefined,
+          })}`,
         ),
       restore: (projectId: number, id: number) =>
         request<ExpenseRequest>(

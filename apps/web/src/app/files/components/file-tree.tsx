@@ -11,31 +11,41 @@ import {
   Pencil,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { DocumentThumbnail } from "@/components/documents/document-thumbnail";
+import { DocumentThumbnailImage } from "@/components/documents/document-thumbnail-image";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { isImageFile } from "@/lib/file-display";
+import { collectImageDocumentIds } from "@/lib/folder-utils";
+import { useDocumentDownloadUrls } from "@/lib/use-document-download-urls";
 import {
   type FileActionTarget,
   formatFileSize,
   getDocumentIconConfig,
   getTreeContentPadding,
   getTreeRowPadding,
-} from "../lib/file-utils";
+} from "../lib/file-tree-utils";
 
-function DocumentIcon({ node, projectId }: { node: FolderTreeNode; projectId: number }) {
+function DocumentIcon({
+  node,
+  url,
+  isLoading,
+}: {
+  node: FolderTreeNode;
+  url: string | undefined;
+  isLoading: boolean;
+}) {
   const { Icon, className } = getDocumentIconConfig(node);
   if (isImageFile(node)) {
     return (
       <span className="size-4 shrink-0 overflow-hidden rounded-xs">
-        <DocumentThumbnail
-          projectId={projectId}
-          documentId={node.id}
+        <DocumentThumbnailImage
+          url={url}
+          isLoading={isLoading}
           alt={node.name}
           fallback={<Icon className={cn("size-4 shrink-0", className)} />}
         />
@@ -92,6 +102,8 @@ function TreeNode({
   selectedFolderId,
   openingDocumentId,
   draggedFolderId,
+  documentUrls,
+  isLoadingDocumentUrls,
   onToggleFolder,
   onSelectFolder,
   onOpenDocument,
@@ -116,6 +128,8 @@ function TreeNode({
   selectedFolderId: number | null;
   openingDocumentId: number | null | undefined;
   draggedFolderId: number | null;
+  documentUrls: Map<number, string>;
+  isLoadingDocumentUrls: boolean;
   onToggleFolder: (folderId: number) => void;
   onSelectFolder: (folderId: number | null) => void;
   onOpenDocument: (documentId: number) => void;
@@ -152,6 +166,10 @@ function TreeNode({
         />
       ) : null}
       <div
+        role="treeitem"
+        aria-level={depth + 1}
+        aria-selected={isFolder ? isSelected : undefined}
+        aria-expanded={isFolder ? isExpanded : undefined}
         className={cn(
           "group grid h-9 grid-cols-[24px_20px_minmax(0,1fr)_auto_auto] items-center gap-2 rounded-md pr-2 text-sm hover:bg-muted/70",
           isSelected && "bg-primary/10 hover:bg-primary/15",
@@ -231,7 +249,7 @@ function TreeNode({
           ) : isTask ? (
             <ListTodo className="size-4 shrink-0 text-sky-600" />
           ) : (
-            <DocumentIcon node={node} projectId={projectId} />
+            <DocumentIcon node={node} url={documentUrls.get(node.id)} isLoading={isLoadingDocumentUrls} />
           )}
           <span
             className={cn(
@@ -294,7 +312,7 @@ function TreeNode({
       </div>
 
       {isFolder && isExpanded ? (
-        <div>
+        <div role="group">
           {draftFolder?.parentFolder === node.id ? (
             <DraftFolderRow
               depth={depth + 1}
@@ -317,6 +335,8 @@ function TreeNode({
               selectedFolderId={selectedFolderId}
               openingDocumentId={openingDocumentId}
               draggedFolderId={draggedFolderId}
+              documentUrls={documentUrls}
+              isLoadingDocumentUrls={isLoadingDocumentUrls}
               onToggleFolder={onToggleFolder}
               onSelectFolder={onSelectFolder}
               onOpenDocument={onOpenDocument}
@@ -380,6 +400,11 @@ export function FileTree({
   onMoveFolder?: (folderId: number, newParentId: number | null) => void;
 }) {
   const [draggedFolderId, setDraggedFolderId] = useState<number | null>(null);
+  const imageDocumentIds = useMemo(() => collectImageDocumentIds(nodes), [nodes]);
+  const { urls: documentUrls, isLoading: isLoadingDocumentUrls } = useDocumentDownloadUrls(
+    projectId,
+    imageDocumentIds,
+  );
 
   if (nodes.length === 0) {
     if (draftFolder?.parentFolder === null) {
@@ -404,7 +429,7 @@ export function FileTree({
   }
 
   return (
-    <div className="select-none py-1 text-sm">
+    <div role="tree" aria-label="Arborescence de fichiers" className="select-none py-1 text-sm">
       {draftFolder?.parentFolder === null ? (
         <DraftFolderRow
           depth={0}
@@ -427,6 +452,8 @@ export function FileTree({
           selectedFolderId={selectedFolderId}
           openingDocumentId={openingDocumentId}
           draggedFolderId={draggedFolderId}
+          documentUrls={documentUrls}
+          isLoadingDocumentUrls={isLoadingDocumentUrls}
           onToggleFolder={onToggleFolder}
           onSelectFolder={onSelectFolder}
           onOpenDocument={onOpenDocument}

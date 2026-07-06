@@ -2298,6 +2298,85 @@ class DocumentDownloadRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
         get_document_download_url.assert_not_called()
 
+class DocumentDownloadBatchRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.document = Document.objects.create(
+            project=self.project,
+            name="Download document",
+            file_id="projects/1/documents/download.pdf",
+            file_name="download.pdf",
+            file_size=100,
+            mime_type="application/pdf",
+        )
+        self.other_project_document = Document.objects.create(
+            project=self.other_project,
+            name="Other project download document",
+            file_id="projects/2/documents/download.pdf",
+            file_name="download.pdf",
+            file_size=200,
+            mime_type="application/pdf",
+        )
+        self.url = f"/api/projects/{self.project.id}/documents/download-urls/"
+
+    # WHEN
+    def when_download_documents_batch(self, ids):
+        return self.api_post(self.url, {"ids": ids})
+
+    # TESTS POST
+    @patch("api.serializers.get_document_download_url")
+    def test_anonymous_cannot_get_document_download_urls_batch(self, get_document_download_url):
+        response = self.when_download_documents_batch([self.document.id])
+
+        self.assert_unauthorized(response)
+        get_document_download_url.assert_not_called()
+
+    @patch("api.serializers.get_document_download_url")
+    def test_owner_can_get_document_download_urls_batch(self, get_document_download_url):
+        get_document_download_url.return_value = "https://storage.example/download.pdf"
+        self.given_authenticated(self.owner)
+
+        response = self.when_download_documents_batch([self.document.id])
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["id"], self.document.id)
+        self.assertEqual(data[0]["url"], "https://storage.example/download.pdf")
+        self.assertEqual(data[0]["file_name"], "download.pdf")
+        self.assertEqual(data[0]["mime_type"], "application/pdf")
+
+    @patch("api.serializers.get_document_download_url")
+    def test_member_with_document_view_can_get_document_download_urls_batch(self, get_document_download_url):
+        get_document_download_url.return_value = "https://storage.example/download.pdf"
+        self.given_member_authenticated(["file.view"])
+
+        response = self.when_download_documents_batch([self.document.id])
+
+        self.assert_ok(response)
+
+    @patch("api.serializers.get_document_download_url")
+    def test_member_without_document_view_cannot_get_document_download_urls_batch(self, get_document_download_url):
+        self.given_member_authenticated(["file.edit"])
+
+        response = self.when_download_documents_batch([self.document.id])
+
+        self.assert_forbidden(response)
+        get_document_download_url.assert_not_called()
+
+    @patch("api.serializers.get_document_download_url")
+    def test_download_urls_batch_ignores_documents_from_another_project(self, get_document_download_url):
+        get_document_download_url.return_value = "https://storage.example/download.pdf"
+        self.given_member_authenticated(["file.view"])
+
+        response = self.when_download_documents_batch([self.document.id, self.other_project_document.id])
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual([item["id"] for item in data], [self.document.id])
+
+
 class DocumentTrashRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()

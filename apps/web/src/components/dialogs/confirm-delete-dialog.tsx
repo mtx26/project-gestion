@@ -14,7 +14,7 @@ import {
 interface ConfirmDeleteDialogProps {
   open: boolean;
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   isPending?: boolean;
   onConfirm: () => void;
   onClose: () => void;

@@ -3,8 +3,8 @@
 import type { FolderTreeNode } from "@project-gestion/types";
 import { ChevronDown, ChevronRight, Folder, FolderPlus, ListTodo } from "lucide-react";
 import { useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { closeThenNotify } from "@/lib/close-then-notify";
 import {
   Dialog,
@@ -152,7 +152,7 @@ export function TreePickerDialog(props: TreePickerProps) {
           </div>
         ) : null}
 
-        <div className="max-h-[56vh] overflow-y-auto rounded-md border bg-background p-2">
+        <div role="tree" aria-label="Arborescence" className="max-h-[56vh] overflow-y-auto rounded-md border bg-background p-2">
           <TreeRow
             node={targetTree}
             selectedValue={selectedValue}
@@ -218,6 +218,10 @@ function TreeRow({
   return (
     <div>
       <div
+        role="treeitem"
+        aria-level={node.depth + 1}
+        aria-selected={isSelected}
+        aria-expanded={hasAnyChildren ? isExpanded : undefined}
         className="group grid h-9 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-md pr-2 hover:bg-muted/70"
         style={{ paddingLeft: `${node.depth * 22}px` }}
       >
@@ -244,7 +248,7 @@ function TreeRow({
           <TreeIcon type={node.type} />
           <span className="min-w-0 truncate">{node.label}</span>
           {node.type === "task" && node.status ? (
-            <TaskStatusBadge status={node.status} />
+            <TaskStatusBadge status={node.status} className="ml-auto" />
           ) : null}
         </button>
 
@@ -263,7 +267,7 @@ function TreeRow({
       </div>
 
       {(hasAnyChildren || showInlineCreate) && isExpanded ? (
-        <div>
+        <div role="group">
           {node.children.map((child) => (
             <TreeRow
               key={child.value}
@@ -350,24 +354,3 @@ function InlineFolderInput({
   );
 }
 
-function TaskStatusBadge({ status }: { status: "todo" | "in_progress" | "done" }) {
-  if (status === "in_progress") {
-    return (
-      <Badge variant="outline" className="ml-auto shrink-0 border-blue-200 bg-blue-50 text-blue-700">
-        En cours
-      </Badge>
-    );
-  }
-  if (status === "done") {
-    return (
-      <Badge variant="outline" className="ml-auto shrink-0 border-emerald-200 bg-emerald-50 text-emerald-700">
-        Termine
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="ml-auto shrink-0 border-slate-200 bg-slate-50 text-slate-600">
-      A faire
-    </Badge>
-  );
-}

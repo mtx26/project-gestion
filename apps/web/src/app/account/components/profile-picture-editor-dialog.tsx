@@ -5,30 +5,22 @@ import Cropper from "react-easy-crop";
 
 import { Crop, RotateCcw } from "lucide-react";
 import { useEffect, useState } from "react";
-import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { FormDialog } from "@/components/dialogs/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   createProfilePictureFile,
   type ProfilePictureCrop,
-} from "@/lib/profile-picture-editor";
+} from "../lib/profile-picture-editor";
 
-type ProfilePictureEditorDialogProps = {
+interface ProfilePictureEditorDialogProps {
   file: File | null;
   isPending?: boolean;
   open: boolean;
   onConfirm: (file: File) => void;
   onOpenChange: (open: boolean) => void;
-};
+}
 
 const DEFAULT_CROP = { x: 0, y: 0 };
 
@@ -72,47 +64,15 @@ export function ProfilePictureEditorDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Preparer l&apos;icone</DialogTitle>
-          <DialogDescription>Cadre l&apos;image avant de l&apos;utiliser comme photo de profil.</DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <div className="relative h-72 overflow-hidden rounded-lg border bg-muted">
-            {hasImage ? (
-              <Cropper
-                image={imageUrl}
-                crop={crop}
-                zoom={zoom}
-                aspect={1}
-                cropShape="rect"
-                showGrid={false}
-                onCropChange={setCrop}
-                onCropComplete={(_area: Area, areaPixels: Area) => {
-                  setCroppedArea(areaPixels);
-                }}
-                onZoomChange={setZoom}
-              />
-            ) : null}
-          </div>
-
-          <div className="space-y-3">
-            <RangeControl
-              label="Zoom"
-              max={3}
-              min={1}
-              step={0.05}
-              value={zoom}
-              onChange={setZoom}
-            />
-          </div>
-
-          <FormError message={error} />
-        </div>
-
-        <DialogFooter>
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Preparer l'icone"
+      description="Cadre l'image avant de l'utiliser comme photo de profil."
+      maxWidth="md"
+      error={error}
+      footer={
+        <>
           <Button
             type="button"
             variant="outline"
@@ -129,9 +89,40 @@ export function ProfilePictureEditorDialog({
             <Crop className="size-4" />
             {isPending ? "Envoi..." : "Utiliser"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="relative h-72 overflow-hidden rounded-lg border bg-muted">
+          {hasImage ? (
+            <Cropper
+              image={imageUrl}
+              crop={crop}
+              zoom={zoom}
+              aspect={1}
+              cropShape="rect"
+              showGrid={false}
+              onCropChange={setCrop}
+              onCropComplete={(_area: Area, areaPixels: Area) => {
+                setCroppedArea(areaPixels);
+              }}
+              onZoomChange={setZoom}
+            />
+          ) : null}
+        </div>
+
+        <div className="space-y-3">
+          <RangeControl
+            label="Zoom"
+            max={3}
+            min={1}
+            step={0.05}
+            value={zoom}
+            onChange={setZoom}
+          />
+        </div>
+      </div>
+    </FormDialog>
   );
 }
 

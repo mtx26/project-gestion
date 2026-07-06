@@ -14,15 +14,19 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
-import { getErrorMessage, getFieldError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 export default function RegisterPage() {
   const router = useRouter();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: { email: "", password: "", first_name: "", last_name: "" },
   });
+
+  useServerFieldErrors(form, rawError, ["email", "password", "first_name", "last_name"]);
 
   async function onSubmit(values: RegisterFormValues) {
     setServerError(null);
@@ -31,12 +35,7 @@ export default function RegisterPage() {
       router.push(`/auth/resend-verification?email=${encodeURIComponent(values.email)}&registered=1`);
     } catch (error) {
       setServerError(getErrorMessage(error));
-      for (const field of ["email", "password", "first_name", "last_name"] as const) {
-        const message = getFieldError(error, field);
-        if (message) {
-          form.setError(field, { message });
-        }
-      }
+      setRawError(error);
     }
   }
 

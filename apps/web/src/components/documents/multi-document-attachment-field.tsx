@@ -54,6 +54,7 @@ export function MultiDocumentAttachmentField({
                   variant="ghost"
                   size="icon-sm"
                   className="text-destructive hover:text-destructive"
+                  aria-label={`Retirer ${doc.name ?? `document #${doc.id}`}`}
                   onClick={() => onRemoveDoc(doc.id)}
                 >
                   <X className="size-4" />
@@ -75,6 +76,7 @@ export function MultiDocumentAttachmentField({
                   variant="ghost"
                   size="icon-sm"
                   className="text-destructive hover:text-destructive"
+                  aria-label={`Retirer ${file.name}`}
                   onClick={() => onRemoveFile(index)}
                   disabled={uploading}
                 >

@@ -2,29 +2,33 @@
 
 import type { User } from "@project-gestion/types";
 import { useMutation } from "@tanstack/react-query";
-import { Camera, Save } from "lucide-react";
+import { Camera } from "lucide-react";
 import type { FormEvent } from "react";
 import { useState } from "react";
 import { ProfilePictureEditorDialog } from "@/app/account/components/profile-picture-editor-dialog";
 import { FormError } from "@/components/forms/form-error";
+import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MoneyInput } from "@/components/forms/money-input";
+import { MutedInfoCard } from "@/components/muted-info-card";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { getInitials } from "@/lib/user-display";
 import { useAuthStore } from "@/stores/auth-store";
 
-type AccountProfileFormProps = {
+interface AccountProfileFormProps {
   user: User | null;
   submitLabel?: string;
   showEmail?: boolean;
   showNameFields?: boolean;
   onProfileSaved?: () => void;
   onPictureSaved?: () => void;
-};
+}
 
 export function AccountProfileForm({
   user,
@@ -156,21 +160,20 @@ export function AccountProfileForm({
       ) : null}
       <Field className="sm:col-span-2">
         <FieldLabel htmlFor="account-default-rate">Taux horaire par defaut</FieldLabel>
-        <Input
+        <MoneyInput
           id="account-default-rate"
-          type="number"
-          min="0"
-          step="0.01"
           value={profileValues.default_hourly_rate}
           onChange={(event) => setProfileDraft({ ...profileValues, default_hourly_rate: event.target.value })}
         />
       </Field>
       <div className="sm:col-span-2">
         <FormError message={getErrorMessage(updateProfile.error)} />
-        <Button type="submit" disabled={updateProfile.isPending}>
-          <Save className="size-4" />
-          {updateProfile.isPending ? "Enregistrement..." : submitLabel}
-        </Button>
+        <FormSubmitButton
+          pending={updateProfile.isPending}
+          disabled={updateProfile.isPending}
+          label={submitLabel}
+          pendingLabel="Enregistrement..."
+        />
       </div>
       <ProfilePictureEditorDialog
         key={pictureFile ? `${pictureFile.name}-${pictureFile.size}-${pictureFile.lastModified}` : "profile-picture-editor"}
@@ -191,10 +194,10 @@ export function AccountProfileForm({
 
 function InfoBlock({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border bg-muted/30 p-3 text-sm">
+    <MutedInfoCard>
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="mt-1 font-medium">{value}</p>
-    </div>
+    </MutedInfoCard>
   );
 }
 
@@ -212,16 +215,4 @@ function getAccountProfileValues(user: User | null | undefined): AccountProfileV
     last_name: user?.last_name ?? "",
     default_hourly_rate: user?.profile?.default_hourly_rate ?? "0",
   };
-}
-
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return "U";
-  }
-
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("");
 }

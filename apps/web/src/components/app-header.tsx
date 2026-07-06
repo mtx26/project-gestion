@@ -8,13 +8,13 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { getInitials } from "@/lib/user-display";
 
-type AppHeaderProps = {
+interface AppHeaderProps {
   user: User | null | undefined;
   onLogout: () => void;
   backHref?: string;
   backLabel?: string;
   leading?: ReactNode;
-};
+}
 
 export function AppHeader({ user, onLogout, backHref, backLabel = "Retour", leading }: AppHeaderProps) {
   return (

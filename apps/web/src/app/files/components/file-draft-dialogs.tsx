@@ -1,48 +1,55 @@
 "use client";
 
 import type { FolderTreeNode, Task } from "@project-gestion/types";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/forms/date-picker";
 import { DialogClose } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
+import { MoneyInput } from "@/components/forms/money-input";
 import { PrioritySelect } from "@/components/forms/priority-select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
+import { getErrorMessage } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
+
+export type TaskDraftSubmitData = {
+  title: string;
+  description: string | null;
+  priority: Task["priority"];
+  endDate: string | null;
+};
+
+export type TimeDraftSubmitData = {
+  hours: string;
+  minutes: string;
+  hourlyRate: string;
+  description: string | null;
+};
 
 export function FileDraftDialogs(props: {
   taskOpen: boolean;
   taskFolderName: string | null;
   taskFolders: FolderTreeNode[];
   taskFolderId: number | null;
-  taskTitle: string;
-  taskDescription: string;
-  taskPriority: Task["priority"];
-  taskEndDate: string;
   taskIsPending: boolean;
+  taskError?: unknown;
   onTaskOpenChange: (open: boolean) => void;
-  onTaskTitleChange: (value: string) => void;
-  onTaskDescriptionChange: (value: string) => void;
   onTaskFolderChange: (folderId: number | null) => void;
-  onTaskPriorityChange: (value: Task["priority"]) => void;
-  onTaskEndDateChange: (value: string) => void;
-  onTaskSubmit: () => void;
+  onTaskSubmit: (data: TaskDraftSubmitData) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   timeOpen: boolean;
   timeFolderName: string | null;
-  timeHours: string;
-  timeMinutes: string;
-  timeHourlyRate: string;
-  timeDescription: string;
+  timeDefaultHourlyRate: string;
   timeIsPending: boolean;
+  timeError?: unknown;
   onTimeOpenChange: (open: boolean) => void;
-  onTimeHoursChange: (value: string) => void;
-  onTimeMinutesChange: (value: string) => void;
-  onTimeHourlyRateChange: (value: string) => void;
-  onTimeDescriptionChange: (value: string) => void;
-  onTimeSubmit: () => void;
+  onTimeSubmit: (data: TimeDraftSubmitData) => void;
 }) {
   return (
     <>
@@ -51,55 +58,43 @@ export function FileDraftDialogs(props: {
         folderName={props.taskFolderName}
         folders={props.taskFolders}
         folderId={props.taskFolderId}
-        title={props.taskTitle}
-        description={props.taskDescription}
-        priority={props.taskPriority}
-        endDate={props.taskEndDate}
         isPending={props.taskIsPending}
+        error={props.taskError}
         onOpenChange={props.onTaskOpenChange}
-        onTitleChange={props.onTaskTitleChange}
-        onDescriptionChange={props.onTaskDescriptionChange}
         onFolderChange={props.onTaskFolderChange}
-        onPriorityChange={props.onTaskPriorityChange}
-        onEndDateChange={props.onTaskEndDateChange}
         onSubmit={props.onTaskSubmit}
         onCreateFolder={props.onCreateFolder}
       />
       <TimeDraftDialog
         open={props.timeOpen}
         folderName={props.timeFolderName}
-        hours={props.timeHours}
-        minutes={props.timeMinutes}
-        hourlyRate={props.timeHourlyRate}
-        description={props.timeDescription}
+        defaultHourlyRate={props.timeDefaultHourlyRate}
         isPending={props.timeIsPending}
+        error={props.timeError}
         onOpenChange={props.onTimeOpenChange}
-        onHoursChange={props.onTimeHoursChange}
-        onMinutesChange={props.onTimeMinutesChange}
-        onHourlyRateChange={props.onTimeHourlyRateChange}
-        onDescriptionChange={props.onTimeDescriptionChange}
         onSubmit={props.onTimeSubmit}
       />
     </>
   );
 }
 
+const taskDraftSchema = z.object({
+  title: z.string().min(1, "Le titre est requis"),
+  description: z.string(),
+  priority: z.enum(["low", "normal", "high"]),
+  endDate: z.string(),
+});
+type TaskDraftFormValues = z.infer<typeof taskDraftSchema>;
+
 export function TaskDraftDialog({
   open,
   folderName,
   folders,
   folderId,
-  title,
-  description,
-  priority,
-  endDate,
   isPending,
+  error,
   onOpenChange,
-  onTitleChange,
-  onDescriptionChange,
   onFolderChange,
-  onPriorityChange,
-  onEndDateChange,
   onSubmit,
   onCreateFolder,
 }: {
@@ -107,35 +102,50 @@ export function TaskDraftDialog({
   folderName: string | null;
   folders: FolderTreeNode[];
   folderId: number | null;
-  title: string;
-  description: string;
-  priority: Task["priority"];
-  endDate: string;
   isPending: boolean;
+  error?: unknown;
   onOpenChange: (open: boolean) => void;
-  onTitleChange: (value: string) => void;
-  onDescriptionChange: (value: string) => void;
   onFolderChange: (folderId: number | null) => void;
-  onPriorityChange: (value: Task["priority"]) => void;
-  onEndDateChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (data: TaskDraftSubmitData) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
+  const form = useForm<TaskDraftFormValues>({
+    resolver: zodResolver(taskDraftSchema),
+    defaultValues: { title: "", description: "", priority: "normal", endDate: "" },
+  });
+
+  useServerFieldErrors(form, error, ["title", "priority", { name: "endDate", serverField: "end_date" }]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next) form.reset();
+    onOpenChange(next);
+  }
+
+  function handleSubmit(values: TaskDraftFormValues) {
+    onSubmit({
+      title: values.title.trim(),
+      description: values.description.trim() || null,
+      priority: values.priority,
+      endDate: values.endDate || null,
+    });
+  }
+
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title="Nouvelle tache"
       description={folderName ? `La tache sera liee au dossier ${folderName}.` : "La tache sera liee au projet."}
+      error={getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <FormSubmitButton
-            onClick={onSubmit}
+            onClick={form.handleSubmit(handleSubmit)}
             pending={isPending}
-            disabled={!title.trim() || isPending}
+            disabled={isPending}
             label="Creer la tache"
             pendingLabel="Creation..."
           />
@@ -157,73 +167,103 @@ export function TaskDraftDialog({
         </Field>
         <Field>
           <FieldLabel htmlFor="project-task-title">Titre</FieldLabel>
-          <Input id="project-task-title" value={title} onChange={(e) => onTitleChange(e.target.value)} />
+          <Input id="project-task-title" {...form.register("title")} />
+          <FieldError errors={[form.formState.errors.title]} />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field>
             <FieldLabel>Priorite</FieldLabel>
-            <PrioritySelect value={priority} onChange={onPriorityChange} />
+            <Controller
+              control={form.control}
+              name="priority"
+              render={({ field }) => <PrioritySelect value={field.value} onChange={field.onChange} />}
+            />
           </Field>
           <Field>
             <FieldLabel>Date de fin</FieldLabel>
-            <DatePicker value={endDate} onChange={onEndDateChange} />
+            <Controller
+              control={form.control}
+              name="endDate"
+              render={({ field }) => <DatePicker value={field.value} onChange={field.onChange} />}
+            />
           </Field>
         </div>
         <Field>
           <FieldLabel htmlFor="project-task-description">Description</FieldLabel>
-          <Textarea id="project-task-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
+          <Textarea id="project-task-description" rows={3} {...form.register("description")} />
         </Field>
       </div>
     </FormDialog>
   );
 }
 
+const timeDraftSchema = z
+  .object({
+    hours: z.string(),
+    minutes: z.string(),
+    hourlyRate: z.string(),
+    description: z.string(),
+  })
+  .refine((v) => Number(v.hours) * 60 + Number(v.minutes) > 0, {
+    message: "La duree doit etre superieure a 0",
+    path: ["hours"],
+  });
+type TimeDraftFormValues = z.infer<typeof timeDraftSchema>;
+
 export function TimeDraftDialog({
   open,
   folderName,
-  hours,
-  minutes,
-  hourlyRate,
-  description,
+  defaultHourlyRate,
   isPending,
+  error,
   onOpenChange,
-  onHoursChange,
-  onMinutesChange,
-  onHourlyRateChange,
-  onDescriptionChange,
   onSubmit,
 }: {
   open: boolean;
   folderName: string | null;
-  hours: string;
-  minutes: string;
-  hourlyRate: string;
-  description: string;
+  defaultHourlyRate: string;
   isPending: boolean;
+  error?: unknown;
   onOpenChange: (open: boolean) => void;
-  onHoursChange: (value: string) => void;
-  onMinutesChange: (value: string) => void;
-  onHourlyRateChange: (value: string) => void;
-  onDescriptionChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (data: TimeDraftSubmitData) => void;
 }) {
-  const durationMinutes = Number(hours) * 60 + Number(minutes);
+  const form = useForm<TimeDraftFormValues>({
+    resolver: zodResolver(timeDraftSchema),
+    defaultValues: { hours: "1", minutes: "0", hourlyRate: defaultHourlyRate, description: "" },
+  });
+
+  useServerFieldErrors(form, error, [{ name: "hourlyRate", serverField: "hourly_rate" }, "description"]);
+
+  function handleOpenChange(next: boolean) {
+    if (!next) form.reset();
+    onOpenChange(next);
+  }
+
+  function handleSubmit(values: TimeDraftFormValues) {
+    onSubmit({
+      hours: values.hours,
+      minutes: values.minutes,
+      hourlyRate: values.hourlyRate,
+      description: values.description.trim() || null,
+    });
+  }
 
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title="Ajouter du temps"
       description={folderName ? `Le temps sera lie au dossier ${folderName}.` : "Le temps sera lie au projet."}
+      error={getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <FormSubmitButton
-            onClick={onSubmit}
+            onClick={form.handleSubmit(handleSubmit)}
             pending={isPending}
-            disabled={durationMinutes <= 0 || isPending}
+            disabled={isPending}
             label="Enregistrer"
             pendingLabel="Enregistrement..."
           />
@@ -234,20 +274,21 @@ export function TimeDraftDialog({
         <div className="grid grid-cols-2 gap-3">
           <Field>
             <FieldLabel htmlFor="project-time-hours">Heures</FieldLabel>
-            <Input id="project-time-hours" type="number" min="0" value={hours} onChange={(e) => onHoursChange(e.target.value)} />
+            <Input id="project-time-hours" type="number" min="0" {...form.register("hours")} />
+            <FieldError errors={[form.formState.errors.hours]} />
           </Field>
           <Field>
             <FieldLabel htmlFor="project-time-minutes">Minutes</FieldLabel>
-            <Input id="project-time-minutes" type="number" min="0" max="59" value={minutes} onChange={(e) => onMinutesChange(e.target.value)} />
+            <Input id="project-time-minutes" type="number" min="0" max="59" {...form.register("minutes")} />
           </Field>
         </div>
         <Field>
           <FieldLabel htmlFor="project-time-rate">Taux horaire</FieldLabel>
-          <Input id="project-time-rate" type="number" min="0" step="0.01" value={hourlyRate} onChange={(e) => onHourlyRateChange(e.target.value)} />
+          <MoneyInput id="project-time-rate" {...form.register("hourlyRate")} />
         </Field>
         <Field>
           <FieldLabel htmlFor="project-time-description">Description</FieldLabel>
-          <Textarea id="project-time-description" rows={3} value={description} onChange={(e) => onDescriptionChange(e.target.value)} />
+          <Textarea id="project-time-description" rows={3} {...form.register("description")} />
         </Field>
       </div>
     </FormDialog>

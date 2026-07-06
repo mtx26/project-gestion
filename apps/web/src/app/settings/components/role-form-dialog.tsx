@@ -18,7 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-type RoleFormDialogProps = {
+interface RoleFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
@@ -30,7 +30,7 @@ type RoleFormDialogProps = {
   onSubmit: () => void;
   error: string | null;
   isPending: boolean;
-};
+}
 
 export function RoleFormDialog({
   open,

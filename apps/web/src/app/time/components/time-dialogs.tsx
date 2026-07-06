@@ -13,9 +13,9 @@ import { DateRangeField } from "@/components/forms/date-range-field";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
+import { MoneyInput } from "@/components/forms/money-input";
+import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -23,10 +23,13 @@ import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload, g
 import { Textarea } from "@/components/ui/textarea";
 import { addMinutes, format, parseISO } from "date-fns";
 import { formatDateTime } from "@/lib/date-utils";
+import { getErrorMessage } from "@/lib/errors";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { getPaymentStatus } from "@/lib/time-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
-import { getEntryTargetLabel, getPaymentStatus } from "../lib/time-filters";
+import { getEntryTargetLabel } from "../lib/time-filters";
 
 const editTimeSchema = z.object({
   startDate: z.string(),
@@ -91,7 +94,7 @@ export function EditTimeEntryDialog({
   projectId: number;
   targetFolders: FolderTreeNode[];
   isPending: boolean;
-  error: string | null;
+  error: unknown;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: EditTimeSubmitData) => void;
@@ -123,6 +126,12 @@ export function EditTimeEntryDialog({
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const selectedTargetLabel = findTargetLabel(targetTree, targetValue) ?? "Projet";
 
+  useServerFieldErrors(form, error, [
+    { name: "startDate", serverField: "start_date" },
+    { name: "hourlyRate", serverField: "hourly_rate" },
+    "description",
+  ]);
+
   async function handleSubmit(values: EditTimeFormValues) {
     const duration = values.startDate && values.endDate
       ? Math.max(0, Math.round((new Date(values.endDate).getTime() - new Date(values.startDate).getTime()) / 60000))
@@ -149,7 +158,7 @@ export function EditTimeEntryDialog({
       onOpenChange={onOpenChange}
       title="Modifier l'entree"
       description="Ajuste la duree, le taux, la cible ou la description."
-      error={docs.uploadError ?? error}
+      error={docs.uploadError ?? getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
@@ -176,7 +185,7 @@ export function EditTimeEntryDialog({
         <div className="flex items-end gap-3">
           <Field className="flex-1">
             <FieldLabel htmlFor="edit-time-rate">Taux horaire</FieldLabel>
-            <Input id="edit-time-rate" type="number" min="0" step="0.01" {...form.register("hourlyRate")} />
+            <MoneyInput id="edit-time-rate" {...form.register("hourlyRate")} />
           </Field>
           <p className="pb-2 text-xs text-muted-foreground">
             {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
@@ -214,7 +223,7 @@ export function EditTimeEntryDialog({
   );
 }
 
-export function TimeEntryDetailDialog({
+export function TimeEntryDetailModal({
   entry,
   projectId,
   canEdit = false,
@@ -374,7 +383,7 @@ export function PaymentDialog({
 }: {
   entry: TimeEntry | null;
   isPending: boolean;
-  error: string | null;
+  error: unknown;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: { mode: "full" | "partial"; amount: string }) => void;
 }) {
@@ -385,6 +394,8 @@ export function PaymentDialog({
     resolver: zodResolver(schema),
     defaultValues: { mode: "full", amount: entry?.remaining_amount ?? "" },
   });
+
+  useServerFieldErrors(form, error, ["amount"]);
 
   const mode = form.watch("mode");
 
@@ -399,7 +410,7 @@ export function PaymentDialog({
       title="Marquer comme paye"
       description={`Reste a payer : ${formatMoney(remainingAmount)}.`}
       maxWidth="md"
-      error={error}
+      error={getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
@@ -435,14 +446,7 @@ export function PaymentDialog({
         {mode === "partial" ? (
           <Field>
             <Label htmlFor="payment-amount">Montant paye</Label>
-            <Input
-              id="payment-amount"
-              type="number"
-              min="0.01"
-              max={remainingAmount}
-              step="0.01"
-              {...form.register("amount")}
-            />
+            <MoneyInput id="payment-amount" {...form.register("amount")} />
             <FieldError errors={[form.formState.errors.amount]} />
           </Field>
         ) : null}
@@ -460,7 +464,7 @@ export function CorrectPaymentDialog({
 }: {
   entry: TimeEntry | null;
   isPending: boolean;
-  error: string | null;
+  error: unknown;
   onOpenChange: (open: boolean) => void;
   onSubmit: (amount: string) => void;
 }) {
@@ -473,6 +477,8 @@ export function CorrectPaymentDialog({
     defaultValues: { amount: paidAmount },
   });
 
+  useServerFieldErrors(form, error, ["amount"]);
+
   function handleSubmit(values: CorrectionFormValues) {
     onSubmit(values.amount);
   }
@@ -484,7 +490,7 @@ export function CorrectPaymentDialog({
       title="Corriger le paiement"
       description={`Actuellement paye : ${formatMoney(paidAmount)} sur ${formatMoney(costAmount)}.`}
       maxWidth="md"
-      error={error}
+      error={getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
@@ -501,12 +507,8 @@ export function CorrectPaymentDialog({
     >
       <Field>
         <Label htmlFor="payment-correction-amount">Nouveau montant paye</Label>
-        <Input
+        <MoneyInput
           id="payment-correction-amount"
-          type="number"
-          min="0"
-          max={costAmount}
-          step="0.01"
           {...form.register("amount")}
         />
         <FieldError errors={[form.formState.errors.amount]} />

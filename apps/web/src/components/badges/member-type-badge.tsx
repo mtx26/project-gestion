@@ -1,34 +1,34 @@
 import { AlertTriangle, Crown, User } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge, type BadgeOption } from "./status-badge";
 
-type MemberTypeBadgeProps = {
+type MemberType = "owner" | "role_deleted" | "member";
+
+const OPTIONS: Record<MemberType, BadgeOption> = {
+  owner: {
+    label: "Proprietaire",
+    icon: Crown,
+    className: "bg-primary/10 text-primary dark:bg-primary/20",
+  },
+  role_deleted: {
+    label: "Sans role",
+    icon: AlertTriangle,
+    className: "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300",
+  },
+  member: {
+    label: "Membre",
+    icon: User,
+  },
+};
+
+export function MemberTypeBadge({
+  isOwner,
+  roleDeleted = false,
+  className,
+}: {
   isOwner: boolean;
   roleDeleted?: boolean;
   className?: string;
-};
-
-export function MemberTypeBadge({ isOwner, roleDeleted = false, className }: MemberTypeBadgeProps) {
-  if (isOwner) {
-    return (
-      <Badge variant="secondary" className={cn("shrink-0 bg-primary/10 text-primary dark:bg-primary/20", className)}>
-        <Crown className="size-3" />
-        Proprietaire
-      </Badge>
-    );
-  }
-  if (roleDeleted) {
-    return (
-      <Badge variant="secondary" className={cn("shrink-0 bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300", className)}>
-        <AlertTriangle className="size-3" />
-        Sans role
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="secondary" className={cn("shrink-0", className)}>
-      <User className="size-3" />
-      Membre
-    </Badge>
-  );
+}) {
+  const type: MemberType = isOwner ? "owner" : roleDeleted ? "role_deleted" : "member";
+  return <StatusBadge option={OPTIONS[type]} className={className} />;
 }

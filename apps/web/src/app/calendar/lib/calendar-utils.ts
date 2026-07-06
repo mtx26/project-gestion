@@ -1,11 +1,3 @@
-export function formatDateInputValue(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
-
 export function getMonthCalendarDays(monthDate: Date): Date[] {
   const firstOfMonth = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
   const mondayOffset = (firstOfMonth.getDay() + 6) % 7;

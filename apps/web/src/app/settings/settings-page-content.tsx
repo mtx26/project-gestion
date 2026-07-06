@@ -8,16 +8,17 @@ import {
   canDeleteProject,
   canEditProject,
   formatPermissionCode,
-  hasProjectPermission,
   permissionCodes,
 } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle, Save, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { FormError } from "@/components/forms/form-error";
+import { PageTitle } from "@/components/page-title";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { MembersSettingsTab } from "@/app/settings/components/members-settings-tab";
 import { RolesSettingsTab } from "@/app/settings/components/roles-settings-tab";
@@ -34,7 +35,8 @@ import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
+import { useProjectPermissions } from "@/lib/use-project-permissions";
 
 type SettingsSection = "general" | "members" | "roles" | "access" | "danger";
 
@@ -55,30 +57,18 @@ function getVisibleSettingsSection(
   return section;
 }
 
-export function ProjectSettingsPage() {
-  const router = useRouter();
+export function SettingsPageContent() {
   const searchParams = useSearchParams();
   const initialSection = getSettingsSection(searchParams.get("tab"));
-  const buildSettingsHref = (projectId: number) => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("project", String(projectId));
-    return `/settings?${params.toString()}`;
-  };
 
   return (
-    <ProjectWorkspaceShell
-      activeItem="settings"
-      selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      maxWidthClassName="max-w-none"
-      onProjectSelected={(id) => router.push(buildSettingsHref(id))}
-      onProjectCreated={(project) => router.push(buildSettingsHref(project.id))}
-    >
-      {(state) => <ProjectSettingsContent {...state} initialSection={initialSection} />}
+    <ProjectWorkspaceShell maxWidthClassName="max-w-none">
+      {(state) => <SettingsView {...state} initialSection={initialSection} />}
     </ProjectWorkspaceShell>
   );
 }
 
-function ProjectSettingsContent({
+function SettingsView({
   user,
   projects,
   selectedProject,
@@ -92,12 +82,15 @@ function ProjectSettingsContent({
 
   const canEditSelectedProject = canEditProject(selectedProject, user?.id ?? null);
   const canDeleteSelectedProject = canDeleteProject(selectedProject, user?.id ?? null);
-  const canViewMembers = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.memberView);
-  const canManageMembers = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.memberEdit);
-  const canViewRoles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.roleView);
-  const canManageRoles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.roleEdit);
-  const canDeleteRoles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.roleDelete);
+  const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
+  const canViewMembers = can(permissionCodes.memberView);
+  const canManageMembers = can(permissionCodes.memberEdit);
+  const canViewRoles = can(permissionCodes.roleView);
+  const canManageRoles = can(permissionCodes.roleEdit);
+  const canDeleteRoles = can(permissionCodes.roleDelete);
   const isSharedProject = Boolean(user && selectedProject && selectedProject.owner !== user.id);
+
+  const [confirmingDeleteProject, setConfirmingDeleteProject] = useState(false);
 
   const rolesQuery = useQuery({
     queryKey: selectedProject ? queryKeys.roles.list(selectedProject.id) : ["roles", "disabled"],
@@ -140,6 +133,7 @@ function ProjectSettingsContent({
       toast.success("Projet mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
     },
+    onError: toastError,
   });
 
   const deleteProject = useMutation({
@@ -147,8 +141,10 @@ function ProjectSettingsContent({
     onSuccess: async (_data, deletedProjectId) => {
       const nextProject = projects.find((p) => p.id !== deletedProjectId);
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
+      setConfirmingDeleteProject(false);
       router.push(nextProject ? `/settings?project=${nextProject.id}` : "/dashboard");
     },
+    onError: toastError,
   });
 
   function onSettingsSectionChange(value: string) {
@@ -162,10 +158,7 @@ function ProjectSettingsContent({
 
   return (
     <div className="space-y-5">
-      <div>
-        <p className="text-xs font-medium uppercase text-muted-foreground">Parametres projet</p>
-        <h1 className="mt-1 text-2xl font-semibold">Configuration du projet</h1>
-      </div>
+      <PageTitle category="Parametres projet" title="Configuration du projet" />
 
       {!projectsQuery.isLoading && !selectedProject ? (
         <Empty className="border bg-card p-8">
@@ -221,8 +214,8 @@ function ProjectSettingsContent({
                 roles={roles}
                 userId={user?.id ?? null}
                 canManageMembers={canManageMembers}
-                canEditOwnRate={hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.memberEditOwnRate)}
-                canEditRates={hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.memberEditRates)}
+                canEditOwnRate={can(permissionCodes.memberEditOwnRate)}
+                canEditRates={can(permissionCodes.memberEditRates)}
               />
             </TabsContent>
           ) : null}
@@ -250,12 +243,20 @@ function ProjectSettingsContent({
                 canDelete={canDeleteSelectedProject}
                 isPending={deleteProject.isPending}
                 error={getErrorMessage(deleteProject.error)}
-                onDelete={() => deleteProject.mutate(selectedProject.id)}
+                onDelete={() => setConfirmingDeleteProject(true)}
               />
             </TabsContent>
           ) : null}
         </Tabs>
       ) : null}
+
+      <ConfirmDeleteDialog
+        open={confirmingDeleteProject}
+        title={selectedProject ? `Supprimer "${selectedProject.name}" ?` : "Supprimer le projet ?"}
+        isPending={deleteProject.isPending}
+        onConfirm={() => selectedProject && deleteProject.mutate(selectedProject.id)}
+        onClose={() => setConfirmingDeleteProject(false)}
+      />
     </div>
   );
 }

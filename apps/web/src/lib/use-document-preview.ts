@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import type { PreviewDocument } from "@/components/dialogs/document-preview-modal";
+import type { PreviewDocument } from "@/components/dialogs/document-preview-dialog";
 import { api } from "@/lib/api";
 import { toastError } from "@/lib/errors";
 

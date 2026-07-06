@@ -6,7 +6,7 @@ import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatMoney } from "@/lib/task-utils";
-import { financeChartConfig, formatFinancePeriod } from "../lib/finance-utils";
+import { financeChartConfig, formatFinancePeriod } from "@/lib/finance-chart-utils";
 
 function FinanceChartTooltip({
   active,

@@ -39,13 +39,14 @@ export const queryKeys = {
       }] as const,
     chart: (projectId: number, groupBy: "day" | "month", startDate?: string) =>
       ["projects", projectId, "financial-entries", "chart", groupBy, startDate ?? ""] as const,
-    trash: (projectId: number) => ["projects", projectId, "financial-entries", "trash"] as const,
+    trash: (projectId: number, page = 1) => ["projects", projectId, "financial-entries", "trash", page] as const,
   },
   documents: {
-    list: (projectId: number) => ["projects", projectId, "documents"] as const,
-    trash: (projectId: number) => ["projects", projectId, "documents", "trash"] as const,
+    trash: (projectId: number, page = 1) => ["projects", projectId, "documents", "trash", page] as const,
     download: (projectId: number, documentId: number) =>
       ["projects", projectId, "documents", documentId, "download"] as const,
+    downloadBatch: (projectId: number, documentIds: number[]) =>
+      ["projects", projectId, "documents", "download-batch", [...documentIds].sort((a, b) => a - b)] as const,
   },
   expenseRequests: {
     all: (projectId: number) => ["projects", projectId, "expense-requests"] as const,
@@ -61,7 +62,7 @@ export const queryKeys = {
         dateFrom: query.dateFrom ?? "",
         dateTo: query.dateTo ?? "",
       }] as const,
-    trash: (projectId: number) => ["projects", projectId, "expense-requests", "trash"] as const,
+    trash: (projectId: number, page = 1) => ["projects", projectId, "expense-requests", "trash", page] as const,
   },
   tasks: {
     all: (projectId: number) => ["projects", projectId, "tasks"] as const,
@@ -96,14 +97,14 @@ export const queryKeys = {
         dateFrom: query.dateFrom ?? "",
         dateTo: query.dateTo ?? "",
       }] as const,
-    trash: (projectId: number) => ["projects", projectId, "tasks", "trash"] as const,
+    trash: (projectId: number, page = 1) => ["projects", projectId, "tasks", "trash", page] as const,
   },
   folders: {
     allTree: (projectId: number) => ["projects", projectId, "folders", "tree"] as const,
     tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>
       ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false, includeFiles: query.includeFiles ?? true }] as const,
     targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
-    trash: (projectId: number) => ["projects", projectId, "folders", "trash"] as const,
+    trash: (projectId: number, page = 1) => ["projects", projectId, "folders", "trash", page] as const,
   },
   timeEntries: {
     all: (projectId: number) => ["projects", projectId, "time-entries"] as const,
@@ -147,6 +148,6 @@ export const queryKeys = {
         paymentStatus: query.paymentStatus ?? "all",
         target: query.target ?? "",
       }] as const,
-    trash: (projectId: number) => ["projects", projectId, "time-entries", "trash"] as const,
+    trash: (projectId: number, page = 1) => ["projects", projectId, "time-entries", "trash", page] as const,
   },
 } as const;

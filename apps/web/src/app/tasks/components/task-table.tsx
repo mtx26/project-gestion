@@ -1,6 +1,6 @@
 "use client";
 
-import type { Task } from "@project-gestion/types";
+import type { ProjectMember, Task } from "@project-gestion/types";
 import {
   type ColumnDef,
   type VisibilityState,
@@ -15,11 +15,11 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
-import { TaskStatusBadge } from "@/components/badges/task-status-badge";
+import { TaskStatusBadge, getTaskStatusSelectClassName } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { formatDate, getStatusClassName } from "@/lib/task-utils";
+import { formatDate } from "@/lib/task-utils";
 
-export type TaskMember = { id: number; user: number; user_display_name: string };
+export type TaskMember = Pick<ProjectMember, "id" | "user" | "user_display_name">;
 
 const COLUMN_LABELS: Record<string, string> = {
   title: "Tache",
@@ -57,6 +57,8 @@ export function TaskTable({
   onDelete: (task: Task) => void;
   onStatusChange: (task: Task, status: Task["status"]) => void;
 }) {
+  // React Compiler can't safely memoize TanStack Table's useReactTable() output
+  // (it returns fresh functions every render) — opt this component out.
   "use no memo";
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>(defaultVisibility);
 
@@ -97,7 +99,7 @@ export function TaskTable({
                 value={row.original.status}
                 onValueChange={(v) => onStatusChange(row.original, v as Task["status"])}
               >
-                <SelectTrigger className={`h-7 w-32 border px-2 text-xs font-medium ${getStatusClassName(row.original.status)}`}>
+                <SelectTrigger className={`h-7 w-32 border px-2 text-xs font-medium ${getTaskStatusSelectClassName(row.original.status)}`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

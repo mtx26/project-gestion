@@ -9,9 +9,9 @@ import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TreeIcon } from "@/components/pickers/tree-picker";
 import { formatDateTime } from "@/lib/date-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { getPaymentStatus } from "@/lib/time-utils";
 import {
   getEntryTargetLabel,
-  getPaymentStatus,
   getTimeEntryCardClassName,
 } from "../lib/time-filters";
 

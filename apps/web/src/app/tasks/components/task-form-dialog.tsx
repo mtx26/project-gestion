@@ -14,16 +14,18 @@ import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
+import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { PrioritySelect } from "@/components/forms/priority-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
+import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
-import type { FolderFilter } from "../lib/filters";
-import { getFolderId } from "../lib/filters";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
+import type { FolderFilter } from "../lib/task-filters";
+import { getFolderId } from "../lib/task-filters";
 import type { TaskMember } from "./task-table";
 
 const taskSchema = z.object({
@@ -65,7 +67,7 @@ export function TaskFormDialog({
   members: TaskMember[];
   initialFolder?: FolderFilter;
   isPending: boolean;
-  error: string | null;
+  error: unknown;
   onOpenChange: (open: boolean) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: TaskPayload) => void;
@@ -88,6 +90,15 @@ export function TaskFormDialog({
       assignees: task?.assigned_to ?? [],
     },
   });
+
+  useServerFieldErrors(form, error, [
+    "title",
+    "priority",
+    { name: "folder", serverField: "folder" },
+    { name: "startDate", serverField: "start_date" },
+    { name: "endDate", serverField: "end_date" },
+    { name: "assignees", serverField: "assigned_to" },
+  ]);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -130,7 +141,7 @@ export function TaskFormDialog({
           ? "Ajoute une tache et rattache-la au bon dossier si necessaire."
           : "Modifie le titre, la cible, le statut et les informations de suivi."
       }
-      error={docs.uploadError ?? error}
+      error={docs.uploadError ?? getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>

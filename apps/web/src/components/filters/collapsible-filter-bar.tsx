@@ -39,7 +39,7 @@ export function CollapsibleFilterBar({
         <div className="flex-1">{primary}</div>
         <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
           <SheetTrigger asChild>
-            <Button variant="outline" size="icon" className="relative shrink-0">
+            <Button variant="outline" size="icon" className="relative shrink-0" aria-label="Ouvrir les filtres">
               <SlidersHorizontal className="size-4" />
               {activeCount > 0 ? (
                 <span className="absolute -top-1.5 -right-1.5 flex size-4 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">

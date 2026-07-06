@@ -1,7 +1,7 @@
 "use client";
 
 import type { Task } from "@project-gestion/types";
-import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
+import { permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,20 +16,11 @@ import {
   Upload,
 } from "lucide-react";
 import { format } from "date-fns";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
+import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { AccessDeniedState } from "@/components/states/access-denied-state";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -39,17 +30,10 @@ import {
   ContextMenuSeparator,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { DocumentPreviewModal, type PreviewDocument } from "@/components/dialogs/document-preview-modal";
+import { DialogClose } from "@/components/ui/dialog";
+import { DocumentPreviewDialog, type PreviewDocument } from "@/components/dialogs/document-preview-dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { NoProjectState } from "@/components/states/no-project-state";
@@ -60,31 +44,25 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
-import { findFolderName, findFolderNode, getDescendantFolderIds } from "@/lib/folder-utils";
+import { findFolderName, findFolderNode } from "@/lib/folder-utils";
 import { buildProjectHref } from "@/lib/url-params";
+import { useLazyDetailFetch } from "@/lib/use-lazy-detail-fetch";
+import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { FileTree } from "./components/file-tree";
-import { FileDraftDialogs } from "./components/file-draft-dialogs";
+import { FileDraftDialogs, type TaskDraftSubmitData, type TimeDraftSubmitData } from "./components/file-draft-dialogs";
 import { FolderPreviewPanel } from "./components/folder-preview-panel";
-import { type FileActionTarget, isFolderDescendantOf } from "./lib/file-utils";
+import { invalidateFolders } from "./lib/file-filters";
+import { type FileActionTarget, isFolderDescendantOf } from "./lib/file-tree-utils";
 
-export function ProjectFilesPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
+export function FilesPageContent() {
   return (
-    <ProjectWorkspaceShell
-      activeItem="files"
-      selectedProjectIdFromUrl={searchParams.get("project") ?? ""}
-      maxWidthClassName="max-w-6xl"
-      onProjectSelected={(id) => router.push(buildProjectHref("/files", id, searchParams))}
-      onProjectCreated={(project) => router.push(buildProjectHref("/files", project.id, searchParams))}
-    >
-      {(state) => <ProjectTreeView {...state} />}
+    <ProjectWorkspaceShell maxWidthClassName="max-w-6xl">
+      {(state) => <FilesView {...state} />}
     </ProjectWorkspaceShell>
   );
 }
 
-function ProjectTreeView({
+function FilesView({
   user,
   selectedProject,
   projectsQuery,
@@ -92,13 +70,14 @@ function ProjectTreeView({
 }: ProjectWorkspaceState) {
   const queryClient = useQueryClient();
   const router = useRouter();
-  const canViewFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileView);
-  const canEditFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileEdit);
-  const canDeleteFiles = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.fileDelete);
-  const canViewTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskView);
-  const canEditTasks = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.taskEdit);
-  const canViewTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryView);
-  const canRecordTime = hasProjectPermission(selectedProject, user?.id ?? null, permissionCodes.timeEntryEdit);
+  const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
+  const canViewFiles = can(permissionCodes.fileView);
+  const canEditFiles = can(permissionCodes.fileEdit);
+  const canDeleteFiles = can(permissionCodes.fileDelete);
+  const canViewTasks = can(permissionCodes.taskView);
+  const canEditTasks = can(permissionCodes.taskEdit);
+  const canViewTime = can(permissionCodes.timeEntryView);
+  const canRecordTime = can(permissionCodes.timeEntryEdit);
   const selectedProjectId = selectedProject?.id ?? null;
 
   const [targetFolderId, setTargetFolderId] = useState<number | null>(null);
@@ -117,18 +96,12 @@ function ProjectTreeView({
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const [taskDraftFolderId, setTaskDraftFolderId] = useState<number | null>(null);
-  const [taskTitle, setTaskTitle] = useState("");
-  const [taskDescription, setTaskDescription] = useState("");
-  const [taskPriority, setTaskPriority] = useState<Task["priority"]>("normal");
-  const [taskEndDate, setTaskEndDate] = useState("");
   const [timeDraftFolderId, setTimeDraftFolderId] = useState<number | null>(null);
-  const [timeHours, setTimeHours] = useState("1");
-  const [timeMinutes, setTimeMinutes] = useState("0");
-  const [timeHourlyRate, setTimeHourlyRate] = useState(user?.profile?.default_hourly_rate ?? "0");
-  const [timeDescription, setTimeDescription] = useState("");
   const [draftFolder, setDraftFolder] = useState<{ parentFolder: number | null; name: string } | null>(null);
   const draftClosedRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const selectedFolderId = selectedFolderState.projectId === selectedProjectId ? selectedFolderState.id : null;
 
   const treeQuery = useQuery({
     queryKey: selectedProject
@@ -139,30 +112,47 @@ function ProjectTreeView({
   });
 
   const previewTasksQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.tasks.list(selectedProject.id, {}) : ["tasks", "folder-preview", "disabled"],
-    queryFn: () => api.tasks.list(selectedProject!.id, {}),
+    queryKey: selectedProject
+      ? queryKeys.tasks.list(selectedProject.id, { folderId: selectedFolderId ?? undefined, excludeDone: true })
+      : ["tasks", "folder-preview", "disabled"],
+    queryFn: () => api.tasks.list(selectedProject!.id, { folder: selectedFolderId ?? undefined, exclude_done: true }),
     enabled: Boolean(selectedProject && canViewTasks),
   });
 
   const previewTimeEntriesQuery = useQuery({
     queryKey: selectedProject
-      ? ["projects", selectedProject.id, "time-entries", "folder-preview"]
+      ? queryKeys.timeEntries.list(selectedProject.id, { target: selectedFolderId != null ? `folder-${selectedFolderId}` : undefined })
       : ["time-entries", "folder-preview", "disabled"],
-    queryFn: () => api.timeEntries.list(selectedProject!.id),
+    queryFn: () =>
+      api.timeEntries.list(selectedProject!.id, {
+        target: selectedFolderId != null ? `folder-${selectedFolderId}` : undefined,
+      }),
     enabled: Boolean(selectedProject && canViewTime),
   });
+
+  const openTask = useLazyDetailFetch(
+    (taskId: number) => api.tasks.get(selectedProject!.id, taskId),
+    setViewingTask,
+    "Impossible de charger la tache",
+  );
 
   const createFolder = useMutation({
     mutationFn: ({ name, parentFolder }: { name: string; parentFolder: number | null }) =>
       api.folders.create(selectedProject!.id, { name, parent_folder: parentFolder }),
-    onSuccess: () => { toast.success("Dossier cree"); treeQuery.refetch(); },
+    onSuccess: async () => {
+      toast.success("Dossier cree");
+      await invalidateFolders(queryClient, selectedProject!.id);
+    },
     onError: toastError,
   });
 
   const uploadDocument = useMutation({
     mutationFn: ({ file, folder }: { file: File; folder: number | null }) =>
       api.documents.upload(selectedProject!.id, { file, folder }),
-    onSuccess: () => { toast.success("Document uploade"); treeQuery.refetch(); },
+    onSuccess: async () => {
+      toast.success("Document uploade");
+      await invalidateFolders(queryClient, selectedProject!.id);
+    },
     onError: toastError,
   });
 
@@ -182,14 +172,18 @@ function ProjectTreeView({
           ? { projectId: selectedProjectId, id: null }
           : current,
       );
-      await treeQuery.refetch();
+      await invalidateFolders(queryClient, selectedProject!.id);
     },
     onError: toastError,
   });
 
   const deleteDocument = useMutation({
     mutationFn: (documentId: number) => api.documents.remove(selectedProject!.id, documentId),
-    onSuccess: async () => { toast.success("Document supprime"); setItemToDelete(null); await treeQuery.refetch(); },
+    onSuccess: async () => {
+      toast.success("Document supprime");
+      setItemToDelete(null);
+      await invalidateFolders(queryClient, selectedProject!.id);
+    },
     onError: toastError,
   });
 
@@ -202,7 +196,7 @@ function ProjectTreeView({
       toast.success("Element renomme");
       setItemToRename(null);
       setRenameValue("");
-      await treeQuery.refetch();
+      await invalidateFolders(queryClient, selectedProject!.id);
     },
     onError: toastError,
   });
@@ -210,63 +204,52 @@ function ProjectTreeView({
   const moveFolder = useMutation({
     mutationFn: ({ folderId, newParentId }: { folderId: number; newParentId: number | null }) =>
       api.folders.update(selectedProject!.id, folderId, { parent_folder: newParentId }),
-    onSuccess: async () => treeQuery.refetch(),
+    onSuccess: () => invalidateFolders(queryClient, selectedProject!.id),
     onError: toastError,
   });
 
   const createTask = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: TaskDraftSubmitData) =>
       api.tasks.create(selectedProject!.id, {
-        title: taskTitle.trim(),
-        description: taskDescription.trim() || null,
+        title: values.title,
+        description: values.description,
         folder: taskDraftFolderId,
-        priority: taskPriority,
+        priority: values.priority,
         status: "todo",
-        end_date: taskEndDate || null,
+        end_date: values.endDate,
       }),
     onSuccess: async () => {
       toast.success("Tache creee");
       setTaskDraftFolderId(null);
-      setTaskTitle(""); setTaskDescription(""); setTaskPriority("normal"); setTaskEndDate("");
-      await Promise.all([
-        treeQuery.refetch(),
-        selectedProjectId
-          ? queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(selectedProjectId) })
-          : Promise.resolve(),
-      ]);
+      if (selectedProjectId) {
+        await Promise.all([
+          invalidateFolders(queryClient, selectedProjectId),
+          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(selectedProjectId) }),
+        ]);
+      }
     },
     onError: toastError,
   });
 
   const createTimeEntry = useMutation({
-    mutationFn: () =>
+    mutationFn: (values: TimeDraftSubmitData) =>
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
         folder: timeDraftFolderId,
         start_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-        duration_minutes: Number(timeHours) * 60 + Number(timeMinutes),
-        hourly_rate: timeHourlyRate === "" ? undefined : timeHourlyRate,
-        description: timeDescription.trim() || null,
+        duration_minutes: Number(values.hours) * 60 + Number(values.minutes),
+        hourly_rate: values.hourlyRate === "" ? undefined : values.hourlyRate,
+        description: values.description,
       }),
     onSuccess: async () => {
       toast.success("Temps enregistre");
       setTimeDraftFolderId(null);
-      setTimeHours("1"); setTimeMinutes("0");
-      setTimeHourlyRate(user?.profile?.default_hourly_rate ?? "0");
-      setTimeDescription("");
       if (selectedProjectId) {
         await queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.all(selectedProjectId) });
       }
     },
     onError: toastError,
   });
-
-  const selectedFolderId = selectedFolderState.projectId === selectedProjectId ? selectedFolderState.id : null;
-
-  const descendantFolderIds = useMemo(
-    () => getDescendantFolderIds(treeQuery.data ?? [], selectedFolderId),
-    [treeQuery.data, selectedFolderId],
-  );
 
   const rootExpandedFolderIds = useMemo(
     () => new Set((treeQuery.data ?? []).filter((n) => n.type === "folder").map((n) => n.id)),
@@ -332,14 +315,10 @@ function ProjectTreeView({
 
   function openTaskDraft(folderId: number | null) {
     setTaskDraftFolderId(folderId);
-    setTaskTitle(""); setTaskDescription(""); setTaskPriority("normal"); setTaskEndDate("");
   }
 
   function openTimeDraft(folderId: number | null) {
     setTimeDraftFolderId(folderId);
-    setTimeHours("1"); setTimeMinutes("0");
-    setTimeHourlyRate(user?.profile?.default_hourly_rate ?? "0");
-    setTimeDescription("");
   }
 
   function handleMoveFolder(folderId: number, newParentId: number | null) {
@@ -480,10 +459,7 @@ function ProjectTreeView({
                     onToggleFolder={toggleFolderExpanded}
                     onSelectFolder={setSelectedFolderId}
                     onOpenDocument={(id) => openDocument.mutate(id)}
-                    onOpenTask={(taskId) => {
-                      const task = normalizeApiList(previewTasksQuery.data).find((t) => t.id === taskId);
-                      if (task) setViewingTask(task);
-                    }}
+                    onOpenTask={(taskId) => openTask.open(taskId)}
                     onDraftFolderChange={(name) => setDraftFolder((d) => (d ? { ...d, name } : d))}
                     onCommitDraftFolder={onCommitDraftFolder}
                     onCancelDraftFolder={onCancelDraftFolder}
@@ -558,12 +534,8 @@ function ProjectTreeView({
           selectedFolderId={selectedFolderId}
           selectedFolderName={selectedFolderName}
           selectedFolderCreatedBy={selectedFolderNode?.created_by_name ?? null}
-          tasks={normalizeApiList(previewTasksQuery.data)
-            .filter((t) => t.status !== "done")
-            .filter((t) => descendantFolderIds == null || (t.folder != null && descendantFolderIds.has(t.folder)))}
-          timeEntries={normalizeApiList(previewTimeEntriesQuery.data).filter(
-            (e) => descendantFolderIds == null || (e.folder != null && descendantFolderIds.has(e.folder)),
-          )}
+          tasks={normalizeApiList(previewTasksQuery.data)}
+          timeEntries={normalizeApiList(previewTimeEntriesQuery.data)}
           canViewTasks={canViewTasks}
           canViewTime={canViewTime}
           isLoadingTasks={previewTasksQuery.isLoading}
@@ -587,38 +559,22 @@ function ProjectTreeView({
         taskFolderName={findFolderName(treeQuery.data ?? [], taskDraftFolderId)}
         taskFolders={treeQuery.data ?? []}
         taskFolderId={taskDraftFolderId}
-        taskTitle={taskTitle}
-        taskDescription={taskDescription}
-        taskPriority={taskPriority}
-        taskEndDate={taskEndDate}
         taskIsPending={createTask.isPending}
+        taskError={createTask.error}
         onTaskOpenChange={(open) => { if (!open) setTaskDraftFolderId(null); }}
-        onTaskTitleChange={setTaskTitle}
-        onTaskDescriptionChange={setTaskDescription}
         onTaskFolderChange={setTaskDraftFolderId}
-        onTaskPriorityChange={setTaskPriority}
-        onTaskEndDateChange={setTaskEndDate}
-        onTaskSubmit={() => { if (canEditTasks && taskTitle.trim()) createTask.mutate(); }}
+        onTaskSubmit={(values: TaskDraftSubmitData) => { if (canEditTasks) createTask.mutate(values); }}
         onCreateFolder={canEditFiles ? handleCreateFolder : undefined}
         timeOpen={timeDraftFolderId != null}
         timeFolderName={findFolderName(treeQuery.data ?? [], timeDraftFolderId)}
-        timeHours={timeHours}
-        timeMinutes={timeMinutes}
-        timeHourlyRate={timeHourlyRate}
-        timeDescription={timeDescription}
+        timeDefaultHourlyRate={user?.profile?.default_hourly_rate ?? "0"}
         timeIsPending={createTimeEntry.isPending}
+        timeError={createTimeEntry.error}
         onTimeOpenChange={(open) => { if (!open) setTimeDraftFolderId(null); }}
-        onTimeHoursChange={setTimeHours}
-        onTimeMinutesChange={setTimeMinutes}
-        onTimeHourlyRateChange={setTimeHourlyRate}
-        onTimeDescriptionChange={setTimeDescription}
-        onTimeSubmit={() => {
-          const durationMinutes = Number(timeHours) * 60 + Number(timeMinutes);
-          if (user && canRecordTime && durationMinutes > 0) createTimeEntry.mutate();
-        }}
+        onTimeSubmit={(values: TimeDraftSubmitData) => { if (user && canRecordTime) createTimeEntry.mutate(values); }}
       />
 
-      <DocumentPreviewModal document={previewDocument} onClose={() => setPreviewDocument(null)} />
+      <DocumentPreviewDialog document={previewDocument} onClose={() => setPreviewDocument(null)} />
 
       <TaskDetailModal
         task={viewingTask}
@@ -628,24 +584,15 @@ function ProjectTreeView({
         onClose={() => setViewingTask(null)}
       />
 
-      <Dialog open={itemToRename != null} onOpenChange={(open) => !open && setItemToRename(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Renommer</DialogTitle>
-            <DialogDescription>Modifie le nom affiche dans l&apos;arborescence.</DialogDescription>
-          </DialogHeader>
-          <Field>
-            <FieldLabel htmlFor="rename-file-item">Nom</FieldLabel>
-            <Input
-              id="rename-file-item"
-              value={renameValue}
-              onChange={(e) => setRenameValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); if (itemToRename && renameValue.trim()) renameItem.mutate({ target: itemToRename, name: renameValue.trim() }); }
-              }}
-            />
-          </Field>
-          <DialogFooter>
+      <FormDialog
+        open={itemToRename != null}
+        onOpenChange={(open) => !open && setItemToRename(null)}
+        title="Renommer"
+        description="Modifie le nom affiche dans l'arborescence."
+        maxWidth="md"
+        error={getErrorMessage(renameItem.error)}
+        footer={
+          <>
             <DialogClose asChild>
               <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
@@ -656,34 +603,38 @@ function ProjectTreeView({
             >
               {renameItem.isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </>
+        }
+      >
+        <Field>
+          <FieldLabel htmlFor="rename-file-item">Nom</FieldLabel>
+          <Input
+            id="rename-file-item"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { e.preventDefault(); if (itemToRename && renameValue.trim()) renameItem.mutate({ target: itemToRename, name: renameValue.trim() }); }
+            }}
+          />
+        </Field>
+      </FormDialog>
 
-      <AlertDialog open={itemToDelete != null} onOpenChange={(open) => !open && setItemToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Supprimer cet element ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              <span className="font-medium text-foreground">{itemToDelete?.name}</span> sera deplace vers la corbeille.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annuler</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              disabled={deleteFolder.isPending || deleteDocument.isPending}
-              onClick={() => {
-                if (!itemToDelete) return;
-                if (itemToDelete.type === "folder") deleteFolder.mutate(itemToDelete.id);
-                else deleteDocument.mutate(itemToDelete.id);
-              }}
-            >
-              {deleteFolder.isPending || deleteDocument.isPending ? "Suppression..." : "Supprimer"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDeleteDialog
+        open={itemToDelete != null}
+        title="Supprimer cet element ?"
+        description={
+          <>
+            <span className="font-medium text-foreground">{itemToDelete?.name}</span> sera deplace vers la corbeille.
+          </>
+        }
+        isPending={deleteFolder.isPending || deleteDocument.isPending}
+        onConfirm={() => {
+          if (!itemToDelete) return;
+          if (itemToDelete.type === "folder") deleteFolder.mutate(itemToDelete.id);
+          else deleteDocument.mutate(itemToDelete.id);
+        }}
+        onClose={() => setItemToDelete(null)}
+      />
     </div>
   );
 }

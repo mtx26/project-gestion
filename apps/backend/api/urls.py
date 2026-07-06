@@ -41,6 +41,7 @@ from .views.documents import (
     DocumentListCreateView,
     DocumentDetailView,
     DocumentDownloadView,
+    DocumentDownloadBatchView,
     DocumentTrashListView,
     DocumentRestoreView,
 )
@@ -108,6 +109,7 @@ urlpatterns = [
     path("projects/<int:project_id>/folders/<int:pk>/restore/", FolderRestoreView.as_view(), name="project-folder-restore"),
     # Documents
     path("projects/<int:project_id>/documents/", DocumentListCreateView.as_view(), name="project-documents"),
+    path("projects/<int:project_id>/documents/download-urls/", DocumentDownloadBatchView.as_view(), name="project-documents-download-urls"),
     path("projects/<int:project_id>/documents/<int:pk>/", DocumentDetailView.as_view(), name="project-document-detail"),
     path("projects/<int:project_id>/documents/<int:pk>/download/", DocumentDownloadView.as_view(), name="project-document-download"),
     path("projects/<int:project_id>/documents/trash/", DocumentTrashListView.as_view(), name="project-documents-trash"),

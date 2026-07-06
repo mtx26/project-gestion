@@ -14,13 +14,15 @@ import { normalizeApiList } from "@project-gestion/api";
 import { Pencil, Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { RoleFormDialog } from "@/app/settings/components/role-form-dialog";
+import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { FormError } from "@/components/forms/form-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MutedInfoCard } from "@/components/muted-info-card";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
 
 export function RolesSettingsTab({
   selectedProject,
@@ -39,6 +41,7 @@ export function RolesSettingsTab({
   const [rolePermissionIds, setRolePermissionIds] = useState<number[]>([]);
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
+  const [deletingRole, setDeletingRole] = useState<Role | null>(null);
 
   const rolesQuery = useQuery({
     queryKey: queryKeys.roles.list(selectedProject.id),
@@ -57,6 +60,7 @@ export function RolesSettingsTab({
       resetDialog();
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const updateRole = useMutation({
@@ -71,17 +75,20 @@ export function RolesSettingsTab({
       resetDialog();
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const deleteRole = useMutation({
     mutationFn: (roleId: number) => api.roles.remove(selectedProject.id, roleId),
     onSuccess: async () => {
       toast.success("Role supprime");
+      setDeletingRole(null);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) }),
       ]);
     },
+    onError: toastError,
   });
 
   function resetDialog() {
@@ -139,7 +146,7 @@ export function RolesSettingsTab({
           ) : null}
           <div className="grid gap-2 sm:grid-cols-2">
             {roles.map((role) => (
-              <div key={role.id} className="rounded-md border bg-muted/30 p-3 text-sm">
+              <MutedInfoCard key={role.id}>
                 <div className="flex items-start justify-between gap-3">
                   <p className="font-medium">{role.name}</p>
                   <div className="flex items-center gap-2">
@@ -166,7 +173,7 @@ export function RolesSettingsTab({
                         size="icon-sm"
                         aria-label={`Supprimer ${role.name}`}
                         disabled={deleteRole.isPending}
-                        onClick={() => deleteRole.mutate(role.id)}
+                        onClick={() => setDeletingRole(role)}
                       >
                         <Trash2 className="size-4" />
                       </Button>
@@ -189,7 +196,7 @@ export function RolesSettingsTab({
                     Role incomplet: ajoute des permissions avant utilisation.
                   </p>
                 )}
-              </div>
+              </MutedInfoCard>
             ))}
           </div>
         </CardContent>
@@ -211,6 +218,14 @@ export function RolesSettingsTab({
         />
       ) : null}
       <FormError message={getErrorMessage(deleteRole.error)} />
+      <ConfirmDeleteDialog
+        open={deletingRole != null}
+        title={`Supprimer le role "${deletingRole?.name}" ?`}
+        description="Les membres ayant ce role perdront immediatement les permissions associees."
+        isPending={deleteRole.isPending}
+        onConfirm={() => deletingRole && deleteRole.mutate(deletingRole.id)}
+        onClose={() => setDeletingRole(null)}
+      />
     </>
   );
 }

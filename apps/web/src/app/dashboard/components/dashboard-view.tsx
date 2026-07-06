@@ -1,5 +1,5 @@
 import type { Project } from "@project-gestion/types";
-import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
+import { permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
@@ -13,32 +13,39 @@ import { Badge } from "@/components/ui/badge";
 import { InvitationStatusBadge } from "@/components/badges/invitation-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MemberAvatar } from "@/components/member-avatar";
+import { MemberTypeBadge } from "@/components/badges/member-type-badge";
+import { MutedInfoCard } from "@/components/muted-info-card";
+import { NoProjectState } from "@/components/states/no-project-state";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { financeChartConfig, formatFinancePeriod } from "@/lib/finance-chart-utils";
+import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { useProjectPermissions } from "@/lib/use-project-permissions";
 
-type ActiveProjectDashboardProps = {
+interface DashboardViewProps {
   project: Project | null;
   userId: number | null;
   isLoading: boolean;
   onCreateProject: () => void;
-};
+}
 
 
-export function ActiveProjectDashboard({
+export function DashboardView({
   project,
   userId,
   isLoading,
   onCreateProject,
-}: ActiveProjectDashboardProps) {
-  const canViewMembers = hasProjectPermission(project, userId, permissionCodes.memberView);
-  const canViewFinance = hasProjectPermission(project, userId, permissionCodes.financeView);
-  const canViewTasks = hasProjectPermission(project, userId, permissionCodes.taskView);
-  const canViewTime = hasProjectPermission(project, userId, permissionCodes.timeEntryView);
-  const canViewAllTime = hasProjectPermission(project, userId, permissionCodes.timeEntryViewAll);
-  const canPayTime = hasProjectPermission(project, userId, permissionCodes.timeEntryPay);
+}: DashboardViewProps) {
+  const { can } = useProjectPermissions(project, userId);
+  const canViewMembers = can(permissionCodes.memberView);
+  const canViewFinance = can(permissionCodes.financeView);
+  const canViewTasks = can(permissionCodes.taskView);
+  const canViewTime = can(permissionCodes.timeEntryView);
+  const canViewAllTime = can(permissionCodes.timeEntryViewAll);
+  const canPayTime = can(permissionCodes.timeEntryPay);
   const defaultTimeUserFilter = canViewAllTime && canPayTime ? "all" : "mine";
   const membersQuery = useQuery({
     queryKey: project ? queryKeys.members.list(project.id) : ["members", "disabled"],
@@ -76,8 +83,6 @@ export function ActiveProjectDashboard({
   const urgentTasks = normalizeApiList(urgentTasksQuery.data).filter((t) => t.status !== "done");
   const members = normalizeApiList(membersQuery.data);
   const invitations = normalizeApiList(invitationsQuery.data);
-  const visibleMembers = members;
-  const visibleInvitations = invitations;
   const financeChart = financeQuery.data;
   const financeTotals = financeChart?.totals ?? {
     count: 0,
@@ -96,7 +101,13 @@ export function ActiveProjectDashboard({
   }
 
   if (!project) {
-    return <EmptyProjectState onCreateProject={onCreateProject} />;
+    return (
+      <NoProjectState
+        icon={Plus}
+        description="Cree un projet depuis la barre laterale ou utilise le bouton ci-dessous pour commencer."
+        onCreateProject={onCreateProject}
+      />
+    );
   }
 
   return (
@@ -155,10 +166,10 @@ export function ActiveProjectDashboard({
               {members.length} membre(s), {invitations.length} invitation(s).
             </p>
             <div className="mt-4 grid gap-2">
-              {visibleMembers.map((member) => {
+              {members.map((member) => {
                 const isOwner = member.user === project.owner;
                 return (
-                  <div key={member.id} className="rounded-md border bg-muted/30 p-3 text-sm">
+                  <MutedInfoCard key={member.id}>
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex min-w-0 items-start gap-2.5">
                         <MemberAvatar
@@ -174,15 +185,13 @@ export function ActiveProjectDashboard({
                           ) : null}
                         </div>
                       </div>
-                      <Badge variant={isOwner ? "default" : member.role_deleted ? "destructive" : "secondary"}>
-                        {isOwner ? "Proprietaire" : member.role_deleted ? "Sans role" : "Membre"}
-                      </Badge>
+                      <MemberTypeBadge isOwner={isOwner} roleDeleted={member.role_deleted} />
                     </div>
-                  </div>
+                  </MutedInfoCard>
                 );
               })}
-              {visibleInvitations.map((invitation) => (
-                <div key={`invitation-${invitation.id}`} className="rounded-md border bg-muted/30 p-3 text-sm">
+              {invitations.map((invitation) => (
+                <MutedInfoCard key={`invitation-${invitation.id}`}>
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate font-medium">{invitation.email}</p>
@@ -190,7 +199,7 @@ export function ActiveProjectDashboard({
                     </div>
                     <InvitationStatusBadge status="pending" />
                   </div>
-                </div>
+                </MutedInfoCard>
               ))}
               {members.length === 0 && invitations.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Aucun membre ou invitation pour le moment.</p>
@@ -247,11 +256,6 @@ function FinanceLoadingState() {
   );
 }
 
-const dashboardChartConfig = {
-  expenses: { label: "Depenses", color: "var(--destructive)" },
-  refunds: { label: "Remboursements", color: "oklch(0.6 0.15 150)" },
-};
-
 function FinanceTimelineChart({
   points,
 }: {
@@ -279,7 +283,7 @@ function FinanceTimelineChart({
 
   return (
     <div>
-      <ChartContainer config={dashboardChartConfig} className="h-44 w-full">
+      <ChartContainer config={financeChartConfig} className="h-44 w-full">
         <BarChart data={data} barCategoryGap="35%">
           <CartesianGrid vertical={false} />
           <XAxis
@@ -347,41 +351,6 @@ function FinanceLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatMoney(value: number | string) {
-  const amount = typeof value === "number" ? value : Number(value);
-
-  return new Intl.NumberFormat("fr-BE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(Number.isFinite(amount) ? amount : 0);
-}
-
-function formatDuration(totalMinutes: number) {
-  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
-  const hours = Math.floor(roundedMinutes / 60);
-  const minutes = roundedMinutes % 60;
-
-  if (minutes === 0) {
-    return `${hours}h`;
-  }
-
-  return `${hours}h ${minutes}m`;
-}
-
-function formatFinancePeriod(period: string) {
-  const [year, month, day] = period.split("-");
-
-  if (year && month && day) {
-    return `${day}/${month}`;
-  }
-
-  if (year && month) {
-    return `${month}/${year.slice(2)}`;
-  }
-
-  return period;
-}
-
 function SummaryTile({
   href,
   icon: Icon,
@@ -431,29 +400,6 @@ function buildUnpaidTimeHref(projectId: number, userFilter: "mine" | "all") {
   });
   return `/time?${params.toString()}`;
 }
-
-function EmptyProjectState({ onCreateProject }: { onCreateProject: () => void }) {
-  return (
-    <Empty className="border bg-card p-8">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Plus className="size-4" />
-        </EmptyMedia>
-        <EmptyTitle>Aucun projet actif</EmptyTitle>
-        <EmptyDescription>
-          Cree un projet depuis la barre laterale ou utilise le bouton ci-dessous pour commencer.
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button onClick={onCreateProject}>
-          <Plus className="size-4" />
-          Creer un projet
-        </Button>
-      </EmptyContent>
-    </Empty>
-  );
-}
-
 
 function ProjectDashboardSkeleton() {
   return (

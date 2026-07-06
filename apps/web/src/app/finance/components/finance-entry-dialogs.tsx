@@ -14,17 +14,21 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
-import { MultiDocumentAttachmentField } from "@/components/multi-document-attachment-field";
+import { MoneyInput } from "@/components/forms/money-input";
+import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
+import { amountSchema } from "@/lib/amount-schema";
+import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero, ModalSection } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 const financeSchema = z.object({
   type: z.enum(["expense", "refund"]),
-  amount: z.string().min(1, "Le montant est requis"),
+  amount: amountSchema,
   date: z.string(),
   category: z.string(),
   description: z.string(),
@@ -49,7 +53,7 @@ export function FinancialEntryFormDialog({
   onOpenChange: (open: boolean) => void;
   projectId: number;
   targetFolders: FolderTreeNode[];
-  error: string | null;
+  error: unknown;
   isPending: boolean;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: FinancialEntryPayload) => void;
@@ -78,6 +82,8 @@ export function FinancialEntryFormDialog({
   const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
   const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
 
+  useServerFieldErrors(form, error, ["type", "amount", "date", "category", "description"]);
+
   function handleOpenChange(next: boolean) {
     if (!next) {
       form.reset();
@@ -94,7 +100,7 @@ export function FinancialEntryFormDialog({
     onSubmit({
       date: values.date || null,
       type: values.type,
-      amount: values.amount.replace(",", "."),
+      amount: values.amount,
       category: values.category.trim() || null,
       description: values.description.trim() || null,
       folder,
@@ -111,7 +117,7 @@ export function FinancialEntryFormDialog({
       onOpenChange={handleOpenChange}
       title={mode === "create" ? "Nouvelle entree" : "Modifier l'entree"}
       description={mode === "create" ? "Ajouter une depense ou un remboursement." : "Modifier les details de cette entree."}
-      error={docs.uploadError ?? error}
+      error={docs.uploadError ?? getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
@@ -147,7 +153,7 @@ export function FinancialEntryFormDialog({
             </Field>
             <Field>
               <FieldLabel htmlFor="entry-amount">Montant (€)</FieldLabel>
-              <Input id="entry-amount" type="text" inputMode="decimal" placeholder="0.00" {...form.register("amount")} />
+              <MoneyInput id="entry-amount" {...form.register("amount")} />
               <FieldError errors={[form.formState.errors.amount]} />
             </Field>
           </div>
@@ -199,7 +205,7 @@ export function FinancialEntryFormDialog({
   );
 }
 
-export function FinancialEntryDetailDialog({
+export function FinancialEntryDetailModal({
   entry,
   projectId,
   isOpeningDocument,

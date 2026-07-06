@@ -10,6 +10,8 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models import Document, Folder
 from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import (
+    DocumentDownloadBatchItemSerializer,
+    DocumentDownloadBatchRequestSerializer,
     DocumentDownloadSerializer,
     DocumentSerializer,
     DocumentUploadSerializer,
@@ -170,6 +172,37 @@ class DocumentDownloadView(generics.GenericAPIView):
 
         serializer = self.get_serializer(document)
         return Response(serializer.data)
+
+
+@extend_schema(
+    tags=["documents"],
+    summary="URLs de téléchargement pour un lot de documents",
+    description=(
+        "Retourne une URL temporaire par document pour un lot d'identifiants.\n\n"
+        "Évite d'appeler l'endpoint de téléchargement un par un pour afficher des "
+        "miniatures (ex. arbre de fichiers, photos jointes à une tâche).\n\n"
+        "Permission requise : `file.view`."
+    ),
+    request=DocumentDownloadBatchRequestSerializer,
+    responses={status.HTTP_200_OK: DocumentDownloadBatchItemSerializer(many=True)},
+)
+class DocumentDownloadBatchView(generics.GenericAPIView):
+    serializer_class = DocumentDownloadBatchRequestSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "file.view"
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return Document.objects.none()
+
+        return get_project_documents(self.request.user, self.kwargs["project_id"])
+
+    def post(self, request, project_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        documents = self.get_queryset().filter(id__in=serializer.validated_data["ids"])
+        return Response(DocumentDownloadBatchItemSerializer(documents, many=True).data)
 
 
 @extend_schema(tags=["documents"])

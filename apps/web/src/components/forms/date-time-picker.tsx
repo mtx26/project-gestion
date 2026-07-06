@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-type DateTimePickerProps = {
+interface DateTimePickerProps {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
@@ -21,7 +21,7 @@ type DateTimePickerProps = {
   minDate?: string;
   /** Empêche de choisir une date/heure après cette valeur (ex: la date de fin pour un picker de début). */
   maxDate?: string;
-};
+}
 
 export function DateTimePicker({
   value,

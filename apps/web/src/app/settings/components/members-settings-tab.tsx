@@ -1,23 +1,26 @@
 "use client";
 
-import type { Project, Role } from "@project-gestion/types";
+import type { Project, ProjectMember, Role } from "@project-gestion/types";
 import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { normalizeApiList } from "@project-gestion/api";
+import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { InvitationStatusBadge } from "@/components/badges/invitation-status-badge";
 import { MemberTypeBadge } from "@/components/badges/member-type-badge";
+import { MoneyInput } from "@/components/forms/money-input";
+import { MutedInfoCard } from "@/components/muted-info-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { MemberAvatar } from "@/components/member-avatar";
 import { api } from "@/lib/api";
-import { getErrorMessage } from "@/lib/errors";
+import { getErrorMessage, toastError } from "@/lib/errors";
 
 export function MembersSettingsTab({
   selectedProject,
@@ -38,6 +41,7 @@ export function MembersSettingsTab({
 }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRoleId, setInviteRoleId] = useState("");
+  const [deletingMember, setDeletingMember] = useState<ProjectMember | null>(null);
 
   const membersQuery = useQuery({
     queryKey: queryKeys.members.list(selectedProject.id),
@@ -64,6 +68,7 @@ export function MembersSettingsTab({
       setInviteRoleId("");
       await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const removeInvitation = useMutation({
@@ -72,6 +77,7 @@ export function MembersSettingsTab({
       toast.success("Invitation annulee");
       await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const updateInvitationRole = useMutation({
@@ -81,14 +87,17 @@ export function MembersSettingsTab({
       toast.success("Role mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const removeMember = useMutation({
     mutationFn: (memberId: number) => api.members.remove(selectedProject.id, memberId),
     onSuccess: async () => {
       toast.success("Membre retire");
+      setDeletingMember(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const updateMemberRole = useMutation({
@@ -98,6 +107,7 @@ export function MembersSettingsTab({
       toast.success("Role mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const updateMemberRate = useMutation({
@@ -107,6 +117,7 @@ export function MembersSettingsTab({
       toast.success("Taux horaire mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   const updateOwnerRate = useMutation({
@@ -115,6 +126,7 @@ export function MembersSettingsTab({
       toast.success("Taux horaire mis a jour");
       await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
     },
+    onError: toastError,
   });
 
   return (
@@ -214,10 +226,7 @@ export function MembersSettingsTab({
                         )}
                         {canEditThisRate ? (
                           <div className="flex items-center gap-1">
-                            <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
+                            <MoneyInput
                               className="h-7 w-20 bg-background text-xs"
                               defaultValue={member.hourly_rate}
                               onBlur={(e) => {
@@ -251,7 +260,7 @@ export function MembersSettingsTab({
                         size="icon-sm"
                         aria-label={`Supprimer ${member.user_display_name}`}
                         disabled={removeMember.isPending}
-                        onClick={() => removeMember.mutate(member.id)}
+                        onClick={() => setDeletingMember(member)}
                       >
                         <Trash2 className="size-4" />
                       </Button>
@@ -263,7 +272,7 @@ export function MembersSettingsTab({
           })}
 
           {invitations.map((invitation) => (
-            <div key={`invitation-${invitation.id}`} className="rounded-md border bg-muted/30 p-3 text-sm">
+            <MutedInfoCard key={`invitation-${invitation.id}`}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="truncate font-medium">{invitation.email}</p>
@@ -305,7 +314,7 @@ export function MembersSettingsTab({
                   ) : null}
                 </div>
               </div>
-            </div>
+            </MutedInfoCard>
           ))}
         </div>
 
@@ -316,6 +325,14 @@ export function MembersSettingsTab({
         <FormError message={getErrorMessage(updateInvitationRole.error)} />
         <FormError message={getErrorMessage(removeInvitation.error)} />
       </CardContent>
+      <ConfirmDeleteDialog
+        open={deletingMember != null}
+        title={`Retirer ${deletingMember?.user_display_name} du projet ?`}
+        description="Ce membre perdra immediatement l'acces au projet."
+        isPending={removeMember.isPending}
+        onConfirm={() => deletingMember && removeMember.mutate(deletingMember.id)}
+        onClose={() => setDeletingMember(null)}
+      />
     </Card>
   );
 }

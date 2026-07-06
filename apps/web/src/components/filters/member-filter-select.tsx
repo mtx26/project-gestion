@@ -1,9 +1,10 @@
 "use client";
 
+import type { ProjectMember } from "@project-gestion/types";
 import { SelectItem } from "@/components/ui/select";
 import { FilterSelect } from "@/components/filters/filter-bar";
 
-type Member = { id: number; user: number; user_display_name: string };
+type Member = Pick<ProjectMember, "id" | "user" | "user_display_name">;
 
 interface MemberFilterSelectProps {
   members: Member[];

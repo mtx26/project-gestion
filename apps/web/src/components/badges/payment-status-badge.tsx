@@ -12,3 +12,8 @@ const OPTIONS: Record<PaymentStatus, BadgeOption> = {
 export function PaymentStatusBadge({ status, className }: { status: PaymentStatus; className?: string }) {
   return <StatusBadge option={OPTIONS[status]} className={className} />;
 }
+
+/** Plain color classes for contexts that can't render a full `<StatusBadge>` (e.g. calendar chips). */
+export function getPaymentStatusChipClassName(status: PaymentStatus): string {
+  return OPTIONS[status].className!;
+}

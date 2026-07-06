@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
 import { normalizeApiList } from "@project-gestion/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
@@ -16,35 +17,47 @@ import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/s
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { buildProjectHref } from "@/lib/url-params";
 import { useAuthStore } from "@/stores/auth-store";
 
-type ProjectWorkspaceShellProps = {
-  activeItem: "dashboard" | "settings" | "files" | "tasks" | "calendar" | "time" | "finance" | "requests" | "trash" | "account" | "notifications";
-  selectedProjectIdFromUrl?: string;
-  maxWidthClassName?: string;
-  onProjectSelected?: (id: number) => void;
-  onProjectCreated?: (project: Project) => void;
-  children: (state: ProjectWorkspaceState) => React.ReactNode;
-};
+type ActiveItem = "dashboard" | "settings" | "files" | "tasks" | "calendar" | "time" | "finance" | "requests" | "trash" | "account" | "notifications";
 
-export type ProjectWorkspaceState = {
+const ACTIVE_ITEMS: readonly ActiveItem[] = [
+  "dashboard", "settings", "files", "tasks", "calendar", "time", "finance", "requests", "trash", "account", "notifications",
+];
+
+/** Derives the sidebar's highlighted item from the route, so pages no longer pass
+ * `activeItem` by hand (and risk drifting out of sync with their own path). */
+function getActiveItemFromPathname(pathname: string): ActiveItem {
+  const segment = pathname.split("/")[1] ?? "";
+  if (segment === "invitations") return "notifications";
+  return (ACTIVE_ITEMS as readonly string[]).includes(segment) ? (segment as ActiveItem) : "dashboard";
+}
+
+interface ProjectWorkspaceShellProps {
+  maxWidthClassName?: string;
+  children: (state: ProjectWorkspaceState) => React.ReactNode;
+}
+
+export interface ProjectWorkspaceState {
   user: ReturnType<typeof useAuthStore.getState>["user"];
   projects: Project[];
   projectsQuery: ReturnType<typeof useQuery<Project[] | { results: Project[] }>>;
   selectedProjectId: string;
   selectedProject: Project | null;
   openCreateProject: () => void;
-};
+}
 
 export function ProjectWorkspaceShell({
-  activeItem,
-  selectedProjectIdFromUrl = "",
   maxWidthClassName = "max-w-6xl",
-  onProjectSelected,
-  onProjectCreated,
   children,
 }: ProjectWorkspaceShellProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const activeItem = getActiveItemFromPathname(pathname);
+  const selectedProjectIdFromUrl = searchParams.get("project") ?? "";
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const logout = useAuthStore((state) => state.logout);
@@ -77,7 +90,7 @@ export function ProjectWorkspaceShell({
       form.reset();
       setManualSelectedProjectId(String(project.id));
       setCreateDialogOpen(false);
-      onProjectCreated?.(project);
+      router.push(buildProjectHref(pathname, project.id, searchParams));
       await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
     },
   });
@@ -89,6 +102,7 @@ export function ProjectWorkspaceShell({
       setUser(updatedUser);
       toast.success("Projet par defaut mis a jour");
     },
+    onError: (error) => toast.error(getErrorMessage(error)),
   });
 
   async function onLogout() {
@@ -99,7 +113,7 @@ export function ProjectWorkspaceShell({
 
   function onSelectProject(id: number) {
     setManualSelectedProjectId(String(id));
-    onProjectSelected?.(id);
+    router.push(buildProjectHref(pathname, id, searchParams));
   }
 
   function onCreateProject(values: ProjectFormValues) {

@@ -4,6 +4,7 @@ import * as React from "react";
 import { PanelLeft } from "lucide-react";
 import { Slot } from "radix-ui";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
 type SidebarContextValue = {
@@ -116,25 +117,18 @@ function Sidebar({
       </aside>
 
       {/* Mobile: slide-in overlay drawer */}
-      {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
-          <aside
-            data-slot="sidebar"
-            data-state="expanded"
-            className={cn(
-              "group/sidebar absolute inset-y-0 left-0 flex w-[--sidebar-width] flex-col overflow-y-auto border-r bg-sidebar text-sidebar-foreground shadow-xl",
-              className,
-            )}
-          >
-            {children}
-          </aside>
-        </div>
-      ) : null}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetContent
+          side="left"
+          className={cn(
+            "group/sidebar w-[--sidebar-width] max-w-[--sidebar-width] gap-0 border-r bg-sidebar p-0 text-sidebar-foreground lg:hidden",
+            className,
+          )}
+        >
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+          {children}
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

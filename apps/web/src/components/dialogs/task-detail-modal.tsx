@@ -5,7 +5,7 @@ import { Calendar, CalendarClock, CircleCheck, Clock, Folder, Pencil, UserRound,
 import { Button } from "@/components/ui/button";
 import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
-import { DocumentThumbnail } from "@/components/documents/document-thumbnail";
+import { DocumentThumbnailImage } from "@/components/documents/document-thumbnail-image";
 import {
   DetailField,
   DetailLabel,
@@ -17,6 +17,7 @@ import {
 } from "@/components/dialogs/detail-layout";
 import { getDocumentIconConfig, isImageFile } from "@/lib/file-display";
 import { formatDate } from "@/lib/task-utils";
+import { useDocumentDownloadUrls } from "@/lib/use-document-download-urls";
 
 interface TaskDetailModalProps {
   task: Task | null;
@@ -46,6 +47,10 @@ export function TaskDetailModal({
   const docs = task?.documents_info ?? [];
   const photos = docs.filter(isImageFile);
   const otherDocs = docs.filter((doc) => !isImageFile(doc));
+  const { urls: photoUrls, isLoading: isLoadingPhotos } = useDocumentDownloadUrls(
+    projectId,
+    photos.map((doc) => doc.id),
+  );
   const folderName =
     task == null
       ? null
@@ -156,9 +161,9 @@ export function TaskDetailModal({
                       disabled={isOpeningDocument}
                       onClick={() => onOpenDocument?.(doc.id)}
                     >
-                      <DocumentThumbnail
-                        projectId={projectId}
-                        documentId={doc.id}
+                      <DocumentThumbnailImage
+                        url={photoUrls.get(doc.id)}
+                        isLoading={isLoadingPhotos}
                         alt={doc.name ?? "Photo"}
                         fallback={<Icon className={iconClassName} />}
                       />

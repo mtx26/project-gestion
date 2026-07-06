@@ -1,11 +1,10 @@
 import type { Project, User } from "@project-gestion/types";
-import { hasProjectPermission, permissionCodes } from "@project-gestion/permissions";
+import { permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { Banknote, Bell, CalendarDays, ChevronsUpDown, Clock3, ClipboardList, FolderKanban, LayoutDashboard, ListTodo, Lock, LogOut, Moon, Plus, Settings, SquareLibrary, Star, Sun, Trash2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useState, useSyncExternalStore } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
@@ -21,15 +20,16 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { MemberAvatar } from "@/components/member-avatar";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { getInitials } from "@/lib/user-display";
+import { useProjectPermissions } from "@/lib/use-project-permissions";
 
 type Theme = "light" | "dark";
 
 const themeChangeEventName = "project-gestion-theme-change";
 
-type DashboardSidebarProps = {
+interface DashboardSidebarProps {
   projects: Project[];
   selectedProjectId: string;
   defaultProjectId: string;
@@ -41,7 +41,7 @@ type DashboardSidebarProps = {
   onSetDefaultProject: (id: number) => void;
   onCreateProject: () => void;
   onLogout: () => void;
-};
+}
 
 export function DashboardSidebar({
   projects,
@@ -74,6 +74,7 @@ export function DashboardSidebar({
   const financeHref = selectedProjectId ? `/finance?project=${selectedProjectId}` : "/finance";
   const requestsHref = selectedProjectId ? `/requests?project=${selectedProjectId}` : "/requests";
   const selectedProject = projects.find((project) => String(project.id) === selectedProjectId) ?? null;
+  const { can } = useProjectPermissions(selectedProject, userId);
 
   function toggleTheme() {
     const nextTheme = theme === "dark" ? "light" : "dark";
@@ -87,42 +88,42 @@ export function DashboardSidebar({
       href: filesHref,
       label: "Projet",
       icon: SquareLibrary,
-      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.fileView)),
+      locked: Boolean(selectedProject && !can(permissionCodes.fileView)),
     },
     {
       key: "calendar",
       href: calendarHref,
       label: "Calendrier",
       icon: CalendarDays,
-      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.taskView) && !hasProjectPermission(selectedProject, userId, permissionCodes.timeEntryView)),
+      locked: Boolean(selectedProject && !can(permissionCodes.taskView) && !can(permissionCodes.timeEntryView)),
     },
     {
       key: "tasks",
       href: tasksHref,
       label: "Taches",
       icon: ListTodo,
-      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.taskView)),
+      locked: Boolean(selectedProject && !can(permissionCodes.taskView)),
     },
     {
       key: "time",
       href: timeHref,
       label: "Temps",
       icon: Clock3,
-      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.timeEntryView)),
+      locked: Boolean(selectedProject && !can(permissionCodes.timeEntryView)),
     },
     {
       key: "finance",
       href: financeHref,
       label: "Finances",
       icon: Banknote,
-      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.financeView)),
+      locked: Boolean(selectedProject && !can(permissionCodes.financeView)),
     },
     {
       key: "requests",
       href: requestsHref,
       label: "Remboursements",
       icon: ClipboardList,
-      locked: Boolean(selectedProject && !hasProjectPermission(selectedProject, userId, permissionCodes.expenseRequestView)),
+      locked: Boolean(selectedProject && !can(permissionCodes.expenseRequestView)),
     },
     {
       key: "trash",
@@ -337,14 +338,7 @@ function ProjectAvatar({ name, isLoading = false }: { name: string; isLoading?: 
 }
 
 function UserAvatar({ user }: { user: User | null | undefined }) {
-  const displayName = getUserDisplayName(user);
-
-  return (
-    <Avatar className="size-9 border">
-      {user?.profile?.picture_url ? <AvatarImage src={user.profile.picture_url} alt="" /> : null}
-      <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-    </Avatar>
-  );
+  return <MemberAvatar name={getUserDisplayName(user)} pictureUrl={user?.profile?.picture_url} className="size-9" />;
 }
 
 function subscribeToTheme(callback: () => void) {

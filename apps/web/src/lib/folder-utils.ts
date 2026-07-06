@@ -1,4 +1,13 @@
 import type { FolderTreeNode } from "@project-gestion/types";
+import { isImageFile } from "@/lib/file-display";
+
+export function collectImageDocumentIds(nodes: FolderTreeNode[], ids: number[] = []): number[] {
+  for (const node of nodes) {
+    if (node.type === "document" && isImageFile(node)) ids.push(node.id);
+    if (node.children) collectImageDocumentIds(node.children, ids);
+  }
+  return ids;
+}
 
 export function buildFolderNameMap(nodes: FolderTreeNode[], map = new Map<number, string>()): Map<number, string> {
   for (const node of nodes) {

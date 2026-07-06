@@ -41,12 +41,6 @@ export function getSelectedUserId(filter: UserFilter, currentUserId: number | nu
   return Number(filter.replace("member-", ""));
 }
 
-export function getPaymentStatus(entry: TimeEntry): "paid" | "partial" | "unpaid" {
-  if (Number(entry.remaining_amount) <= 0) return "paid";
-  if (Number(entry.paid_amount) > 0) return "partial";
-  return "unpaid";
-}
-
 export function getPaymentStatusLabel(status: Exclude<PaymentStatusFilter, "all">): string {
   if (status === "paid") return "Paye";
   if (status === "partial") return "Partiel";

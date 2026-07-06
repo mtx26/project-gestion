@@ -497,6 +497,25 @@ class DocumentDownloadSerializer(serializers.Serializer):
         }
 
 
+class DocumentDownloadBatchRequestSerializer(serializers.Serializer):
+    ids = serializers.ListField(child=serializers.IntegerField(), allow_empty=False, max_length=100)
+
+
+class DocumentDownloadBatchItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    url = serializers.URLField(read_only=True)
+    file_name = serializers.CharField(read_only=True)
+    mime_type = serializers.CharField(read_only=True)
+
+    def to_representation(self, document):
+        return {
+            "id": document.id,
+            "url": get_document_download_url(document.file_id),
+            "file_name": document.file_name,
+            "mime_type": document.mime_type,
+        }
+
+
 class TaskSerializer(serializers.ModelSerializer):
     folder_name = serializers.SerializerMethodField()
     created_by_name = serializers.SerializerMethodField()

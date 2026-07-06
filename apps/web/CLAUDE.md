@@ -18,7 +18,8 @@ src/
   components/
     ui/                 Primitives shadcn — ne jamais modifier à la main
     badges/             Badges de statut/type (StatusBadge générique + configs)
-    dialogs/            Modals réutilisables (confirm-delete, preview, task-detail)
+    dialogs/            Dialogs réutilisables + shells FormDialog/DetailModal
+    documents/          Affichage et upload de documents (FileAttachment, MultiDocumentAttachmentField)
     entries/            Composants d'affichage d'entrées
     filters/            FilterBar + sélecteurs de filtre
     forms/              Utilitaires formulaire (password-input, date-picker, form-error)
@@ -30,7 +31,7 @@ src/
     protected-route.tsx │
     providers.tsx       ┘
     page-title.tsx
-    multi-document-attachment-field.tsx
+    member-avatar.tsx
   lib/                  Infrastructure app (clients, adapters, utils globaux)
   stores/               Zustand stores
 ```
@@ -50,6 +51,24 @@ src/
 - Nouveau composant utilisé par 1 seule page → `app/<page>/components/`
 - Nouveau composant utilisé par 2+ pages → `components/<categorie>/`
 - Nouveau badge de statut → utiliser `StatusBadge` + config dans `components/badges/`
+
+### Convention de page (`app/<feature>/`)
+
+Chaque route projet suit exactement le même découpage :
+- `page.tsx` — mince, Server Component, `<Suspense fallback={<ProjectPageFallback />}>` autour du contenu.
+- `<feature>-page-content.tsx` — export externe `<Feature>PageContent` (Client Component, encapsule `ProjectWorkspaceShell`) ; fonction interne `<Feature>View` qui reçoit l'état `ProjectWorkspaceState`.
+- Utilitaires propres à la feature (parsing de filtres, invalidation de query) → `app/<feature>/lib/<feature>-filters.ts`.
+
+### Convention Dialog / Modal
+
+- Suffixe **`Modal`** réservé aux composants qui rendent le shell partagé `DetailModal` (`components/dialogs/detail-layout.tsx`) — vue détail en lecture.
+- Suffixe **`Dialog`** pour tout le reste : formulaires, confirmations, pickers, previews.
+- Wrapper de formulaire → toujours `FormDialog` (`components/dialogs/form-dialog.tsx`), jamais `Dialog`/`DialogHeader`/`DialogFooter` bruts.
+
+### Convention `interface` vs `type`
+
+- `interface` pour toute forme d'objet Props ou API publique.
+- `type` uniquement pour unions, intersections, ou alias d'un type existant (`Omit<...>`, `ComponentProps<...>`).
 
 ---
 
@@ -90,31 +109,33 @@ Ces composants existent déjà — **ne pas les recréer** :
 → Nouveau badge : créer un `Record<Status, BadgeOption>` et passer à `<StatusBadge option={...} />`
 
 **`components/dialogs/`**
-`ConfirmDeleteDialog`, `DocumentPreviewModal`, `TaskDetailModal`
+`ConfirmDeleteDialog`, `DocumentPreviewDialog`, `TaskDetailModal`, `FormDialog` (shell), `DetailModal` (+ `ModalHero`/`ModalGrid`/`ModalFooter`/`ModalDocs`/`ModalSection`/`DetailField`/`DetailLabel`)
+
+**`components/documents/`**
+`FileAttachment`, `MultiDocumentAttachmentField`
 
 **`components/entries/`**
-`EntryDetailBody`, `EntryMetadataRow`
+`EntryMetadataRow`
 
 **`components/filters/`**
 `FilterBar`, `FilterSearch`, `FilterSelect`, `FilterToggle`, `FilterClear`, `FilterFolderPicker` — dans `filter-bar.tsx`
 `MemberFilterSelect` — dans `member-filter-select.tsx`
 
 **`components/forms/`**
-`PasswordInput`, `DatePicker`, `FormError`, `FormErrorAlert`
+`PasswordInput`, `DatePicker`, `DateTimePicker`, `FormError`, `FormErrorAlert`, `MoneyInput`, `FormSubmitButton`
 → `InputGroup` et ses sous-composants sont dans `components/ui/input-group.tsx` (shadcn)
 
 **`components/pickers/`**
-`TreePickerDialog` — dans `tree-picker.tsx`
-`TargetTreePicker` — dans `target-tree-picker.tsx`
+`TreePickerDialog` — dans `tree-picker.tsx` (mode `"folder"` ou `"target"`, couvre aussi le picker de cible)
 
 **`components/states/`**
 `SkeletonLoader`, `NoProjectState`, `AccessDeniedState`
 
 **`components/dashboard/`** (partagé entre toutes les pages)
-`ProjectWorkspaceShell`, `ProjectPageFallback`, `DashboardSidebar`, `CreateProjectDialog`, `ProjectForm`
+`ProjectWorkspaceShell`, `ProjectPageFallback`, `DashboardSidebar`, `CreateProjectDialog`
 
 **`components/` racine**
-`PageTitle`, `MultiDocumentAttachmentField`, `AppHeader`, `AuthShell`, `ProtectedRoute`, `Providers`
+`PageTitle`, `MemberAvatar`, `MutedInfoCard`, `AppHeader`, `AuthShell`, `ProtectedRoute`, `Providers`
 
 ---
 
@@ -226,6 +247,7 @@ export function MonComposant({ className, variant, size, ...props }: MonComposan
 
 - **Responsive** : mobile-first (`sm:`, `md:`, `lg:`).
 - **Dark mode** : utiliser les variables CSS (`bg-background`, `text-foreground`, `text-muted-foreground`, etc.) — pas de classes `dark:` manuelles sauf exception.
+  - Exception documentée : `components/badges/*` (couleurs sémantiques de statut — sky/emerald/red/amber...) n'ont pas d'équivalent en variable CSS de thème, donc chaque `BadgeOption.className` porte sa propre paire `bg-X-50 dark:bg-X-950`.
 - **Spacing** : suivre la grille Tailwind (4, 6, 8, 12, 16...).
 - **`cn()`** toujours pour fusionner les classes (jamais de concaténation string).
 - **Jamais de style inline** sauf pour des valeurs dynamiques impossibles à faire en Tailwind.

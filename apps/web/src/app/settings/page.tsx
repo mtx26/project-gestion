@@ -1,11 +1,11 @@
 import { Suspense } from "react";
 import { ProjectPageFallback } from "@/components/dashboard/project-page-fallback";
-import { ProjectSettingsPage } from "@/app/settings/components/project-settings-page";
+import { SettingsPageContent } from "@/app/settings/settings-page-content";
 
 export default function SettingsPage() {
   return (
     <Suspense fallback={<ProjectPageFallback />}>
-      <ProjectSettingsPage />
+      <SettingsPageContent />
     </Suspense>
   );
 }

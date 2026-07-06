@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { getErrorMessage, getFieldError, isEmailVerificationRequired } from "@/lib/errors";
+import { getErrorMessage, isEmailVerificationRequired } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function LoginPage() {
@@ -23,10 +24,17 @@ export default function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const [serverError, setServerError] = useState<string | null>(null);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { identifier: "", password: "" },
   });
+
+  useServerFieldErrors(form, rawError, [
+    "identifier",
+    { name: "identifier", serverField: "username" },
+    "password",
+  ]);
 
   async function onSubmit(values: LoginFormValues) {
     setServerError(null);
@@ -41,12 +49,7 @@ export default function LoginPage() {
         return;
       }
       setServerError(getErrorMessage(error));
-      for (const field of ["identifier", "password", "username"] as const) {
-        const message = getFieldError(error, field);
-        if (message && field !== "username") {
-          form.setError(field, { message });
-        }
-      }
+      setRawError(error);
     }
   }
 
