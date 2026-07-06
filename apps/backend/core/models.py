@@ -30,6 +30,24 @@ class DeletedManager(DeletedManagerMixin, models.Manager):
     pass
 
 
+class ProjectScopedQuerySetMixin:
+    """Shared scoping for QuerySets on models with a `project` FK: filter by a
+    given project id, or by every project the given user can access. Combine
+    with the model's own QuerySet class — e.g. `class TaskQuerySet(
+    ProjectScopedQuerySetMixin, models.QuerySet): ...` — instead of
+    reimplementing `for_project`/`accessible_to` per model. Looks up the
+    related `Project` model dynamically (via the `project` field) to avoid a
+    circular import with `api.models`.
+    """
+
+    def for_project(self, project_id):
+        return self.filter(project_id=project_id)
+
+    def accessible_to(self, user):
+        project_model = self.model._meta.get_field("project").related_model
+        return self.filter(project__in=project_model.objects.accessible_to(user))
+
+
 class BaseModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)

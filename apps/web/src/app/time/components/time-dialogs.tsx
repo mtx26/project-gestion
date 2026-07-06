@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
 import { DateRangeField } from "@/components/forms/date-range-field";
@@ -31,13 +32,16 @@ import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { getEntryTargetLabel } from "../lib/time-filters";
 
-const editTimeSchema = z.object({
+const timeEntrySchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   hourlyRate: z.string(),
   description: z.string(),
-});
-type EditTimeFormValues = z.infer<typeof editTimeSchema>;
+}).refine(
+  (v) => !v.startDate || !v.endDate || v.startDate <= v.endDate,
+  { message: "La date de debut ne peut pas depasser la date de fin", path: ["startDate"] },
+);
+type TimeEntryFormValues = z.infer<typeof timeEntrySchema>;
 
 function makePaymentSchema(remaining: number) {
   return z.object({
@@ -70,7 +74,7 @@ function makeCorrectionSchema(costAmount: number) {
 }
 type CorrectionFormValues = { amount: string };
 
-export type EditTimeSubmitData = {
+export type TimeEntrySubmitData = {
   documentIds: number[];
   durationMinutes: number;
   startDate: string;
@@ -80,9 +84,18 @@ export type EditTimeSubmitData = {
   task: number | null;
 };
 
-export function EditTimeEntryDialog({
+/** Single create/edit dialog for time entries, matching the `mode="create"|"edit"`
+ * shape every other `<Feature>FormDialog` uses: for `mode="edit"`, mount a fresh
+ * instance per entity via `key={entry?.id}` (see `TimePageContent`), openness is
+ * derived from `entry` being non-null. For `mode="create"`, `open`/`onOpenChange`
+ * control it directly and `defaultHourlyRate` seeds the rate field. */
+export function TimeEntryFormDialog({
+  mode,
+  open,
   entry,
   projectId,
+  canRecordTime = true,
+  defaultHourlyRate,
   targetFolders,
   isPending,
   error,
@@ -90,25 +103,30 @@ export function EditTimeEntryDialog({
   onOpenChange,
   onSubmit,
 }: {
-  entry: TimeEntry | null;
+  mode: "create" | "edit";
+  open?: boolean;
+  entry?: TimeEntry | null;
   projectId: number;
+  canRecordTime?: boolean;
+  defaultHourlyRate?: string;
   targetFolders: FolderTreeNode[];
   isPending: boolean;
   error: unknown;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: EditTimeSubmitData) => void;
+  onSubmit: (data: TimeEntrySubmitData) => void;
 }) {
+  const isOpen = mode === "create" ? (open ?? false) : entry != null;
   const referenceStart = entry ? entry.start_date.slice(0, 16) : "";
 
-  const form = useForm<EditTimeFormValues>({
-    resolver: zodResolver(editTimeSchema),
+  const form = useForm<TimeEntryFormValues>({
+    resolver: zodResolver(timeEntrySchema),
     defaultValues: {
       startDate: referenceStart || format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       endDate: referenceStart && entry
         ? format(addMinutes(parseISO(referenceStart), entry.duration_minutes), "yyyy-MM-dd'T'HH:mm")
         : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-      hourlyRate: entry?.hourly_rate ?? "0",
+      hourlyRate: entry?.hourly_rate ?? defaultHourlyRate ?? "0",
       description: entry?.description ?? "",
     },
   });
@@ -132,15 +150,15 @@ export function EditTimeEntryDialog({
     "description",
   ]);
 
-  async function handleSubmit(values: EditTimeFormValues) {
+  async function handleSubmit(values: TimeEntryFormValues) {
     const duration = values.startDate && values.endDate
       ? Math.max(0, Math.round((new Date(values.endDate).getTime() - new Date(values.startDate).getTime()) / 60000))
       : 0;
     const { folder, task } = getTargetPayload(targetValue);
-    const newDocIds = await docs.uploadPending(projectId, folder);
-    if (newDocIds === null) return;
+    const documentIds = await docs.resolveDocumentIds(projectId, folder);
+    if (documentIds === null) return;
     onSubmit({
-      documentIds: docs.getAllDocIds(newDocIds),
+      documentIds,
       durationMinutes: duration,
       startDate: values.startDate,
       hourlyRate: values.hourlyRate === "" ? undefined : values.hourlyRate,
@@ -152,73 +170,99 @@ export function EditTimeEntryDialog({
 
   const isSubmitting = docs.uploading || isPending;
 
+  function handleOpenChange(next: boolean) {
+    if (!next && mode === "create") {
+      form.reset();
+      docs.reset();
+      setTargetValue("project");
+    }
+    onOpenChange(next);
+  }
+
   return (
     <FormDialog
-      open={entry != null}
-      onOpenChange={onOpenChange}
-      title="Modifier l'entree"
-      description="Ajuste la duree, le taux, la cible ou la description."
-      error={docs.uploadError ?? getErrorMessage(error)}
+      open={isOpen}
+      onOpenChange={handleOpenChange}
+      title={mode === "create" ? "Nouvelle entree" : "Modifier l'entree"}
+      description={
+        mode === "create"
+          ? "Encode une duree et lie-la au projet, a un dossier ou a une tache."
+          : "Ajuste la duree, le taux, la cible ou la description."
+      }
+      error={canRecordTime ? (docs.uploadError ?? getErrorMessage(error)) : undefined}
       footer={
-        <>
+        canRecordTime ? (
+          <>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">Annuler</Button>
+            </DialogClose>
+            <FormSubmitButton
+              onClick={form.handleSubmit(handleSubmit)}
+              pending={isSubmitting}
+              disabled={durationMinutes <= 0 || isSubmitting}
+              label="Enregistrer"
+              pendingLabel={mode === "create" ? "Enregistrement..." : "Modification..."}
+            />
+          </>
+        ) : (
           <DialogClose asChild>
-            <Button type="button" variant="outline">Annuler</Button>
+            <Button type="button" variant="outline">Fermer</Button>
           </DialogClose>
-          <FormSubmitButton
-            onClick={form.handleSubmit(handleSubmit)}
-            pending={isSubmitting}
-            disabled={durationMinutes <= 0 || isSubmitting}
-            label="Enregistrer"
-            pendingLabel="Modification..."
-          />
-        </>
+        )
       }
     >
-      <div className="space-y-4">
-        <DateRangeField
-          startValue={startDate}
-          endValue={endDate}
-          onStartChange={(v) => form.setValue("startDate", v)}
-          onEndChange={(v) => form.setValue("endDate", v)}
-        />
-
-        <div className="flex items-end gap-3">
-          <Field className="flex-1">
-            <FieldLabel htmlFor="edit-time-rate">Taux horaire</FieldLabel>
-            <MoneyInput id="edit-time-rate" {...form.register("hourlyRate")} />
-          </Field>
-          <p className="pb-2 text-xs text-muted-foreground">
-            {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
-          </p>
-        </div>
-
-        <Field>
-          <FieldLabel>Cible</FieldLabel>
-          <TreePickerDialog
-            mode="target"
-            folders={targetFolders}
-            selectedValue={targetValue}
-            selectedLabel={selectedTargetLabel}
-            onSelect={setTargetValue}
-            onCreateFolder={onCreateFolder}
+      {!canRecordTime ? (
+        <Alert>
+          <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
+        </Alert>
+      ) : (
+        <div className="space-y-4">
+          <DateRangeField
+            startValue={startDate}
+            endValue={endDate}
+            onStartChange={(v) => form.setValue("startDate", v)}
+            onEndChange={(v) => form.setValue("endDate", v)}
           />
-        </Field>
+          <FieldError errors={[form.formState.errors.startDate]} />
 
-        <Field>
-          <FieldLabel htmlFor="edit-time-description">Description</FieldLabel>
-          <Textarea id="edit-time-description" rows={4} {...form.register("description")} />
-        </Field>
+          <div className="flex items-end gap-3">
+            <Field className="flex-1">
+              <FieldLabel htmlFor="time-entry-rate">Taux horaire</FieldLabel>
+              <MoneyInput id="time-entry-rate" {...form.register("hourlyRate")} />
+            </Field>
+            <p className="pb-2 text-xs text-muted-foreground">
+              {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}
+            </p>
+          </div>
 
-        <MultiDocumentAttachmentField
-          projectId={projectId}
-          existingDocs={docs.existingDocs}
-          pendingFiles={docs.pendingFiles}
-          uploading={docs.uploading}
-          onRemoveDoc={docs.removeExistingDoc}
-          onAddFiles={docs.addPendingFiles}
-          onRemoveFile={docs.removePendingFile}
-        />
-      </div>
+          <Field>
+            <FieldLabel>Cible</FieldLabel>
+            <TreePickerDialog
+              mode="target"
+              folders={targetFolders}
+              selectedValue={targetValue}
+              selectedLabel={selectedTargetLabel}
+              onSelect={setTargetValue}
+              onCreateFolder={onCreateFolder}
+            />
+          </Field>
+
+          <Field>
+            <FieldLabel htmlFor="time-entry-description">Description</FieldLabel>
+            <Textarea id="time-entry-description" rows={4} {...form.register("description")} />
+          </Field>
+
+          <MultiDocumentAttachmentField
+            projectId={projectId}
+            existingDocs={docs.existingDocs}
+            pendingFiles={docs.pendingFiles}
+            uploading={docs.uploading}
+            onRemoveDoc={docs.removeExistingDoc}
+            onAddFiles={docs.addPendingFiles}
+            onRemoveFile={docs.removePendingFile}
+          />
+        </div>
+      )}
     </FormDialog>
   );
 }

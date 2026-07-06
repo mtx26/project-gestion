@@ -1,9 +1,8 @@
 "use client";
 
 import type { Project, ProjectMember, Role } from "@project-gestion/types";
-import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Trash2, Users } from "lucide-react";
 import { useState } from "react";
 import { normalizeApiList } from "@project-gestion/api";
@@ -24,7 +23,6 @@ import { getErrorMessage, toastError } from "@/lib/errors";
 
 export function MembersSettingsTab({
   selectedProject,
-  queryClient,
   roles,
   userId,
   canManageMembers,
@@ -32,13 +30,13 @@ export function MembersSettingsTab({
   canEditRates,
 }: {
   selectedProject: Project;
-  queryClient: QueryClient;
   roles: Role[];
   userId: number | null;
   canManageMembers: boolean;
   canEditOwnRate: boolean;
   canEditRates: boolean;
 }) {
+  const queryClient = useQueryClient();
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRoleId, setInviteRoleId] = useState("");
   const [deletingMember, setDeletingMember] = useState<ProjectMember | null>(null);

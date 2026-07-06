@@ -1,19 +1,13 @@
 "use client";
 
 import type { Permission, Project, Role } from "@project-gestion/types";
-import type { QueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@project-gestion/query-keys";
-import {
-  buildRolePayload,
-  canCreateRoleDraft,
-  getPermissionAction,
-  normalizePermissionIds,
-} from "@project-gestion/permissions";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { getPermissionAction } from "@project-gestion/permissions";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { normalizeApiList } from "@project-gestion/api";
 import { Pencil, Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { RoleFormDialog } from "@/app/settings/components/role-form-dialog";
+import { RoleFormDialog, type RolePayload } from "@/app/settings/components/role-form-dialog";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { FormError } from "@/components/forms/form-error";
 import { Badge } from "@/components/ui/badge";
@@ -26,19 +20,16 @@ import { getErrorMessage, toastError } from "@/lib/errors";
 
 export function RolesSettingsTab({
   selectedProject,
-  queryClient,
   permissions,
   canManageRoles,
   canDeleteRoles,
 }: {
   selectedProject: Project;
-  queryClient: QueryClient;
   permissions: Permission[];
   canManageRoles: boolean;
   canDeleteRoles: boolean;
 }) {
-  const [roleName, setRoleName] = useState("");
-  const [rolePermissionIds, setRolePermissionIds] = useState<number[]>([]);
+  const queryClient = useQueryClient();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [deletingRole, setDeletingRole] = useState<Role | null>(null);
@@ -50,29 +41,21 @@ export function RolesSettingsTab({
   const roles = normalizeApiList(rolesQuery.data);
 
   const createRole = useMutation({
-    mutationFn: () =>
-      api.roles.create(
-        selectedProject.id,
-        buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)),
-      ),
+    mutationFn: (payload: RolePayload) => api.roles.create(selectedProject.id, payload),
     onSuccess: async () => {
       toast.success("Role cree");
-      resetDialog();
+      setRoleDialogOpen(false);
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) });
     },
     onError: toastError,
   });
 
   const updateRole = useMutation({
-    mutationFn: () =>
-      api.roles.update(
-        selectedProject.id,
-        editingRole!.id,
-        buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)),
-      ),
+    mutationFn: ({ roleId, payload }: { roleId: number; payload: RolePayload }) =>
+      api.roles.update(selectedProject.id, roleId, payload),
     onSuccess: async () => {
       toast.success("Role mis a jour");
-      resetDialog();
+      setEditingRole(null);
       await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) });
     },
     onError: toastError,
@@ -91,33 +74,6 @@ export function RolesSettingsTab({
     onError: toastError,
   });
 
-  function resetDialog() {
-    setRoleDialogOpen(false);
-    setEditingRole(null);
-    setRoleName("");
-    setRolePermissionIds([]);
-  }
-
-  function openCreateDialog() {
-    setEditingRole(null);
-    setRoleName("");
-    setRolePermissionIds([]);
-    setRoleDialogOpen(true);
-  }
-
-  function openEditDialog(role: Role) {
-    setEditingRole(role);
-    setRoleName(role.name);
-    setRolePermissionIds(normalizePermissionIds(permissions, role.permissions.map((p) => p.id)));
-    setRoleDialogOpen(true);
-  }
-
-  function onSubmit() {
-    if (!canCreateRoleDraft(roleName, rolePermissionIds)) return;
-    if (editingRole) { updateRole.mutate(); return; }
-    createRole.mutate();
-  }
-
   return (
     <>
       <Card className="rounded-lg">
@@ -128,7 +84,7 @@ export function RolesSettingsTab({
               Roles
             </CardTitle>
             {canManageRoles && permissions.length > 0 ? (
-              <Button size="sm" onClick={openCreateDialog}>
+              <Button size="sm" onClick={() => setRoleDialogOpen(true)}>
                 <Plus className="size-4" />
                 Nouveau role
               </Button>
@@ -161,7 +117,7 @@ export function RolesSettingsTab({
                         variant="ghost"
                         size="icon-sm"
                         aria-label={`Modifier ${role.name}`}
-                        onClick={() => openEditDialog(role)}
+                        onClick={() => setEditingRole(role)}
                       >
                         <Pencil className="size-4" />
                       </Button>
@@ -203,19 +159,27 @@ export function RolesSettingsTab({
       </Card>
 
       {canManageRoles && permissions.length > 0 ? (
-        <RoleFormDialog
-          open={roleDialogOpen}
-          onOpenChange={(open) => { if (!open) resetDialog(); else setRoleDialogOpen(true); }}
-          mode={editingRole ? "edit" : "create"}
-          roleName={roleName}
-          onRoleNameChange={setRoleName}
-          rolePermissionIds={rolePermissionIds}
-          onRolePermissionIdsChange={setRolePermissionIds}
-          permissions={permissions}
-          onSubmit={onSubmit}
-          error={editingRole ? getErrorMessage(updateRole.error) : getErrorMessage(createRole.error)}
-          isPending={editingRole ? updateRole.isPending : createRole.isPending}
-        />
+        <>
+          <RoleFormDialog
+            mode="create"
+            open={roleDialogOpen}
+            permissions={permissions}
+            isPending={createRole.isPending}
+            error={getErrorMessage(createRole.error)}
+            onOpenChange={setRoleDialogOpen}
+            onSubmit={(payload) => createRole.mutate(payload)}
+          />
+          <RoleFormDialog
+            key={editingRole?.id ?? "edit-none"}
+            mode="edit"
+            role={editingRole}
+            permissions={permissions}
+            isPending={updateRole.isPending}
+            error={getErrorMessage(updateRole.error)}
+            onOpenChange={(open) => { if (!open) setEditingRole(null); }}
+            onSubmit={(payload) => editingRole && updateRole.mutate({ roleId: editingRole.id, payload })}
+          />
+        </>
       ) : null}
       <FormError message={getErrorMessage(deleteRole.error)} />
       <ConfirmDeleteDialog

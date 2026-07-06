@@ -5,9 +5,9 @@ import { projectSchema, type ProjectFormValues } from "@project-gestion/validati
 import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
 import {
-  canDeleteProject,
   canEditProject,
   formatPermissionCode,
+  isProjectOwner,
   permissionCodes,
 } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
@@ -81,7 +81,7 @@ function SettingsView({
   const searchParams = useSearchParams();
 
   const canEditSelectedProject = canEditProject(selectedProject, user?.id ?? null);
-  const canDeleteSelectedProject = canDeleteProject(selectedProject, user?.id ?? null);
+  const canDeleteSelectedProject = isProjectOwner(selectedProject, user?.id ?? null);
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewMembers = can(permissionCodes.memberView);
   const canManageMembers = can(permissionCodes.memberEdit);
@@ -210,7 +210,6 @@ function SettingsView({
             <TabsContent value="members">
               <MembersSettingsTab
                 selectedProject={selectedProject}
-                queryClient={queryClient}
                 roles={roles}
                 userId={user?.id ?? null}
                 canManageMembers={canManageMembers}
@@ -224,7 +223,6 @@ function SettingsView({
             <TabsContent value="roles">
               <RolesSettingsTab
                 selectedProject={selectedProject}
-                queryClient={queryClient}
                 permissions={permissions}
                 canManageRoles={canManageRoles}
                 canDeleteRoles={canDeleteRoles}

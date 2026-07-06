@@ -207,7 +207,6 @@ export function createApiClient({
       list: () => request<Project[] | PaginatedResponse<Project>>("/api/projects/"),
       create: (payload: ProjectPayload) =>
         request<Project>("/api/projects/", { method: "POST", body: payload }),
-      detail: (id: number) => request<Project>(`/api/projects/${id}/`),
       update: (id: number, payload: Partial<ProjectPayload>) =>
         request<Project>(`/api/projects/${id}/`, { method: "PATCH", body: payload }),
       remove: (id: number) =>

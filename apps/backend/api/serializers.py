@@ -171,7 +171,11 @@ class RoleSerializer(serializers.ModelSerializer):
         return role
 
     def _set_permissions(self, role, permissions):
-        RolePermission.objects.filter(role=role).delete()
+        request = self.context.get("request")
+        deleted_by = request.user if request else None
+        RolePermission.objects.filter(role=role).update(
+            deleted_at=timezone.now(), deleted_by=deleted_by,
+        )
 
         unique_permissions = {
             permission.id: permission
@@ -466,7 +470,10 @@ class DocumentSerializer(serializers.ModelSerializer):
 
 @extend_schema_field(OpenApiTypes.BINARY)
 class DocumentUploadFileField(serializers.FileField):
-    pass
+    default_error_messages = {
+        "required": "errors.document.file_required",
+        "no_file": "errors.document.file_required",
+    }
 
 
 class DocumentUploadSerializer(serializers.Serializer):
@@ -475,6 +482,7 @@ class DocumentUploadSerializer(serializers.Serializer):
         queryset=Folder.objects.all(),
         required=False,
         allow_null=True,
+        error_messages={"does_not_exist": "errors.document.folder_not_found"},
     )
     name = serializers.CharField(required=False)
     description = serializers.CharField(

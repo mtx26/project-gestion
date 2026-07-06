@@ -3,7 +3,7 @@
 import type { Notification, PaginatedResponse } from "@project-gestion/types";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { Bell, Check, MailOpen } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
 import { formatDateTime } from "@/lib/date-utils";
@@ -35,6 +35,37 @@ function withUpdatedNotifications(
   return { ...data, results: updateList(data.results) };
 }
 
+/** Deliberate exception to the invalidate-after-success convention every other
+ * mutation in the app uses: marking a notification read needs to feel instant (it
+ * fires on every click in a list), so this optimistically updates the cache via
+ * onMutate/rollback instead of waiting on a refetch. Shared by `markRead` and
+ * `markAllRead` since both need the same cancel/snapshot/rollback/invalidate shape. */
+function useOptimisticNotificationsMutation<TVariables>(
+  queryClient: QueryClient,
+  listKey: QueryKey,
+  mutationFn: (variables: TVariables) => Promise<unknown>,
+  updateList: (list: Notification[], variables: TVariables) => Notification[],
+) {
+  return useMutation({
+    mutationFn,
+    onMutate: async (variables: TVariables) => {
+      await queryClient.cancelQueries({ queryKey: listKey });
+      const previous = queryClient.getQueryData<NotificationsData>(listKey);
+      queryClient.setQueryData<NotificationsData>(listKey, (data) =>
+        withUpdatedNotifications(data, (list) => updateList(list, variables)),
+      );
+      return { previous };
+    },
+    onError: (err: unknown, _variables: TVariables, context: { previous?: NotificationsData } | undefined) => {
+      if (context?.previous !== undefined) queryClient.setQueryData(listKey, context.previous);
+      toastError(err);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+    },
+  });
+}
+
 export function NotificationsPageContent() {
   return (
     <ProjectWorkspaceShell maxWidthClassName="max-w-none">
@@ -56,48 +87,21 @@ function NotificationsView() {
     placeholderData: keepPreviousData,
   });
   const currentListKey = queryKeys.notifications.list(unreadOnly, page);
-  const markRead = useMutation({
-    mutationFn: api.notifications.markRead,
-    onMutate: async (id) => {
-      await queryClient.cancelQueries({ queryKey: currentListKey });
-      const previous = queryClient.getQueryData<NotificationsData>(currentListKey);
-      queryClient.setQueryData<NotificationsData>(currentListKey, (data) =>
-        withUpdatedNotifications(data, (list) =>
-          unreadOnly
-            ? list.filter((notification) => notification.id !== id)
-            : list.map((notification) => (notification.id === id ? { ...notification, is_read: true } : notification)),
-        ),
-      );
-      return { previous };
-    },
-    onError: (err, _id, context) => {
-      if (context?.previous !== undefined) queryClient.setQueryData(currentListKey, context.previous);
-      toastError(err);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
-    },
-  });
-  const markAllRead = useMutation({
-    mutationFn: api.notifications.markAllRead,
-    onMutate: async () => {
-      await queryClient.cancelQueries({ queryKey: currentListKey });
-      const previous = queryClient.getQueryData<NotificationsData>(currentListKey);
-      queryClient.setQueryData<NotificationsData>(currentListKey, (data) =>
-        withUpdatedNotifications(data, (list) =>
-          unreadOnly ? [] : list.map((notification) => ({ ...notification, is_read: true })),
-        ),
-      );
-      return { previous };
-    },
-    onError: (err, _vars, context) => {
-      if (context?.previous !== undefined) queryClient.setQueryData(currentListKey, context.previous);
-      toastError(err);
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
-    },
-  });
+  const markRead = useOptimisticNotificationsMutation(
+    queryClient,
+    currentListKey,
+    api.notifications.markRead,
+    (list, id: number) =>
+      unreadOnly
+        ? list.filter((notification) => notification.id !== id)
+        : list.map((notification) => (notification.id === id ? { ...notification, is_read: true } : notification)),
+  );
+  const markAllRead = useOptimisticNotificationsMutation<void>(
+    queryClient,
+    currentListKey,
+    () => api.notifications.markAllRead(),
+    (list) => (unreadOnly ? [] : list.map((notification) => ({ ...notification, is_read: true }))),
+  );
 
   const notifications = normalizeApiList(notificationsQuery.data);
   const totalCount = getApiCount(notificationsQuery.data);

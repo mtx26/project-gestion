@@ -110,7 +110,11 @@ class PermissionCodeByMethodMixin:
 
     Declare `permission_codes_by_method = {"GET": "task.view", "POST": "task.edit"}`.
     A method not present in the mapping resolves to `None` (no fine-grained check beyond
-    project access).
+    project access) — use this when the real permission code can't be known until the
+    request body is inspected (e.g. `ProjectMemberDetailView` omits PUT/PATCH here and
+    calls `services.members.authorize_member_update` from `perform_update` instead,
+    since editing a member's own hourly rate vs. someone else's role requires different
+    codes depending on which fields changed).
     """
 
     permission_codes_by_method: dict = {}

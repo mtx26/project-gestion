@@ -134,13 +134,6 @@ export function canEditProject(
   return hasProjectPermission(project, userId, permissionCodes.projectEdit);
 }
 
-export function canDeleteProject(
-  project: ProjectPermissionState | null | undefined,
-  userId: number | null | undefined,
-) {
-  return isProjectOwner(project, userId);
-}
-
 export function getPermissionScope(code: string): PermissionScope {
   const scope = code.split(".")[0] || "other";
 

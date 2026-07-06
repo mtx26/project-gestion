@@ -110,8 +110,8 @@ export function TaskFormDialog({
 
   async function handleSubmit(values: TaskFormValues) {
     const folder = getFolderId(values.folder as FolderFilter);
-    const newDocIds = await docs.uploadPending(projectId, folder);
-    if (newDocIds === null) return;
+    const documentIds = await docs.resolveDocumentIds(projectId, folder);
+    if (documentIds === null) return;
     onSubmit({
       title: values.title.trim(),
       description: values.description.trim() || null,
@@ -121,7 +121,7 @@ export function TaskFormDialog({
       start_date: values.startDate || null,
       end_date: values.endDate || null,
       assigned_to: values.assignees,
-      documents: docs.getAllDocIds(newDocIds),
+      documents: documentIds,
     });
   }
 

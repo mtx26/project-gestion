@@ -1,7 +1,9 @@
 "use client";
 
-import type { Permission } from "@project-gestion/types";
+import type { Permission, Role } from "@project-gestion/types";
+import { useState } from "react";
 import {
+  buildRolePayload,
   canCreateRoleDraft,
   getPermissionAction,
   groupPermissionsByScope,
@@ -18,33 +20,40 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
+export type RolePayload = ReturnType<typeof buildRolePayload>;
+
 interface RoleFormDialogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   mode: "create" | "edit";
-  roleName: string;
-  onRoleNameChange: (name: string) => void;
-  rolePermissionIds: number[];
-  onRolePermissionIdsChange: (ids: number[]) => void;
+  open?: boolean;
+  role?: Role | null;
   permissions: Permission[];
-  onSubmit: () => void;
-  error: string | null;
   isPending: boolean;
+  error: string | null;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (payload: RolePayload) => void;
 }
 
+/** Same create/edit dialog API as the other `<Feature>FormDialog`s: owns its own
+ * draft state internally, mount a fresh instance per entity via `key={role?.id}`
+ * for edit (see `RolesSettingsTab`). Not RHF-driven like its siblings — the
+ * checkbox-tree's cross-dependency logic (`removePermissionIdWithDependents`)
+ * operates on a plain `number[]`, which plain `useState` fits more directly. */
 export function RoleFormDialog({
-  open,
-  onOpenChange,
   mode,
-  roleName,
-  onRoleNameChange,
-  rolePermissionIds,
-  onRolePermissionIdsChange,
+  open,
+  role,
   permissions,
-  onSubmit,
-  error,
   isPending,
+  error,
+  onOpenChange,
+  onSubmit,
 }: RoleFormDialogProps) {
+  const isOpen = mode === "create" ? (open ?? false) : role != null;
+  const [roleName, setRoleName] = useState(role?.name ?? "");
+  const [rolePermissionIds, setRolePermissionIds] = useState<number[]>(
+    role ? normalizePermissionIds(permissions, role.permissions.map((p) => p.id)) : [],
+  );
+
   const permissionGroups = groupPermissionsByScope(permissions);
   const allPermissionIds = permissions.map((permission) => permission.id);
   const allSelected =
@@ -52,7 +61,7 @@ export function RoleFormDialog({
   const canSubmit = canCreateRoleDraft(roleName, rolePermissionIds);
 
   function togglePermission(permissionId: number, checked: boolean) {
-    onRolePermissionIdsChange(
+    setRolePermissionIds(
       checked
         ? normalizePermissionIds(permissions, [...rolePermissionIds, permissionId])
         : removePermissionIdWithDependents(permissions, rolePermissionIds, permissionId),
@@ -60,7 +69,7 @@ export function RoleFormDialog({
   }
 
   function toggleGroup(groupIds: number[], checked: boolean) {
-    onRolePermissionIdsChange(
+    setRolePermissionIds(
       checked
         ? normalizePermissionIds(permissions, [...new Set([...rolePermissionIds, ...groupIds])])
         : groupIds.reduce(
@@ -71,12 +80,17 @@ export function RoleFormDialog({
   }
 
   function toggleAll(checked: boolean) {
-    onRolePermissionIdsChange(checked ? allPermissionIds : []);
+    setRolePermissionIds(checked ? allPermissionIds : []);
+  }
+
+  function handleSubmit() {
+    if (!canSubmit) return;
+    onSubmit(buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)));
   }
 
   return (
     <FormDialog
-      open={open}
+      open={isOpen}
       onOpenChange={onOpenChange}
       title={mode === "create" ? "Nouveau role" : "Modifier le role"}
       description={
@@ -107,7 +121,7 @@ export function RoleFormDialog({
           className="space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (canSubmit) onSubmit();
+            handleSubmit();
           }}
         >
           <Field>
@@ -116,7 +130,7 @@ export function RoleFormDialog({
               id="role-name"
               placeholder="Ex. Contributeur"
               value={roleName}
-              onChange={(event) => onRoleNameChange(event.target.value)}
+              onChange={(event) => setRoleName(event.target.value)}
             />
           </Field>
 

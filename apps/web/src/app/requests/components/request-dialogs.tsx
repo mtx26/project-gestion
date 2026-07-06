@@ -91,8 +91,8 @@ export function ExpenseRequestFormDialog({
 
   async function handleSubmit(values: RequestFormValues) {
     const { folder, task } = getTargetPayload(targetValue);
-    const newDocIds = await docs.uploadPending(projectId, folder);
-    if (newDocIds === null) return;
+    const documentIds = await docs.resolveDocumentIds(projectId, folder);
+    if (documentIds === null) return;
     onSubmit({
       title: values.title.trim(),
       amount: values.amount,
@@ -100,7 +100,7 @@ export function ExpenseRequestFormDialog({
       description: values.description.trim() || null,
       folder,
       task,
-      documents: docs.getAllDocIds(newDocIds),
+      documents: documentIds,
     });
   }
 

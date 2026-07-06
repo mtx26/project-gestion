@@ -27,9 +27,7 @@ import { useDocumentPreview } from "@/lib/use-document-preview";
 import {
   buildTargetTree,
   findTargetLabel,
-  getTargetPayload,
 } from "@/lib/target-utils";
-import { format } from "date-fns";
 import { parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { useLazyDetailFetch } from "@/lib/use-lazy-detail-fetch";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
@@ -37,14 +35,13 @@ import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { PaginationBar } from "@/components/pagination-bar";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
-import { TimeEntryForm } from "./components/time-entry-form";
 import { TimeEntryList } from "./components/time-entry-list";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
-import { type EditTimeSubmitData, CorrectPaymentDialog, EditTimeEntryDialog, PaymentDialog, TimeEntryDetailModal } from "./components/time-dialogs";
+import { type TimeEntrySubmitData, CorrectPaymentDialog, PaymentDialog, TimeEntryDetailModal, TimeEntryFormDialog } from "./components/time-dialogs";
 import {
   type UserFilter,
   getSelectedUserId,
@@ -97,16 +94,8 @@ function TimeView({
     [dateFrom, dateTo],
   );
 
-  const [targetValue, setTargetValue] = useState(parseTargetFilter(searchParams.get("target")) ?? "project");
   const [timeFormOpen, setTimeFormOpen] = useState(searchParams.get("new") === "1");
-  const [createFormKey, setCreateFormKey] = useState(0);
-  const nowIso = () => format(new Date(), "yyyy-MM-dd'T'HH:mm");
-  const [startDate, setStartDate] = useState(nowIso);
-  const [endDate, setEndDate] = useState(nowIso);
   const defaultHourlyRate = user?.profile?.default_hourly_rate ?? "0";
-  const [hourlyRateDraft, setHourlyRateDraft] = useState<string | null>(null);
-  const hourlyRate = hourlyRateDraft ?? defaultHourlyRate;
-  const [description, setDescription] = useState("");
   const [paymentTarget, setPaymentTarget] = useState<TimeEntry | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<TimeEntry | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
@@ -176,7 +165,6 @@ function TimeView({
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
   const totalCount = getApiCount(timeEntriesQuery.data);
   const targetTree = buildTargetTree(targetFolders);
-  const selectedTargetLabel = findTargetLabel(targetTree, targetValue) ?? "Projet";
   const userNameById = new Map(members.map((m): [number, string] => [m.user, m.user_display_name]));
   const totals = {
     durationMinutes: statsQuery.data?.duration_minutes ?? 0,
@@ -189,26 +177,20 @@ function TimeView({
   const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, dateFrom, dateTo, members, user?.id ?? null, targetFilterLabel);
 
   const createTimeEntry = useMutation({
-    mutationFn: (documentIds: number[]) => {
-      const durationMinutes = startDate && endDate
-        ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000))
-        : 0;
-      return api.timeEntries.create(selectedProject!.id, {
+    mutationFn: (data: TimeEntrySubmitData) =>
+      api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
-        start_date: startDate,
-        duration_minutes: durationMinutes,
-        hourly_rate: hourlyRate === "" ? undefined : hourlyRate,
-        description: description.trim() || null,
-        folder: getTargetPayload(targetValue).folder,
-        task: getTargetPayload(targetValue).task,
-        documents: documentIds,
-      });
-    },
+        start_date: data.startDate,
+        duration_minutes: data.durationMinutes,
+        hourly_rate: data.hourlyRate,
+        description: data.description,
+        folder: data.folder,
+        task: data.task,
+        documents: data.documentIds,
+      }),
     onSuccess: async () => {
       toast.success("Temps enregistre");
-      const now = nowIso();
-      setStartDate(now); setEndDate(now); setHourlyRateDraft(null);
-      setDescription(""); setTargetValue("project"); setTimeFormOpen(false);
+      setTimeFormOpen(false);
       await invalidateTimeQueries(queryClient, selectedProject!.id);
     },
     onError: toastError,
@@ -252,7 +234,7 @@ function TimeView({
     onError: toastError,
   });
   const updateTimeEntry = useMutation({
-    mutationFn: (data: EditTimeSubmitData) =>
+    mutationFn: (data: TimeEntrySubmitData) =>
       api.timeEntries.update(selectedProject!.id, editingEntry!.id, {
         duration_minutes: data.durationMinutes,
         start_date: data.startDate,
@@ -281,12 +263,6 @@ function TimeView({
     openTask.open(taskId);
   }
 
-  function onSubmitTimeEntry(event: React.FormEvent<HTMLFormElement>, documentIds: number[]) {
-    event.preventDefault();
-    if (!selectedProject || !user || !canRecordTime) return;
-    createTimeEntry.mutate(documentIds);
-  }
-
   if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
 
   if (!selectedProject) {
@@ -308,7 +284,7 @@ function TimeView({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <PageTitle category="Temps" title="Suivi du travail" />
         {canRecordTime ? (
-          <Button type="button" className="gap-2" onClick={() => { setCreateFormKey(k => k + 1); setTimeFormOpen(true); }}>
+          <Button type="button" className="gap-2" onClick={() => setTimeFormOpen(true)}>
             <Plus className="size-4" />
             Ajouter
           </Button>
@@ -425,28 +401,18 @@ function TimeView({
         ) : null}
       </div>
 
-      <TimeEntryForm
-        key={createFormKey}
+      <TimeEntryFormDialog
+        mode="create"
         open={timeFormOpen}
-        onOpenChange={(open) => { setTimeFormOpen(open); if (!open) createTimeEntry.reset(); }}
         canRecordTime={canRecordTime}
+        defaultHourlyRate={defaultHourlyRate}
         projectId={selectedProject?.id ?? 0}
-        startDate={startDate}
-        endDate={endDate}
-        hourlyRate={hourlyRate}
-        description={description}
-        targetValue={targetValue}
         targetFolders={targetFolders}
-        selectedTargetLabel={selectedTargetLabel}
         isPending={createTimeEntry.isPending}
-        error={getErrorMessage(createTimeEntry.error)}
-        onStartDateChange={setStartDate}
-        onEndDateChange={setEndDate}
-        onHourlyRateChange={setHourlyRateDraft}
-        onDescriptionChange={setDescription}
-        onTargetValueChange={setTargetValue}
+        error={createTimeEntry.error}
         onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
-        onSubmit={onSubmitTimeEntry}
+        onOpenChange={(open) => { setTimeFormOpen(open); if (!open) createTimeEntry.reset(); }}
+        onSubmit={(data) => { if (selectedProject && user && canRecordTime) createTimeEntry.mutate(data); }}
       />
 
       <PaymentDialog
@@ -465,8 +431,9 @@ function TimeView({
         onOpenChange={(open) => { if (!open) { setCorrectionTarget(null); correctTimeEntryPayment.reset(); } }}
         onSubmit={(amount) => correctTimeEntryPayment.mutate(amount)}
       />
-      <EditTimeEntryDialog
-        key={editingEntry?.id ?? "none"}
+      <TimeEntryFormDialog
+        key={editingEntry?.id ?? "edit-none"}
+        mode="edit"
         entry={editingEntry}
         projectId={selectedProject?.id ?? 0}
         targetFolders={targetFolders}

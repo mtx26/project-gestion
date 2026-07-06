@@ -95,8 +95,8 @@ export function FinancialEntryFormDialog({
 
   async function handleSubmit(values: FinanceFormValues) {
     const { folder, task } = getTargetPayload(targetValue);
-    const newDocIds = await docs.uploadPending(projectId, folder);
-    if (newDocIds === null) return;
+    const documentIds = await docs.resolveDocumentIds(projectId, folder);
+    if (documentIds === null) return;
     onSubmit({
       date: values.date || null,
       type: values.type,
@@ -105,7 +105,7 @@ export function FinancialEntryFormDialog({
       description: values.description.trim() || null,
       folder,
       task,
-      documents: docs.getAllDocIds(newDocIds),
+      documents: documentIds,
     });
   }
 

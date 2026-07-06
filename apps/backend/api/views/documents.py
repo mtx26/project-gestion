@@ -1,13 +1,13 @@
 from django.shortcuts import get_object_or_404
 
-from rest_framework import generics, status
+from rest_framework import generics, serializers, status
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..models import Document, Folder
+from ..models import Document
 from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
 from ..serializers import (
     DocumentDownloadBatchItemSerializer,
@@ -63,29 +63,23 @@ class DocumentListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPI
         return get_project_documents(self.request.user, self.kwargs["project_id"]).order_by("name", "id")
 
     def create(self, request, *args, **kwargs):
-        uploaded_file = request.FILES.get("file")
-
-        if uploaded_file is None:
-            return Response(
-                {"file": ["errors.document.file_required"]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        upload_serializer = DocumentUploadSerializer(data=request.data)
+        upload_serializer.is_valid(raise_exception=True)
+        upload_data = upload_serializer.validated_data
 
         project = get_object_or_404(
             get_accessible_projects(request.user),
             pk=self.kwargs["project_id"],
         )
 
-        folder = self._get_folder(request, project)
-        if isinstance(folder, Response):
-            return folder
+        folder = self._get_folder(upload_data.get("folder"), project)
 
-        metadata = upload_document_file(uploaded_file, project.id)
+        metadata = upload_document_file(upload_data["file"], project.id)
         serializer = self.get_serializer(
             data={
                 "folder": folder.id if folder else None,
-                "name": request.data.get("name") or metadata["file_name"],
-                "description": request.data.get("description"),
+                "name": upload_data.get("name") or metadata["file_name"],
+                "description": upload_data.get("description"),
             }
         )
         serializer.is_valid(raise_exception=True)
@@ -93,22 +87,12 @@ class DocumentListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPI
 
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    def _get_folder(self, request, project):
-        folder_id = request.data.get("folder")
-
-        if not folder_id:
+    def _get_folder(self, folder, project):
+        if folder is None:
             return None
 
-        folder = Folder.objects.filter(
-            pk=folder_id,
-            project=project,
-        ).first()
-
-        if folder is None:
-            return Response(
-                {"folder": ["errors.document.folder_not_found"]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        if folder.project_id != project.id:
+            raise serializers.ValidationError({"folder": ["errors.document.folder_not_found"]})
 
         return folder
 

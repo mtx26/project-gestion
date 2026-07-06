@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.functions import Coalesce, Round
 from django.core.exceptions import ValidationError
-from core.models import ActiveManagerMixin, BaseModel, DeletedManagerMixin
+from core.models import ActiveManagerMixin, BaseModel, DeletedManagerMixin, ProjectScopedQuerySetMixin
 
 
 ## Projects
@@ -46,13 +46,7 @@ class Project(BaseModel):
         ]
 
 # Roles and Permissions
-class RoleQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class RoleQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_relations(self):
         return self.select_related("project")
 
@@ -120,13 +114,7 @@ class RolePermission(BaseModel):
             )
         ]
 
-class ProjectMemberQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class ProjectMemberQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_relations(self):
         return self.select_related("user__profile", "role")
 
@@ -170,13 +158,7 @@ class ProjectOwnerRate(models.Model):
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
 
-class FolderQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class FolderQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_relations(self):
         return self.select_related("created_by")
 
@@ -254,12 +236,8 @@ class Folder(BaseModel):
     def is_root(self):
         return self.parent_folder is None
 
-class DocumentQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
+class DocumentQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
+    pass
 
 
 class ActiveDocumentManager(ActiveManagerMixin, models.Manager.from_queryset(DocumentQuerySet)):
@@ -292,13 +270,7 @@ class Document(BaseModel):
         if self.folder and self.folder.project_id != self.project_id:
             raise ValidationError("errors.document.folder_project_mismatch")
 
-class TaskQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class TaskQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_relations(self):
         return self.select_related(
             "project", "folder", "created_by",
@@ -379,13 +351,7 @@ class Task(BaseModel):
         if self.start_date and self.end_date and self.start_date > self.end_date:
             raise ValidationError({"start_date": "errors.task.start_date_after_end_date"})
 
-class InvitationQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class InvitationQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_relations(self):
         return self.select_related("project", "role", "invited_by")
 
@@ -479,13 +445,7 @@ class EmailDelivery(BaseModel):
     opened_at = models.DateTimeField(null=True, blank=True)
     clicked_at = models.DateTimeField(null=True, blank=True)
 
-class TimeEntryQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class TimeEntryQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def own_unless_can_view_all(self, user, project):
         """Restricts to `user`'s own entries unless they hold `time_entry.view_all`
         on `project`."""
@@ -623,13 +583,7 @@ class TimeEntry(BaseModel):
         return max(remaining, Decimal("0.00"))
 
 
-class FinancialEntryQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class FinancialEntryQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_relations(self):
         return self.select_related(
             "project", "folder", "time_entry__user", "task", "created_by",
@@ -708,13 +662,7 @@ class FinancialEntry(BaseModel):
                 })
 
 
-class ExpenseRequestQuerySet(models.QuerySet):
-    def for_project(self, project_id):
-        return self.filter(project_id=project_id)
-
-    def accessible_to(self, user):
-        return self.filter(project__in=Project.objects.accessible_to(user))
-
+class ExpenseRequestQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_relations(self):
         return self.select_related(
             "project", "folder", "task", "requested_by", "approved_by",
