@@ -1,25 +1,29 @@
 "use client";
 
 import type { Project, ProjectMember, Role } from "@project-gestion/types";
+import { inviteMemberSchema, type InviteMemberFormValues } from "@project-gestion/validation";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
+import { Controller, useForm } from "react-hook-form";
 import { Trash2, Users } from "lucide-react";
-import { useState } from "react";
 import { normalizeApiList } from "@project-gestion/api";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { InvitationStatusBadge } from "@/components/badges/invitation-status-badge";
 import { MemberTypeBadge } from "@/components/badges/member-type-badge";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MutedInfoCard } from "@/components/muted-info-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { toast } from "sonner";
 import { MemberAvatar } from "@/components/member-avatar";
 import { api } from "@/lib/api";
-import { getErrorMessage, toastError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
+import { useState } from "react";
 
 export function MembersSettingsTab({
   selectedProject,
@@ -36,9 +40,6 @@ export function MembersSettingsTab({
   canEditOwnRate: boolean;
   canEditRates: boolean;
 }) {
-  const queryClient = useQueryClient();
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRoleId, setInviteRoleId] = useState("");
   const [deletingMember, setDeletingMember] = useState<ProjectMember | null>(null);
 
   const membersQuery = useQuery({
@@ -54,77 +55,57 @@ export function MembersSettingsTab({
   const members = normalizeApiList(membersQuery.data);
   const invitations = normalizeApiList(invitationsQuery.data);
 
-  const inviteMember = useMutation({
-    mutationFn: () =>
-      api.invitations.create(selectedProject.id, {
-        email: inviteEmail,
-        role: Number(inviteRoleId),
-      }),
-    onSuccess: async () => {
-      toast.success("Invitation envoyee");
-      setInviteEmail("");
-      setInviteRoleId("");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject.id) });
-    },
-    onError: toastError,
+  const inviteForm = useForm<InviteMemberFormValues>({
+    resolver: zodResolver(inviteMemberSchema),
+    defaultValues: { email: "", roleId: "" },
   });
 
-  const removeInvitation = useMutation({
+  const inviteMember = useCrudMutation({
+    mutationFn: (values: InviteMemberFormValues) =>
+      api.invitations.create(selectedProject.id, { email: values.email, role: Number(values.roleId) }),
+    invalidateKey: queryKeys.invitations.all(selectedProject.id),
+    successMessage: "Invitation envoyee",
+    onSuccess: () => inviteForm.reset(),
+  });
+
+  const removeInvitation = useCrudMutation({
     mutationFn: (invitationId: number) => api.invitations.remove(selectedProject.id, invitationId),
-    onSuccess: async () => {
-      toast.success("Invitation annulee");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.invitations.all(selectedProject.id),
+    successMessage: "Invitation annulee",
   });
 
-  const updateInvitationRole = useMutation({
+  const updateInvitationRole = useCrudMutation({
     mutationFn: ({ invitationId, roleId }: { invitationId: number; roleId: number }) =>
       api.invitations.update(selectedProject.id, invitationId, { role: roleId }),
-    onSuccess: async () => {
-      toast.success("Role mis a jour");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.invitations.all(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.invitations.all(selectedProject.id),
+    successMessage: "Role mis a jour",
   });
 
-  const removeMember = useMutation({
+  const removeMember = useCrudMutation({
     mutationFn: (memberId: number) => api.members.remove(selectedProject.id, memberId),
-    onSuccess: async () => {
-      toast.success("Membre retire");
-      setDeletingMember(null);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.members.list(selectedProject.id),
+    successMessage: "Membre retire",
+    onSuccess: () => setDeletingMember(null),
   });
 
-  const updateMemberRole = useMutation({
+  const updateMemberRole = useCrudMutation({
     mutationFn: ({ memberId, roleId }: { memberId: number; roleId: number }) =>
       api.members.update(selectedProject.id, memberId, { role: roleId }),
-    onSuccess: async () => {
-      toast.success("Role mis a jour");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.members.list(selectedProject.id),
+    successMessage: "Role mis a jour",
   });
 
-  const updateMemberRate = useMutation({
+  const updateMemberRate = useCrudMutation({
     mutationFn: ({ memberId, rate }: { memberId: number; rate: string }) =>
       api.members.update(selectedProject.id, memberId, { hourly_rate: rate }),
-    onSuccess: async () => {
-      toast.success("Taux horaire mis a jour");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.members.list(selectedProject.id),
+    successMessage: "Taux horaire mis a jour",
   });
 
-  const updateOwnerRate = useMutation({
+  const updateOwnerRate = useCrudMutation({
     mutationFn: (rate: string) => api.members.updateOwnerRate(selectedProject.id, rate),
-    onSuccess: async () => {
-      toast.success("Taux horaire mis a jour");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.members.list(selectedProject.id),
+    successMessage: "Taux horaire mis a jour",
   });
 
   return (
@@ -139,30 +120,31 @@ export function MembersSettingsTab({
         {canManageMembers ? (
           <form
             className="grid gap-2 rounded-md border bg-muted/30 p-3 sm:grid-cols-[1fr_180px_auto]"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (inviteEmail && inviteRoleId) inviteMember.mutate();
-            }}
+            onSubmit={inviteForm.handleSubmit((values) => inviteMember.mutate(values))}
           >
-            <Input
-              type="email"
-              placeholder="email@exemple.com"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
+            <Field>
+              <Input type="email" placeholder="email@exemple.com" {...inviteForm.register("email")} />
+              <FieldError errors={[inviteForm.formState.errors.email]} />
+            </Field>
+            <Controller
+              control={inviteForm.control}
+              name="roleId"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger className="w-full bg-background">
+                    <SelectValue placeholder="Role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role.id} value={String(role.id)}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             />
-            <Select value={inviteRoleId} onValueChange={setInviteRoleId}>
-              <SelectTrigger className="w-full bg-background">
-                <SelectValue placeholder="Role" />
-              </SelectTrigger>
-              <SelectContent>
-                {roles.map((role) => (
-                  <SelectItem key={role.id} value={String(role.id)}>
-                    {role.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button type="submit" disabled={!inviteEmail || !inviteRoleId || inviteMember.isPending}>
+            <Button type="submit" disabled={inviteMember.isPending}>
               Inviter
             </Button>
             <FormError message={getErrorMessage(inviteMember.error)} />

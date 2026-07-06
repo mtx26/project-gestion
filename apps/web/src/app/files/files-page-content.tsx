@@ -4,7 +4,7 @@ import type { Task } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   Clock3,
   Folder,
@@ -41,17 +41,15 @@ import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage, toastError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
 import { findFolderName, findFolderNode } from "@/lib/folder-utils";
 import { buildProjectHref } from "@/lib/url-params";
-import { useLazyDetailFetch } from "@/lib/use-lazy-detail-fetch";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { FileTree } from "./components/file-tree";
 import { FileDraftDialogs, type TaskDraftSubmitData, type TimeDraftSubmitData } from "./components/file-draft-dialogs";
 import { FolderPreviewPanel } from "./components/folder-preview-panel";
-import { invalidateFolders } from "./lib/file-filters";
 import { type FileActionTarget, isFolderDescendantOf } from "./lib/file-tree-utils";
 
 export function FilesPageContent() {
@@ -68,7 +66,6 @@ function FilesView({
   projectsQuery,
   openCreateProject,
 }: ProjectWorkspaceState) {
-  const queryClient = useQueryClient();
   const router = useRouter();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewFiles = can(permissionCodes.fileView);
@@ -106,7 +103,7 @@ function FilesView({
   const treeQuery = useQuery({
     queryKey: selectedProject
       ? queryKeys.folders.tree(selectedProject.id, { includeTasks: true })
-      : ["folders", "tree", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () => api.folders.tree(selectedProject!.id, { includeTasks: true }),
     enabled: Boolean(selectedProject && canViewFiles),
   });
@@ -114,7 +111,7 @@ function FilesView({
   const previewTasksQuery = useQuery({
     queryKey: selectedProject
       ? queryKeys.tasks.list(selectedProject.id, { folderId: selectedFolderId ?? undefined, excludeDone: true })
-      : ["tasks", "folder-preview", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () => api.tasks.list(selectedProject!.id, { folder: selectedFolderId ?? undefined, exclude_done: true }),
     enabled: Boolean(selectedProject && canViewTasks),
   });
@@ -122,7 +119,7 @@ function FilesView({
   const previewTimeEntriesQuery = useQuery({
     queryKey: selectedProject
       ? queryKeys.timeEntries.list(selectedProject.id, { target: selectedFolderId != null ? `folder-${selectedFolderId}` : undefined })
-      : ["time-entries", "folder-preview", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () =>
       api.timeEntries.list(selectedProject!.id, {
         target: selectedFolderId != null ? `folder-${selectedFolderId}` : undefined,
@@ -130,85 +127,73 @@ function FilesView({
     enabled: Boolean(selectedProject && canViewTime),
   });
 
-  const openTask = useLazyDetailFetch(
-    (taskId: number) => api.tasks.get(selectedProject!.id, taskId),
-    setViewingTask,
-    "Impossible de charger la tache",
-  );
+  const openTask = useCrudMutation({
+    mutationFn: (taskId: number) => api.tasks.get(selectedProject!.id, taskId),
+    errorMessage: "Impossible de charger la tache",
+    onSuccess: setViewingTask,
+  });
 
-  const createFolder = useMutation({
+  const createFolder = useCrudMutation({
     mutationFn: ({ name, parentFolder }: { name: string; parentFolder: number | null }) =>
       api.folders.create(selectedProject!.id, { name, parent_folder: parentFolder }),
-    onSuccess: async () => {
-      toast.success("Dossier cree");
-      await invalidateFolders(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    successMessage: "Dossier cree",
   });
 
-  const uploadDocument = useMutation({
+  const uploadDocument = useCrudMutation({
     mutationFn: ({ file, folder }: { file: File; folder: number | null }) =>
       api.documents.upload(selectedProject!.id, { file, folder }),
-    onSuccess: async () => {
-      toast.success("Document uploade");
-      await invalidateFolders(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.folders.allTree(selectedProject!.id),
+    successMessage: "Document uploade",
   });
 
-  const openDocument = useMutation({
+  const openDocument = useCrudMutation({
     mutationFn: (documentId: number) => api.documents.download(selectedProject!.id, documentId),
-    onSuccess: (data) => setPreviewDocument(data),
-    onError: toastError,
+    onSuccess: setPreviewDocument,
   });
 
-  const deleteFolder = useMutation({
+  const deleteFolder = useCrudMutation({
     mutationFn: (folderId: number) => api.folders.remove(selectedProject!.id, folderId),
-    onSuccess: async (_data, folderId) => {
-      toast.success("Dossier supprime");
+    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    successMessage: "Dossier supprime",
+    onSuccess: (_data, folderId) => {
       setItemToDelete(null);
       setSelectedFolderState((current) =>
         current.projectId === selectedProjectId && current.id === folderId
           ? { projectId: selectedProjectId, id: null }
           : current,
       );
-      await invalidateFolders(queryClient, selectedProject!.id);
     },
-    onError: toastError,
   });
 
-  const deleteDocument = useMutation({
+  const deleteDocument = useCrudMutation({
     mutationFn: (documentId: number) => api.documents.remove(selectedProject!.id, documentId),
-    onSuccess: async () => {
-      toast.success("Document supprime");
-      setItemToDelete(null);
-      await invalidateFolders(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.folders.allTree(selectedProject!.id),
+    successMessage: "Document supprime",
+    onSuccess: () => setItemToDelete(null),
   });
 
-  const renameItem = useMutation<unknown, Error, { target: FileActionTarget; name: string }>({
+  const renameItem = useCrudMutation<{ target: FileActionTarget; name: string }>({
     mutationFn: ({ target, name }) =>
       target.type === "folder"
         ? api.folders.update(selectedProject!.id, target.id, { name })
         : api.documents.update(selectedProject!.id, target.id, { name }),
-    onSuccess: async () => {
-      toast.success("Element renomme");
+    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    successMessage: "Element renomme",
+    onSuccess: () => {
       setItemToRename(null);
       setRenameValue("");
-      await invalidateFolders(queryClient, selectedProject!.id);
     },
-    onError: toastError,
   });
 
-  const moveFolder = useMutation({
+  const moveFolder = useCrudMutation({
     mutationFn: ({ folderId, newParentId }: { folderId: number; newParentId: number | null }) =>
       api.folders.update(selectedProject!.id, folderId, { parent_folder: newParentId }),
-    onSuccess: () => invalidateFolders(queryClient, selectedProject!.id),
-    onError: toastError,
+    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    successMessage: "Dossier deplace",
   });
 
-  const createTask = useMutation({
+  const createTask = useCrudMutation({
     mutationFn: (values: TaskDraftSubmitData) =>
       api.tasks.create(selectedProject!.id, {
         title: values.title,
@@ -218,20 +203,12 @@ function FilesView({
         status: "todo",
         end_date: values.endDate,
       }),
-    onSuccess: async () => {
-      toast.success("Tache creee");
-      setTaskDraftFolderId(null);
-      if (selectedProjectId) {
-        await Promise.all([
-          invalidateFolders(queryClient, selectedProjectId),
-          queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(selectedProjectId) }),
-        ]);
-      }
-    },
-    onError: toastError,
+    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.tasks.all(selectedProject!.id)],
+    successMessage: "Tache creee",
+    onSuccess: () => setTaskDraftFolderId(null),
   });
 
-  const createTimeEntry = useMutation({
+  const createTimeEntry = useCrudMutation({
     mutationFn: (values: TimeDraftSubmitData) =>
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
@@ -241,14 +218,9 @@ function FilesView({
         hourly_rate: values.hourlyRate === "" ? undefined : values.hourlyRate,
         description: values.description,
       }),
-    onSuccess: async () => {
-      toast.success("Temps enregistre");
-      setTimeDraftFolderId(null);
-      if (selectedProjectId) {
-        await queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.all(selectedProjectId) });
-      }
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    successMessage: "Temps enregistre",
+    onSuccess: () => setTimeDraftFolderId(null),
   });
 
   const rootExpandedFolderIds = useMemo(
@@ -459,7 +431,7 @@ function FilesView({
                     onToggleFolder={toggleFolderExpanded}
                     onSelectFolder={setSelectedFolderId}
                     onOpenDocument={(id) => openDocument.mutate(id)}
-                    onOpenTask={(taskId) => openTask.open(taskId)}
+                    onOpenTask={(taskId) => openTask.mutate(taskId)}
                     onDraftFolderChange={(name) => setDraftFolder((d) => (d ? { ...d, name } : d))}
                     onCommitDraftFolder={onCommitDraftFolder}
                     onCancelDraftFolder={onCancelDraftFolder}

@@ -1,18 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import type { PreviewDocument } from "@/components/dialogs/document-preview-dialog";
 import { api } from "@/lib/api";
-import { toastError } from "@/lib/errors";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 
 export function useDocumentPreview(projectId: number | null) {
   const [previewDocument, setPreviewDocument] = useState<PreviewDocument | null>(null);
 
-  const openDocument = useMutation({
+  const openDocument = useCrudMutation({
     mutationFn: (documentId: number) => api.documents.download(projectId!, documentId),
-    onSuccess: (data) => setPreviewDocument(data),
-    onError: toastError,
+    errorMessage: "Impossible de charger le document",
+    onSuccess: setPreviewDocument,
   });
 
   return { openDocument, previewDocument, setPreviewDocument };

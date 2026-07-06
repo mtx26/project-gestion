@@ -22,7 +22,6 @@ import { useAuthStore } from "@/stores/auth-store";
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
-  const [serverError, setServerError] = useState<string | null>(null);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<LoginFormValues>({
@@ -37,7 +36,7 @@ export default function LoginPage() {
   ]);
 
   async function onSubmit(values: LoginFormValues) {
-    setServerError(null);
+    setRawError(null);
     setUnverifiedEmail(null);
     try {
       await login(values);
@@ -48,7 +47,6 @@ export default function LoginPage() {
         setUnverifiedEmail(values.identifier);
         return;
       }
-      setServerError(getErrorMessage(error));
       setRawError(error);
     }
   }
@@ -86,7 +84,7 @@ export default function LoginPage() {
               />
               <FieldError errors={[form.formState.errors.password]} />
             </Field>
-            <FormError message={serverError} />
+            <FormError message={getErrorMessage(rawError)} />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Se connecter
             </Button>

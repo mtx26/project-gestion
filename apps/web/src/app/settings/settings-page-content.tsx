@@ -11,7 +11,7 @@ import {
   permissionCodes,
 } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { AlertTriangle, Save, Trash2 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -33,10 +33,11 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { Textarea } from "@/components/ui/textarea";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage, toastError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 type SettingsSection = "general" | "members" | "roles" | "access" | "danger";
 
@@ -77,7 +78,6 @@ function SettingsView({
   initialSection,
 }: ProjectWorkspaceState & { initialSection: SettingsSection }) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
 
   const canEditSelectedProject = canEditProject(selectedProject, user?.id ?? null);
@@ -93,7 +93,7 @@ function SettingsView({
   const [confirmingDeleteProject, setConfirmingDeleteProject] = useState(false);
 
   const rolesQuery = useQuery({
-    queryKey: selectedProject ? queryKeys.roles.list(selectedProject.id) : ["roles", "disabled"],
+    queryKey: selectedProject ? queryKeys.roles.list(selectedProject.id) : queryKeys.disabled(),
     queryFn: () => api.roles.list(selectedProject!.id),
     enabled: Boolean(selectedProject && (canManageMembers || canViewRoles)),
   });
@@ -126,25 +126,23 @@ function SettingsView({
     });
   }, [editForm, selectedProject]);
 
-  const updateProject = useMutation({
+  const updateProject = useCrudMutation({
     mutationFn: ({ id, values }: { id: number; values: ProjectFormValues }) =>
       api.projects.update(id, { name: values.name, description: values.description?.trim() || null }),
-    onSuccess: async () => {
-      toast.success("Projet mis a jour");
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.projects.all,
+    successMessage: "Projet mis a jour",
   });
+  useServerFieldErrors(editForm, updateProject.error, ["name", "description"]);
 
-  const deleteProject = useMutation({
+  const deleteProject = useCrudMutation({
     mutationFn: api.projects.remove,
-    onSuccess: async (_data, deletedProjectId) => {
+    invalidateKey: queryKeys.projects.all,
+    successMessage: "Projet supprime",
+    onSuccess: (_data, deletedProjectId) => {
       const nextProject = projects.find((p) => p.id !== deletedProjectId);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
       setConfirmingDeleteProject(false);
       router.push(nextProject ? `/settings?project=${nextProject.id}` : "/dashboard");
     },
-    onError: toastError,
   });
 
   function onSettingsSectionChange(value: string) {
@@ -223,6 +221,7 @@ function SettingsView({
             <TabsContent value="roles">
               <RolesSettingsTab
                 selectedProject={selectedProject}
+                roles={roles}
                 permissions={permissions}
                 canManageRoles={canManageRoles}
                 canDeleteRoles={canDeleteRoles}

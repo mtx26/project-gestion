@@ -4,7 +4,7 @@ import type { FinancialEntry, FinancialEntryPayload, TimeEntry } from "@project-
 import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Banknote, Pencil, Plus, Trash2 } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -26,21 +26,19 @@ import { SelectItem } from "@/components/ui/select";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
-import { toast } from "sonner";
 import { TimeEntryDetailModal } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
-import { toastError } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
 import { parseEnumParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
-import { useLazyDetailFetch } from "@/lib/use-lazy-detail-fetch";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { FinanceBarChart } from "./components/finance-bar-chart";
 import { FinancialEntryDetailModal, FinancialEntryFormDialog } from "./components/finance-entry-dialogs";
-import { invalidateFinancialEntries, parseTypeFilter } from "./lib/finance-filters";
+import { parseTypeFilter } from "./lib/finance-filters";
 
 export function FinancePageContent() {
   return (
@@ -64,7 +62,6 @@ function SummaryCard({ label, value, className }: { label: string; value: string
 }
 
 function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewFinance = can(permissionCodes.financeView);
@@ -97,7 +94,7 @@ function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorksp
   const chartStartDateStr = chartStartDate.toISOString().slice(0, 10);
 
   const chartQuery = useQuery({
-    queryKey: projectId ? queryKeys.financialEntries.chart(projectId, "month", chartStartDateStr) : ["finance-chart", "disabled"],
+    queryKey: projectId ? queryKeys.financialEntries.chart(projectId, "month", chartStartDateStr) : queryKeys.disabled(),
     queryFn: () => api.financialEntries.chart(projectId!, { group_by: "month", start_date: chartStartDateStr }),
     enabled: Boolean(projectId && canViewFinance),
   });
@@ -114,7 +111,7 @@ function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorksp
           dateFrom: dateFrom,
           dateTo: dateTo,
         })
-      : ["financial-entries", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () =>
       api.financialEntries.list(projectId!, {
         search: searchFromUrl || undefined,
@@ -130,48 +127,41 @@ function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorksp
     placeholderData: keepPreviousData,
   });
 
-  const createEntry = useMutation({
+  const createEntry = useCrudMutation({
     mutationFn: (payload: FinancialEntryPayload) => api.financialEntries.create(projectId!, payload),
-    onSuccess: async () => {
-      toast.success("Entree creee");
-      await invalidateFinancialEntries(queryClient, projectId!);
-      setCreateOpen(false);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.financialEntries.all(projectId!),
+    successMessage: "Entree creee",
+    onSuccess: () => setCreateOpen(false),
   });
 
-  const updateEntry = useMutation({
+  const updateEntry = useCrudMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Partial<FinancialEntryPayload> }) =>
       api.financialEntries.update(projectId!, id, payload),
-    onSuccess: async () => {
-      toast.success("Entree mise a jour");
-      await invalidateFinancialEntries(queryClient, projectId!);
-      setEditingEntry(null);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.financialEntries.all(projectId!),
+    successMessage: "Entree mise a jour",
+    onSuccess: () => setEditingEntry(null),
   });
 
-  const deleteEntry = useMutation({
+  const deleteEntry = useCrudMutation({
     mutationFn: (id: number) => api.financialEntries.remove(projectId!, id),
-    onSuccess: async () => {
-      toast.success("Entree supprimee");
-      await invalidateFinancialEntries(queryClient, projectId!);
+    invalidateKey: queryKeys.financialEntries.all(projectId!),
+    successMessage: "Entree supprimee",
+    onSuccess: () => {
       setDeletingEntryId(null);
       setViewingEntry(null);
     },
-    onError: toastError,
   });
 
-  const openTimeEntry = useLazyDetailFetch(
-    (timeEntryId: number) => api.timeEntries.get(projectId!, timeEntryId),
-    setViewingTimeEntry,
-    "Impossible de charger l'entree de temps",
-  );
+  const openTimeEntry = useCrudMutation({
+    mutationFn: (timeEntryId: number) => api.timeEntries.get(projectId!, timeEntryId),
+    errorMessage: "Impossible de charger l'entree de temps",
+    onSuccess: setViewingTimeEntry,
+  });
 
   function handleTimeEntryClick(timeEntryId: number) {
     if (!projectId) return;
     setViewingEntry(null);
-    openTimeEntry.open(timeEntryId);
+    openTimeEntry.mutate(timeEntryId);
   }
 
   if (!selectedProject) {

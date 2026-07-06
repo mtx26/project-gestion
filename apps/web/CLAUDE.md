@@ -90,7 +90,7 @@ Chaque route projet suit exactement le même découpage :
 - Pour les variantes : utiliser `class-variance-authority` (cva) + `cn()` de `@/lib/utils`.
 - Pour les icônes : **Lucide uniquement** (`lucide-react`). Pas d'autres libs d'icônes.
 - Pour les toasts : `sonner` via `import { toast } from "sonner"`.
-- Pour les formulaires : `Form`, `FormField`, `FormItem`, `FormLabel`, `FormControl`, `FormMessage` de shadcn + react-hook-form.
+- Pour les formulaires : `Field`, `FieldLabel`, `FieldError` de `components/ui/field.tsx` + react-hook-form (voir "Patterns de formulaires" plus bas) — **pas** le composant `Form`/`FormField` de shadcn, qui n'est pas installé dans ce repo.
 
 ### Ajouter un composant shadcn manquant
 
@@ -148,7 +148,7 @@ Ces composants existent déjà — **ne pas les recréer** :
 - **États vides** : toujours `<Empty />` ou `<NoProjectState />` selon le contexte.
 - **Skeletons** : toujours `<SkeletonLoader />` ou `<Skeleton />` de shadcn.
 - **Toasts** : `toast.success()`, `toast.error()` de sonner — pas d'autre système de notification.
-- **Erreurs formulaire** : `<FormErrorAlert />` pour les erreurs globales + `FormMessage` de shadcn pour les champs.
+- **Erreurs formulaire** : `<FormErrorAlert />`/`<FormError />` pour les erreurs globales + `<FieldError />` (`components/ui/field.tsx`) pour les champs.
 
 ---
 
@@ -161,20 +161,22 @@ import { queryKeys } from "@project-gestion/query-keys";
 // 2. Client API depuis lib/api.ts
 import { api } from "@/lib/api";
 
-// 3. useQuery standard
+// 3. useQuery standard — la branche `enabled: false` utilise queryKeys.disabled(),
+//    jamais un tableau littéral
 const { data, isPending } = useQuery({
-  queryKey: queryKeys.tasks.list(projectId, filters),
-  queryFn: () => api.tasks.list(projectId, filters),
+  queryKey: projectId ? queryKeys.tasks.list(projectId, filters) : queryKeys.disabled(),
+  queryFn: () => api.tasks.list(projectId!, filters),
+  enabled: Boolean(projectId),
 });
 
-// 4. useMutation avec invalidation
-const mutation = useMutation({
-  mutationFn: api.tasks.create,
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: queryKeys.tasks.all(projectId) });
-    toast.success("Tâche créée");
-  },
-  onError: (error) => toast.error(error.message),
+// 4. Mutation create/update/delete → toujours useCrudMutation (@/lib/use-crud-mutation),
+//    pas un useMutation ad hoc : il gère le toast de succès, l'invalidation (une clé
+//    ou un tableau de clés) et l'erreur (toastError) de façon uniforme.
+const createTask = useCrudMutation({
+  mutationFn: (payload: TaskPayload) => api.tasks.create(projectId!, payload),
+  invalidateKey: queryKeys.tasks.all(projectId!),
+  successMessage: "Tâche créée",
+  onSuccess: () => setCreateDialogOpen(false), // cleanup local propre au dialog
 });
 ```
 
@@ -183,17 +185,36 @@ const mutation = useMutation({
 ## Patterns de formulaires
 
 ```tsx
-// Toujours: react-hook-form + zod + shadcn Form
-import { useForm } from "react-hook-form";
+// Toujours: react-hook-form + zod + les primitives Field (pas le Form de shadcn,
+// qui n'est pas installé dans ce repo — voir "Règles shadcn" plus haut)
+import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
-// Schema depuis packages/validation si partagé, sinon local
-import { taskSchema, type TaskFormData } from "@project-gestion/validation";
+import { Field, FieldLabel, FieldError } from "@/components/ui/field";
+// Schema depuis packages/validation si partagé (web + mobile, ou simplement métier
+// et réutilisable), sinon local au composant
+import { taskSchema, type TaskFormValues } from "@project-gestion/validation";
 
-const form = useForm<TaskFormData>({
+const form = useForm<TaskFormValues>({
   resolver: zodResolver(taskSchema),
   defaultValues: { ... },
 });
+
+// Champ simple : register + FieldError
+<Field>
+  <FieldLabel htmlFor="title">Titre</FieldLabel>
+  <Input id="title" {...form.register("title")} />
+  <FieldError errors={[form.formState.errors.title]} />
+</Field>
+
+// Champ composé (Select, DatePicker, combobox) : Controller
+<Controller control={form.control} name="priority" render={({ field }) => (
+  <PrioritySelect value={field.value} onChange={field.onChange} />
+)} />
+
+// Erreurs serveur (400 API) → mappées aux champs via useServerFieldErrors,
+// jamais un message générique seul
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
+useServerFieldErrors(form, mutation.error, ["title", "priority"]);
 ```
 
 ---

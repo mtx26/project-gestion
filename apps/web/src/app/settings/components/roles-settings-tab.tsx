@@ -3,8 +3,6 @@
 import type { Permission, Project, Role } from "@project-gestion/types";
 import { queryKeys } from "@project-gestion/query-keys";
 import { getPermissionAction } from "@project-gestion/permissions";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { normalizeApiList } from "@project-gestion/api";
 import { Pencil, Plus, Shield, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { RoleFormDialog, type RolePayload } from "@/app/settings/components/role-form-dialog";
@@ -14,64 +12,47 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MutedInfoCard } from "@/components/muted-info-card";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage, toastError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 
 export function RolesSettingsTab({
   selectedProject,
+  roles,
   permissions,
   canManageRoles,
   canDeleteRoles,
 }: {
   selectedProject: Project;
+  roles: Role[];
   permissions: Permission[];
   canManageRoles: boolean;
   canDeleteRoles: boolean;
 }) {
-  const queryClient = useQueryClient();
   const [roleDialogOpen, setRoleDialogOpen] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [deletingRole, setDeletingRole] = useState<Role | null>(null);
 
-  const rolesQuery = useQuery({
-    queryKey: queryKeys.roles.list(selectedProject.id),
-    queryFn: () => api.roles.list(selectedProject.id),
-  });
-  const roles = normalizeApiList(rolesQuery.data);
-
-  const createRole = useMutation({
+  const createRole = useCrudMutation({
     mutationFn: (payload: RolePayload) => api.roles.create(selectedProject.id, payload),
-    onSuccess: async () => {
-      toast.success("Role cree");
-      setRoleDialogOpen(false);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.roles.list(selectedProject.id),
+    successMessage: "Role cree",
+    onSuccess: () => setRoleDialogOpen(false),
   });
 
-  const updateRole = useMutation({
+  const updateRole = useCrudMutation({
     mutationFn: ({ roleId, payload }: { roleId: number; payload: RolePayload }) =>
       api.roles.update(selectedProject.id, roleId, payload),
-    onSuccess: async () => {
-      toast.success("Role mis a jour");
-      setEditingRole(null);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) });
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.roles.list(selectedProject.id),
+    successMessage: "Role mis a jour",
+    onSuccess: () => setEditingRole(null),
   });
 
-  const deleteRole = useMutation({
+  const deleteRole = useCrudMutation({
     mutationFn: (roleId: number) => api.roles.remove(selectedProject.id, roleId),
-    onSuccess: async () => {
-      toast.success("Role supprime");
-      setDeletingRole(null);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.roles.list(selectedProject.id) }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.members.list(selectedProject.id) }),
-      ]);
-    },
-    onError: toastError,
+    invalidateKey: [queryKeys.roles.list(selectedProject.id), queryKeys.members.list(selectedProject.id)],
+    successMessage: "Role supprime",
+    onSuccess: () => setDeletingRole(null),
   });
 
   return (

@@ -1,23 +1,21 @@
 "use client";
 
 import type { Project } from "@project-gestion/types";
-import { projectSchema, type ProjectFormValues } from "@project-gestion/validation";
-import { zodResolver } from "@hookform/resolvers/zod";
+import type { ProjectFormValues } from "@project-gestion/validation";
 import { queryKeys } from "@project-gestion/query-keys";
 import { normalizeApiList } from "@project-gestion/api";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
 import { ProtectedRoute } from "@/components/protected-route";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { buildProjectHref } from "@/lib/url-params";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useAuthStore } from "@/stores/auth-store";
 
 type ActiveItem = "dashboard" | "settings" | "files" | "tasks" | "calendar" | "time" | "finance" | "requests" | "trash" | "account" | "notifications";
@@ -63,10 +61,6 @@ export function ProjectWorkspaceShell({
   const logout = useAuthStore((state) => state.logout);
   const [manualSelectedProjectId, setManualSelectedProjectId] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const form = useForm<ProjectFormValues>({
-    resolver: zodResolver(projectSchema),
-    defaultValues: { name: "", description: "" },
-  });
 
   const projectsQuery = useQuery({
     queryKey: queryKeys.projects.lists(),
@@ -83,26 +77,22 @@ export function ProjectWorkspaceShell({
       : "";
   const selectedProject = projects.find((project) => String(project.id) === selectedProjectId) ?? null;
 
-  const createProject = useMutation({
+  const createProject = useCrudMutation({
     mutationFn: api.projects.create,
-    onSuccess: async (project) => {
-      toast.success("Projet cree");
-      form.reset();
+    invalidateKey: queryKeys.projects.all,
+    successMessage: "Projet cree",
+    onSuccess: (project) => {
       setManualSelectedProjectId(String(project.id));
       setCreateDialogOpen(false);
       router.push(buildProjectHref(pathname, project.id, searchParams));
-      await queryClient.invalidateQueries({ queryKey: queryKeys.projects.all });
     },
   });
 
-  const setDefaultProject = useMutation({
+  const setDefaultProject = useCrudMutation({
     mutationFn: (projectId: number | null) =>
       api.auth.updateMe({ profile: { default_project: projectId } }),
-    onSuccess: (updatedUser) => {
-      setUser(updatedUser);
-      toast.success("Projet par defaut mis a jour");
-    },
-    onError: (error) => toast.error(getErrorMessage(error)),
+    successMessage: "Projet par defaut mis a jour",
+    onSuccess: (updatedUser) => setUser(updatedUser),
   });
 
   async function onLogout() {
@@ -162,7 +152,6 @@ export function ProjectWorkspaceShell({
         <CreateProjectDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
-          form={form}
           onSubmit={onCreateProject}
           error={getErrorMessage(createProject.error)}
           isPending={createProject.isPending}

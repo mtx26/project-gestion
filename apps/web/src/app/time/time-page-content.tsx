@@ -4,7 +4,7 @@ import type { Task, TimeEntry } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Clock3, Lock, Plus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -20,16 +20,15 @@ import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage, toastError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import {
   buildTargetTree,
   findTargetLabel,
 } from "@/lib/target-utils";
 import { parseBooleanParam, parsePageParam } from "@/lib/url-params";
-import { useLazyDetailFetch } from "@/lib/use-lazy-detail-fetch";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useUrlFilter } from "@/lib/use-url-filter";
@@ -46,7 +45,6 @@ import {
   type UserFilter,
   getSelectedUserId,
   getTotalsLabel,
-  invalidateTimeQueries,
   parsePaymentStatusFilter,
   parseTargetFilter,
   parseUserFilter,
@@ -67,7 +65,6 @@ function TimeView({
   projectsQuery,
   openCreateProject,
 }: ProjectWorkspaceState) {
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const projectId = selectedProject?.id ?? null;
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
@@ -124,7 +121,7 @@ function TimeView({
           target: targetFilter ?? undefined,
           page,
         })
-      : ["time-entries", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () =>
       api.timeEntries.list(selectedProject!.id, {
         ...(selectedUserId == null ? {} : { user: selectedUserId }),
@@ -149,7 +146,7 @@ function TimeView({
           paymentStatus: paymentStatusFilter,
           target: targetFilter ?? undefined,
         })
-      : ["time-entries", "stats", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () =>
       api.timeEntries.stats(selectedProject!.id, {
         ...(selectedUserId == null ? {} : { user: selectedUserId }),
@@ -176,7 +173,7 @@ function TimeView({
   const filterFolderLabel = selectedFolderFilterId != null ? (folderNameById.get(selectedFolderFilterId) ?? "Dossier") : null;
   const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, dateFrom, dateTo, members, user?.id ?? null, targetFilterLabel);
 
-  const createTimeEntry = useMutation({
+  const createTimeEntry = useCrudMutation({
     mutationFn: (data: TimeEntrySubmitData) =>
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
@@ -188,52 +185,34 @@ function TimeView({
         task: data.task,
         documents: data.documentIds,
       }),
-    onSuccess: async () => {
-      toast.success("Temps enregistre");
-      setTimeFormOpen(false);
-      await invalidateTimeQueries(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    successMessage: "Temps enregistre",
+    onSuccess: () => setTimeFormOpen(false),
   });
-  const deleteTimeEntry = useMutation({
+  const deleteTimeEntry = useCrudMutation({
     mutationFn: (timeEntryId: number) => api.timeEntries.remove(selectedProject!.id, timeEntryId),
-    onSuccess: async () => {
-      toast.success("Entree supprimee");
-      setDeletingEntry(null);
-      await invalidateTimeQueries(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    successMessage: "Entree supprimee",
+    onSuccess: () => setDeletingEntry(null),
   });
-  const payTimeEntry = useMutation({
+  const payTimeEntry = useCrudMutation({
     mutationFn: (values: { mode: "full" | "partial"; amount: string }) =>
       api.timeEntries.pay(selectedProject!.id, paymentTarget!.id, {
         pay_full: values.mode === "full",
         amount: values.mode === "partial" ? values.amount : undefined,
       }),
-    onSuccess: async () => {
-      toast.success("Paiement enregistre");
-      setPaymentTarget(null);
-      await Promise.all([
-        invalidateTimeQueries(queryClient, selectedProject!.id),
-        queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(selectedProject!.id) }),
-      ]);
-    },
-    onError: toastError,
+    invalidateKey: [queryKeys.timeEntries.all(selectedProject!.id), queryKeys.financialEntries.all(selectedProject!.id)],
+    successMessage: "Paiement enregistre",
+    onSuccess: () => setPaymentTarget(null),
   });
-  const correctTimeEntryPayment = useMutation({
+  const correctTimeEntryPayment = useCrudMutation({
     mutationFn: (amount: string) =>
       api.timeEntries.correctPayment(selectedProject!.id, correctionTarget!.id, { amount }),
-    onSuccess: async () => {
-      toast.success("Paiement corrige");
-      setCorrectionTarget(null);
-      await Promise.all([
-        invalidateTimeQueries(queryClient, selectedProject!.id),
-        queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(selectedProject!.id) }),
-      ]);
-    },
-    onError: toastError,
+    invalidateKey: [queryKeys.timeEntries.all(selectedProject!.id), queryKeys.financialEntries.all(selectedProject!.id)],
+    successMessage: "Paiement corrige",
+    onSuccess: () => setCorrectionTarget(null),
   });
-  const updateTimeEntry = useMutation({
+  const updateTimeEntry = useCrudMutation({
     mutationFn: (data: TimeEntrySubmitData) =>
       api.timeEntries.update(selectedProject!.id, editingEntry!.id, {
         duration_minutes: data.durationMinutes,
@@ -244,23 +223,20 @@ function TimeView({
         task: data.task,
         documents: data.documentIds,
       }),
-    onSuccess: async () => {
-      toast.success("Temps mis a jour");
-      setEditingEntry(null);
-      await invalidateTimeQueries(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    successMessage: "Temps mis a jour",
+    onSuccess: () => setEditingEntry(null),
   });
 
-  const openTask = useLazyDetailFetch(
-    (taskId: number) => api.tasks.get(projectId!, taskId),
-    setViewingTask,
-    "Impossible de charger la tache",
-  );
+  const openTask = useCrudMutation({
+    mutationFn: (taskId: number) => api.tasks.get(projectId!, taskId),
+    errorMessage: "Impossible de charger la tache",
+    onSuccess: setViewingTask,
+  });
 
   function handleTaskClick(taskId: number) {
     if (!projectId) return;
-    openTask.open(taskId);
+    openTask.mutate(taskId);
   }
 
   if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;

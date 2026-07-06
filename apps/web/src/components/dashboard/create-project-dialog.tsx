@@ -1,5 +1,6 @@
-import type { ProjectFormValues } from "@project-gestion/validation";
-import type { UseFormReturn } from "react-hook-form";
+import { projectSchema, type ProjectFormValues } from "@project-gestion/validation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -11,7 +12,6 @@ import { Textarea } from "@/components/ui/textarea";
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  form: UseFormReturn<ProjectFormValues>;
   onSubmit: (values: ProjectFormValues) => void;
   error: string | null;
   isPending: boolean;
@@ -20,15 +20,24 @@ interface CreateProjectDialogProps {
 export function CreateProjectDialog({
   open,
   onOpenChange,
-  form,
   onSubmit,
   error,
   isPending,
 }: CreateProjectDialogProps) {
+  const form = useForm<ProjectFormValues>({
+    resolver: zodResolver(projectSchema),
+    defaultValues: { name: "", description: "" },
+  });
+
+  function handleOpenChange(next: boolean) {
+    if (!next) form.reset();
+    onOpenChange(next);
+  }
+
   return (
     <FormDialog
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={handleOpenChange}
       title="Nouveau projet"
       description="Ajoute un projet; il devient automatiquement le projet actif."
       maxWidth="md"

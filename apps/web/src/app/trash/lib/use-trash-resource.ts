@@ -2,8 +2,8 @@
 
 import type { PaginatedResponse } from "@project-gestion/types";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
-import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryKey } from "@tanstack/react-query";
-import { toastError } from "@/lib/errors";
+import { keepPreviousData, useQuery, type QueryKey } from "@tanstack/react-query";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 
 /** One project-scoped trash resource (query + restore mutation), used to avoid
  * repeating the same useQuery/useMutation pair for every trashable entity. */
@@ -20,8 +20,6 @@ export function useTrashResource<T>({
   restoreFn: (id: number) => Promise<unknown>;
   invalidateKeys: QueryKey[];
 }) {
-  const queryClient = useQueryClient();
-
   const query = useQuery({
     queryKey,
     queryFn,
@@ -29,12 +27,10 @@ export function useTrashResource<T>({
     placeholderData: keepPreviousData,
   });
 
-  const restore = useMutation({
+  const restore = useCrudMutation({
     mutationFn: restoreFn,
-    onSuccess: () => {
-      for (const key of invalidateKeys) queryClient.invalidateQueries({ queryKey: key });
-    },
-    onError: toastError,
+    invalidateKey: invalidateKeys,
+    successMessage: "Element restaure",
   });
 
   return {

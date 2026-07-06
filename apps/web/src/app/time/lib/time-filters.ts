@@ -1,6 +1,4 @@
 import type { TimeEntry } from "@project-gestion/types";
-import type { QueryClient } from "@tanstack/react-query";
-import { queryKeys } from "@project-gestion/query-keys";
 import { detectPreset, getPeriodLabel } from "@/lib/period-utils";
 
 export type UserFilter = "mine" | "all" | `member-${number}`;
@@ -83,8 +81,4 @@ export function getTotalsLabel(
     : getPeriodLabel(detected).toLowerCase();
   const targetSuffix = targetLabel ? ` - ${targetLabel}` : "";
   return `Totaux - ${periodLabel} - ${userLabel} - ${statusLabel}${targetSuffix}`;
-}
-
-export async function invalidateTimeQueries(queryClient: QueryClient, projectId: number): Promise<void> {
-  await queryClient.invalidateQueries({ queryKey: queryKeys.timeEntries.all(projectId) });
 }

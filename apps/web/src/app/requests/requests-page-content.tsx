@@ -4,7 +4,7 @@ import type { ExpenseRequest, ExpenseRequestPayload } from "@project-gestion/typ
 import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Pencil, Plus, Trash2, XCircle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -25,18 +25,17 @@ import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { toastError } from "@/lib/errors";
 import { formatMoney } from "@/lib/task-utils";
 import { parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { ExpenseRequestDetailModal, ExpenseRequestFormDialog } from "./components/request-dialogs";
-import { invalidateExpenseRequests, parseStatusFilter } from "./lib/request-filters";
+import { parseStatusFilter } from "./lib/request-filters";
 
 export function RequestsPageContent() {
   return (
@@ -47,7 +46,6 @@ export function RequestsPageContent() {
 }
 
 function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewRequests = can(permissionCodes.expenseRequestView);
@@ -90,7 +88,7 @@ function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorks
           dateFrom: dateFrom,
           dateTo: dateTo,
         })
-      : ["expense-requests", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () => api.expenseRequests.list(projectId!, {
       search: searchFromUrl || undefined,
       status: statusFilter !== "all" ? statusFilter : undefined,
@@ -106,59 +104,43 @@ function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorks
     placeholderData: keepPreviousData,
   });
 
-  const createRequest = useMutation({
+  const createRequest = useCrudMutation({
     mutationFn: (payload: ExpenseRequestPayload) => api.expenseRequests.create(projectId!, payload),
-    onSuccess: async () => {
-      toast.success("Remboursement cree");
-      await invalidateExpenseRequests(queryClient, projectId!);
-      setCreateOpen(false);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.expenseRequests.all(projectId!),
+    successMessage: "Remboursement cree",
+    onSuccess: () => setCreateOpen(false),
   });
 
-  const updateRequest = useMutation({
+  const updateRequest = useCrudMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Partial<ExpenseRequestPayload> }) =>
       api.expenseRequests.update(projectId!, id, payload),
-    onSuccess: async () => {
-      toast.success("Remboursement mis a jour");
-      await invalidateExpenseRequests(queryClient, projectId!);
-      setEditingRequest(null);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.expenseRequests.all(projectId!),
+    successMessage: "Remboursement mis a jour",
+    onSuccess: () => setEditingRequest(null),
   });
 
-  const deleteRequest = useMutation({
+  const deleteRequest = useCrudMutation({
     mutationFn: (id: number) => api.expenseRequests.remove(projectId!, id),
-    onSuccess: async () => {
-      toast.success("Remboursement supprime");
-      await invalidateExpenseRequests(queryClient, projectId!);
+    invalidateKey: queryKeys.expenseRequests.all(projectId!),
+    successMessage: "Remboursement supprime",
+    onSuccess: () => {
       setDeletingId(null);
       setViewingRequest(null);
     },
-    onError: toastError,
   });
 
-  const approveRequest = useMutation({
+  const approveRequest = useCrudMutation({
     mutationFn: (id: number) => api.expenseRequests.approve(projectId!, id),
-    onSuccess: async () => {
-      toast.success("Remboursement approuve");
-      await Promise.all([
-        invalidateExpenseRequests(queryClient, projectId!),
-        queryClient.invalidateQueries({ queryKey: queryKeys.financialEntries.all(projectId!) }),
-      ]);
-      setViewingRequest(null);
-    },
-    onError: toastError,
+    invalidateKey: [queryKeys.expenseRequests.all(projectId!), queryKeys.financialEntries.all(projectId!)],
+    successMessage: "Remboursement approuve",
+    onSuccess: () => setViewingRequest(null),
   });
 
-  const rejectRequest = useMutation({
+  const rejectRequest = useCrudMutation({
     mutationFn: (id: number) => api.expenseRequests.reject(projectId!, id),
-    onSuccess: async () => {
-      toast.success("Remboursement rejete");
-      await invalidateExpenseRequests(queryClient, projectId!);
-      setViewingRequest(null);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.expenseRequests.all(projectId!),
+    successMessage: "Remboursement rejete",
+    onSuccess: () => setViewingRequest(null),
   });
 
   if (!selectedProject) {

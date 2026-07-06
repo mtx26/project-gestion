@@ -65,7 +65,7 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
   const timeEntriesQuery = useQuery({
     queryKey: projectId && canViewTime
       ? queryKeys.timeEntries.list(projectId, { startDate: monthRange.startDate, endDate: monthRange.endDate })
-      : ["calendar", "time", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () => api.timeEntries.list(projectId!, { start_date: monthRange.startDate, end_date: monthRange.endDate }),
     enabled: Boolean(projectId && canViewTime),
   });
@@ -73,7 +73,7 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
   const tasksQuery = useQuery({
     queryKey: projectId && canViewTasks
       ? queryKeys.tasks.calendar(projectId, firstCalStr, lastCalStr)
-      : ["calendar", "tasks", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () => api.tasks.list(projectId!, { date_from: firstCalStr, date_to: lastCalStr }),
     enabled: Boolean(projectId && canViewTasks),
   });

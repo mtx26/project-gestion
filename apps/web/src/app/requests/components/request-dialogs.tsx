@@ -1,11 +1,11 @@
 "use client";
 
 import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
+import { requestSchema, type RequestFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, Folder, ListTodo, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -17,20 +17,11 @@ import { MultiDocumentAttachmentField } from "@/components/documents/multi-docum
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
-import { amountSchema } from "@/lib/amount-schema";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero, ModalSection } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
-
-const requestSchema = z.object({
-  title: z.string().min(1, "Le titre est requis"),
-  amount: amountSchema,
-  category: z.string(),
-  description: z.string(),
-});
-type RequestFormValues = z.infer<typeof requestSchema>;
 
 export function ExpenseRequestFormDialog({
   mode,

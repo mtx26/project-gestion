@@ -3,22 +3,21 @@
 import { changePasswordSchema, type ChangePasswordFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { User } from "@project-gestion/types";
-import { useMutation } from "@tanstack/react-query";
 import { Save } from "lucide-react";
-import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AccountProfileForm } from "@/app/account/components/account-profile-form";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { FormError } from "@/components/forms/form-error";
 import { PageTitle } from "@/components/page-title";
 import { PasswordInput } from "@/components/forms/password-input";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api";
-import { getErrorMessage, toastError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 export function AccountPageContent() {
   return (
@@ -29,20 +28,17 @@ export function AccountPageContent() {
 }
 
 function AccountView({ user }: { user: User | null }) {
-  const [notice, setNotice] = useState<string | null>(null);
   const passwordForm = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
     defaultValues: { old_password: "", new_password: "" },
   });
 
-  const changePassword = useMutation({
+  const changePassword = useCrudMutation({
     mutationFn: api.auth.changePassword,
-    onSuccess: () => {
-      passwordForm.reset();
-      setNotice("Mot de passe mis a jour.");
-    },
-    onError: toastError,
+    successMessage: "Mot de passe mis a jour",
+    onSuccess: () => passwordForm.reset(),
   });
+  useServerFieldErrors(passwordForm, changePassword.error, ["old_password", "new_password"]);
 
   function onChangePassword(values: ChangePasswordFormValues) {
     changePassword.mutate(values);
@@ -51,12 +47,6 @@ function AccountView({ user }: { user: User | null }) {
   return (
         <div className="space-y-5">
           <PageTitle category="Compte" title="Parametres du compte" />
-
-          {notice ? (
-            <Alert>
-              <AlertDescription>{notice}</AlertDescription>
-            </Alert>
-          ) : null}
 
           <Tabs defaultValue="profile">
             <div>
@@ -76,11 +66,7 @@ function AccountView({ user }: { user: User | null }) {
                   <CardTitle>Informations generales</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <AccountProfileForm
-                    user={user}
-                    onProfileSaved={() => setNotice("Profil mis a jour.")}
-                    onPictureSaved={() => setNotice("Photo de profil mise a jour.")}
-                  />
+                  <AccountProfileForm user={user} />
                 </CardContent>
               </Card>
             </TabsContent>

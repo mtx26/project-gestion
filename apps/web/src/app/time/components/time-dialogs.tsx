@@ -1,12 +1,19 @@
 "use client";
 
 import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
+import {
+  makeCorrectionSchema,
+  makePaymentSchema,
+  timeEntrySchema,
+  type CorrectionFormValues,
+  type PaymentFormValues,
+  type TimeEntryFormValues,
+} from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays, Clock, CreditCard, Folder, ListTodo, Pencil, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
@@ -31,48 +38,6 @@ import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { getEntryTargetLabel } from "../lib/time-filters";
-
-const timeEntrySchema = z.object({
-  startDate: z.string(),
-  endDate: z.string(),
-  hourlyRate: z.string(),
-  description: z.string(),
-}).refine(
-  (v) => !v.startDate || !v.endDate || v.startDate <= v.endDate,
-  { message: "La date de debut ne peut pas depasser la date de fin", path: ["startDate"] },
-);
-type TimeEntryFormValues = z.infer<typeof timeEntrySchema>;
-
-function makePaymentSchema(remaining: number) {
-  return z.object({
-    mode: z.enum(["full", "partial"]),
-    amount: z.string(),
-  })
-    .refine(
-      (v) => v.mode !== "partial" || Number(v.amount) > 0,
-      { message: "Le montant doit etre superieur a 0", path: ["amount"] },
-    )
-    .refine(
-      (v) => v.mode !== "partial" || Number(v.amount) <= remaining,
-      { message: "Le montant ne peut pas depasser le reste a payer", path: ["amount"] },
-    );
-}
-type PaymentFormValues = { mode: "full" | "partial"; amount: string };
-
-function makeCorrectionSchema(costAmount: number) {
-  return z.object({
-    amount: z.string(),
-  })
-    .refine(
-      (v) => Number(v.amount) >= 0,
-      { message: "Le montant ne peut pas etre negatif", path: ["amount"] },
-    )
-    .refine(
-      (v) => Number(v.amount) <= costAmount,
-      { message: "Le montant ne peut pas depasser le cout total", path: ["amount"] },
-    );
-}
-type CorrectionFormValues = { amount: string };
 
 export type TimeEntrySubmitData = {
   documentIds: number[];
@@ -220,8 +185,8 @@ export function TimeEntryFormDialog({
           <DateRangeField
             startValue={startDate}
             endValue={endDate}
-            onStartChange={(v) => form.setValue("startDate", v)}
-            onEndChange={(v) => form.setValue("endDate", v)}
+            onStartChange={(v) => form.setValue("startDate", v, { shouldValidate: true })}
+            onEndChange={(v) => form.setValue("endDate", v, { shouldValidate: true })}
           />
           <FieldError errors={[form.formState.errors.startDate]} />
 

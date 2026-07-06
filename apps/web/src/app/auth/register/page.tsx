@@ -19,7 +19,6 @@ import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [serverError, setServerError] = useState<string | null>(null);
   const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
@@ -29,12 +28,11 @@ export default function RegisterPage() {
   useServerFieldErrors(form, rawError, ["email", "password", "first_name", "last_name"]);
 
   async function onSubmit(values: RegisterFormValues) {
-    setServerError(null);
+    setRawError(null);
     try {
       await api.auth.register(values);
       router.push(`/auth/resend-verification?email=${encodeURIComponent(values.email)}&registered=1`);
     } catch (error) {
-      setServerError(getErrorMessage(error));
       setRawError(error);
     }
   }
@@ -73,7 +71,7 @@ export default function RegisterPage() {
               />
               <FieldError errors={[form.formState.errors.password]} />
             </Field>
-            <FormError message={serverError} />
+            <FormError message={getErrorMessage(rawError)} />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Creer le compte
             </Button>

@@ -4,7 +4,7 @@ import type { Task, TaskPayload } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Check, UserCheck } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
@@ -26,11 +26,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
-import { toast } from "sonner";
 import { api } from "@/lib/api";
-import { getErrorMessage, toastError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
 import { parseBooleanParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
@@ -42,7 +42,6 @@ import {
   type PriorityFilter,
   type StatusFilter,
   getFolderId,
-  invalidateTasks,
   parseFolderFilter,
   parsePriorityFilter,
   parseStatusFilter,
@@ -62,7 +61,6 @@ function TasksView({
   projectsQuery,
   openCreateProject,
 }: ProjectWorkspaceState) {
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewTasks = can(permissionCodes.taskView);
@@ -112,7 +110,7 @@ function TasksView({
           dateFrom: dateFrom,
           dateTo: dateTo,
         })
-      : ["tasks", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () =>
       api.tasks.list(selectedProject!.id, {
         search: searchFromUrl || undefined,
@@ -141,7 +139,7 @@ function TasksView({
           dateFrom: dateFrom,
           dateTo: dateTo,
         })
-      : ["tasks", "my-tasks", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () =>
       api.tasks.list(selectedProject!.id, {
         ...(statusFilter === "all" ? {} : { status: statusFilter }),
@@ -160,35 +158,30 @@ function TasksView({
   const totalCount = getApiCount(tasksQuery.data);
   const myTasks = normalizeApiList(myTasksQuery.data);
 
-  const createTask = useMutation({
+  const createTask = useCrudMutation({
     mutationFn: (payload: TaskPayload) => api.tasks.create(selectedProject!.id, payload),
-    onSuccess: async () => {
-      toast.success("Tache creee");
-      setCreateDialogOpen(false);
-      await invalidateTasks(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.tasks.all(selectedProject!.id),
+    successMessage: "Tache creee",
+    onSuccess: () => setCreateDialogOpen(false),
   });
-  const updateTask = useMutation({
+  const updateTask = useCrudMutation({
     mutationFn: ({ taskId, payload }: { taskId: number; payload: Partial<TaskPayload> }) =>
       api.tasks.update(selectedProject!.id, taskId, payload),
-    onSuccess: async () => {
-      toast.success("Tache mise a jour");
-      setEditingTask(null);
-      await invalidateTasks(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.tasks.all(selectedProject!.id),
+    successMessage: "Tache mise a jour",
+    onSuccess: () => setEditingTask(null),
   });
-  const deleteTask = useMutation({
+  const deleteTask = useCrudMutation({
     mutationFn: (taskId: number) => api.tasks.remove(selectedProject!.id, taskId),
-    onSuccess: async () => {
-      toast.success("Tache supprimee");
-      setDeletingTask(null);
-      await invalidateTasks(queryClient, selectedProject!.id);
-    },
-    onError: toastError,
+    invalidateKey: queryKeys.tasks.all(selectedProject!.id),
+    successMessage: "Tache supprimee",
+    onSuccess: () => setDeletingTask(null),
   });
 
+  /** Deliberately not optimistic (unlike notifications' mark-as-read): a status
+   * change here would need to patch both `tasksQuery` and `myTasksQuery` — two
+   * independently filtered caches for the same resource — and a mismatched
+   * rollback across both is an easy way to leave the UI in a wrong state. */
   function handleStatusChange(task: Task, status: Task["status"]) {
     const payload: Partial<TaskPayload> = { status };
     if (status === "in_progress" && !task.start_date) {

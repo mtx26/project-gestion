@@ -1,11 +1,11 @@
 "use client";
 
 import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
+import { financeSchema, type FinanceFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, Clock, Folder, ListTodo, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/forms/date-picker";
 import { DialogClose } from "@/components/ui/dialog";
@@ -19,21 +19,11 @@ import { MultiDocumentAttachmentField } from "@/components/documents/multi-docum
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
-import { amountSchema } from "@/lib/amount-schema";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero, ModalSection } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
-
-const financeSchema = z.object({
-  type: z.enum(["expense", "refund"]),
-  amount: amountSchema,
-  date: z.string(),
-  category: z.string(),
-  description: z.string(),
-});
-type FinanceFormValues = z.infer<typeof financeSchema>;
 
 export function FinancialEntryFormDialog({
   mode,

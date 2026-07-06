@@ -48,17 +48,17 @@ export function DashboardView({
   const canPayTime = can(permissionCodes.timeEntryPay);
   const defaultTimeUserFilter = canViewAllTime && canPayTime ? "all" : "mine";
   const membersQuery = useQuery({
-    queryKey: project ? queryKeys.members.list(project.id) : ["members", "disabled"],
+    queryKey: project ? queryKeys.members.list(project.id) : queryKeys.disabled(),
     queryFn: () => api.members.list(project!.id),
     enabled: Boolean(project && canViewMembers),
   });
   const invitationsQuery = useQuery({
-    queryKey: project ? queryKeys.invitations.all(project.id) : ["invitations", "disabled"],
+    queryKey: project ? queryKeys.invitations.all(project.id) : queryKeys.disabled(),
     queryFn: () => api.invitations.list(project!.id),
     enabled: Boolean(project && canViewMembers),
   });
   const financeQuery = useQuery({
-    queryKey: project ? queryKeys.financialEntries.chart(project.id, "month") : ["finance", "chart", "disabled"],
+    queryKey: project ? queryKeys.financialEntries.chart(project.id, "month") : queryKeys.disabled(),
     queryFn: () => api.financialEntries.chart(project!.id, { group_by: "month" }),
     enabled: Boolean(project && canViewFinance),
   });
@@ -68,7 +68,7 @@ export function DashboardView({
           userId: defaultTimeUserFilter === "all" ? "all" : userId ?? undefined,
           paymentStatus: "not_paid",
         })
-      : ["time-entries", "stats", "disabled"],
+      : queryKeys.disabled(),
     queryFn: () => api.timeEntries.stats(project!.id, {
       ...(defaultTimeUserFilter === "all" || userId == null ? {} : { user: userId }),
       payment_status: "not_paid",
@@ -76,7 +76,7 @@ export function DashboardView({
     enabled: Boolean(project && canViewTime),
   });
   const urgentTasksQuery = useQuery({
-    queryKey: project ? queryKeys.tasks.list(project.id, { priority: "high" }) : ["tasks", "urgent", "disabled"],
+    queryKey: project ? queryKeys.tasks.list(project.id, { priority: "high" }) : queryKeys.disabled(),
     queryFn: () => api.tasks.list(project!.id, { priority: "high" }),
     enabled: Boolean(project && canViewTasks),
   });

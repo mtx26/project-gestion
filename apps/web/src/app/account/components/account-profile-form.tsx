@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getInitials } from "@/lib/user-display";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useAuthStore } from "@/stores/auth-store";
 
 interface AccountProfileFormProps {
@@ -45,7 +46,7 @@ export function AccountProfileForm({
   const [pictureEditorOpen, setPictureEditorOpen] = useState(false);
   const displayName = [profileValues.first_name, profileValues.last_name].filter(Boolean).join(" ") || profileValues.username || "Compte";
 
-  const updateProfile = useMutation({
+  const updateProfile = useCrudMutation<void, User>({
     mutationFn: () =>
       api.auth.updateMe({
         username: profileValues.username.trim(),
@@ -55,8 +56,8 @@ export function AccountProfileForm({
           default_hourly_rate: profileValues.default_hourly_rate || "0",
         },
       }),
+    successMessage: "Profil mis a jour",
     onSuccess: (updatedUser) => {
-      toast.success("Profil mis a jour");
       useAuthStore.setState({ user: updatedUser });
       setProfileDraft(getAccountProfileValues(updatedUser));
       onProfileSaved?.();

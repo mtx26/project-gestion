@@ -1,7 +1,10 @@
 "use client";
 
 import type { Permission, Role } from "@project-gestion/types";
-import { useState } from "react";
+import { roleNameSchema } from "@project-gestion/validation";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, useWatch } from "react-hook-form";
+import { z } from "zod";
 import {
   buildRolePayload,
   canCreateRoleDraft,
@@ -13,7 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DialogClose } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +24,12 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
 export type RolePayload = ReturnType<typeof buildRolePayload>;
+
+const roleFormSchema = z.object({
+  name: roleNameSchema,
+  permissionIds: z.array(z.number()),
+});
+type RoleFormValues = z.infer<typeof roleFormSchema>;
 
 interface RoleFormDialogProps {
   mode: "create" | "edit";
@@ -33,11 +42,12 @@ interface RoleFormDialogProps {
   onSubmit: (payload: RolePayload) => void;
 }
 
-/** Same create/edit dialog API as the other `<Feature>FormDialog`s: owns its own
- * draft state internally, mount a fresh instance per entity via `key={role?.id}`
- * for edit (see `RolesSettingsTab`). Not RHF-driven like its siblings — the
- * checkbox-tree's cross-dependency logic (`removePermissionIdWithDependents`)
- * operates on a plain `number[]`, which plain `useState` fits more directly. */
+/** Same create/edit dialog API as the other `<Feature>FormDialog`s: mount a fresh
+ * instance per entity via `key={role?.id}` for edit (see `RolesSettingsTab`). The
+ * name field is RHF+Zod like every other form field in the app; the permission
+ * checkbox-tree is bound via `form.setValue`/`useWatch` rather than `Controller`
+ * (same pattern `DateRangeField` uses) because its cross-dependency logic
+ * (`removePermissionIdWithDependents`) reads/writes the current `number[]` directly. */
 export function RoleFormDialog({
   mode,
   open,
@@ -49,10 +59,16 @@ export function RoleFormDialog({
   onSubmit,
 }: RoleFormDialogProps) {
   const isOpen = mode === "create" ? (open ?? false) : role != null;
-  const [roleName, setRoleName] = useState(role?.name ?? "");
-  const [rolePermissionIds, setRolePermissionIds] = useState<number[]>(
-    role ? normalizePermissionIds(permissions, role.permissions.map((p) => p.id)) : [],
-  );
+
+  const form = useForm<RoleFormValues>({
+    resolver: zodResolver(roleFormSchema),
+    defaultValues: {
+      name: role?.name ?? "",
+      permissionIds: role ? normalizePermissionIds(permissions, role.permissions.map((p) => p.id)) : [],
+    },
+  });
+  const roleName = useWatch({ control: form.control, name: "name" });
+  const rolePermissionIds = useWatch({ control: form.control, name: "permissionIds" });
 
   const permissionGroups = groupPermissionsByScope(permissions);
   const allPermissionIds = permissions.map((permission) => permission.id);
@@ -61,7 +77,8 @@ export function RoleFormDialog({
   const canSubmit = canCreateRoleDraft(roleName, rolePermissionIds);
 
   function togglePermission(permissionId: number, checked: boolean) {
-    setRolePermissionIds(
+    form.setValue(
+      "permissionIds",
       checked
         ? normalizePermissionIds(permissions, [...rolePermissionIds, permissionId])
         : removePermissionIdWithDependents(permissions, rolePermissionIds, permissionId),
@@ -69,7 +86,8 @@ export function RoleFormDialog({
   }
 
   function toggleGroup(groupIds: number[], checked: boolean) {
-    setRolePermissionIds(
+    form.setValue(
+      "permissionIds",
       checked
         ? normalizePermissionIds(permissions, [...new Set([...rolePermissionIds, ...groupIds])])
         : groupIds.reduce(
@@ -80,12 +98,12 @@ export function RoleFormDialog({
   }
 
   function toggleAll(checked: boolean) {
-    setRolePermissionIds(checked ? allPermissionIds : []);
+    form.setValue("permissionIds", checked ? allPermissionIds : []);
   }
 
-  function handleSubmit() {
+  function handleSubmit(values: RoleFormValues) {
     if (!canSubmit) return;
-    onSubmit(buildRolePayload(roleName, normalizePermissionIds(permissions, rolePermissionIds)));
+    onSubmit(buildRolePayload(values.name, normalizePermissionIds(permissions, values.permissionIds)));
   }
 
   return (
@@ -119,19 +137,12 @@ export function RoleFormDialog({
         <form
           id="role-form"
           className="space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            handleSubmit();
-          }}
+          onSubmit={form.handleSubmit(handleSubmit)}
         >
           <Field>
             <FieldLabel htmlFor="role-name">Nom du role</FieldLabel>
-            <Input
-              id="role-name"
-              placeholder="Ex. Contributeur"
-              value={roleName}
-              onChange={(event) => setRoleName(event.target.value)}
-            />
+            <Input id="role-name" placeholder="Ex. Contributeur" {...form.register("name")} />
+            <FieldError errors={[form.formState.errors.name]} />
           </Field>
 
           <Separator />

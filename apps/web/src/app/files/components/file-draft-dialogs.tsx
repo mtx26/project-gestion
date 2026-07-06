@@ -1,9 +1,14 @@
 "use client";
 
 import type { FolderTreeNode, Task } from "@project-gestion/types";
+import {
+  taskDraftSchema,
+  timeDraftSchema,
+  type TaskDraftFormValues,
+  type TimeDraftFormValues,
+} from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/forms/date-picker";
 import { DialogClose } from "@/components/ui/dialog";
@@ -77,14 +82,6 @@ export function FileDraftDialogs(props: {
     </>
   );
 }
-
-const taskDraftSchema = z.object({
-  title: z.string().min(1, "Le titre est requis"),
-  description: z.string(),
-  priority: z.enum(["low", "normal", "high"]),
-  endDate: z.string(),
-});
-type TaskDraftFormValues = z.infer<typeof taskDraftSchema>;
 
 export function TaskDraftDialog({
   open,
@@ -196,19 +193,6 @@ export function TaskDraftDialog({
     </FormDialog>
   );
 }
-
-const timeDraftSchema = z
-  .object({
-    hours: z.string(),
-    minutes: z.string(),
-    hourlyRate: z.string(),
-    description: z.string(),
-  })
-  .refine((v) => Number(v.hours) * 60 + Number(v.minutes) > 0, {
-    message: "La duree doit etre superieure a 0",
-    path: ["hours"],
-  });
-type TimeDraftFormValues = z.infer<typeof timeDraftSchema>;
 
 export function TimeDraftDialog({
   open,

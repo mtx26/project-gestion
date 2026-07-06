@@ -5,7 +5,7 @@ import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useEffect } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Clock3, FileText, Folder as FolderIcon, ListTodo, Lock, Receipt, RotateCcw, Wallet } from "lucide-react";
 import { PageTitle } from "@/components/page-title";
 import { formatDate, formatDuration, formatMoney } from "@/lib/task-utils";
@@ -21,8 +21,8 @@ import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { api } from "@/lib/api";
-import { toastError } from "@/lib/errors";
 import { parsePageParam } from "@/lib/url-params";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { useTrashResource } from "./lib/use-trash-resource";
@@ -36,7 +36,6 @@ export function TrashPageContent() {
 }
 
 function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
-  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") ?? "projects";
   const page = parsePageParam(searchParams.get("page"));
@@ -81,17 +80,14 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
     queryKey: queryKeys.projects.trash(),
     queryFn: api.projects.trash,
   });
-  const restoreProject = useMutation({
+  const restoreProject = useCrudMutation({
     mutationFn: (id: number) => api.projects.restore(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.trash() });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
-    },
-    onError: toastError,
+    invalidateKey: [queryKeys.projects.trash(), queryKeys.projects.lists()],
+    successMessage: "Projet restaure",
   });
 
   const foldersTrash = useTrashResource<Folder>({
-    queryKey: projectId ? queryKeys.folders.trash(projectId, page) : ["folders", "trash", "disabled"],
+    queryKey: projectId ? queryKeys.folders.trash(projectId, page) : queryKeys.disabled(),
     queryFn: () => api.folders.trash(projectId!, { page }),
     enabled: Boolean(projectId && canRestoreFiles),
     restoreFn: (id) => api.folders.restore(projectId!, id),
@@ -99,7 +95,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
   });
 
   const documentsTrash = useTrashResource<ApiFile>({
-    queryKey: projectId ? queryKeys.documents.trash(projectId, page) : ["documents", "trash", "disabled"],
+    queryKey: projectId ? queryKeys.documents.trash(projectId, page) : queryKeys.disabled(),
     queryFn: () => api.documents.trash(projectId!, { page }),
     enabled: Boolean(projectId && canRestoreFiles),
     restoreFn: (id) => api.documents.restore(projectId!, id),
@@ -107,7 +103,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
   });
 
   const tasksTrash = useTrashResource<Task>({
-    queryKey: projectId ? queryKeys.tasks.trash(projectId, page) : ["tasks", "trash", "disabled"],
+    queryKey: projectId ? queryKeys.tasks.trash(projectId, page) : queryKeys.disabled(),
     queryFn: () => api.tasks.trash(projectId!, { page }),
     enabled: Boolean(projectId && canRestoreTasks),
     restoreFn: (id) => api.tasks.restore(projectId!, id),
@@ -115,7 +111,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
   });
 
   const timeEntriesTrash = useTrashResource<TimeEntry>({
-    queryKey: projectId ? queryKeys.timeEntries.trash(projectId, page) : ["time-entries", "trash", "disabled"],
+    queryKey: projectId ? queryKeys.timeEntries.trash(projectId, page) : queryKeys.disabled(),
     queryFn: () => api.timeEntries.trash(projectId!, { page }),
     enabled: Boolean(projectId && canRestoreTime),
     restoreFn: (id) => api.timeEntries.restore(projectId!, id),
@@ -123,7 +119,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
   });
 
   const financialEntriesTrash = useTrashResource<FinancialEntry>({
-    queryKey: projectId ? queryKeys.financialEntries.trash(projectId, page) : ["financial-entries", "trash", "disabled"],
+    queryKey: projectId ? queryKeys.financialEntries.trash(projectId, page) : queryKeys.disabled(),
     queryFn: () => api.financialEntries.trash(projectId!, { page }),
     enabled: Boolean(projectId && canRestoreFinance),
     restoreFn: (id) => api.financialEntries.restore(projectId!, id),
@@ -131,7 +127,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
   });
 
   const expenseRequestsTrash = useTrashResource<ExpenseRequest>({
-    queryKey: projectId ? queryKeys.expenseRequests.trash(projectId, page) : ["expense-requests", "trash", "disabled"],
+    queryKey: projectId ? queryKeys.expenseRequests.trash(projectId, page) : queryKeys.disabled(),
     queryFn: () => api.expenseRequests.trash(projectId!, { page }),
     enabled: Boolean(projectId && canRestoreExpenseRequests),
     restoreFn: (id) => api.expenseRequests.restore(projectId!, id),

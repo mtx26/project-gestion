@@ -1,12 +1,12 @@
 "use client";
 
 import type { FolderTreeNode, Task, TaskPayload } from "@project-gestion/types";
+import { taskSchema, type TaskFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Check, X } from "lucide-react";
 import React, { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
-import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { DateRangeField } from "@/components/forms/date-range-field";
 import { DialogClose } from "@/components/ui/dialog";
@@ -27,21 +27,6 @@ import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import type { FolderFilter } from "../lib/task-filters";
 import { getFolderId } from "../lib/task-filters";
 import type { TaskMember } from "./task-table";
-
-const taskSchema = z.object({
-  title: z.string().min(1, "Le titre est requis"),
-  description: z.string(),
-  folder: z.string(),
-  status: z.enum(["todo", "in_progress", "done"]),
-  priority: z.enum(["low", "normal", "high"]),
-  startDate: z.string(),
-  endDate: z.string(),
-  assignees: z.array(z.number()),
-}).refine(
-  (v) => !v.startDate || !v.endDate || v.startDate <= v.endDate,
-  { message: "La date de debut ne peut pas depasser la date de fin", path: ["startDate"] },
-);
-type TaskFormValues = z.infer<typeof taskSchema>;
 
 export function TaskFormDialog({
   mode,

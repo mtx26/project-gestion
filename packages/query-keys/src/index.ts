@@ -1,4 +1,7 @@
 export const queryKeys = {
+  /** Placeholder key for the `enabled: false` branch of a query — never fetched,
+   * so every caller can share the same key instead of inventing a one-off literal. */
+  disabled: () => ["disabled"] as const,
   projects: {
     all: ["projects"] as const,
     lists: () => ["projects", "list"] as const,
