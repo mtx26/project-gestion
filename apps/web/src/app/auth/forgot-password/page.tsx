@@ -14,22 +14,24 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 export default function ForgotPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: { email: "" },
   });
+  useServerFieldErrors(form, rawError, ["email"]);
 
   async function onSubmit(values: ResetPasswordFormValues) {
-    setServerError(null);
+    setRawError(null);
     try {
       await api.auth.resetPassword(values.email);
       setMessage("Si un compte existe, un email de reinitialisation a ete envoye.");
     } catch (error) {
-      setServerError(getErrorMessage(error));
+      setRawError(error);
     }
   }
 
@@ -49,7 +51,7 @@ export default function ForgotPasswordPage() {
               <Input id="email" type="email" {...form.register("email")} />
               <FieldError errors={[form.formState.errors.email]} />
             </Field>
-            <FormError message={serverError} />
+            <FormError message={getErrorMessage(rawError)} />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Envoyer le lien
             </Button>

@@ -18,11 +18,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { api, webTokenStore } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 function ResetPasswordContent() {
   const router = useRouter();
   const params = useSearchParams();
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<ResetPasswordConfirmFormValues>({
     resolver: zodResolver(resetPasswordConfirmSchema),
     defaultValues: {
@@ -31,15 +32,16 @@ function ResetPasswordContent() {
       new_password: "",
     },
   });
+  useServerFieldErrors(form, rawError, ["uid", "token", "new_password"]);
 
   async function onSubmit(values: ResetPasswordConfirmFormValues) {
-    setServerError(null);
+    setRawError(null);
     try {
       await api.auth.resetPasswordConfirm(values);
       await webTokenStore.clearTokens();
       router.replace("/auth/login?password_reset=1");
     } catch (error) {
-      setServerError(getErrorMessage(error));
+      setRawError(error);
     }
   }
 
@@ -63,7 +65,7 @@ function ResetPasswordContent() {
               message={
                 form.formState.errors.uid?.message ??
                 form.formState.errors.token?.message ??
-                serverError
+                getErrorMessage(rawError)
               }
             />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>

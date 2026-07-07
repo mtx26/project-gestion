@@ -1,7 +1,7 @@
 "use client";
 
 import type { Project, Permission } from "@project-gestion/types";
-import { projectSchema, type ProjectFormValues } from "@project-gestion/validation";
+import { projectSchema, type ProjectFormInput, type ProjectFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
 import {
@@ -114,7 +114,7 @@ function SettingsView({
     canDeleteSelectedProject,
   );
 
-  const editForm = useForm<ProjectFormValues>({
+  const editForm = useForm<ProjectFormInput, unknown, ProjectFormValues>({
     resolver: zodResolver(projectSchema),
     defaultValues: { name: "", description: "" },
   });
@@ -127,8 +127,7 @@ function SettingsView({
   }, [editForm, selectedProject]);
 
   const updateProject = useCrudMutation({
-    mutationFn: ({ id, values }: { id: number; values: ProjectFormValues }) =>
-      api.projects.update(id, { name: values.name, description: values.description?.trim() || null }),
+    mutationFn: ({ id, values }: { id: number; values: ProjectFormValues }) => api.projects.update(id, values),
     invalidateKey: queryKeys.projects.all,
     successMessage: "Projet mis a jour",
   });
@@ -265,7 +264,7 @@ function GeneralSettingsCard({
   error,
   onSubmit,
 }: {
-  form: ReturnType<typeof useForm<ProjectFormValues>>;
+  form: ReturnType<typeof useForm<ProjectFormInput, unknown, ProjectFormValues>>;
   canEdit: boolean;
   isPending: boolean;
   error: string | null;

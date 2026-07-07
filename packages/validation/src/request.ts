@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { amountSchema, requiredTextSchema } from "./shared";
+import { categorySchema, descriptionSchema, positiveAmountSchema, requiredTextSchema } from "./shared";
 
 export const requestSchema = z.object({
   title: requiredTextSchema("Le titre est requis"),
-  amount: amountSchema,
-  category: z.string(),
-  description: z.string(),
+  amount: positiveAmountSchema,
+  category: categorySchema,
+  description: descriptionSchema,
 });
 
-export type RequestFormValues = z.infer<typeof requestSchema>;
+export type RequestFormValues = z.output<typeof requestSchema>;
+export type RequestFormInput = z.input<typeof requestSchema>;

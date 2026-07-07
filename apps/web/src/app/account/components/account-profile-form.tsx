@@ -1,16 +1,18 @@
 "use client";
 
 import type { User } from "@project-gestion/types";
+import { accountProfileSchema, type AccountProfileFormValues } from "@project-gestion/validation";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import { Camera } from "lucide-react";
-import type { FormEvent } from "react";
 import { useState } from "react";
+import { useForm, useWatch } from "react-hook-form";
 import { ProfilePictureEditorDialog } from "@/app/account/components/profile-picture-editor-dialog";
 import { FormError } from "@/components/forms/form-error";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Field, FieldLabel } from "@/components/ui/field";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/forms/money-input";
@@ -20,6 +22,7 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { getInitials } from "@/lib/user-display";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useAuthStore } from "@/stores/auth-store";
 
 interface AccountProfileFormProps {
@@ -39,30 +42,36 @@ export function AccountProfileForm({
   onProfileSaved,
   onPictureSaved,
 }: AccountProfileFormProps) {
-  const [profileDraft, setProfileDraft] = useState<AccountProfileValues | null>(null);
-  const profileValues = profileDraft ?? getAccountProfileValues(user);
   const [pictureError, setPictureError] = useState<string | null>(null);
   const [pictureFile, setPictureFile] = useState<File | null>(null);
   const [pictureEditorOpen, setPictureEditorOpen] = useState(false);
-  const displayName = [profileValues.first_name, profileValues.last_name].filter(Boolean).join(" ") || profileValues.username || "Compte";
 
-  const updateProfile = useCrudMutation<void, User>({
-    mutationFn: () =>
+  const form = useForm<AccountProfileFormValues>({
+    resolver: zodResolver(accountProfileSchema),
+    defaultValues: getAccountProfileValues(user),
+  });
+  const [username, firstName, lastName] = useWatch({
+    control: form.control,
+    name: ["username", "first_name", "last_name"],
+  });
+  const displayName = [firstName, lastName].filter(Boolean).join(" ") || username || "Compte";
+
+  const updateProfile = useCrudMutation<AccountProfileFormValues, User>({
+    mutationFn: (values) =>
       api.auth.updateMe({
-        username: profileValues.username.trim(),
-        first_name: profileValues.first_name.trim(),
-        last_name: profileValues.last_name.trim(),
-        profile: {
-          default_hourly_rate: profileValues.default_hourly_rate || "0",
-        },
+        username: values.username,
+        first_name: values.first_name,
+        last_name: values.last_name,
+        profile: { default_hourly_rate: values.default_hourly_rate },
       }),
     successMessage: "Profil mis a jour",
     onSuccess: (updatedUser) => {
       useAuthStore.setState({ user: updatedUser });
-      setProfileDraft(getAccountProfileValues(updatedUser));
+      form.reset(getAccountProfileValues(updatedUser));
       onProfileSaved?.();
     },
   });
+  useServerFieldErrors(form, updateProfile.error, ["username", "first_name", "last_name"]);
 
   const uploadPicture = useMutation({
     mutationFn: (file: File) => api.auth.uploadProfilePicture(file),
@@ -75,9 +84,8 @@ export function AccountProfileForm({
     onError: (error) => setPictureError(getErrorMessage(error)),
   });
 
-  function onSubmitProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    updateProfile.mutate();
+  function onSubmit(values: AccountProfileFormValues) {
+    updateProfile.mutate(values);
   }
 
   function onPictureChange(file: File | undefined) {
@@ -100,7 +108,7 @@ export function AccountProfileForm({
   }
 
   return (
-    <form className="grid max-w-2xl gap-4 sm:grid-cols-2" onSubmit={onSubmitProfile}>
+    <form className="grid max-w-2xl gap-4 sm:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="sm:col-span-2">
         <div className="flex items-center gap-4">
           <Avatar className="size-16 border">
@@ -133,39 +141,26 @@ export function AccountProfileForm({
       {showEmail ? <InfoBlock label="Email" value={user?.email || "-"} /> : null}
       <Field>
         <FieldLabel htmlFor="account-username">Identifiant</FieldLabel>
-        <Input
-          id="account-username"
-          value={profileValues.username}
-          onChange={(event) => setProfileDraft({ ...profileValues, username: event.target.value })}
-        />
+        <Input id="account-username" {...form.register("username")} />
+        <FieldError errors={[form.formState.errors.username]} />
       </Field>
       {showNameFields ? (
         <>
           <Field>
             <FieldLabel htmlFor="account-first-name">Prenom</FieldLabel>
-            <Input
-              id="account-first-name"
-              value={profileValues.first_name}
-              onChange={(event) => setProfileDraft({ ...profileValues, first_name: event.target.value })}
-            />
+            <Input id="account-first-name" {...form.register("first_name")} />
+            <FieldError errors={[form.formState.errors.first_name]} />
           </Field>
           <Field>
             <FieldLabel htmlFor="account-last-name">Nom</FieldLabel>
-            <Input
-              id="account-last-name"
-              value={profileValues.last_name}
-              onChange={(event) => setProfileDraft({ ...profileValues, last_name: event.target.value })}
-            />
+            <Input id="account-last-name" {...form.register("last_name")} />
+            <FieldError errors={[form.formState.errors.last_name]} />
           </Field>
         </>
       ) : null}
       <Field className="sm:col-span-2">
         <FieldLabel htmlFor="account-default-rate">Taux horaire par defaut</FieldLabel>
-        <MoneyInput
-          id="account-default-rate"
-          value={profileValues.default_hourly_rate}
-          onChange={(event) => setProfileDraft({ ...profileValues, default_hourly_rate: event.target.value })}
-        />
+        <MoneyInput id="account-default-rate" {...form.register("default_hourly_rate")} />
       </Field>
       <div className="sm:col-span-2">
         <FormError message={getErrorMessage(updateProfile.error)} />
@@ -202,14 +197,7 @@ function InfoBlock({ label, value }: { label: string; value: string }) {
   );
 }
 
-type AccountProfileValues = {
-  username: string;
-  first_name: string;
-  last_name: string;
-  default_hourly_rate: string;
-};
-
-function getAccountProfileValues(user: User | null | undefined): AccountProfileValues {
+function getAccountProfileValues(user: User | null | undefined): AccountProfileFormValues {
   return {
     username: user?.username ?? "",
     first_name: user?.first_name ?? "",

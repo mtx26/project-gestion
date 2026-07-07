@@ -4,6 +4,7 @@ import type { Task } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
+import type { TaskDraftFormValues, TimeDraftFormValues } from "@project-gestion/validation";
 import { useQuery } from "@tanstack/react-query";
 import {
   Clock3,
@@ -48,7 +49,7 @@ import { buildProjectHref } from "@/lib/url-params";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { FileTree } from "./components/file-tree";
-import { FileDraftDialogs, type TaskDraftSubmitData, type TimeDraftSubmitData } from "./components/file-draft-dialogs";
+import { FileDraftDialogs } from "./components/file-draft-dialogs";
 import { FolderPreviewPanel } from "./components/folder-preview-panel";
 import { type FileActionTarget, isFolderDescendantOf } from "./lib/file-tree-utils";
 
@@ -194,7 +195,7 @@ function FilesView({
   });
 
   const createTask = useCrudMutation({
-    mutationFn: (values: TaskDraftSubmitData) =>
+    mutationFn: (values: TaskDraftFormValues) =>
       api.tasks.create(selectedProject!.id, {
         title: values.title,
         description: values.description,
@@ -209,7 +210,7 @@ function FilesView({
   });
 
   const createTimeEntry = useCrudMutation({
-    mutationFn: (values: TimeDraftSubmitData) =>
+    mutationFn: (values: TimeDraftFormValues) =>
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
         folder: timeDraftFolderId,
@@ -535,7 +536,7 @@ function FilesView({
         taskError={createTask.error}
         onTaskOpenChange={(open) => { if (!open) setTaskDraftFolderId(null); }}
         onTaskFolderChange={setTaskDraftFolderId}
-        onTaskSubmit={(values: TaskDraftSubmitData) => { if (canEditTasks) createTask.mutate(values); }}
+        onTaskSubmit={(values: TaskDraftFormValues) => { if (canEditTasks) createTask.mutate(values); }}
         onCreateFolder={canEditFiles ? handleCreateFolder : undefined}
         timeOpen={timeDraftFolderId != null}
         timeFolderName={findFolderName(treeQuery.data ?? [], timeDraftFolderId)}
@@ -543,7 +544,7 @@ function FilesView({
         timeIsPending={createTimeEntry.isPending}
         timeError={createTimeEntry.error}
         onTimeOpenChange={(open) => { if (!open) setTimeDraftFolderId(null); }}
-        onTimeSubmit={(values: TimeDraftSubmitData) => { if (user && canRecordTime) createTimeEntry.mutate(values); }}
+        onTimeSubmit={(values: TimeDraftFormValues) => { if (user && canRecordTime) createTimeEntry.mutate(values); }}
       />
 
       <DocumentPreviewDialog document={previewDocument} onClose={() => setPreviewDocument(null)} />
@@ -583,6 +584,7 @@ function FilesView({
           <Input
             id="rename-file-item"
             value={renameValue}
+            maxLength={255}
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter") { e.preventDefault(); if (itemToRename && renameValue.trim()) renameItem.mutate({ target: itemToRename, name: renameValue.trim() }); }

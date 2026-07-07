@@ -7,13 +7,14 @@ import {
   timeEntrySchema,
   type CorrectionFormValues,
   type PaymentFormValues,
+  type TimeEntryFormInput,
   type TimeEntryFormValues,
 } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CalendarDays, Clock, CreditCard, Folder, ListTodo, Pencil, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
@@ -84,7 +85,7 @@ export function TimeEntryFormDialog({
   const isOpen = mode === "create" ? (open ?? false) : entry != null;
   const referenceStart = entry ? entry.start_date.slice(0, 16) : "";
 
-  const form = useForm<TimeEntryFormValues>({
+  const form = useForm<TimeEntryFormInput, unknown, TimeEntryFormValues>({
     resolver: zodResolver(timeEntrySchema),
     defaultValues: {
       startDate: referenceStart || format(new Date(), "yyyy-MM-dd'T'HH:mm"),
@@ -100,7 +101,10 @@ export function TimeEntryFormDialog({
     entry?.documents_info ?? [],
   );
 
-  const { startDate, endDate, hourlyRate } = form.watch();
+  const [startDate, endDate, hourlyRate] = useWatch({
+    control: form.control,
+    name: ["startDate", "endDate", "hourlyRate"],
+  });
   const durationMinutes = startDate && endDate
     ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000))
     : 0;
@@ -115,7 +119,7 @@ export function TimeEntryFormDialog({
     "description",
   ]);
 
-  async function handleSubmit(values: TimeEntryFormValues) {
+  async function submitForm(values: TimeEntryFormValues) {
     const duration = values.startDate && values.endDate
       ? Math.max(0, Math.round((new Date(values.endDate).getTime() - new Date(values.startDate).getTime()) / 60000))
       : 0;
@@ -126,8 +130,8 @@ export function TimeEntryFormDialog({
       documentIds,
       durationMinutes: duration,
       startDate: values.startDate,
-      hourlyRate: values.hourlyRate === "" ? undefined : values.hourlyRate,
-      description: values.description.trim() || null,
+      hourlyRate: values.hourlyRate,
+      description: values.description,
       folder,
       task,
     });
@@ -162,7 +166,7 @@ export function TimeEntryFormDialog({
               <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
             <FormSubmitButton
-              onClick={form.handleSubmit(handleSubmit)}
+              form="time-entry-form"
               pending={isSubmitting}
               disabled={durationMinutes <= 0 || isSubmitting}
               label="Enregistrer"
@@ -181,7 +185,7 @@ export function TimeEntryFormDialog({
           <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
         </Alert>
       ) : (
-        <div className="space-y-4">
+        <form id="time-entry-form" className="space-y-4" onSubmit={form.handleSubmit(submitForm)}>
           <DateRangeField
             startValue={startDate}
             endValue={endDate}
@@ -226,7 +230,7 @@ export function TimeEntryFormDialog({
             onAddFiles={docs.addPendingFiles}
             onRemoveFile={docs.removePendingFile}
           />
-        </div>
+        </form>
       )}
     </FormDialog>
   );
@@ -397,7 +401,7 @@ export function PaymentDialog({
   onSubmit: (values: { mode: "full" | "partial"; amount: string }) => void;
 }) {
   const remainingAmount = Number(entry?.remaining_amount ?? 0);
-  const schema = useMemo(() => makePaymentSchema(remainingAmount), [remainingAmount]);
+  const schema = makePaymentSchema(remainingAmount);
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(schema),
@@ -406,11 +410,7 @@ export function PaymentDialog({
 
   useServerFieldErrors(form, error, ["amount"]);
 
-  const mode = form.watch("mode");
-
-  function handleSubmit(values: PaymentFormValues) {
-    onSubmit(values);
-  }
+  const mode = useWatch({ control: form.control, name: "mode" });
 
   return (
     <FormDialog
@@ -426,7 +426,7 @@ export function PaymentDialog({
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <FormSubmitButton
-            onClick={form.handleSubmit(handleSubmit)}
+            form="payment-form"
             pending={isPending}
             disabled={remainingAmount <= 0}
             label="Confirmer"
@@ -435,7 +435,7 @@ export function PaymentDialog({
         </>
       }
     >
-      <div className="space-y-4">
+      <form id="payment-form" className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
         <Controller
           control={form.control}
           name="mode"
@@ -459,7 +459,7 @@ export function PaymentDialog({
             <FieldError errors={[form.formState.errors.amount]} />
           </Field>
         ) : null}
-      </div>
+      </form>
     </FormDialog>
   );
 }
@@ -479,7 +479,8 @@ export function CorrectPaymentDialog({
 }) {
   const costAmount = Number(entry?.cost_amount ?? 0);
   const paidAmount = entry?.paid_amount ?? "0";
-  const schema = useMemo(() => makeCorrectionSchema(costAmount), [costAmount]);
+  const paidAmountNumber = Number(paidAmount);
+  const schema = makeCorrectionSchema(costAmount, paidAmountNumber);
 
   const form = useForm<CorrectionFormValues>({
     resolver: zodResolver(schema),
@@ -487,10 +488,6 @@ export function CorrectPaymentDialog({
   });
 
   useServerFieldErrors(form, error, ["amount"]);
-
-  function handleSubmit(values: CorrectionFormValues) {
-    onSubmit(values.amount);
-  }
 
   return (
     <FormDialog
@@ -506,7 +503,7 @@ export function CorrectPaymentDialog({
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <FormSubmitButton
-            onClick={form.handleSubmit(handleSubmit)}
+            form="correction-form"
             pending={isPending}
             label="Corriger"
             pendingLabel="Correction..."
@@ -514,17 +511,19 @@ export function CorrectPaymentDialog({
         </>
       }
     >
-      <Field>
-        <Label htmlFor="payment-correction-amount">Nouveau montant paye</Label>
-        <MoneyInput
-          id="payment-correction-amount"
-          {...form.register("amount")}
-        />
-        <FieldError errors={[form.formState.errors.amount]} />
-        <p className="text-xs text-muted-foreground">
-          Une entree de correction (depense ou remboursement) sera creee pour la difference.
-        </p>
-      </Field>
+      <form id="correction-form" onSubmit={form.handleSubmit((values) => onSubmit(values.amount))}>
+        <Field>
+          <Label htmlFor="payment-correction-amount">Nouveau montant paye</Label>
+          <MoneyInput
+            id="payment-correction-amount"
+            {...form.register("amount")}
+          />
+          <FieldError errors={[form.formState.errors.amount]} />
+          <p className="text-xs text-muted-foreground">
+            Une entree de correction (depense ou remboursement) sera creee pour la difference.
+          </p>
+        </Field>
+      </form>
     </FormDialog>
   );
 }

@@ -79,6 +79,7 @@ function DraftFolderRow({
         autoFocus
         value={name}
         placeholder="Nom de la section"
+        maxLength={255}
         className="h-7 max-w-sm bg-background"
         onBlur={onCommit}
         onChange={(e) => onChange(e.target.value)}

@@ -146,7 +146,7 @@ export function RolesSettingsTab({
             open={roleDialogOpen}
             permissions={permissions}
             isPending={createRole.isPending}
-            error={getErrorMessage(createRole.error)}
+            error={createRole.error}
             onOpenChange={setRoleDialogOpen}
             onSubmit={(payload) => createRole.mutate(payload)}
           />
@@ -156,7 +156,7 @@ export function RolesSettingsTab({
             role={editingRole}
             permissions={permissions}
             isPending={updateRole.isPending}
-            error={getErrorMessage(updateRole.error)}
+            error={updateRole.error}
             onOpenChange={(open) => { if (!open) setEditingRole(null); }}
             onSubmit={(payload) => editingRole && updateRole.mutate({ roleId: editingRole.id, payload })}
           />

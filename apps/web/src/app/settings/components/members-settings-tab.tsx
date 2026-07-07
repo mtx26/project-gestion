@@ -1,7 +1,7 @@
 "use client";
 
 import type { Project, ProjectMember, Role } from "@project-gestion/types";
-import { inviteMemberSchema, type InviteMemberFormValues } from "@project-gestion/validation";
+import { inviteMemberSchema, normalizeAmountInput, type InviteMemberFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
@@ -23,6 +23,7 @@ import { MemberAvatar } from "@/components/member-avatar";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useState } from "react";
 
 export function MembersSettingsTab({
@@ -67,6 +68,7 @@ export function MembersSettingsTab({
     successMessage: "Invitation envoyee",
     onSuccess: () => inviteForm.reset(),
   });
+  useServerFieldErrors(inviteForm, inviteMember.error, ["email", { name: "roleId", serverField: "role" }]);
 
   const removeInvitation = useCrudMutation({
     mutationFn: (invitationId: number) => api.invitations.remove(selectedProject.id, invitationId),
@@ -210,7 +212,7 @@ export function MembersSettingsTab({
                               className="h-7 w-20 bg-background text-xs"
                               defaultValue={member.hourly_rate}
                               onBlur={(e) => {
-                                const val = e.target.value;
+                                const val = normalizeAmountInput(e.target.value);
                                 if (isOwnerEntry) {
                                   updateOwnerRate.mutate(val);
                                 } else {

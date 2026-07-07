@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { emailSchema } from "./shared";
+import { emailSchema, requiredTextSchema } from "./shared";
 
 const passwordSchema = z
   .string()
@@ -8,11 +8,15 @@ const passwordSchema = z
   .regex(/[a-z]/, "Ajoute au moins une minuscule")
   .regex(/[0-9]/, "Ajoute au moins un chiffre");
 
+/** Matches Django's `User.first_name`/`last_name` (`max_length=150`) — narrower
+ * than the 255 most other name/title fields use, so it can't reuse the default. */
+export const personNameSchema = (message: string) => requiredTextSchema(message, 150);
+
 export const registerSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  first_name: z.string().min(1, "Le prenom est requis"),
-  last_name: z.string().min(1, "Le nom est requis"),
+  first_name: personNameSchema("Le prenom est requis"),
+  last_name: personNameSchema("Le nom est requis"),
 });
 
 export const loginSchema = z.object({

@@ -1,15 +1,22 @@
 import { z } from "zod";
-import { amountSchema, withDateRangeRefine } from "./shared";
+import { amountSchema, descriptionSchema, withDateRangeRefine } from "./shared";
 
 const timeEntryBaseSchema = z.object({
   startDate: z.string(),
   endDate: z.string(),
   hourlyRate: z.string(),
-  description: z.string(),
+  description: descriptionSchema,
 });
 
-export const timeEntrySchema = withDateRangeRefine(timeEntryBaseSchema);
-export type TimeEntryFormValues = z.infer<typeof timeEntrySchema>;
+/** `hourlyRate` only becomes `undefined` when empty on the full entry form — the
+ * draft variant below picks the field from `timeEntryBaseSchema` *before* this
+ * runs, since `TimeDraftSubmitData.hourlyRate` is a required `string`. */
+export const timeEntrySchema = withDateRangeRefine(timeEntryBaseSchema).transform((v) => ({
+  ...v,
+  hourlyRate: v.hourlyRate || undefined,
+}));
+export type TimeEntryFormValues = z.output<typeof timeEntrySchema>;
+export type TimeEntryFormInput = z.input<typeof timeEntrySchema>;
 
 /** `remaining` bounds the partial-payment amount, so the schema is built per dialog instance. */
 export function makePaymentSchema(remaining: number) {
@@ -29,7 +36,7 @@ export function makePaymentSchema(remaining: number) {
 }
 export type PaymentFormValues = z.infer<ReturnType<typeof makePaymentSchema>>;
 
-export function makeCorrectionSchema(costAmount: number) {
+export function makeCorrectionSchema(costAmount: number, paidAmount: number) {
   return z
     .object({ amount: amountSchema })
     .refine((v) => Number(v.amount) >= 0, {
@@ -38,6 +45,10 @@ export function makeCorrectionSchema(costAmount: number) {
     })
     .refine((v) => Number(v.amount) <= costAmount, {
       message: "Le montant ne peut pas depasser le cout total",
+      path: ["amount"],
+    })
+    .refine((v) => Number(v.amount) !== paidAmount, {
+      message: "Le montant est identique au montant deja paye",
       path: ["amount"],
     });
 }
@@ -52,4 +63,5 @@ export const timeDraftSchema = timeEntryBaseSchema
     message: "La duree doit etre superieure a 0",
     path: ["hours"],
   });
-export type TimeDraftFormValues = z.infer<typeof timeDraftSchema>;
+export type TimeDraftFormValues = z.output<typeof timeDraftSchema>;
+export type TimeDraftFormInput = z.input<typeof timeDraftSchema>;

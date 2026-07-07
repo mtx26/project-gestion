@@ -1,7 +1,7 @@
 "use client";
 
 import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
-import { requestSchema, type RequestFormValues } from "@project-gestion/validation";
+import { requestSchema, type RequestFormInput, type RequestFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, Folder, ListTodo, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -52,7 +52,7 @@ export function ExpenseRequestFormDialog({
       ? `folder-${request.folder}`
       : "project";
 
-  const form = useForm<RequestFormValues>({
+  const form = useForm<RequestFormInput, unknown, RequestFormValues>({
     resolver: zodResolver(requestSchema),
     defaultValues: {
       title: request?.title ?? "",
@@ -80,19 +80,11 @@ export function ExpenseRequestFormDialog({
     onOpenChange(next);
   }
 
-  async function handleSubmit(values: RequestFormValues) {
+  async function submitForm(values: RequestFormValues) {
     const { folder, task } = getTargetPayload(targetValue);
     const documentIds = await docs.resolveDocumentIds(projectId, folder);
     if (documentIds === null) return;
-    onSubmit({
-      title: values.title.trim(),
-      amount: values.amount,
-      category: values.category.trim() || null,
-      description: values.description.trim() || null,
-      folder,
-      task,
-      documents: documentIds,
-    });
+    onSubmit({ ...values, folder, task, documents: documentIds });
   }
 
   const isSubmitting = docs.uploading || isPending;
@@ -119,7 +111,7 @@ export function ExpenseRequestFormDialog({
         </>
       }
     >
-        <form id="request-form" onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+        <form id="request-form" onSubmit={form.handleSubmit(submitForm)} className="flex flex-col gap-4">
           <Field>
             <FieldLabel htmlFor="req-title">Titre</FieldLabel>
             <Input id="req-title" type="text" placeholder="Ex: Achat materiel bureau" {...form.register("title")} />

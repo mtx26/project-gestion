@@ -22,6 +22,8 @@ import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { getErrorMessage } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 export type RolePayload = ReturnType<typeof buildRolePayload>;
 
@@ -37,7 +39,7 @@ interface RoleFormDialogProps {
   role?: Role | null;
   permissions: Permission[];
   isPending: boolean;
-  error: string | null;
+  error: unknown;
   onOpenChange: (open: boolean) => void;
   onSubmit: (payload: RolePayload) => void;
 }
@@ -67,6 +69,7 @@ export function RoleFormDialog({
       permissionIds: role ? normalizePermissionIds(permissions, role.permissions.map((p) => p.id)) : [],
     },
   });
+  useServerFieldErrors(form, error, ["name"]);
   const roleName = useWatch({ control: form.control, name: "name" });
   const rolePermissionIds = useWatch({ control: form.control, name: "permissionIds" });
 
@@ -101,7 +104,7 @@ export function RoleFormDialog({
     form.setValue("permissionIds", checked ? allPermissionIds : []);
   }
 
-  function handleSubmit(values: RoleFormValues) {
+  function submitForm(values: RoleFormValues) {
     if (!canSubmit) return;
     onSubmit(buildRolePayload(values.name, normalizePermissionIds(permissions, values.permissionIds)));
   }
@@ -116,7 +119,7 @@ export function RoleFormDialog({
           ? "Definis un nom et les permissions associees a ce role."
           : "Mets a jour le nom ou les permissions de ce role."
       }
-      error={error}
+      error={getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>
@@ -137,7 +140,7 @@ export function RoleFormDialog({
         <form
           id="role-form"
           className="space-y-4"
-          onSubmit={form.handleSubmit(handleSubmit)}
+          onSubmit={form.handleSubmit(submitForm)}
         >
           <Field>
             <FieldLabel htmlFor="role-name">Nom du role</FieldLabel>

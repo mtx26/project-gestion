@@ -342,6 +342,7 @@ function InlineFolderInput({
         className="h-7 flex-1 rounded-md border border-teal-500 bg-background px-2 text-sm outline-none ring-1 ring-teal-500/40 placeholder:text-muted-foreground"
         placeholder="Nom du dossier"
         value={name}
+        maxLength={255}
         disabled={saving}
         onChange={(e) => setName(e.target.value)}
         onBlur={() => { if (!submittingRef.current) onCancel(); }}

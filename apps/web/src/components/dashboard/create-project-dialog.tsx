@@ -1,4 +1,4 @@
-import { projectSchema, type ProjectFormValues } from "@project-gestion/validation";
+import { projectSchema, type ProjectFormInput, type ProjectFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -8,12 +8,14 @@ import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { getErrorMessage } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 interface CreateProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: ProjectFormValues) => void;
-  error: string | null;
+  error: unknown;
   isPending: boolean;
 }
 
@@ -24,10 +26,11 @@ export function CreateProjectDialog({
   error,
   isPending,
 }: CreateProjectDialogProps) {
-  const form = useForm<ProjectFormValues>({
+  const form = useForm<ProjectFormInput, unknown, ProjectFormValues>({
     resolver: zodResolver(projectSchema),
     defaultValues: { name: "", description: "" },
   });
+  useServerFieldErrors(form, error, ["name", "description"]);
 
   function handleOpenChange(next: boolean) {
     if (!next) form.reset();
@@ -41,7 +44,7 @@ export function CreateProjectDialog({
       title="Nouveau projet"
       description="Ajoute un projet; il devient automatiquement le projet actif."
       maxWidth="md"
-      error={error}
+      error={getErrorMessage(error)}
       footer={
         <>
           <DialogClose asChild>

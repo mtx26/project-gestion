@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { amountSchema } from "./shared";
+import { categorySchema, descriptionSchema, orNull, positiveAmountSchema } from "./shared";
 
 export const financeSchema = z.object({
   type: z.enum(["expense", "refund"]),
-  amount: amountSchema,
-  date: z.string(),
-  category: z.string(),
-  description: z.string(),
+  amount: positiveAmountSchema,
+  date: orNull(z.string()),
+  category: categorySchema,
+  description: descriptionSchema,
 });
 
-export type FinanceFormValues = z.infer<typeof financeSchema>;
+export type FinanceFormValues = z.output<typeof financeSchema>;
+export type FinanceFormInput = z.input<typeof financeSchema>;

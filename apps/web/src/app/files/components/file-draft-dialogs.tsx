@@ -1,10 +1,12 @@
 "use client";
 
-import type { FolderTreeNode, Task } from "@project-gestion/types";
+import type { FolderTreeNode } from "@project-gestion/types";
 import {
   taskDraftSchema,
   timeDraftSchema,
+  type TaskDraftFormInput,
   type TaskDraftFormValues,
+  type TimeDraftFormInput,
   type TimeDraftFormValues,
 } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -23,20 +25,6 @@ import { TreePickerDialog } from "@/components/pickers/tree-picker";
 import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
-export type TaskDraftSubmitData = {
-  title: string;
-  description: string | null;
-  priority: Task["priority"];
-  endDate: string | null;
-};
-
-export type TimeDraftSubmitData = {
-  hours: string;
-  minutes: string;
-  hourlyRate: string;
-  description: string | null;
-};
-
 export function FileDraftDialogs(props: {
   taskOpen: boolean;
   taskFolderName: string | null;
@@ -46,7 +34,7 @@ export function FileDraftDialogs(props: {
   taskError?: unknown;
   onTaskOpenChange: (open: boolean) => void;
   onTaskFolderChange: (folderId: number | null) => void;
-  onTaskSubmit: (data: TaskDraftSubmitData) => void;
+  onTaskSubmit: (data: TaskDraftFormValues) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   timeOpen: boolean;
   timeFolderName: string | null;
@@ -54,7 +42,7 @@ export function FileDraftDialogs(props: {
   timeIsPending: boolean;
   timeError?: unknown;
   onTimeOpenChange: (open: boolean) => void;
-  onTimeSubmit: (data: TimeDraftSubmitData) => void;
+  onTimeSubmit: (data: TimeDraftFormValues) => void;
 }) {
   return (
     <>
@@ -103,10 +91,10 @@ export function TaskDraftDialog({
   error?: unknown;
   onOpenChange: (open: boolean) => void;
   onFolderChange: (folderId: number | null) => void;
-  onSubmit: (data: TaskDraftSubmitData) => void;
+  onSubmit: (data: TaskDraftFormValues) => void;
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
 }) {
-  const form = useForm<TaskDraftFormValues>({
+  const form = useForm<TaskDraftFormInput, unknown, TaskDraftFormValues>({
     resolver: zodResolver(taskDraftSchema),
     defaultValues: { title: "", description: "", priority: "normal", endDate: "" },
   });
@@ -116,15 +104,6 @@ export function TaskDraftDialog({
   function handleOpenChange(next: boolean) {
     if (!next) form.reset();
     onOpenChange(next);
-  }
-
-  function handleSubmit(values: TaskDraftFormValues) {
-    onSubmit({
-      title: values.title.trim(),
-      description: values.description.trim() || null,
-      priority: values.priority,
-      endDate: values.endDate || null,
-    });
   }
 
   return (
@@ -140,7 +119,7 @@ export function TaskDraftDialog({
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <FormSubmitButton
-            onClick={form.handleSubmit(handleSubmit)}
+            form="task-draft-form"
             pending={isPending}
             disabled={isPending}
             label="Creer la tache"
@@ -149,7 +128,7 @@ export function TaskDraftDialog({
         </>
       }
     >
-      <div className="space-y-4">
+      <form id="task-draft-form" className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
         <Field>
           <FieldLabel>Dossier</FieldLabel>
           <TreePickerDialog
@@ -189,7 +168,7 @@ export function TaskDraftDialog({
           <FieldLabel htmlFor="project-task-description">Description</FieldLabel>
           <Textarea id="project-task-description" rows={3} {...form.register("description")} />
         </Field>
-      </div>
+      </form>
     </FormDialog>
   );
 }
@@ -209,9 +188,9 @@ export function TimeDraftDialog({
   isPending: boolean;
   error?: unknown;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: TimeDraftSubmitData) => void;
+  onSubmit: (data: TimeDraftFormValues) => void;
 }) {
-  const form = useForm<TimeDraftFormValues>({
+  const form = useForm<TimeDraftFormInput, unknown, TimeDraftFormValues>({
     resolver: zodResolver(timeDraftSchema),
     defaultValues: { hours: "1", minutes: "0", hourlyRate: defaultHourlyRate, description: "" },
   });
@@ -221,15 +200,6 @@ export function TimeDraftDialog({
   function handleOpenChange(next: boolean) {
     if (!next) form.reset();
     onOpenChange(next);
-  }
-
-  function handleSubmit(values: TimeDraftFormValues) {
-    onSubmit({
-      hours: values.hours,
-      minutes: values.minutes,
-      hourlyRate: values.hourlyRate,
-      description: values.description.trim() || null,
-    });
   }
 
   return (
@@ -245,7 +215,7 @@ export function TimeDraftDialog({
             <Button type="button" variant="outline">Annuler</Button>
           </DialogClose>
           <FormSubmitButton
-            onClick={form.handleSubmit(handleSubmit)}
+            form="time-draft-form"
             pending={isPending}
             disabled={isPending}
             label="Enregistrer"
@@ -254,7 +224,7 @@ export function TimeDraftDialog({
         </>
       }
     >
-      <div className="space-y-4">
+      <form id="time-draft-form" className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
         <div className="grid grid-cols-2 gap-3">
           <Field>
             <FieldLabel htmlFor="project-time-hours">Heures</FieldLabel>
@@ -274,7 +244,7 @@ export function TimeDraftDialog({
           <FieldLabel htmlFor="project-time-description">Description</FieldLabel>
           <Textarea id="project-time-description" rows={3} {...form.register("description")} />
         </Field>
-      </div>
+      </form>
     </FormDialog>
   );
 }

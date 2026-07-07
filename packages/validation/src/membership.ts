@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { emailSchema } from "./shared";
+import { emailSchema, requiredTextSchema } from "./shared";
 
 export const inviteMemberSchema = z.object({
   email: emailSchema,
@@ -7,4 +7,4 @@ export const inviteMemberSchema = z.object({
 });
 export type InviteMemberFormValues = z.infer<typeof inviteMemberSchema>;
 
-export const roleNameSchema = z.string().min(1, "Le nom du role est requis");
+export const roleNameSchema = requiredTextSchema("Le nom du role est requis");

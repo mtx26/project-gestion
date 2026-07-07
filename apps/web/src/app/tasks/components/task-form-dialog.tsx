@@ -1,7 +1,7 @@
 "use client";
 
 import type { FolderTreeNode, Task, TaskPayload } from "@project-gestion/types";
-import { taskSchema, type TaskFormValues } from "@project-gestion/validation";
+import { taskSchema, type TaskFormInput, type TaskFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Check, X } from "lucide-react";
@@ -60,7 +60,7 @@ export function TaskFormDialog({
   const isOpen = mode === "create" ? (open ?? false) : task != null;
   const docs = useDocumentAttachment(task?.documents_info ?? []);
 
-  const form = useForm<TaskFormValues>({
+  const form = useForm<TaskFormInput, unknown, TaskFormValues>({
     resolver: zodResolver(taskSchema),
     defaultValues: {
       title: task?.title ?? "",
@@ -93,18 +93,18 @@ export function TaskFormDialog({
     onOpenChange(next);
   }
 
-  async function handleSubmit(values: TaskFormValues) {
+  async function submitForm(values: TaskFormValues) {
     const folder = getFolderId(values.folder as FolderFilter);
     const documentIds = await docs.resolveDocumentIds(projectId, folder);
     if (documentIds === null) return;
     onSubmit({
-      title: values.title.trim(),
-      description: values.description.trim() || null,
+      title: values.title,
+      description: values.description,
       folder,
       status: values.status,
       priority: values.priority,
-      start_date: values.startDate || null,
-      end_date: values.endDate || null,
+      start_date: values.startDate,
+      end_date: values.endDate,
       assigned_to: values.assignees,
       documents: documentIds,
     });
@@ -142,7 +142,7 @@ export function TaskFormDialog({
         </>
       }
     >
-      <form id="task-form" className="space-y-4" onSubmit={form.handleSubmit(handleSubmit)}>
+      <form id="task-form" className="space-y-4" onSubmit={form.handleSubmit(submitForm)}>
         <Field>
           <FieldLabel htmlFor="task-form-title">Titre</FieldLabel>
           <Input id="task-form-title" {...form.register("title")} />

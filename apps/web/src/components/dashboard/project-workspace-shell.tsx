@@ -1,7 +1,6 @@
 "use client";
 
 import type { Project } from "@project-gestion/types";
-import type { ProjectFormValues } from "@project-gestion/validation";
 import { queryKeys } from "@project-gestion/query-keys";
 import { normalizeApiList } from "@project-gestion/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -106,13 +105,6 @@ export function ProjectWorkspaceShell({
     router.push(buildProjectHref(pathname, id, searchParams));
   }
 
-  function onCreateProject(values: ProjectFormValues) {
-    createProject.mutate({
-      name: values.name,
-      description: values.description?.trim() || null,
-    });
-  }
-
   return (
     <ProtectedRoute>
       <SidebarProvider>
@@ -152,8 +144,8 @@ export function ProjectWorkspaceShell({
         <CreateProjectDialog
           open={createDialogOpen}
           onOpenChange={setCreateDialogOpen}
-          onSubmit={onCreateProject}
-          error={getErrorMessage(createProject.error)}
+          onSubmit={(values) => createProject.mutate(values)}
+          error={createProject.error}
           isPending={createProject.isPending}
         />
       </SidebarProvider>

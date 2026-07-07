@@ -1,7 +1,7 @@
 "use client";
 
 import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
-import { financeSchema, type FinanceFormValues } from "@project-gestion/validation";
+import { financeSchema, type FinanceFormInput, type FinanceFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, Clock, Folder, ListTodo, UserRound } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -54,7 +54,7 @@ export function FinancialEntryFormDialog({
       ? `folder-${entry.folder}`
       : "project";
 
-  const form = useForm<FinanceFormValues>({
+  const form = useForm<FinanceFormInput, unknown, FinanceFormValues>({
     resolver: zodResolver(financeSchema),
     defaultValues: {
       type: entry?.type ?? "expense",
@@ -83,20 +83,11 @@ export function FinancialEntryFormDialog({
     onOpenChange(next);
   }
 
-  async function handleSubmit(values: FinanceFormValues) {
+  async function submitForm(values: FinanceFormValues) {
     const { folder, task } = getTargetPayload(targetValue);
     const documentIds = await docs.resolveDocumentIds(projectId, folder);
     if (documentIds === null) return;
-    onSubmit({
-      date: values.date || null,
-      type: values.type,
-      amount: values.amount,
-      category: values.category.trim() || null,
-      description: values.description.trim() || null,
-      folder,
-      task,
-      documents: documentIds,
-    });
+    onSubmit({ ...values, folder, task, documents: documentIds });
   }
 
   const isSubmitting = docs.uploading || isPending;
@@ -123,7 +114,7 @@ export function FinancialEntryFormDialog({
         </>
       }
     >
-        <form id="finance-form" onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+        <form id="finance-form" onSubmit={form.handleSubmit(submitForm)} className="flex flex-col gap-4">
           <div className="grid grid-cols-2 gap-4">
             <Field>
               <FieldLabel htmlFor="entry-type">Type</FieldLabel>

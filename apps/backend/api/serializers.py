@@ -1077,6 +1077,11 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             for doc in obj.documents.all()
         ]
 
+    def validate_amount(self, amount):
+        if amount <= Decimal("0.00"):
+            raise serializers.ValidationError("errors.financial_entry.amount_must_be_positive")
+        return amount
+
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
         financial_entry = FinancialEntry(**validated_data)
@@ -1160,6 +1165,11 @@ class ExpenseRequestSerializer(serializers.ModelSerializer):
             {"id": doc.id, "name": doc.file_name, "mime_type": doc.mime_type, "file_size": doc.file_size}
             for doc in obj.documents.all()
         ]
+
+    def validate_amount(self, amount):
+        if amount <= Decimal("0.00"):
+            raise serializers.ValidationError("errors.expense_request.amount_must_be_positive")
+        return amount
 
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])

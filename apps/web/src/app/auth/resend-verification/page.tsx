@@ -15,10 +15,11 @@ import { FormError } from "@/components/forms/form-error";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
 const successMessage =
   "Si un compte existe et n'est pas verifie, un email a ete envoye.";
@@ -28,19 +29,20 @@ function ResendVerificationContent() {
   const initialEmail = searchParams.get("email") ?? "";
   const registered = searchParams.get("registered") === "1";
   const [message, setMessage] = useState<string | null>(registered ? "Verifie ton email." : null);
-  const [serverError, setServerError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<ResendVerificationFormValues>({
     resolver: zodResolver(resendVerificationSchema),
     defaultValues: { email: initialEmail },
   });
+  useServerFieldErrors(form, rawError, ["email"]);
 
   async function onSubmit(values: ResendVerificationFormValues) {
-    setServerError(null);
+    setRawError(null);
     try {
       await api.auth.resendVerification(values.email);
       setMessage(successMessage);
     } catch (error) {
-      setServerError(getErrorMessage(error));
+      setRawError(error);
     }
   }
 
@@ -58,12 +60,12 @@ function ResendVerificationContent() {
             </Alert>
           ) : null}
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
               <Input id="email" type="email" {...form.register("email")} />
-              <FormError message={form.formState.errors.email?.message} />
-            </div>
-            <FormError message={serverError} />
+              <FieldError errors={[form.formState.errors.email]} />
+            </Field>
+            <FormError message={getErrorMessage(rawError)} />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Renvoyer l&apos;email
             </Button>
