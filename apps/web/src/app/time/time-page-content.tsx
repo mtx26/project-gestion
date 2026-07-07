@@ -16,17 +16,15 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
-import { AccessDeniedState } from "@/components/states/access-denied-state";
-import { NoProjectState } from "@/components/states/no-project-state";
-import { PageTitle } from "@/components/page-title";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ProjectAccessGate } from "@/components/states/project-access-gate";
+import { PageHeader } from "@/components/page-title";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import {
-  buildTargetTree,
   findTargetLabel,
+  getTargetPayload,
 } from "@/lib/target-utils";
 import { parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
@@ -161,15 +159,14 @@ function TimeView({
 
   const timeEntries = normalizeApiList(timeEntriesQuery.data);
   const totalCount = getApiCount(timeEntriesQuery.data);
-  const targetTree = buildTargetTree(targetFolders);
   const userNameById = new Map(members.map((m): [number, string] => [m.user, m.user_display_name]));
   const totals = {
     durationMinutes: statsQuery.data?.duration_minutes ?? 0,
     costAmount: Number(statsQuery.data?.cost_amount ?? 0),
     remainingAmount: Number(statsQuery.data?.remaining_amount ?? 0),
   };
-  const targetFilterLabel = targetFilter ? findTargetLabel(targetTree, targetFilter) : null;
-  const selectedFolderFilterId = targetFilter?.startsWith("folder-") ? Number(targetFilter.replace("folder-", "")) : null;
+  const targetFilterLabel = targetFilter ? findTargetLabel(targetFolders, targetFilter) : null;
+  const selectedFolderFilterId = targetFilter ? getTargetPayload(targetFilter).folder : null;
   const filterFolderLabel = selectedFolderFilterId != null ? (folderNameById.get(selectedFolderFilterId) ?? "Dossier") : null;
   const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, dateFrom, dateTo, members, user?.id ?? null, targetFilterLabel);
 
@@ -239,33 +236,30 @@ function TimeView({
     openTask.mutate(taskId);
   }
 
-  if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
-
-  if (!selectedProject) {
+  if (projectsQuery.isLoading || !selectedProject || (!canViewTime && !canRecordTime)) {
     return (
-      <NoProjectState
+      <ProjectAccessGate
+        isLoadingProjects={projectsQuery.isLoading}
+        hasProject={Boolean(selectedProject)}
+        hasAccess={canViewTime || canRecordTime}
         icon={Clock3}
-        description="Cree ou selectionne un projet pour enregistrer du temps."
+        noProjectDescription="Cree ou selectionne un projet pour enregistrer du temps."
+        accessDeniedDescription="Ton role ne permet pas de consulter ni d'enregistrer des heures sur ce projet."
         onCreateProject={openCreateProject}
       />
     );
   }
 
-  if (!canViewTime && !canRecordTime) {
-    return <AccessDeniedState description="Ton role ne permet pas de consulter ni d'enregistrer des heures sur ce projet." />;
-  }
-
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle category="Temps" title="Suivi du travail" />
+      <PageHeader category="Temps" title="Suivi du travail">
         {canRecordTime ? (
           <Button type="button" className="gap-2" onClick={() => setTimeFormOpen(true)}>
             <Plus className="size-4" />
             Ajouter
           </Button>
         ) : null}
-      </div>
+      </PageHeader>
 
       <FormErrorAlert error={canViewTime ? getErrorMessage(timeEntriesQuery.error) : null} />
 

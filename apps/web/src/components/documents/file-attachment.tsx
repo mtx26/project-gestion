@@ -7,7 +7,8 @@ import {
   AttachmentTitle,
 } from "@/components/ui/attachment";
 import { DocumentThumbnail } from "@/components/documents/document-thumbnail";
-import { formatFileSize, getDocumentIconConfig, getFileTypeLabel, isImageFile, type FileLike } from "@/lib/file-display";
+import { getDocumentIconConfig, getFileTypeLabel, isImageFile, type FileLike } from "@/lib/file-display";
+import { formatBytes as formatFileSize } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 
 interface FileAttachmentProps {

@@ -12,7 +12,8 @@ import { formatDate, formatDuration, formatMoney } from "@/lib/task-utils";
 import { useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
 import { FileAttachment } from "@/components/documents/file-attachment";
@@ -137,15 +138,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
   const deletedProjects = normalizeApiList(projectsTrashQuery.data);
   const deletedProjectsCount = getApiCount(projectsTrashQuery.data);
 
-  const lockedMsg = (
-    <Empty>
-      <EmptyHeader>
-        <EmptyMedia variant="icon"><Lock className="size-4" /></EmptyMedia>
-        <EmptyTitle>Acces restreint</EmptyTitle>
-        <EmptyDescription>Vous n&apos;avez pas acces a cet onglet.</EmptyDescription>
-      </EmptyHeader>
-    </Empty>
-  );
+  const lockedMsg = <AccessDeniedState description="Vous n'avez pas acces a cet onglet." />;
   const noProjectMsg = (
     <NoProjectState
       icon={RotateCcw}

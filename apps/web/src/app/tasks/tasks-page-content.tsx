@@ -12,17 +12,15 @@ import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
-import { AccessDeniedState } from "@/components/states/access-denied-state";
-import { NoProjectState } from "@/components/states/no-project-state";
-import { PageTitle } from "@/components/page-title";
-import { Skeleton } from "@/components/ui/skeleton";
+import { EmptyResultsState } from "@/components/states/empty-results-state";
+import { ProjectAccessGate } from "@/components/states/project-access-gate";
+import { PageHeader } from "@/components/page-title";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
@@ -190,32 +188,29 @@ function TasksView({
     updateTask.mutate({ taskId: task.id, payload });
   }
 
-  if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
-
-  if (!selectedProject) {
+  if (projectsQuery.isLoading || !selectedProject || !canViewTasks) {
     return (
-      <NoProjectState
+      <ProjectAccessGate
+        isLoadingProjects={projectsQuery.isLoading}
+        hasProject={Boolean(selectedProject)}
+        hasAccess={canViewTasks}
         icon={Check}
-        description="Cree ou selectionne un projet pour gerer les taches."
+        noProjectDescription="Cree ou selectionne un projet pour gerer les taches."
+        accessDeniedDescription="Ton role ne permet pas de voir les taches de ce projet."
         onCreateProject={openCreateProject}
       />
     );
   }
 
-  if (!canViewTasks) {
-    return <AccessDeniedState description="Ton role ne permet pas de voir les taches de ce projet." />;
-  }
-
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle category="Taches" title="Gestion du travail" />
+      <PageHeader category="Taches" title="Gestion du travail">
         {canEditTasks ? (
           <Button type="button" className="gap-2" onClick={() => setCreateDialogOpen(true)}>
             Nouvelle tache
           </Button>
         ) : null}
-      </div>
+      </PageHeader>
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
@@ -302,12 +297,11 @@ function TasksView({
           {tasksQuery.isLoading ? (
             <SkeletonLoader count={3} className="h-20 rounded-md" />
           ) : tasks.length === 0 ? (
-            <Empty className="border p-8">
-              <EmptyHeader>
-                <EmptyTitle>Aucune tache</EmptyTitle>
-                <EmptyDescription>Aucune tache ne correspond a cette vue.</EmptyDescription>
-              </EmptyHeader>
-            </Empty>
+            <EmptyResultsState
+              className="border p-8"
+              title="Aucune tache"
+              description="Aucune tache ne correspond a cette vue."
+            />
           ) : (
             <>
               <TaskTable

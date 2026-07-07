@@ -5,24 +5,24 @@ import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { CheckCircle2, ClipboardList, Pencil, Plus, Trash2, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardList, Plus, XCircle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
 import { useDocumentPreview } from "@/lib/use-document-preview";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
+import { EntryRowActions } from "@/components/entries/entry-row-actions";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
-import { NoProjectState } from "@/components/states/no-project-state";
-import { PageTitle } from "@/components/page-title";
+import { EmptyResultsState } from "@/components/states/empty-results-state";
+import { ProjectAccessGate } from "@/components/states/project-access-gate";
+import { PageHeader } from "@/components/page-title";
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { api } from "@/lib/api";
@@ -45,7 +45,7 @@ export function RequestsPageContent() {
   );
 }
 
-function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
+function RequestsView({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
   const searchParams = useSearchParams();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewRequests = can(permissionCodes.expenseRequestView);
@@ -143,18 +143,18 @@ function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorks
     onSuccess: () => setViewingRequest(null),
   });
 
-  if (!selectedProject) {
+  if (projectsQuery.isLoading || !selectedProject || !canViewRequests) {
     return (
-      <NoProjectState
+      <ProjectAccessGate
+        isLoadingProjects={projectsQuery.isLoading}
+        hasProject={Boolean(selectedProject)}
+        hasAccess={canViewRequests}
         icon={ClipboardList}
-        description="Cree ou selectionne un projet pour voir les demandes."
+        noProjectDescription="Cree ou selectionne un projet pour voir les demandes."
+        accessDeniedDescription="Vous n'avez pas acces aux demandes de remboursement de ce projet."
         onCreateProject={openCreateProject}
       />
     );
-  }
-
-  if (!canViewRequests) {
-    return <AccessDeniedState description="Vous n'avez pas acces aux demandes de remboursement de ce projet." />;
   }
 
   const requests = normalizeApiList(requestsQuery.data);
@@ -163,15 +163,14 @@ function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorks
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle category="Remboursements" title="Demandes de remboursement" />
+      <PageHeader category="Remboursements" title="Demandes de remboursement">
         {canEditRequests ? (
           <Button type="button" className="gap-2" onClick={() => { createRequest.reset(); setCreateOpen(true); }}>
             <Plus className="size-4" />
             Nouvelle demande
           </Button>
         ) : null}
-      </div>
+      </PageHeader>
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
@@ -223,12 +222,10 @@ function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorks
       {requestsQuery.isLoading ? (
         <SkeletonLoader count={4} className="h-16 w-full rounded-lg" />
       ) : requests.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>Aucune demande de remboursement</EmptyTitle>
-            <EmptyDescription>Aucune demande ne correspond aux filtres selectionnes.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyResultsState
+          title="Aucune demande de remboursement"
+          description="Aucune demande ne correspond aux filtres selectionnes."
+        />
       ) : (
         <>
           <div className="flex flex-col gap-2">
@@ -288,29 +285,13 @@ function RequestsView({ user, selectedProject, openCreateProject }: ProjectWorks
                     </Button>
                   </>
                 ) : null}
-                {canEditRequests && req.status === "pending" ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Modifier ${req.title}`}
-                    onClick={(e) => { e.stopPropagation(); updateRequest.reset(); setEditingRequest(req); }}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                ) : null}
-                {canDeleteRequests ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:text-destructive"
-                    aria-label={`Supprimer ${req.title}`}
-                    onClick={(e) => { e.stopPropagation(); setDeletingId(req.id); }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                ) : null}
+                <EntryRowActions
+                  entryLabel={req.title}
+                  canEdit={canEditRequests && req.status === "pending"}
+                  canDelete={canDeleteRequests}
+                  onEdit={() => { updateRequest.reset(); setEditingRequest(req); }}
+                  onDelete={() => setDeletingId(req.id)}
+                />
               </div>
             </div>
           ))}

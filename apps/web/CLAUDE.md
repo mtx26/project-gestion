@@ -150,6 +150,15 @@ Ces composants existent déjà — **ne pas les recréer** :
 - **Toasts** : `toast.success()`, `toast.error()` de sonner — pas d'autre système de notification.
 - **Erreurs formulaire** : `<FormErrorAlert />`/`<FormError />` pour les erreurs globales + `<FieldError />` (`components/ui/field.tsx`) pour les champs.
 
+### Interdiction des ré-exports (`export { X } from "..."`)
+
+**Un fichier n'exporte que ce qu'il définit lui-même.** Ne jamais écrire `export { x } from "@/lib/y"` ou `export type { X } from "@/lib/y"` pour rendre accessible via un fichier A un symbole qui vit réellement dans un fichier B.
+
+- Chaque consommateur importe depuis la source canonique du symbole, même si ça veut dire deux lignes d'import au lieu d'une.
+- Un composant qui a besoin à la fois de ses propres exports et d'un helper d'un autre module a deux imports séparés — jamais un seul import qui fait croire que tout vient du composant.
+- Raison : ce pattern cache l'origine réelle du code, complique le "aller à la définition", et transforme des fichiers de composant/feature en barrels implicites qu'il faut deviner.
+- Exception : le fichier `index.ts` d'un package (`packages/*/src/index.ts`) DONT le rôle est d'être le point d'entrée public du package peut agréger ses propres sous-modules (`export * from "./auth"`, etc.) — ce n'est pas la même chose qu'un composant ou un fichier `lib/` qui réexporte un module tiers auquel il n'appartient pas.
+
 ---
 
 ## Patterns de data fetching

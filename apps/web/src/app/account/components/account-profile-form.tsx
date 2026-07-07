@@ -10,17 +10,16 @@ import { useForm, useWatch } from "react-hook-form";
 import { ProfilePictureEditorDialog } from "@/app/account/components/profile-picture-editor-dialog";
 import { FormError } from "@/components/forms/form-error";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MemberAvatar } from "@/components/member-avatar";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MutedInfoCard } from "@/components/muted-info-card";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { getInitials } from "@/lib/user-display";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useAuthStore } from "@/stores/auth-store";
@@ -111,10 +110,7 @@ export function AccountProfileForm({
     <form className="grid max-w-2xl gap-4 sm:grid-cols-2" onSubmit={form.handleSubmit(onSubmit)}>
       <div className="sm:col-span-2">
         <div className="flex items-center gap-4">
-          <Avatar className="size-16 border">
-            {user?.profile?.picture_url ? <AvatarImage src={user.profile.picture_url} alt="" /> : null}
-            <AvatarFallback>{getInitials(displayName)}</AvatarFallback>
-          </Avatar>
+          <MemberAvatar name={displayName} pictureUrl={user?.profile?.picture_url} className="size-16" />
           <div className="min-w-0">
             <Label htmlFor="account-picture" className="mb-2 block">Photo de profil</Label>
             <Button asChild type="button" variant="outline" size="sm" disabled={uploadPicture.isPending}>

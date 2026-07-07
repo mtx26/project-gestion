@@ -31,13 +31,14 @@ export function findFolderName(nodes: FolderTreeNode[], folderId: number | null)
   return null;
 }
 
-export function getDescendantFolderIds(nodes: FolderTreeNode[], targetId: number | null): Set<number> | null {
-  if (targetId == null) return null;
-  const target = findTreeNode(nodes, targetId);
-  const ids = new Set<number>();
-  if (target) collectFolderIds(target, ids);
-  else ids.add(targetId);
-  return ids;
+/** True if `candidateId` is `ancestorId` itself or one of its folder descendants
+ * — the guard behind "can't drop/move a folder into its own subtree". */
+export function isFolderDescendantOf(nodes: FolderTreeNode[], ancestorId: number, candidateId: number): boolean {
+  const ancestor = findTreeNode(nodes, ancestorId);
+  if (!ancestor) return false;
+  const descendantIds = new Set<number>();
+  collectFolderIds(ancestor, descendantIds);
+  return descendantIds.has(candidateId);
 }
 
 export function findFolderNode(nodes: FolderTreeNode[], folderId: number | null): FolderTreeNode | null {

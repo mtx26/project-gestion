@@ -8,8 +8,6 @@ import {
   FileType,
 } from "lucide-react";
 
-export { formatBytes as formatFileSize } from "@/lib/task-utils";
-
 export type FileLike = {
   name?: string | null;
   file_name?: string | null;

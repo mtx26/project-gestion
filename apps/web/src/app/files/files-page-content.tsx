@@ -21,7 +21,7 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
-import { AccessDeniedState } from "@/components/states/access-denied-state";
+import { ProjectAccessGate } from "@/components/states/project-access-gate";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -37,21 +37,21 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
-import { NoProjectState } from "@/components/states/no-project-state";
 import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { findFolderName, findFolderNode } from "@/lib/folder-utils";
+import { findFolderName, findFolderNode, isFolderDescendantOf } from "@/lib/folder-utils";
 import { buildProjectHref } from "@/lib/url-params";
+import { addToSet, toggleSetValue } from "@/lib/utils";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { FileTree } from "./components/file-tree";
 import { FileDraftDialogs } from "./components/file-draft-dialogs";
 import { FolderPreviewPanel } from "./components/folder-preview-panel";
-import { type FileActionTarget, isFolderDescendantOf } from "./lib/file-tree-utils";
+import { type FileActionTarget } from "./lib/file-tree-utils";
 
 export function FilesPageContent() {
   return (
@@ -241,9 +241,7 @@ function FilesView({
     setExpandedFolderState((current) => {
       const currentIds =
         current.projectId === selectedProjectId && current.ids ? current.ids : rootExpandedFolderIds;
-      const next = new Set(currentIds);
-      if (next.has(folderId)) next.delete(folderId); else next.add(folderId);
-      return { projectId: selectedProjectId, ids: next };
+      return { projectId: selectedProjectId, ids: toggleSetValue(currentIds, folderId) };
     });
   }
 
@@ -253,7 +251,7 @@ function FilesView({
       setExpandedFolderState((current) => {
         const currentIds =
           current.projectId === selectedProjectId && current.ids ? current.ids : rootExpandedFolderIds;
-        return { projectId: selectedProjectId, ids: new Set([...currentIds, parentFolder]) };
+        return { projectId: selectedProjectId, ids: addToSet(currentIds, parentFolder) };
       });
     }
     setDraftFolder({ parentFolder, name: "" });
@@ -308,22 +306,18 @@ function FilesView({
     return buildProjectHref("/tasks", selectedProjectId!, new URLSearchParams({ folder: `folder-${folderId}` }));
   }
 
-  if (projectsQuery.isLoading) {
-    return <Skeleton className="h-72 rounded-lg" />;
-  }
-
-  if (!selectedProject) {
+  if (projectsQuery.isLoading || !selectedProject || !canViewFiles) {
     return (
-      <NoProjectState
+      <ProjectAccessGate
+        isLoadingProjects={projectsQuery.isLoading}
+        hasProject={Boolean(selectedProject)}
+        hasAccess={canViewFiles}
         icon={FolderOpen}
-        description="Cree ou selectionne un projet pour voir son arborescence."
+        noProjectDescription="Cree ou selectionne un projet pour voir son arborescence."
+        accessDeniedDescription="Ton role ne permet pas de voir l'arborescence de ce projet."
         onCreateProject={openCreateProject}
       />
     );
-  }
-
-  if (!canViewFiles) {
-    return <AccessDeniedState description="Ton role ne permet pas de voir l'arborescence de ce projet." />;
   }
 
   const selectedFolderName = findFolderName(treeQuery.data ?? [], selectedFolderId);

@@ -1,11 +1,13 @@
 "use client";
 
 import type { FolderTreeNode } from "@project-gestion/types";
-import { ChevronDown, ChevronRight, Folder, FolderPlus, ListTodo } from "lucide-react";
-import { useRef, useState } from "react";
+import { ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, ListTodo } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { closeThenNotify } from "@/lib/close-then-notify";
+import { addToSet, toggleSetValue } from "@/lib/utils";
 import {
   Dialog,
   DialogClose,
@@ -17,22 +19,94 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-  buildTargetTree,
   findTargetLabel,
   getTargetPayload,
   getTargetTypeFromValue,
-  getTargetValueFromEntry,
-  type TargetTreeNode,
 } from "@/lib/target-utils";
 
-export type { TargetTreeNode };
-export { buildTargetTree, findTargetLabel, getTargetPayload, getTargetTypeFromValue, getTargetValueFromEntry };
+// ─── Row indentation ─────────────────────────────────────────────────────────
+
+/** Distinct from `TREE_INDENT` in `app/files/lib/file-tree-utils.ts`: this
+ * tree's row grid has a narrower icon prefix (`grid-cols-[24px_...]` vs
+ * `[24px_20px_...]` for the file browser), so the two indents are sized for
+ * different layouts rather than accidentally diverging. */
+const TREE_PICKER_INDENT = 22;
+
+function getTreePickerIndent(depth: number): number {
+  return depth * TREE_PICKER_INDENT;
+}
 
 // ─── Shared icon ────────────────────────────────────────────────────────────
 
-export function TreeIcon({ type }: { type: "project" | "folder" | "task" }) {
+export function TreeIcon({ type, expanded }: { type: "project" | "folder" | "task"; expanded?: boolean }) {
   if (type === "task") return <ListTodo className="size-4 shrink-0 text-sky-600" />;
+  if (expanded) return <FolderOpen className="size-4 shrink-0 text-amber-500" />;
   return <Folder className="size-4 shrink-0 text-amber-500" />;
+}
+
+// ─── Shared expand/collapse toggle ──────────────────────────────────────────
+
+/** Chevron button that expands/collapses a tree row, or an equally-sized
+ * blank spacer when the row has nothing to expand — shared by every tree row
+ * (picker and file browser) so the button stays pixel-identical between them. */
+export function TreeExpandToggle({
+  isExpanded,
+  visible,
+  onToggle,
+  ariaLabel,
+}: {
+  isExpanded: boolean;
+  visible: boolean;
+  onToggle: () => void;
+  ariaLabel: string;
+}) {
+  if (!visible) return <span className="size-6" />;
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel}
+      className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+    >
+      {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
+    </button>
+  );
+}
+
+// ─── Target field ────────────────────────────────────────────────────────────
+
+/** `Field` + `TreePickerDialog` (mode `"target"`) pre-wired to derive the
+ * selected label from `folders` — the "Cible" picker shared by every entry
+ * form dialog (time, finance, expense requests) that can be attached to the
+ * project, a folder, or a task. */
+export function TargetField({
+  label = "Cible",
+  folders,
+  value,
+  onChange,
+  onCreateFolder,
+}: {
+  label?: string;
+  folders: FolderTreeNode[];
+  value: string;
+  onChange: (value: string) => void;
+  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+}) {
+  const selectedLabel = useMemo(() => findTargetLabel(folders, value) ?? "Projet", [folders, value]);
+
+  return (
+    <Field>
+      <FieldLabel>{label}</FieldLabel>
+      <TreePickerDialog
+        mode="target"
+        folders={folders}
+        selectedValue={value}
+        selectedLabel={selectedLabel}
+        onSelect={onChange}
+        onCreateFolder={onCreateFolder}
+      />
+    </Field>
+  );
 }
 
 // ─── Unified picker dialog ───────────────────────────────────────────────────
@@ -68,15 +142,10 @@ export function TreePickerDialog(props: TreePickerProps) {
 
   const onCreateFolder = props.onCreateFolder;
 
-  const targetTree = buildTargetTree(props.folders);
+  const rootNode: PickerNode = useMemo(() => ({ type: "project", children: props.folders }), [props.folders]);
 
   function toggleExpand(value: string) {
-    setExpandedValues((prev) => {
-      const next = new Set(prev);
-      if (next.has(value)) next.delete(value);
-      else next.add(value);
-      return next;
-    });
+    setExpandedValues((prev) => toggleSetValue(prev, value));
   }
 
   function handleSelect(value: string) {
@@ -91,7 +160,7 @@ export function TreePickerDialog(props: TreePickerProps) {
   }
 
   function startCreate(nodeValue: string) {
-    setExpandedValues((prev) => new Set([...prev, nodeValue]));
+    setExpandedValues((prev) => addToSet(prev, nodeValue));
     setCreatingInNode(nodeValue);
   }
 
@@ -154,7 +223,8 @@ export function TreePickerDialog(props: TreePickerProps) {
 
         <div role="tree" aria-label="Arborescence" className="max-h-[56vh] overflow-y-auto rounded-md border bg-background p-2">
           <TreeRow
-            node={targetTree}
+            node={rootNode}
+            depth={0}
             selectedValue={selectedValue}
             expandedValues={expandedValues}
             mode={props.mode}
@@ -180,8 +250,19 @@ export function TreePickerDialog(props: TreePickerProps) {
 
 // ─── Tree row ────────────────────────────────────────────────────────────────
 
+/** The synthetic "project" root wraps the top-level `FolderTreeNode[]` in a
+ * single O(1) object — real folders/tasks are rendered straight off the
+ * backend's own tree, no parallel copy is built. */
+type PickerNode = { type: "project"; children: FolderTreeNode[] } | FolderTreeNode;
+
+function getChildNodes(node: PickerNode): FolderTreeNode[] {
+  const children = node.type === "project" ? node.children : (node.children ?? []);
+  return children.filter((child) => child.type === "folder" || child.type === "task");
+}
+
 function TreeRow({
   node,
+  depth,
   selectedValue,
   expandedValues,
   mode,
@@ -193,7 +274,8 @@ function TreeRow({
   onConfirmCreate,
   onCancelCreate,
 }: {
-  node: TargetTreeNode;
+  node: PickerNode;
+  depth: number;
   selectedValue: string;
   expandedValues: Set<string>;
   mode: "folder" | "target";
@@ -208,45 +290,43 @@ function TreeRow({
   if (mode === "folder" && node.type === "task") return null;
   if (node.type === "task" && !includeCompleted && node.status === "done") return null;
 
-  const isExpanded = expandedValues.has(node.value);
-  const hasAnyChildren = node.children.length > 0;
-  const isSelected = selectedValue === node.value;
-  const showInlineCreate = creatingInNode === node.value;
+  const value = node.type === "project" ? "project" : `${node.type}-${node.id}`;
+  const id = node.type === "project" ? null : node.id;
+  const label = node.type === "project" ? "Projet" : node.name;
+  const iconType = node.type === "task" ? "task" : node.type === "folder" ? "folder" : "project";
+  const childNodes = getChildNodes(node);
 
-  const folderId = node.type === "project" ? null : Number(node.value.replace(`${node.type}-`, ""));
+  const isExpanded = expandedValues.has(value);
+  const hasAnyChildren = childNodes.length > 0;
+  const isSelected = selectedValue === value;
+  const showInlineCreate = creatingInNode === value;
 
   return (
     <div>
       <div
         role="treeitem"
-        aria-level={node.depth + 1}
+        aria-level={depth + 1}
         aria-selected={isSelected}
         aria-expanded={hasAnyChildren ? isExpanded : undefined}
         className="group grid h-9 grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-2 rounded-md pr-2 hover:bg-muted/70"
-        style={{ paddingLeft: `${node.depth * 22}px` }}
+        style={{ paddingLeft: `${getTreePickerIndent(depth)}px` }}
       >
-        {hasAnyChildren || showInlineCreate ? (
-          <button
-            type="button"
-            className="flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label={isExpanded ? "Replier" : "Deplier"}
-            onClick={() => onToggle(node.value)}
-          >
-            {isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
-          </button>
-        ) : (
-          <span className="size-6" />
-        )}
+        <TreeExpandToggle
+          visible={hasAnyChildren || showInlineCreate}
+          isExpanded={isExpanded}
+          ariaLabel={isExpanded ? "Replier" : "Deplier"}
+          onToggle={() => onToggle(value)}
+        />
 
         <button
           type="button"
           className={`flex min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-left ${
             isSelected ? "bg-primary/10 text-primary" : ""
           }`}
-          onClick={() => onSelect(node.value)}
+          onClick={() => onSelect(value)}
         >
-          <TreeIcon type={node.type} />
-          <span className="min-w-0 truncate">{node.label}</span>
+          <TreeIcon type={iconType} />
+          <span className="min-w-0 truncate">{label}</span>
           {node.type === "task" && node.status ? (
             <TaskStatusBadge status={node.status} className="ml-auto" />
           ) : null}
@@ -257,7 +337,7 @@ function TreeRow({
             type="button"
             className="flex size-6 items-center justify-center rounded-sm text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
             aria-label="Nouveau sous-dossier"
-            onClick={() => onStartCreate(node.value)}
+            onClick={() => onStartCreate(value)}
           >
             <FolderPlus className="size-3.5" />
           </button>
@@ -268,10 +348,11 @@ function TreeRow({
 
       {(hasAnyChildren || showInlineCreate) && isExpanded ? (
         <div role="group">
-          {node.children.map((child) => (
+          {childNodes.map((child) => (
             <TreeRow
-              key={child.value}
+              key={`${child.type}-${child.id}`}
               node={child}
+              depth={depth + 1}
               selectedValue={selectedValue}
               expandedValues={expandedValues}
               mode={mode}
@@ -286,8 +367,8 @@ function TreeRow({
           ))}
           {showInlineCreate ? (
             <InlineFolderInput
-              depth={node.depth + 1}
-              parentId={folderId}
+              depth={depth + 1}
+              parentId={id}
               onConfirm={onConfirmCreate!}
               onCancel={onCancelCreate}
             />
@@ -333,7 +414,7 @@ function InlineFolderInput({
   return (
     <div
       className="flex h-9 items-center gap-2 pr-2"
-      style={{ paddingLeft: `${depth * 22 + 32}px` }}
+      style={{ paddingLeft: `${getTreePickerIndent(depth) + 32}px` }}
     >
       <Folder className="size-4 shrink-0 text-amber-500" />
       <input

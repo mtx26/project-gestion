@@ -6,6 +6,8 @@ import { Eye, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { FileAttachment } from "@/components/documents/file-attachment";
+import { TreeIcon } from "@/components/pickers/tree-picker";
+import type { EntryTarget } from "@/lib/target-utils";
 import {
   Dialog,
   DialogClose,
@@ -68,6 +70,43 @@ export function ModalSection({ children }: { children: React.ReactNode }) {
 /** 2-column grid section — meta fields with icons. */
 export function ModalGrid({ children, className }: { children: React.ReactNode; className?: string }) {
   return <DetailGrid className={cn("py-5", className)}>{children}</DetailGrid>;
+}
+
+/** Category / description / target ("Cible") block shared by every entry
+ * detail modal that can be attached to a folder or task (finance, expense
+ * requests) — renders nothing if none of the three are present. */
+export function EntryCategorySection({
+  category,
+  description,
+  target,
+}: {
+  category?: string | null;
+  description?: string | null;
+  target?: EntryTarget | null;
+}) {
+  if (!category && !description && !target) return null;
+
+  return (
+    <ModalSection>
+      {category ? (
+        <DetailField label="Categorie">
+          <span className="font-medium">{category}</span>
+        </DetailField>
+      ) : null}
+      {description ? (
+        <div>
+          <DetailLabel>Description</DetailLabel>
+          <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{description}</p>
+        </div>
+      ) : null}
+      {target ? (
+        <DetailField label="Cible">
+          <TreeIcon type={target.type} />
+          <span className="font-medium">{target.name ?? `${target.type === "task" ? "Tache" : "Dossier"} #${target.id}`}</span>
+        </DetailField>
+      ) : null}
+    </ModalSection>
+  );
 }
 
 // ─── Documents block ──────────────────────────────────────────────────────────

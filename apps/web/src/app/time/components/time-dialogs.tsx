@@ -11,9 +11,9 @@ import {
   type TimeEntryFormValues,
 } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarDays, Clock, CreditCard, Folder, ListTodo, Pencil, UserRound } from "lucide-react";
+import { CalendarDays, Clock, CreditCard, ListTodo, Pencil, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,8 @@ import { MultiDocumentAttachmentField } from "@/components/documents/multi-docum
 import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload, getTargetValueFromEntry } from "@/components/pickers/tree-picker";
+import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
+import { getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { Textarea } from "@/components/ui/textarea";
 import { addMinutes, format, parseISO } from "date-fns";
 import { formatDateTime } from "@/lib/date-utils";
@@ -110,8 +111,6 @@ export function TimeEntryFormDialog({
     : 0;
   const durationHours = durationMinutes / 60;
   const computedTotal = durationHours > 0 ? durationHours * Number(hourlyRate) : 0;
-  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
-  const selectedTargetLabel = findTargetLabel(targetTree, targetValue) ?? "Projet";
 
   useServerFieldErrors(form, error, [
     { name: "startDate", serverField: "start_date" },
@@ -204,17 +203,12 @@ export function TimeEntryFormDialog({
             </p>
           </div>
 
-          <Field>
-            <FieldLabel>Cible</FieldLabel>
-            <TreePickerDialog
-              mode="target"
-              folders={targetFolders}
-              selectedValue={targetValue}
-              selectedLabel={selectedTargetLabel}
-              onSelect={setTargetValue}
-              onCreateFolder={onCreateFolder}
-            />
-          </Field>
+          <TargetField
+            folders={targetFolders}
+            value={targetValue}
+            onChange={setTargetValue}
+            onCreateFolder={onCreateFolder}
+          />
 
           <Field>
             <FieldLabel htmlFor="time-entry-description">Description</FieldLabel>
@@ -347,9 +341,7 @@ export function TimeEntryDetailModal({
               </button>
             ) : (
               <>
-                {entry.task != null
-                  ? <ListTodo className="size-4 shrink-0 text-sky-600" />
-                  : <Folder className="size-4 shrink-0 text-amber-500" />}
+                <TreeIcon type={entry.task != null ? "task" : "folder"} />
                 <span>{targetLabel}</span>
               </>
             )}

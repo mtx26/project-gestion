@@ -5,26 +5,26 @@ import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Banknote, Pencil, Plus, Trash2 } from "lucide-react";
+import { Banknote, Plus } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
 import { useDocumentPreview } from "@/lib/use-document-preview";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
+import { EntryRowActions } from "@/components/entries/entry-row-actions";
 import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
 import { FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/filters/filter-bar";
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
-import { NoProjectState } from "@/components/states/no-project-state";
-import { PageTitle } from "@/components/page-title";
+import { EmptyResultsState } from "@/components/states/empty-results-state";
+import { ProjectAccessGate } from "@/components/states/project-access-gate";
+import { PageHeader } from "@/components/page-title";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TimeEntryDetailModal } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
@@ -61,7 +61,7 @@ function SummaryCard({ label, value, className }: { label: string; value: string
   );
 }
 
-function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorkspaceState) {
+function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
   const searchParams = useSearchParams();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewFinance = can(permissionCodes.financeView);
@@ -164,18 +164,18 @@ function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorksp
     openTimeEntry.mutate(timeEntryId);
   }
 
-  if (!selectedProject) {
+  if (projectsQuery.isLoading || !selectedProject || !canViewFinance) {
     return (
-      <NoProjectState
+      <ProjectAccessGate
+        isLoadingProjects={projectsQuery.isLoading}
+        hasProject={Boolean(selectedProject)}
+        hasAccess={canViewFinance}
         icon={Banknote}
-        description="Cree ou selectionne un projet pour voir les finances."
+        noProjectDescription="Cree ou selectionne un projet pour voir les finances."
+        accessDeniedDescription="Vous n'avez pas acces aux finances de ce projet."
         onCreateProject={openCreateProject}
       />
     );
-  }
-
-  if (!canViewFinance) {
-    return <AccessDeniedState description="Vous n'avez pas acces aux finances de ce projet." />;
   }
 
   const entries = normalizeApiList(entriesQuery.data);
@@ -185,15 +185,14 @@ function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorksp
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <PageTitle category="Finances" title="Gestion financiere" />
+      <PageHeader category="Finances" title="Gestion financiere">
         {canEditFinance ? (
           <Button type="button" className="gap-2" onClick={() => { createEntry.reset(); setCreateOpen(true); }}>
             <Plus className="size-4" />
             Nouvelle entree
           </Button>
         ) : null}
-      </div>
+      </PageHeader>
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
@@ -250,12 +249,10 @@ function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorksp
       {entriesQuery.isLoading ? (
         <SkeletonLoader count={5} />
       ) : entries.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyTitle>Aucune entree financiere</EmptyTitle>
-            <EmptyDescription>Aucune entree ne correspond aux filtres selectionnes.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <EmptyResultsState
+          title="Aucune entree financiere"
+          description="Aucune entree ne correspond aux filtres selectionnes."
+        />
       ) : (
         <>
           <div className="flex flex-col gap-2">
@@ -291,31 +288,13 @@ function FinanceView({ user, selectedProject, openCreateProject }: ProjectWorksp
                   showDateIcon
                 />
               </div>
-              <div className="flex shrink-0 gap-1">
-                {canEditFinance ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={`Modifier l'entree de ${formatMoney(entry.amount)}`}
-                    onClick={(e) => { e.stopPropagation(); updateEntry.reset(); setEditingEntry(entry); }}
-                  >
-                    <Pencil className="size-4" />
-                  </Button>
-                ) : null}
-                {canDeleteFinance ? (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    className="text-destructive hover:text-destructive"
-                    aria-label={`Supprimer l'entree de ${formatMoney(entry.amount)}`}
-                    onClick={(e) => { e.stopPropagation(); setDeletingEntryId(entry.id); }}
-                  >
-                    <Trash2 className="size-4" />
-                  </Button>
-                ) : null}
-              </div>
+              <EntryRowActions
+                entryLabel={`l'entree de ${formatMoney(entry.amount)}`}
+                canEdit={canEditFinance}
+                canDelete={canDeleteFinance}
+                onEdit={() => { updateEntry.reset(); setEditingEntry(entry); }}
+                onDelete={() => setDeletingEntryId(entry.id)}
+              />
             </div>
           ))}
           </div>

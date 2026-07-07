@@ -3,11 +3,7 @@
 import type { FolderTreeNode } from "@project-gestion/types";
 import type { ReactNode } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
   Folder,
-  FolderOpen,
-  ListTodo,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -16,16 +12,16 @@ import { Button } from "@/components/ui/button";
 import { DocumentThumbnailImage } from "@/components/documents/document-thumbnail-image";
 import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import { TreeExpandToggle, TreeIcon } from "@/components/pickers/tree-picker";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { isImageFile } from "@/lib/file-display";
+import { getDocumentIconConfig, isImageFile } from "@/lib/file-display";
+import { formatBytes as formatFileSize } from "@/lib/task-utils";
 import { collectImageDocumentIds } from "@/lib/folder-utils";
 import { useDocumentDownloadUrls } from "@/lib/use-document-download-urls";
 import {
   type FileActionTarget,
-  formatFileSize,
-  getDocumentIconConfig,
   getTreeContentPadding,
   getTreeRowPadding,
 } from "../lib/file-tree-utils";
@@ -215,22 +211,12 @@ function TreeNode({
           if (actionTarget) onOpenContextMenu(actionTarget);
         }}
       >
-        {isFolder ? (
-          <button
-            type="button"
-            aria-label={isExpanded ? "Replier le dossier" : "Deplier le dossier"}
-            className="flex size-6 shrink-0 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-            onClick={(e) => { e.stopPropagation(); onToggleFolder(node.id); }}
-          >
-            {hasChildren ? (
-              isExpanded ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />
-            ) : (
-              <span className="size-4" />
-            )}
-          </button>
-        ) : (
-          <span className="size-6" />
-        )}
+        <TreeExpandToggle
+          visible={isFolder && hasChildren}
+          isExpanded={isExpanded}
+          ariaLabel={isExpanded ? "Replier le dossier" : "Deplier le dossier"}
+          onToggle={() => onToggleFolder(node.id)}
+        />
 
         <button
           type="button"
@@ -242,13 +228,9 @@ function TreeNode({
           }}
         >
           {isFolder ? (
-            isExpanded ? (
-              <FolderOpen className="size-4 shrink-0 text-amber-500" />
-            ) : (
-              <Folder className="size-4 shrink-0 text-amber-500" />
-            )
+            <TreeIcon type="folder" expanded={isExpanded} />
           ) : isTask ? (
-            <ListTodo className="size-4 shrink-0 text-sky-600" />
+            <TreeIcon type="task" />
           ) : (
             <DocumentIcon node={node} url={documentUrls.get(node.id)} isLoading={isLoadingDocumentUrls} />
           )}

@@ -1,54 +1,22 @@
 import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
 
-export type TargetOption = {
-  value: string;
-  label: string;
-  depth: number;
-  type: "project" | "folder" | "task";
-  status?: "todo" | "in_progress" | "done";
-};
-
-export type TargetTreeNode = TargetOption & {
-  children: TargetTreeNode[];
-};
-
-export function buildTargetTree(nodes: FolderTreeNode[]): TargetTreeNode {
-  const root: TargetTreeNode = {
-    value: "project",
-    label: "Projet",
-    depth: 0,
-    type: "project",
-    children: buildFolderTargetTree(nodes, 1),
-  };
-  return root;
-}
-
-function buildFolderTargetTree(nodes: FolderTreeNode[], depth: number): TargetTreeNode[] {
-  const result: TargetTreeNode[] = [];
+/** Finds the folder/task whose encoded `"folder-123"`/`"task-45"` value
+ * matches, searching the tree as returned by the backend directly (no
+ * intermediate copy) — `"project"` short-circuits since it isn't a real node. */
+export function findTargetLabel(nodes: FolderTreeNode[], value: string): string | null {
+  if (value === "project") return "Projet";
   for (const node of nodes) {
     if (node.type !== "folder" && node.type !== "task") continue;
-    result.push({
-      value: `${node.type}-${node.id}`,
-      label: node.name,
-      depth,
-      type: node.type,
-      status: node.type === "task" ? node.status : undefined,
-      children: node.type === "folder" ? buildFolderTargetTree(node.children ?? [], depth + 1) : [],
-    });
-  }
-  return result;
-}
-
-export function findTargetLabel(node: TargetTreeNode, value: string): string | null {
-  if (node.value === value) return node.label;
-  for (const child of node.children) {
-    const label = findTargetLabel(child, value);
-    if (label) return label;
+    if (`${node.type}-${node.id}` === value) return node.name;
+    if (node.type === "folder") {
+      const label = findTargetLabel(node.children ?? [], value);
+      if (label) return label;
+    }
   }
   return null;
 }
 
-export function getTargetTypeFromValue(value: string): TargetTreeNode["type"] {
+export function getTargetTypeFromValue(value: string): "project" | "folder" | "task" {
   if (value.startsWith("task-")) return "task";
   if (value.startsWith("folder-")) return "folder";
   return "project";
@@ -64,5 +32,21 @@ export function getTargetValueFromEntry(entry: Pick<TimeEntry, "folder" | "task"
   if (entry.task != null) return `task-${entry.task}`;
   if (entry.folder != null) return `folder-${entry.folder}`;
   return "project";
+}
+
+export type EntryTarget = { type: "task" | "folder"; id: number; name: string | null };
+
+/** Unifies an entry's `task`/`folder` id+name pair into a single target — the
+ * display counterpart to `getTargetValueFromEntry` (which builds the picker's
+ * form value). Returns `null` when the entry is attached to the project. */
+export function getEntryTarget(entry: {
+  task: number | null;
+  task_name?: string | null;
+  folder: number | null;
+  folder_name?: string | null;
+}): EntryTarget | null {
+  if (entry.task != null) return { type: "task", id: entry.task, name: entry.task_name ?? null };
+  if (entry.folder != null) return { type: "folder", id: entry.folder, name: entry.folder_name ?? null };
+  return null;
 }
 

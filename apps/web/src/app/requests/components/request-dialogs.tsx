@@ -3,8 +3,8 @@
 import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
 import { requestSchema, type RequestFormInput, type RequestFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, Folder, ListTodo, UserRound } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Calendar, UserRound } from "lucide-react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
@@ -16,11 +16,12 @@ import { MoneyInput } from "@/components/forms/money-input";
 import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { Textarea } from "@/components/ui/textarea";
-import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
+import { TargetField } from "@/components/pickers/tree-picker";
+import { getEntryTarget, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
-import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero, ModalSection } from "@/components/dialogs/detail-layout";
+import { DetailField, DetailModal, EntryCategorySection, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 export function ExpenseRequestFormDialog({
@@ -46,11 +47,7 @@ export function ExpenseRequestFormDialog({
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: ExpenseRequestPayload) => void;
 }) {
-  const initialTarget = request?.task != null
-    ? `task-${request.task}`
-    : request?.folder != null
-      ? `folder-${request.folder}`
-      : "project";
+  const initialTarget = request ? getTargetValueFromEntry(request) : "project";
 
   const form = useForm<RequestFormInput, unknown, RequestFormValues>({
     resolver: zodResolver(requestSchema),
@@ -65,9 +62,6 @@ export function ExpenseRequestFormDialog({
   const docs = useDocumentAttachment(
     request?.documents_info ?? [],
   );
-
-  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
-  const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
 
   useServerFieldErrors(form, error, ["title", "amount", "category", "description"]);
 
@@ -135,17 +129,13 @@ export function ExpenseRequestFormDialog({
             <Textarea id="req-description" rows={2} placeholder="Details optionnels…" {...form.register("description")} />
           </Field>
 
-          <Field>
-            <FieldLabel>Cible (optionnel)</FieldLabel>
-            <TreePickerDialog
-              mode="target"
-              folders={targetFolders}
-              selectedValue={targetValue}
-              selectedLabel={targetLabel}
-              onSelect={setTargetValue}
-              onCreateFolder={onCreateFolder}
-            />
-          </Field>
+          <TargetField
+            label="Cible (optionnel)"
+            folders={targetFolders}
+            value={targetValue}
+            onChange={setTargetValue}
+            onCreateFolder={onCreateFolder}
+          />
 
           <MultiDocumentAttachmentField
             projectId={projectId}
@@ -188,36 +178,11 @@ export function ExpenseRequestDetailModal({
             <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">{formatMoney(request.amount)}</p>
           </ModalHero>
 
-          {(request.category != null || request.description != null || request.task != null || request.folder != null) ? (
-            <ModalSection>
-              {request.category ? (
-                <DetailField label="Categorie">
-                  <span className="font-medium">{request.category}</span>
-                </DetailField>
-              ) : null}
-              {request.description ? (
-                <div>
-                  <DetailLabel>Description</DetailLabel>
-                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{request.description}</p>
-                </div>
-              ) : null}
-              {request.task != null || request.folder != null ? (
-                <DetailField label="Cible">
-                  {request.task_name ? (
-                    <>
-                      <ListTodo className="size-4 shrink-0 text-sky-600" />
-                      <span className="font-medium">{request.task_name}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Folder className="size-4 shrink-0 text-amber-500" />
-                      <span className="font-medium">{request.folder_name ?? `Dossier #${request.folder}`}</span>
-                    </>
-                  )}
-                </DetailField>
-              ) : null}
-            </ModalSection>
-          ) : null}
+          <EntryCategorySection
+            category={request.category}
+            description={request.description}
+            target={getEntryTarget(request)}
+          />
 
           <ModalGrid>
             {request.requested_by_name ? (

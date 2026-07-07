@@ -9,8 +9,7 @@ import { CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
-import { AccessDeniedState } from "@/components/states/access-denied-state";
-import { NoProjectState } from "@/components/states/no-project-state";
+import { ProjectAccessGate } from "@/components/states/project-access-gate";
 import { PageTitle } from "@/components/page-title";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -102,20 +101,18 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
     }
   }
 
-  if (projectsQuery.isLoading) return <Skeleton className="h-72 rounded-lg" />;
-
-  if (!selectedProject) {
+  if (projectsQuery.isLoading || !selectedProject || (!canViewTasks && !canViewTime)) {
     return (
-      <NoProjectState
+      <ProjectAccessGate
+        isLoadingProjects={projectsQuery.isLoading}
+        hasProject={Boolean(selectedProject)}
+        hasAccess={canViewTasks || canViewTime}
         icon={CalendarDays}
-        description="Cree ou selectionne un projet pour voir le calendrier."
+        noProjectDescription="Cree ou selectionne un projet pour voir le calendrier."
+        accessDeniedDescription="Ton role ne permet pas de voir le calendrier de ce projet."
         onCreateProject={openCreateProject}
       />
     );
-  }
-
-  if (!canViewTasks && !canViewTime) {
-    return <AccessDeniedState description="Ton role ne permet pas de voir le calendrier de ce projet." />;
   }
 
   const isLoading = timeEntriesQuery.isLoading || tasksQuery.isLoading;

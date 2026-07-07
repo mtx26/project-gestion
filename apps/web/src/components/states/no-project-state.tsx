@@ -3,19 +3,22 @@ import { Button } from "@/components/ui/button";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 
 interface NoProjectStateProps {
-  icon: ComponentType<{ className?: string }>;
+  icon?: ComponentType<{ className?: string }>;
+  title?: string;
   description: string;
   onCreateProject: () => void;
 }
 
-export function NoProjectState({ icon: Icon, description, onCreateProject }: NoProjectStateProps) {
+export function NoProjectState({ icon: Icon, title = "Aucun projet actif", description, onCreateProject }: NoProjectStateProps) {
   return (
     <Empty className="border bg-card p-8">
       <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <Icon className="size-4" />
-        </EmptyMedia>
-        <EmptyTitle>Aucun projet actif</EmptyTitle>
+        {Icon ? (
+          <EmptyMedia variant="icon">
+            <Icon className="size-4" />
+          </EmptyMedia>
+        ) : null}
+        <EmptyTitle>{title}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>
       </EmptyHeader>
       <EmptyContent>

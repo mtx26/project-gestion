@@ -3,8 +3,8 @@
 import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
 import { financeSchema, type FinanceFormInput, type FinanceFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, Clock, Folder, ListTodo, UserRound } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Calendar, Clock, UserRound } from "lucide-react";
+import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { DatePicker } from "@/components/forms/date-picker";
@@ -18,11 +18,12 @@ import { MoneyInput } from "@/components/forms/money-input";
 import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { TreePickerDialog, buildTargetTree, findTargetLabel, getTargetPayload } from "@/components/pickers/tree-picker";
+import { TargetField } from "@/components/pickers/tree-picker";
+import { getEntryTarget, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
-import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero, ModalSection } from "@/components/dialogs/detail-layout";
+import { DetailField, DetailModal, EntryCategorySection, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 export function FinancialEntryFormDialog({
@@ -48,11 +49,7 @@ export function FinancialEntryFormDialog({
   onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: FinancialEntryPayload) => void;
 }) {
-  const initialTarget = entry?.task != null
-    ? `task-${entry.task}`
-    : entry?.folder != null
-      ? `folder-${entry.folder}`
-      : "project";
+  const initialTarget = entry ? getTargetValueFromEntry(entry) : "project";
 
   const form = useForm<FinanceFormInput, unknown, FinanceFormValues>({
     resolver: zodResolver(financeSchema),
@@ -68,9 +65,6 @@ export function FinancialEntryFormDialog({
   const docs = useDocumentAttachment(
     entry?.documents_info ?? [],
   );
-
-  const targetTree = useMemo(() => buildTargetTree(targetFolders), [targetFolders]);
-  const targetLabel = useMemo(() => findTargetLabel(targetTree, targetValue) ?? "Projet", [targetTree, targetValue]);
 
   useServerFieldErrors(form, error, ["type", "amount", "date", "category", "description"]);
 
@@ -160,17 +154,13 @@ export function FinancialEntryFormDialog({
             <Textarea id="entry-description" rows={2} placeholder="Details optionnels…" {...form.register("description")} />
           </Field>
 
-          <Field>
-            <FieldLabel>Cible (optionnel)</FieldLabel>
-            <TreePickerDialog
-              mode="target"
-              folders={targetFolders}
-              selectedValue={targetValue}
-              selectedLabel={targetLabel}
-              onSelect={setTargetValue}
-              onCreateFolder={onCreateFolder}
-            />
-          </Field>
+          <TargetField
+            label="Cible (optionnel)"
+            folders={targetFolders}
+            value={targetValue}
+            onChange={setTargetValue}
+            onCreateFolder={onCreateFolder}
+          />
 
           <MultiDocumentAttachmentField
             projectId={projectId}
@@ -217,36 +207,11 @@ export function FinancialEntryDetailModal({
             </p>
           </ModalHero>
 
-          {(entry.category != null || entry.description != null || entry.task != null || entry.folder != null) ? (
-            <ModalSection>
-              {entry.category ? (
-                <DetailField label="Categorie">
-                  <span className="font-medium">{entry.category}</span>
-                </DetailField>
-              ) : null}
-              {entry.description ? (
-                <div>
-                  <DetailLabel>Description</DetailLabel>
-                  <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{entry.description}</p>
-                </div>
-              ) : null}
-              {entry.task != null || entry.folder != null ? (
-                <DetailField label="Cible">
-                  {entry.task_name ? (
-                    <>
-                      <ListTodo className="size-4 shrink-0 text-sky-600" />
-                      <span className="font-medium">{entry.task_name}</span>
-                    </>
-                  ) : (
-                    <>
-                      <Folder className="size-4 shrink-0 text-amber-500" />
-                      <span className="font-medium">{entry.folder_name ?? `Dossier #${entry.folder}`}</span>
-                    </>
-                  )}
-                </DetailField>
-              ) : null}
-            </ModalSection>
-          ) : null}
+          <EntryCategorySection
+            category={entry.category}
+            description={entry.description}
+            target={getEntryTarget(entry)}
+          />
 
           <ModalGrid>
             {entry.time_entry_user_name ? (

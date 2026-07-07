@@ -26,7 +26,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { NoProjectState } from "@/components/states/no-project-state";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -158,17 +158,11 @@ function SettingsView({
       <PageTitle category="Parametres projet" title="Configuration du projet" />
 
       {!projectsQuery.isLoading && !selectedProject ? (
-        <Empty className="border bg-card p-8">
-          <EmptyHeader>
-            <EmptyTitle>Aucun projet a configurer</EmptyTitle>
-            <EmptyDescription>
-              Cree un projet depuis la barre laterale pour acceder a ses parametres.
-            </EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent>
-            <Button onClick={openCreateProject}>Creer un projet</Button>
-          </EmptyContent>
-        </Empty>
+        <NoProjectState
+          title="Aucun projet a configurer"
+          description="Cree un projet depuis la barre laterale pour acceder a ses parametres."
+          onCreateProject={openCreateProject}
+        />
       ) : null}
 
       {selectedProject ? (
