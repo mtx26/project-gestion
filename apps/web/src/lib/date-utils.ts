@@ -13,7 +13,10 @@ export function toDateTimeLocalInput(value: string): string {
 }
 
 /** Convertit une valeur locale "yyyy-MM-ddTHH:mm" saisie dans un champ
- * datetime-local en ISO UTC pour l'envoi a l'API. */
-export function fromDateTimeLocalInput(value: string): string {
-  return new Date(value).toISOString();
+ * datetime-local en ISO UTC pour l'envoi a l'API. Une valeur nulle/vide
+ * (champ optionnel, ex. Task.start_date) reste null. */
+export function fromDateTimeLocalInput(value: string): string;
+export function fromDateTimeLocalInput(value: string | null): string | null;
+export function fromDateTimeLocalInput(value: string | null): string | null {
+  return value ? new Date(value).toISOString() : null;
 }

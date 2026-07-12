@@ -102,8 +102,8 @@ export function TaskFormDialog({
       folder,
       status: values.status,
       priority: values.priority,
-      start_date: values.startDate ? fromDateTimeLocalInput(values.startDate) : null,
-      end_date: values.endDate ? fromDateTimeLocalInput(values.endDate) : null,
+      start_date: fromDateTimeLocalInput(values.startDate),
+      end_date: fromDateTimeLocalInput(values.endDate),
       assigned_to: values.assignees,
       documents: documentIds,
     });
