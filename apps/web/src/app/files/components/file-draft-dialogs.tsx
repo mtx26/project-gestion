@@ -238,7 +238,7 @@ export function TimeDraftDialog({
         </div>
         <Field>
           <FieldLabel htmlFor="project-time-rate">Taux horaire</FieldLabel>
-          <MoneyInput id="project-time-rate" {...form.register("hourlyRate")} />
+          <MoneyInput id="project-time-rate" unit="€/h" {...form.register("hourlyRate")} />
         </Field>
         <Field>
           <FieldLabel htmlFor="project-time-description">Description</FieldLabel>

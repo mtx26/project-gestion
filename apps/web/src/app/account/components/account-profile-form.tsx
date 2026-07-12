@@ -156,7 +156,7 @@ export function AccountProfileForm({
       ) : null}
       <Field className="sm:col-span-2">
         <FieldLabel htmlFor="account-default-rate">Taux horaire par defaut</FieldLabel>
-        <MoneyInput id="account-default-rate" {...form.register("default_hourly_rate")} />
+        <MoneyInput id="account-default-rate" unit="€/h" {...form.register("default_hourly_rate")} />
       </Field>
       <div className="sm:col-span-2">
         <FormError message={getErrorMessage(updateProfile.error)} />

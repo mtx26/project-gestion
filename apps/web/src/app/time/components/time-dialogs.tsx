@@ -196,7 +196,7 @@ export function TimeEntryFormDialog({
           <div className="flex items-end gap-3">
             <Field className="flex-1">
               <FieldLabel htmlFor="time-entry-rate">Taux horaire</FieldLabel>
-              <MoneyInput id="time-entry-rate" {...form.register("hourlyRate")} />
+              <MoneyInput id="time-entry-rate" unit="€/h" {...form.register("hourlyRate")} />
             </Field>
             <p className="pb-2 text-xs text-muted-foreground">
               {formatDuration(durationMinutes)} · {formatMoney(computedTotal)}

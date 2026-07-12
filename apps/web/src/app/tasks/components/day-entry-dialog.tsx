@@ -211,6 +211,7 @@ export function DayEntryFormDialog({
                 </span>
                 <Field className="w-32">
                   <MoneyInput
+                    unit="€/h"
                     aria-label={`Taux horaire de ${member?.user_display_name ?? "cette personne"}`}
                     {...form.register(`entries.${index}.hourlyRate`)}
                   />
