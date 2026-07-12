@@ -152,41 +152,44 @@ export function FilterPeriodPicker({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Période</DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 sm:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto sm:flex-row">
           {/* Presets */}
-          <div className="flex flex-row flex-wrap gap-1 sm:w-44 sm:shrink-0 sm:flex-col sm:gap-0.5">
-            {PRESETS.map((p) => (
+          <div className="sm:w-44 sm:shrink-0">
+            <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-col sm:gap-0.5">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.value}
+                  type="button"
+                  onClick={() => handlePresetClick(p.value)}
+                  className={cn(
+                    "w-full rounded-md border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-muted sm:border-transparent",
+                    mode === p.value && "border-primary/60 bg-primary/10 font-medium text-primary sm:border-transparent",
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
               <button
-                key={p.value}
                 type="button"
-                onClick={() => handlePresetClick(p.value)}
+                onClick={() => { setMode("custom"); setRange(undefined); }}
                 className={cn(
-                  "rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted sm:w-full",
-                  mode === p.value && "bg-primary/10 font-medium text-primary",
+                  "hidden w-full rounded-md border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-muted sm:block sm:border-transparent",
+                  mode === "custom" && "border-primary/60 bg-primary/10 font-medium text-primary sm:border-transparent",
                 )}
               >
-                {p.label}
+                Personnalisé
               </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => { setMode("custom"); setRange(undefined); }}
-              className={cn(
-                "rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-muted sm:w-full",
-                mode === "custom" && "bg-primary/10 font-medium text-primary",
-              )}
-            >
-              Personnalisé
-            </button>
+            </div>
           </div>
 
-          {/* Calendrier */}
-          <div className="flex-1 overflow-x-auto sm:border-l sm:pl-4">
+          {/* Calendrier — reservé au desktop : une plage sur-mesure sur petit écran
+              est peu maniable, les raccourcis suffisent sur mobile. */}
+          <div className="hidden flex-1 overflow-x-auto sm:block sm:border-l sm:pl-4">
             <Calendar
               mode="range"
               selected={range}
@@ -198,9 +201,9 @@ export function FilterPeriodPicker({
           </div>
         </div>
 
-        <div className="flex items-center justify-between border-t pt-3">
+        <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-muted-foreground">{footerLabel}</span>
-          <div className="flex gap-2">
+          <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
               Annuler
             </Button>
