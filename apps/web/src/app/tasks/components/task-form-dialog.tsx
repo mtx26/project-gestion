@@ -18,6 +18,7 @@ import { PrioritySelect } from "@/components/forms/priority-select";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
+import { fromDateTimeLocalInput, toDateTimeLocalInput } from "@/lib/date-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
@@ -68,8 +69,8 @@ export function TaskFormDialog({
         : (initialFolder ?? "all"),
       status: task?.status ?? "todo",
       priority: task?.priority ?? "normal",
-      startDate: task?.start_date ? task.start_date.slice(0, 16) : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
-      endDate: task?.end_date ? task.end_date.slice(0, 16) : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      startDate: task?.start_date ? toDateTimeLocalInput(task.start_date) : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+      endDate: task?.end_date ? toDateTimeLocalInput(task.end_date) : format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       assignees: task?.assigned_to ?? [],
     },
   });
@@ -101,8 +102,8 @@ export function TaskFormDialog({
       folder,
       status: values.status,
       priority: values.priority,
-      start_date: values.startDate,
-      end_date: values.endDate,
+      start_date: values.startDate ? fromDateTimeLocalInput(values.startDate) : null,
+      end_date: values.endDate ? fromDateTimeLocalInput(values.endDate) : null,
       assigned_to: values.assignees,
       documents: documentIds,
     });

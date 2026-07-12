@@ -19,6 +19,7 @@ import { MultiDocumentAttachmentField } from "@/components/documents/multi-docum
 import { PrioritySelect } from "@/components/forms/priority-select";
 import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
+import { fromDateTimeLocalInput } from "@/lib/date-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { findFolderName } from "@/lib/folder-utils";
 import { formatDuration } from "@/lib/task-utils";
@@ -99,8 +100,8 @@ export function DayEntryFormDialog({
       description: values.description ?? undefined,
       folder,
       priority: values.priority,
-      start_date: values.startDate,
-      end_date: values.endDate,
+      start_date: fromDateTimeLocalInput(values.startDate),
+      end_date: fromDateTimeLocalInput(values.endDate),
       documents: documentIds,
       entries: values.entries.map((entry) => ({
         user: entry.userId,

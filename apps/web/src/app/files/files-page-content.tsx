@@ -16,7 +16,6 @@ import {
   Trash2,
   Upload,
 } from "lucide-react";
-import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -216,7 +215,7 @@ function FilesView({
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
         folder: timeDraftFolderId,
-        start_date: format(new Date(), "yyyy-MM-dd'T'HH:mm"),
+        start_date: new Date().toISOString(),
         duration_minutes: Number(values.hours) * 60 + Number(values.minutes),
         hourly_rate: values.hourlyRate === "" ? undefined : values.hourlyRate,
         description: values.description,
