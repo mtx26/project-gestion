@@ -32,7 +32,7 @@ import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
 import { getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { Textarea } from "@/components/ui/textarea";
 import { addMinutes, format, parseISO } from "date-fns";
-import { formatDateTime } from "@/lib/date-utils";
+import { formatDateTime, fromDateTimeLocalInput, toDateTimeLocalInput } from "@/lib/date-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
 import { getPaymentStatus } from "@/lib/time-utils";
@@ -84,7 +84,7 @@ export function TimeEntryFormDialog({
   onSubmit: (data: TimeEntrySubmitData) => void;
 }) {
   const isOpen = mode === "create" ? (open ?? false) : entry != null;
-  const referenceStart = entry ? entry.start_date.slice(0, 16) : "";
+  const referenceStart = entry ? toDateTimeLocalInput(entry.start_date) : "";
 
   const form = useForm<TimeEntryFormInput, unknown, TimeEntryFormValues>({
     resolver: zodResolver(timeEntrySchema),
@@ -128,7 +128,7 @@ export function TimeEntryFormDialog({
     onSubmit({
       documentIds,
       durationMinutes: duration,
-      startDate: values.startDate,
+      startDate: fromDateTimeLocalInput(values.startDate),
       hourlyRate: values.hourlyRate,
       description: values.description,
       folder,
