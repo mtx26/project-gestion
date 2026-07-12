@@ -162,20 +162,20 @@ function TasksView({
 
   const createTask = useCrudMutation({
     mutationFn: (payload: TaskPayload) => api.tasks.create(selectedProject!.id, payload),
-    invalidateKey: queryKeys.tasks.all(selectedProject!.id),
+    invalidateKey: queryKeys.tasks.all(projectId ?? 0),
     successMessage: "Tache creee",
     onSuccess: () => setCreateDialogOpen(false),
   });
   const updateTask = useCrudMutation({
     mutationFn: ({ taskId, payload }: { taskId: number; payload: Partial<TaskPayload> }) =>
       api.tasks.update(selectedProject!.id, taskId, payload),
-    invalidateKey: queryKeys.tasks.all(selectedProject!.id),
+    invalidateKey: queryKeys.tasks.all(projectId ?? 0),
     successMessage: "Tache mise a jour",
     onSuccess: () => setEditingTask(null),
   });
   const deleteTask = useCrudMutation({
     mutationFn: (taskId: number) => api.tasks.remove(selectedProject!.id, taskId),
-    invalidateKey: queryKeys.tasks.all(selectedProject!.id),
+    invalidateKey: queryKeys.tasks.all(projectId ?? 0),
     successMessage: "Tache supprimee",
     onSuccess: () => setDeletingTask(null),
   });

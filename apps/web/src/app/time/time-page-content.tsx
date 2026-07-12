@@ -182,13 +182,13 @@ function TimeView({
         task: data.task,
         documents: data.documentIds,
       }),
-    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    invalidateKey: queryKeys.timeEntries.all(projectId ?? 0),
     successMessage: "Temps enregistre",
     onSuccess: () => setTimeFormOpen(false),
   });
   const deleteTimeEntry = useCrudMutation({
     mutationFn: (timeEntryId: number) => api.timeEntries.remove(selectedProject!.id, timeEntryId),
-    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    invalidateKey: queryKeys.timeEntries.all(projectId ?? 0),
     successMessage: "Entree supprimee",
     onSuccess: () => setDeletingEntry(null),
   });
@@ -198,14 +198,14 @@ function TimeView({
         pay_full: values.mode === "full",
         amount: values.mode === "partial" ? values.amount : undefined,
       }),
-    invalidateKey: [queryKeys.timeEntries.all(selectedProject!.id), queryKeys.financialEntries.all(selectedProject!.id)],
+    invalidateKey: [queryKeys.timeEntries.all(projectId ?? 0), queryKeys.financialEntries.all(projectId ?? 0)],
     successMessage: "Paiement enregistre",
     onSuccess: () => setPaymentTarget(null),
   });
   const correctTimeEntryPayment = useCrudMutation({
     mutationFn: (amount: string) =>
       api.timeEntries.correctPayment(selectedProject!.id, correctionTarget!.id, { amount }),
-    invalidateKey: [queryKeys.timeEntries.all(selectedProject!.id), queryKeys.financialEntries.all(selectedProject!.id)],
+    invalidateKey: [queryKeys.timeEntries.all(projectId ?? 0), queryKeys.financialEntries.all(projectId ?? 0)],
     successMessage: "Paiement corrige",
     onSuccess: () => setCorrectionTarget(null),
   });
@@ -220,7 +220,7 @@ function TimeView({
         task: data.task,
         documents: data.documentIds,
       }),
-    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    invalidateKey: queryKeys.timeEntries.all(projectId ?? 0),
     successMessage: "Temps mis a jour",
     onSuccess: () => setEditingEntry(null),
   });

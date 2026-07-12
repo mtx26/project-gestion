@@ -139,14 +139,14 @@ function FilesView({
   const createFolder = useCrudMutation({
     mutationFn: ({ name, parentFolder }: { name: string; parentFolder: number | null }) =>
       api.folders.create(selectedProject!.id, { name, parent_folder: parentFolder }),
-    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
     successMessage: "Dossier cree",
   });
 
   const uploadDocument = useCrudMutation({
     mutationFn: ({ file, folder }: { file: File; folder: number | null }) =>
       api.documents.upload(selectedProject!.id, { file, folder }),
-    invalidateKey: queryKeys.folders.allTree(selectedProject!.id),
+    invalidateKey: queryKeys.folders.allTree(selectedProjectId ?? 0),
     successMessage: "Document uploade",
   });
 
@@ -157,7 +157,7 @@ function FilesView({
 
   const deleteFolder = useCrudMutation({
     mutationFn: (folderId: number) => api.folders.remove(selectedProject!.id, folderId),
-    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
     successMessage: "Dossier supprime",
     onSuccess: (_data, folderId) => {
       setItemToDelete(null);
@@ -171,7 +171,7 @@ function FilesView({
 
   const deleteDocument = useCrudMutation({
     mutationFn: (documentId: number) => api.documents.remove(selectedProject!.id, documentId),
-    invalidateKey: queryKeys.folders.allTree(selectedProject!.id),
+    invalidateKey: queryKeys.folders.allTree(selectedProjectId ?? 0),
     successMessage: "Document supprime",
     onSuccess: () => setItemToDelete(null),
   });
@@ -181,7 +181,7 @@ function FilesView({
       target.type === "folder"
         ? api.folders.update(selectedProject!.id, target.id, { name })
         : api.documents.update(selectedProject!.id, target.id, { name }),
-    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
     successMessage: "Element renomme",
     onSuccess: () => {
       setItemToRename(null);
@@ -192,7 +192,7 @@ function FilesView({
   const moveFolder = useCrudMutation({
     mutationFn: ({ folderId, newParentId }: { folderId: number; newParentId: number | null }) =>
       api.folders.update(selectedProject!.id, folderId, { parent_folder: newParentId }),
-    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.folders.targetTree(selectedProject!.id)],
+    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
     successMessage: "Dossier deplace",
   });
 
@@ -206,7 +206,7 @@ function FilesView({
         status: "todo",
         end_date: values.endDate,
       }),
-    invalidateKey: [queryKeys.folders.allTree(selectedProject!.id), queryKeys.tasks.all(selectedProject!.id)],
+    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.tasks.all(selectedProjectId ?? 0)],
     successMessage: "Tache creee",
     onSuccess: () => setTaskDraftFolderId(null),
   });
@@ -221,7 +221,7 @@ function FilesView({
         hourly_rate: values.hourlyRate === "" ? undefined : values.hourlyRate,
         description: values.description,
       }),
-    invalidateKey: queryKeys.timeEntries.all(selectedProject!.id),
+    invalidateKey: queryKeys.timeEntries.all(selectedProjectId ?? 0),
     successMessage: "Temps enregistre",
     onSuccess: () => setTimeDraftFolderId(null),
   });
