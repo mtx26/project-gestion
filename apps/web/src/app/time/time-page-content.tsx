@@ -29,12 +29,13 @@ import {
 import { parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
+import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { PaginationBar } from "@/components/pagination-bar";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
 import { TimeEntryList } from "./components/time-entry-list";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
-import { FilterFolderPicker, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
@@ -75,6 +76,7 @@ function TimeView({
   const defaultUserFilter: UserFilter = canViewAllTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
+  const searchFromUrl = searchParams.get("search") ?? "";
   const dateFrom = searchParams.get("date_from") ?? undefined;
   const dateTo = searchParams.get("date_to") ?? undefined;
   const targetFilter = parseTargetFilter(searchParams.get("target"));
@@ -102,6 +104,7 @@ function TimeView({
   const page = parsePageParam(searchParams.get("page"));
 
   const updateUrlFilter = useUrlFilter("/time", searchParams, projectId);
+  const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } = useProjectResources(projectId, {
     canView: canViewTime,
     canEdit: canRecordTime,
@@ -117,6 +120,7 @@ function TimeView({
           includePaid,
           paymentStatus: paymentStatusFilter,
           target: targetFilter ?? undefined,
+          search: searchFromUrl || undefined,
           page,
         })
       : queryKeys.disabled(),
@@ -128,6 +132,7 @@ function TimeView({
         include_paid: includePaid,
         payment_status: paymentStatusFilter,
         target: targetFilter ?? undefined,
+        search: searchFromUrl || undefined,
         page,
       }),
     enabled: Boolean(projectId && canViewTime),
@@ -265,17 +270,16 @@ function TimeView({
 
       {canViewTime ? (
         <CollapsibleFilterBar
-          primary={
-            <FilterPeriodPicker
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
-            />
-          }
-          activeCount={[canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includePaid].filter(Boolean).length}
+          primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
+          activeCount={[Boolean(dateFrom), canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includePaid].filter(Boolean).length}
           clearPath="/time"
-          clearKeys={["period", "date_from", "date_to", "user", "payment", "target", "include_paid", "page"]}
+          clearKeys={["search", "date_from", "date_to", "user", "payment", "target", "include_paid", "page"]}
         >
+          <FilterPeriodPicker
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
+          />
           <FilterSelect
             value={paymentStatusFilter}
             onValueChange={(v) => updateUrlFilter({ payment: v, ...(v === "paid" ? { include_paid: true } : {}) })}

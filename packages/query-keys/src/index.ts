@@ -120,6 +120,7 @@ export const queryKeys = {
         includePaid?: boolean;
         paymentStatus?: string;
         target?: string;
+        search?: string;
         page?: number;
       } = {},
     ) =>
@@ -130,6 +131,7 @@ export const queryKeys = {
         includePaid: query.includePaid ?? false,
         paymentStatus: query.paymentStatus ?? "all",
         target: query.target ?? "",
+        search: query.search ?? "",
         page: query.page ?? 1,
       }] as const,
     stats: (

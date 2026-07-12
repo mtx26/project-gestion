@@ -362,6 +362,7 @@ export function createApiClient({
           include_paid?: boolean;
           payment_status?: string;
           target?: string;
+          search?: string;
           page?: number;
         } = {},
       ) =>
@@ -373,6 +374,7 @@ export function createApiClient({
             include_paid: query.include_paid ? "true" : undefined,
             payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
             target: query.target && query.target !== "project" ? query.target : undefined,
+            search: query.search || undefined,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
           })}`,
         ),
