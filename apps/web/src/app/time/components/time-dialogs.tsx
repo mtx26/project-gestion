@@ -66,7 +66,7 @@ export function TimeEntryFormDialog({
   targetFolders,
   isPending,
   error,
-  onCreateFolder,
+  onCreateFolderAction,
   onOpenChange,
   onSubmit,
 }: {
@@ -79,7 +79,7 @@ export function TimeEntryFormDialog({
   targetFolders: FolderTreeNode[];
   isPending: boolean;
   error: unknown;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TimeEntrySubmitData) => void;
 }) {
@@ -207,7 +207,7 @@ export function TimeEntryFormDialog({
             folders={targetFolders}
             value={targetValue}
             onChange={setTargetValue}
-            onCreateFolder={onCreateFolder}
+            onCreateFolderAction={onCreateFolderAction}
           />
 
           <Field>

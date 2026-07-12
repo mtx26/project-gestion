@@ -301,7 +301,7 @@ function TimeView({
             buttonLabel={filterFolderLabel ?? "Tous dossiers"}
             description="Filtrer les entrées de temps par dossier."
             onSelect={(folderId) => updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })}
-            onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
+            onCreateFolderAction={canRecordTime ? handleCreateFolder : undefined}
           />
           <FilterToggle pressed={includePaid} onPressedChange={(v) => updateUrlFilter({ include_paid: v })}>
             Inclure payés
@@ -380,7 +380,7 @@ function TimeView({
         targetFolders={targetFolders}
         isPending={createTimeEntry.isPending}
         error={createTimeEntry.error}
-        onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
+        onCreateFolderAction={canRecordTime ? handleCreateFolder : undefined}
         onOpenChange={(open) => { setTimeFormOpen(open); if (!open) createTimeEntry.reset(); }}
         onSubmit={(data) => { if (selectedProject && user && canRecordTime) createTimeEntry.mutate(data); }}
       />
@@ -409,7 +409,7 @@ function TimeView({
         targetFolders={targetFolders}
         isPending={updateTimeEntry.isPending}
         error={updateTimeEntry.error}
-        onCreateFolder={canRecordTime ? handleCreateFolder : undefined}
+        onCreateFolderAction={canRecordTime ? handleCreateFolder : undefined}
         onOpenChange={(open) => { if (!open) { setEditingEntry(null); updateTimeEntry.reset(); } }}
         onSubmit={(data) => updateTimeEntry.mutate(data)}
       />

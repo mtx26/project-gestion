@@ -46,6 +46,7 @@ from .views.documents import (
     DocumentRestoreView,
 )
 from .views.tasks import (
+    DayEntryCreateView,
     TaskListCreateView,
     TaskDetailView,
     TaskTrashListView,
@@ -119,6 +120,7 @@ urlpatterns = [
     path("projects/<int:project_id>/tasks/trash/", TaskTrashListView.as_view(), name="project-tasks-trash"),
     path("projects/<int:project_id>/tasks/<int:pk>/", TaskDetailView.as_view(), name="project-task-detail"),
     path("projects/<int:project_id>/tasks/<int:pk>/restore/", TaskRestoreView.as_view(), name="project-task-restore"),
+    path("projects/<int:project_id>/day-entries/", DayEntryCreateView.as_view(), name="project-day-entries"),
     # Time Entries
     path("projects/<int:project_id>/time-entries/", TimeEntryListCreateView.as_view(), name="project-time-entries"),
     path("projects/<int:project_id>/time-entries/stats/", TimeEntryStatsView.as_view(), name="project-time-entries-stats"),

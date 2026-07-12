@@ -33,7 +33,7 @@ export function ExpenseRequestFormDialog({
   targetFolders,
   error,
   isPending,
-  onCreateFolder,
+  onCreateFolderAction,
   onSubmit,
 }: {
   mode: "create" | "edit";
@@ -44,7 +44,7 @@ export function ExpenseRequestFormDialog({
   targetFolders: FolderTreeNode[];
   error: unknown;
   isPending: boolean;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: ExpenseRequestPayload) => void;
 }) {
   const initialTarget = request ? getTargetValueFromEntry(request) : "project";
@@ -134,7 +134,7 @@ export function ExpenseRequestFormDialog({
             folders={targetFolders}
             value={targetValue}
             onChange={setTargetValue}
-            onCreateFolder={onCreateFolder}
+            onCreateFolderAction={onCreateFolderAction}
           />
 
           <MultiDocumentAttachmentField

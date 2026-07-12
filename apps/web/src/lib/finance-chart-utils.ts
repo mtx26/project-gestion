@@ -1,6 +1,13 @@
+import type { FinancialEntry } from "@project-gestion/types";
+
 export const financeChartConfig = {
   expenses: { label: "Depenses", color: "var(--destructive)" },
   refunds: { label: "Remboursements", color: "oklch(0.6 0.15 150)" },
+};
+
+export const FINANCIAL_SOURCE_LABELS: Record<FinancialEntry["source"], string> = {
+  manual: "Manuel",
+  labor: "Main d'œuvre",
 };
 
 export function formatFinancePeriod(period: string): string {

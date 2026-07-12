@@ -84,13 +84,13 @@ export function TargetField({
   folders,
   value,
   onChange,
-  onCreateFolder,
+  onCreateFolderAction,
 }: {
   label?: string;
   folders: FolderTreeNode[];
   value: string;
   onChange: (value: string) => void;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
 }) {
   const selectedLabel = useMemo(() => findTargetLabel(folders, value) ?? "Projet", [folders, value]);
 
@@ -103,7 +103,7 @@ export function TargetField({
         selectedValue={value}
         selectedLabel={selectedLabel}
         onSelect={onChange}
-        onCreateFolder={onCreateFolder}
+        onCreateFolderAction={onCreateFolderAction}
       />
     </Field>
   );
@@ -116,7 +116,7 @@ type FolderOnlyProps = {
   selectedFolderId: number | null;
   buttonLabel: string;
   onSelect: (folderId: number | null) => void;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
 };
 
 type TargetProps = {
@@ -124,7 +124,7 @@ type TargetProps = {
   selectedValue: string;
   selectedLabel: string;
   onSelect: (value: string) => void;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
 };
 
 type CommonProps = {
@@ -140,7 +140,7 @@ export function TreePickerDialog(props: TreePickerProps) {
   const [includeCompleted, setIncludeCompleted] = useState(true);
   const [creatingInNode, setCreatingInNode] = useState<string | null>(null);
 
-  const onCreateFolder = props.onCreateFolder;
+  const onCreateFolderAction = props.onCreateFolderAction;
 
   const rootNode: PickerNode = useMemo(() => ({ type: "project", children: props.folders }), [props.folders]);
 
@@ -232,8 +232,8 @@ export function TreePickerDialog(props: TreePickerProps) {
             creatingInNode={creatingInNode}
             onToggle={toggleExpand}
             onSelect={handleSelect}
-            onStartCreate={onCreateFolder ? startCreate : undefined}
-            onConfirmCreate={onCreateFolder}
+            onStartCreate={onCreateFolderAction ? startCreate : undefined}
+            onConfirmCreate={onCreateFolderAction}
             onCancelCreate={() => setCreatingInNode(null)}
           />
         </div>

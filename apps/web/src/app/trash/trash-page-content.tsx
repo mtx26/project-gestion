@@ -294,7 +294,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
                 isLoading={financialEntriesTrash.isLoading}
                 canRestore={canRestoreFinance}
                 items={financialEntriesTrash.items}
-                getName={(e) => e.description || e.category || formatMoney(e.amount)}
+                getName={(e) => e.description || formatMoney(e.amount)}
                 getSubtitle={(e) => `${e.type === "expense" ? "Depense" : "Remboursement"} · ${formatMoney(e.amount)} · ${formatDeletedAt(e.deleted_at)}`}
                 onRestore={(e) => financialEntriesTrash.restore.mutate(e.id)}
                 isRestoring={financialEntriesTrash.restore.isPending}

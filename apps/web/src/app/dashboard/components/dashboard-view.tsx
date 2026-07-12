@@ -1,10 +1,13 @@
-import type { Project } from "@project-gestion/types";
+"use client";
+
+import type { DayEntryPayload, Project } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
-import { CheckCircle2, Clock3, Plus, Users, WalletCards } from "lucide-react";
+import { useState } from "react";
+import { CalendarCheck, CheckCircle2, Clock3, Plus, Users, WalletCards } from "lucide-react";
 import Link from "next/link";
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts";
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart";
@@ -13,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { InvitationStatusBadge } from "@/components/badges/invitation-status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DayEntryFormDialog } from "@/app/tasks/components/day-entry-dialog";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MemberAvatar } from "@/components/member-avatar";
@@ -23,7 +27,9 @@ import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { financeChartConfig, formatFinancePeriod } from "@/lib/finance-chart-utils";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
+import { useProjectResources } from "@/lib/use-project-resources";
 
 interface DashboardViewProps {
   project: Project | null;
@@ -42,24 +48,41 @@ export function DashboardView({
   const { can } = useProjectPermissions(project, userId);
   const canViewMembers = can(permissionCodes.memberView);
   const canViewFinance = can(permissionCodes.financeView);
+  const canViewFiles = can(permissionCodes.fileView);
   const canViewTasks = can(permissionCodes.taskView);
+  const canEditTasks = can(permissionCodes.taskEdit);
+  const canRecordTime = can(permissionCodes.timeEntryEdit);
   const canViewTime = can(permissionCodes.timeEntryView);
   const canViewAllTime = can(permissionCodes.timeEntryViewAll);
   const canPayTime = can(permissionCodes.timeEntryPay);
   const defaultTimeUserFilter = canViewAllTime && canPayTime ? "all" : "mine";
-  const membersQuery = useQuery({
-    queryKey: project ? queryKeys.members.list(project.id) : queryKeys.disabled(),
-    queryFn: () => api.members.list(project!.id),
-    enabled: Boolean(project && canViewMembers),
+  const [dayEntryDialogOpen, setDayEntryDialogOpen] = useState(false);
+  const { folders, members, handleCreateFolder } = useProjectResources(project?.id ?? null, {
+    canView: canViewFiles,
+    canEdit: canEditTasks,
+    canFetchMembers: canViewMembers,
   });
   const invitationsQuery = useQuery({
     queryKey: project ? queryKeys.invitations.all(project.id) : queryKeys.disabled(),
     queryFn: () => api.invitations.list(project!.id),
     enabled: Boolean(project && canViewMembers),
   });
+  // Same range as the finance page's default (current calendar year) so the
+  // two show the same figures instead of this one trailing an unbounded,
+  // unfiltered all-time window.
+  const currentYear = new Date().getFullYear();
+  const financeChartStartDate = `${currentYear}-01-01`;
+  const financeChartEndDate = `${currentYear}-12-31`;
   const financeQuery = useQuery({
-    queryKey: project ? queryKeys.financialEntries.chart(project.id, "month") : queryKeys.disabled(),
-    queryFn: () => api.financialEntries.chart(project!.id, { group_by: "month" }),
+    queryKey: project
+      ? queryKeys.financialEntries.chart(project.id, "month", financeChartStartDate, financeChartEndDate)
+      : queryKeys.disabled(),
+    queryFn: () =>
+      api.financialEntries.chart(project!.id, {
+        group_by: "month",
+        start_date: financeChartStartDate,
+        end_date: financeChartEndDate,
+      }),
     enabled: Boolean(project && canViewFinance),
   });
   const timeStatsQuery = useQuery({
@@ -81,7 +104,12 @@ export function DashboardView({
     enabled: Boolean(project && canViewTasks),
   });
   const urgentTasks = normalizeApiList(urgentTasksQuery.data).filter((t) => t.status !== "done");
-  const members = normalizeApiList(membersQuery.data);
+  const createDayEntry = useCrudMutation({
+    mutationFn: (payload: DayEntryPayload) => api.tasks.createDayEntry(project!.id, payload),
+    invalidateKey: project ? [queryKeys.tasks.all(project.id), queryKeys.timeEntries.all(project.id)] : undefined,
+    successMessage: "Entree de journee creee",
+    onSuccess: () => setDayEntryDialogOpen(false),
+  });
   const invitations = normalizeApiList(invitationsQuery.data);
   const financeChart = financeQuery.data;
   const financeTotals = financeChart?.totals ?? {
@@ -121,9 +149,25 @@ export function DashboardView({
               {project.description || "Aucune description pour ce projet."}
             </p>
           </div>
-
         </div>
       </section>
+
+      {canEditTasks && canRecordTime ? (
+        <Card className="rounded-lg border-primary/30 bg-primary/5">
+          <CardContent className="flex flex-col items-start gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <CalendarCheck className="size-5 shrink-0 text-primary" />
+              <div>
+                <p className="font-medium">Fin de journee de travail ?</p>
+                <p className="text-sm text-muted-foreground">Enregistre la tache et le temps de chaque personne en une fois.</p>
+              </div>
+            </div>
+            <Button type="button" className="gap-2" onClick={() => setDayEntryDialogOpen(true)}>
+              Nouvelle entree de journee
+            </Button>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {canViewTasks || canViewTime ? (
         <div className="grid gap-3 sm:grid-cols-2">
@@ -238,6 +282,19 @@ export function DashboardView({
         ) : null}
       </div>
       ) : null}
+
+      <DayEntryFormDialog
+        open={dayEntryDialogOpen}
+        projectId={project.id}
+        members={members}
+        folders={folders}
+        canViewFiles={canViewFiles}
+        isPending={createDayEntry.isPending}
+        error={createDayEntry.error}
+        onOpenChange={setDayEntryDialogOpen}
+        onCreateFolderAction={canEditTasks ? handleCreateFolder : undefined}
+        onSubmit={(payload) => { if (canEditTasks && canRecordTime) createDayEntry.mutate(payload); }}
+      />
     </div>
   );
 }
@@ -261,7 +318,7 @@ function FinanceTimelineChart({
 }: {
   points: Array<{ period: string; expenses: string; refunds: string; balance: string }>;
 }) {
-  const data = points.slice(-8).map((p) => ({
+  const data = points.map((p) => ({
     period: p.period,
     expenses: Number(p.expenses),
     refunds: Number(p.refunds),

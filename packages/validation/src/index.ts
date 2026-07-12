@@ -7,3 +7,4 @@ export * from "./task";
 export * from "./finance";
 export * from "./request";
 export * from "./time";
+export * from "./day-entry";

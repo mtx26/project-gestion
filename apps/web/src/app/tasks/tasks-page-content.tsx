@@ -129,22 +129,26 @@ function TasksView({
   const myTasksQuery = useQuery({
     queryKey: selectedProject && user
       ? queryKeys.tasks.list(selectedProject.id, {
+          search: searchFromUrl || undefined,
           status: statusFilter === "all" ? undefined : statusFilter,
           priority: priorityFilter === "all" ? undefined : priorityFilter,
           assignedTo: user.id,
           folderId: folderId ?? undefined,
           excludeDone: excludeDone || undefined,
+          ordering,
           dateFrom: dateFrom,
           dateTo: dateTo,
         })
       : queryKeys.disabled(),
     queryFn: () =>
       api.tasks.list(selectedProject!.id, {
+        search: searchFromUrl || undefined,
         ...(statusFilter === "all" ? {} : { status: statusFilter }),
         ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
         assigned_to: user!.id,
         ...(folderId == null ? {} : { folder: folderId }),
         exclude_done: excludeDone || undefined,
+        ordering,
         date_from: dateFrom,
         date_to: dateTo,
       }),
@@ -250,7 +254,7 @@ function TasksView({
             buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
             description="Filtrer les tâches par dossier."
             onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
-            onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
+            onCreateFolderAction={canEditTasks ? handleCreateFolder : undefined}
           />
         ) : null}
         <FilterToggle
@@ -339,7 +343,7 @@ function TasksView({
         isPending={createTask.isPending}
         error={createTask.error}
         onOpenChange={setCreateDialogOpen}
-        onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
+        onCreateFolderAction={canEditTasks ? handleCreateFolder : undefined}
         onSubmit={(payload) => { if (selectedProject && canEditTasks) createTask.mutate(payload); }}
       />
       <TaskFormDialog
@@ -353,7 +357,7 @@ function TasksView({
         isPending={updateTask.isPending}
         error={updateTask.error}
         onOpenChange={(open) => { if (!open) setEditingTask(null); }}
-        onCreateFolder={canEditTasks ? handleCreateFolder : undefined}
+        onCreateFolderAction={canEditTasks ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingTask && updateTask.mutate({ taskId: editingTask.id, payload })}
       />
       <TaskDetailModal

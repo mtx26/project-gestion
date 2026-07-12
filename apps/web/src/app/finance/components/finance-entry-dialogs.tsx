@@ -13,7 +13,6 @@ import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
-import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -24,6 +23,7 @@ import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailModal, EntryCategorySection, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
+import { FINANCIAL_SOURCE_LABELS } from "@/lib/finance-chart-utils";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 export function FinancialEntryFormDialog({
@@ -35,7 +35,7 @@ export function FinancialEntryFormDialog({
   targetFolders,
   error,
   isPending,
-  onCreateFolder,
+  onCreateFolderAction,
   onSubmit,
 }: {
   mode: "create" | "edit";
@@ -46,7 +46,7 @@ export function FinancialEntryFormDialog({
   targetFolders: FolderTreeNode[];
   error: unknown;
   isPending: boolean;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
   onSubmit: (payload: FinancialEntryPayload) => void;
 }) {
   const initialTarget = entry ? getTargetValueFromEntry(entry) : "project";
@@ -57,7 +57,6 @@ export function FinancialEntryFormDialog({
       type: entry?.type ?? "expense",
       amount: String(entry?.amount ?? ""),
       date: entry?.date ?? new Date().toISOString().split("T")[0],
-      category: entry?.category ?? "",
       description: entry?.description ?? "",
     },
   });
@@ -66,7 +65,7 @@ export function FinancialEntryFormDialog({
     entry?.documents_info ?? [],
   );
 
-  useServerFieldErrors(form, error, ["type", "amount", "date", "category", "description"]);
+  useServerFieldErrors(form, error, ["type", "amount", "date", "description"]);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -145,11 +144,6 @@ export function FinancialEntryFormDialog({
           </Field>
 
           <Field>
-            <FieldLabel htmlFor="entry-category">Categorie</FieldLabel>
-            <Input id="entry-category" type="text" placeholder="Ex: Transport, Materiel…" {...form.register("category")} />
-          </Field>
-
-          <Field>
             <FieldLabel htmlFor="entry-description">Description</FieldLabel>
             <Textarea id="entry-description" rows={2} placeholder="Details optionnels…" {...form.register("description")} />
           </Field>
@@ -159,7 +153,7 @@ export function FinancialEntryFormDialog({
             folders={targetFolders}
             value={targetValue}
             onChange={setTargetValue}
-            onCreateFolder={onCreateFolder}
+            onCreateFolderAction={onCreateFolderAction}
           />
 
           <MultiDocumentAttachmentField
@@ -208,7 +202,7 @@ export function FinancialEntryDetailModal({
           </ModalHero>
 
           <EntryCategorySection
-            category={entry.category}
+            category={FINANCIAL_SOURCE_LABELS[entry.source]}
             description={entry.description}
             target={getEntryTarget(entry)}
           />

@@ -28,6 +28,7 @@ import { PageHeader } from "@/components/page-title";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TimeEntryDetailModal } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
+import { FINANCIAL_SOURCE_LABELS } from "@/lib/finance-chart-utils";
 import { formatMoney } from "@/lib/task-utils";
 import { parseEnumParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
@@ -38,7 +39,7 @@ import { useSearchParam } from "@/lib/use-search-param";
 import { useUrlFilter } from "@/lib/use-url-filter";
 import { FinanceBarChart } from "./components/finance-bar-chart";
 import { FinancialEntryDetailModal, FinancialEntryFormDialog } from "./components/finance-entry-dialogs";
-import { parseTypeFilter } from "./lib/finance-filters";
+import { parseSourceFilter, parseTypeFilter } from "./lib/finance-filters";
 
 export function FinancePageContent() {
   return (
@@ -73,6 +74,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
   const dateFrom = searchParams.get("date_from") ?? undefined;
   const dateTo = searchParams.get("date_to") ?? undefined;
   const typeFilter = parseTypeFilter(searchParams.get("type"));
+  const sourceFilter = parseSourceFilter(searchParams.get("source"));
   const userFilterId = parseIdParam(searchParams.get("member"));
   const folderFilterId = parseIdParam(searchParams.get("folder"));
   const ordering = parseEnumParam(searchParams.get("ordering"), ["created_at", "-amount", "amount"] as const, "all");
@@ -89,13 +91,20 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
     useProjectResources(projectId, { canView: canViewFinance, canEdit: canEditFinance, canFetchMembers: canViewFinance });
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
-  const chartStartDate = new Date();
-  chartStartDate.setFullYear(chartStartDate.getFullYear() - 1);
-  const chartStartDateStr = chartStartDate.toISOString().slice(0, 10);
+  const currentYear = new Date().getFullYear();
+  const chartStartDateStr = dateFrom || `${currentYear}-01-01`;
+  const chartEndDateStr = dateTo || `${currentYear}-12-31`;
 
   const chartQuery = useQuery({
-    queryKey: projectId ? queryKeys.financialEntries.chart(projectId, "month", chartStartDateStr) : queryKeys.disabled(),
-    queryFn: () => api.financialEntries.chart(projectId!, { group_by: "month", start_date: chartStartDateStr }),
+    queryKey: projectId
+      ? queryKeys.financialEntries.chart(projectId, "month", chartStartDateStr, chartEndDateStr)
+      : queryKeys.disabled(),
+    queryFn: () =>
+      api.financialEntries.chart(projectId!, {
+        group_by: "month",
+        start_date: chartStartDateStr,
+        end_date: chartEndDateStr,
+      }),
     enabled: Boolean(projectId && canViewFinance),
   });
 
@@ -104,6 +113,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
       ? queryKeys.financialEntries.list(projectId, {
           search: searchFromUrl || undefined,
           type: typeFilter !== "all" ? typeFilter : undefined,
+          source: sourceFilter !== "all" ? sourceFilter : undefined,
           createdBy: userFilterId ?? undefined,
           folder: folderFilterId ?? undefined,
           ordering: ordering !== "all" ? ordering : undefined,
@@ -116,6 +126,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
       api.financialEntries.list(projectId!, {
         search: searchFromUrl || undefined,
         type: typeFilter !== "all" ? typeFilter : undefined,
+        source: sourceFilter !== "all" ? sourceFilter : undefined,
         created_by: userFilterId ?? undefined,
         folder: folderFilterId ?? undefined,
         ordering: ordering !== "all" ? ordering : undefined,
@@ -196,9 +207,9 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
-        activeCount={[Boolean(dateFrom), typeFilter !== "all", userFilterId !== null, folderFilterId !== null, ordering !== "all"].filter(Boolean).length}
+        activeCount={[Boolean(dateFrom), typeFilter !== "all", sourceFilter !== "all", userFilterId !== null, folderFilterId !== null, ordering !== "all"].filter(Boolean).length}
         clearPath="/finance"
-        clearKeys={["search", "date_from", "date_to", "type", "member", "folder", "ordering", "page"]}
+        clearKeys={["search", "date_from", "date_to", "type", "source", "member", "folder", "ordering", "page"]}
       >
         <FilterPeriodPicker
           dateFrom={dateFrom}
@@ -209,6 +220,11 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
           <SelectItem value="all">Tous types</SelectItem>
           <SelectItem value="expense">Dépenses</SelectItem>
           <SelectItem value="refund">Remboursements</SelectItem>
+        </FilterSelect>
+        <FilterSelect value={sourceFilter} onValueChange={(v) => updateUrlFilter({ source: v })}>
+          <SelectItem value="all">Toutes origines</SelectItem>
+          <SelectItem value="manual">Manuel</SelectItem>
+          <SelectItem value="labor">Main d&apos;œuvre</SelectItem>
         </FilterSelect>
         <MemberFilterSelect
           members={members}
@@ -224,7 +240,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
           buttonLabel={folderFilterName ?? "Tous dossiers"}
           description="Filtrer les entrées par dossier."
           onSelect={(id) => updateUrlFilter({ folder: id })}
-          onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
+          onCreateFolderAction={canEditFinance ? handleCreateFolder : undefined}
         />
         <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
           <SelectItem value="all">Date récente</SelectItem>
@@ -268,9 +284,9 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
                   <span className="font-semibold tabular-nums">
                     {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
                   </span>
-                  {entry.category ? (
-                    <span className="truncate text-sm text-muted-foreground">{entry.category}</span>
-                  ) : null}
+                  <span className="truncate text-sm text-muted-foreground">
+                    {FINANCIAL_SOURCE_LABELS[entry.source]}
+                  </span>
                 </div>
                 {entry.description ? (
                   <p className="truncate text-sm text-muted-foreground">{entry.description}</p>
@@ -310,7 +326,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
         targetFolders={targetFolders}
         error={createEntry.error}
         isPending={createEntry.isPending}
-        onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
+        onCreateFolderAction={canEditFinance ? handleCreateFolder : undefined}
         onSubmit={(payload) => createEntry.mutate(payload)}
       />
       <FinancialEntryFormDialog
@@ -323,7 +339,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
         targetFolders={targetFolders}
         error={updateEntry.error}
         isPending={updateEntry.isPending}
-        onCreateFolder={canEditFinance ? handleCreateFolder : undefined}
+        onCreateFolderAction={canEditFinance ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingEntry && updateEntry.mutate({ id: editingEntry.id, payload })}
       />
       <ConfirmDeleteDialog

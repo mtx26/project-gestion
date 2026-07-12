@@ -19,6 +19,7 @@ import {
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { ProjectAccessGate } from "@/components/states/project-access-gate";
@@ -47,6 +48,7 @@ import { findFolderName, findFolderNode, isFolderDescendantOf } from "@/lib/fold
 import { buildProjectHref } from "@/lib/url-params";
 import { addToSet, toggleSetValue } from "@/lib/utils";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
+import { validateDocumentFile } from "@/lib/use-document-attachment";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { FileTree } from "./components/file-tree";
 import { FileDraftDialogs } from "./components/file-draft-dialogs";
@@ -408,7 +410,14 @@ function FilesView({
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
-                    if (file) uploadDocument.mutate({ file, folder: targetFolderId });
+                    if (file) {
+                      const rejection = validateDocumentFile(file);
+                      if (rejection) {
+                        toast.error(rejection);
+                      } else {
+                        uploadDocument.mutate({ file, folder: targetFolderId });
+                      }
+                    }
                     e.target.value = "";
                   }}
                 />
@@ -531,7 +540,7 @@ function FilesView({
         onTaskOpenChange={(open) => { if (!open) setTaskDraftFolderId(null); }}
         onTaskFolderChange={setTaskDraftFolderId}
         onTaskSubmit={(values: TaskDraftFormValues) => { if (canEditTasks) createTask.mutate(values); }}
-        onCreateFolder={canEditFiles ? handleCreateFolder : undefined}
+        onCreateFolderAction={canEditFiles ? handleCreateFolder : undefined}
         timeOpen={timeDraftFolderId != null}
         timeFolderName={findFolderName(treeQuery.data ?? [], timeDraftFolderId)}
         timeDefaultHourlyRate={user?.profile?.default_hourly_rate ?? "0"}

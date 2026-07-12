@@ -2,16 +2,17 @@ from django.db.models import Q
 from django.shortcuts import get_object_or_404
 
 import django_filters
-from rest_framework import generics
+from rest_framework import generics, status
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 
-from ..models import Task
 from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
-from ..serializers import TaskSerializer
+from ..models import Task
+from ..serializers import DayEntryCreateSerializer, TaskSerializer
 from ..services.projects import get_accessible_projects
 from ..services.tasks import get_project_deleted_tasks, get_project_tasks
 from ..utils import FolderScopedFilterSet, StableOrderingFilter
@@ -200,3 +201,41 @@ class TaskRestoreView(RestoreModelMixin, generics.GenericAPIView):
             return Task.deleted_objects.none()
 
         return get_project_deleted_tasks(self.request.user, self.kwargs["project_id"])
+
+
+@extend_schema(tags=["tasks"])
+@extend_schema_view(
+    post=extend_schema(
+        summary="Créer une entrée de journée",
+        description=(
+            "Crée une tâche déjà marquée terminée et une entrée de temps par personne "
+            "listée dans `entries`, en une seule action (fin de journée de travail).\n"
+            "Permissions requises : `task.edit` et `time_entry.edit`."
+        ),
+        request=DayEntryCreateSerializer,
+        responses=DayEntryCreateSerializer,
+    )
+)
+class DayEntryCreateView(generics.GenericAPIView):
+    serializer_class = DayEntryCreateSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = ["task.edit", "time_entry.edit"]
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+
+        if getattr(self, "swagger_fake_view", False):
+            return context
+
+        project = get_object_or_404(
+            get_accessible_projects(self.request.user),
+            pk=self.kwargs["project_id"],
+        )
+        context["project"] = project
+        return context
+
+    def post(self, request, project_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        return Response(self.get_serializer(result).data, status=status.HTTP_201_CREATED)

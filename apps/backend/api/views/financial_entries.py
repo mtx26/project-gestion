@@ -17,6 +17,7 @@ from ..serializers import (
     FinancialEntrySerializer,
 )
 from ..services.financial_entries import (
+    FINANCIAL_ENTRY_SOURCES,
     build_financial_entry_chart,
     get_project_deleted_financial_entries,
     get_project_financial_entries,
@@ -29,10 +30,19 @@ from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 class FinancialEntryFilter(FolderScopedFilterSet):
     date_from = django_filters.DateFilter(field_name="created_at__date", lookup_expr="gte")
     date_to = django_filters.DateFilter(field_name="created_at__date", lookup_expr="lte")
+    source = django_filters.ChoiceFilter(
+        choices=[(v, v) for v in FINANCIAL_ENTRY_SOURCES],
+        method="filter_source",
+    )
 
     class Meta:
         model = FinancialEntry
         fields = ["type", "created_by"]
+
+    def filter_source(self, queryset, name, value):
+        if value == "manual":
+            return queryset.filter(time_entry__isnull=True)
+        return queryset.filter(time_entry__isnull=False)
 
 
 @extend_schema(tags=["finance"])
@@ -41,8 +51,8 @@ class FinancialEntryFilter(FolderScopedFilterSet):
         summary="Lister les entrées financières d'un projet",
         description=(
             "Retourne toutes les entrées financières actives d'un projet.\n\n"
-            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `type`, `created_by`.\n\n"
-            "- Recherche disponible : `search` sur `category` et `description`.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `type`, `created_by`, `source`.\n\n"
+            "- Recherche disponible : `search` sur `description`.\n\n"
             "- Tri disponible : `ordering` sur `amount`, `created_at`. Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `finance.view`."
@@ -59,7 +69,7 @@ class FinancialEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCre
     permission_codes_by_method = {"GET": "finance.view", "POST": "finance.edit"}
     filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = FinancialEntryFilter
-    search_fields = ["category", "description"]
+    search_fields = ["description"]
     ordering_fields = ["amount", "created_at"]
 
     def get_queryset(self):
@@ -83,7 +93,7 @@ class FinancialEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCre
         summary="Données de graphique financier d'un projet",
         description=(
             "Retourne les totaux financiers actifs d'un projet, une série temporelle "
-            "et une répartition par catégorie.\n\n"
+            "et une répartition par origine (manuel / main d'œuvre).\n\n"
             "- Paramètres disponibles : `group_by=month|day`, `start_date`, `end_date`.\n\n"
             "- Permission requise : `finance.view`."
         ),
@@ -116,7 +126,7 @@ class FinancialEntryChartView(generics.GenericAPIView):
         chart_data = build_financial_entry_chart(
             entries.order_by("created_at", "id").values(
                 "amount",
-                "category",
+                "time_entry",
                 "created_at",
                 "type",
             ),
@@ -170,8 +180,8 @@ class FinancialEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMix
         summary="Lister les entrées financières supprimées",
         description=(
             "Retourne les entrées financières supprimées d'un projet.\n\n"
-            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `type`, `created_by`.\n\n"
-            "- Recherche disponible : `search` sur `category` et `description`.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `type`, `created_by`, `source`.\n\n"
+            "- Recherche disponible : `search` sur `description`.\n\n"
             "- Tri disponible : `ordering` sur `amount`, `created_at`. Préfixer avec `-` pour ordre descendant.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `finance.restore`."
@@ -184,7 +194,7 @@ class FinancialEntryTrashListView(generics.ListAPIView):
     permission_code = "finance.restore"
     filter_backends = [DjangoFilterBackend, SearchFilter, StableOrderingFilter]
     filterset_class = FinancialEntryFilter
-    search_fields = ["category", "description"]
+    search_fields = ["description"]
     ordering_fields = ["amount", "created_at"]
 
     def get_queryset(self):

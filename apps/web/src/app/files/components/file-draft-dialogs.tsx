@@ -35,7 +35,7 @@ export function FileDraftDialogs(props: {
   onTaskOpenChange: (open: boolean) => void;
   onTaskFolderChange: (folderId: number | null) => void;
   onTaskSubmit: (data: TaskDraftFormValues) => void;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
   timeOpen: boolean;
   timeFolderName: string | null;
   timeDefaultHourlyRate: string;
@@ -56,7 +56,7 @@ export function FileDraftDialogs(props: {
         onOpenChange={props.onTaskOpenChange}
         onFolderChange={props.onTaskFolderChange}
         onSubmit={props.onTaskSubmit}
-        onCreateFolder={props.onCreateFolder}
+        onCreateFolderAction={props.onCreateFolderAction}
       />
       <TimeDraftDialog
         open={props.timeOpen}
@@ -81,7 +81,7 @@ export function TaskDraftDialog({
   onOpenChange,
   onFolderChange,
   onSubmit,
-  onCreateFolder,
+  onCreateFolderAction,
 }: {
   open: boolean;
   folderName: string | null;
@@ -92,7 +92,7 @@ export function TaskDraftDialog({
   onOpenChange: (open: boolean) => void;
   onFolderChange: (folderId: number | null) => void;
   onSubmit: (data: TaskDraftFormValues) => void;
-  onCreateFolder?: (name: string, parentId: number | null) => Promise<void>;
+  onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
 }) {
   const form = useForm<TaskDraftFormInput, unknown, TaskDraftFormValues>({
     resolver: zodResolver(taskDraftSchema),
@@ -138,7 +138,7 @@ export function TaskDraftDialog({
             buttonLabel={folderName ?? "Projet"}
             description="Selectionne le dossier qui recevra la tache."
             onSelect={onFolderChange}
-            onCreateFolder={onCreateFolder}
+            onCreateFolderAction={onCreateFolderAction}
           />
         </Field>
         <Field>

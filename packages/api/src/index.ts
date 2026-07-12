@@ -1,6 +1,8 @@
 import type {
   ApiFieldErrors,
   AuthTokens,
+  DayEntryPayload,
+  DayEntryResult,
   ExpenseRequest,
   ExpenseRequestPayload,
   FinancialEntryChart,
@@ -302,11 +304,12 @@ export function createApiClient({
     financialEntries: {
       list: (
         projectId: number,
-        query: { type?: string; folder?: number; created_by?: number; ordering?: string; page?: number; search?: string; date_from?: string; date_to?: string } = {},
+        query: { type?: string; source?: "manual" | "labor"; folder?: number; created_by?: number; ordering?: string; page?: number; search?: string; date_from?: string; date_to?: string } = {},
       ) =>
         request<FinancialEntry[] | PaginatedResponse<FinancialEntry>>(
           `/api/projects/${projectId}/financial-entries/${buildQueryString({
             type: query.type,
+            source: query.source,
             folder: query.folder != null ? String(query.folder) : undefined,
             created_by: query.created_by != null ? String(query.created_by) : undefined,
             ordering: query.ordering || undefined,
@@ -485,6 +488,11 @@ export function createApiClient({
         ),
       restore: (projectId: number, taskId: number) =>
         request<Task>(`/api/projects/${projectId}/tasks/${taskId}/restore/`, { method: "POST" }),
+      createDayEntry: (projectId: number, payload: DayEntryPayload) =>
+        request<DayEntryResult>(`/api/projects/${projectId}/day-entries/`, {
+          method: "POST",
+          body: payload,
+        }),
     },
     folders: {
       tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>

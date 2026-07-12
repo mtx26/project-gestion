@@ -27,7 +27,6 @@ def approve_expense_request(expense_request, approved_by):
             created_by=approved_by,
             amount=expense_request.amount,
             type=FinancialEntry.FinancialType.EXPENSE,
-            category=expense_request.category,
             description=expense_request.title,
         )
         if expense_request.documents.exists():

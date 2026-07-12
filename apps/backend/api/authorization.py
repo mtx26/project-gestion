@@ -29,7 +29,9 @@ OWNER_ONLY = "__owner__"
 
 class ProjectAuthorization:
     """What `user` may do on `project`: everything if they own it, otherwise only
-    what their role's active `RolePermission` rows grant."""
+    what their role's active `RolePermission` rows grant. Use `has_all` over
+    several `has` calls when a single action needs more than one code — it's
+    one query instead of one per code."""
 
     def __init__(self, user, project):
         self.user = user
@@ -50,6 +52,27 @@ class ProjectAuthorization:
         if self.is_owner:
             return True
         return Permission.objects.for_user_on_project(self.user, self.project).filter(code=code).exists()
+
+    def has_all(self, codes):
+        """Like `has`, but for several codes at once — one query instead of one
+        per code (used when a single action needs more than one permission,
+        e.g. creating a task and recording time together)."""
+        codes = set(codes)
+        if not codes:
+            return True
+        if self.is_owner:
+            return True
+        if OWNER_ONLY in codes:
+            # No non-owner can ever satisfy this — `OWNER_ONLY` isn't a real
+            # `Permission.code`, so skip the query rather than rely on it
+            # never matching one.
+            return False
+        granted = set(
+            Permission.objects.for_user_on_project(self.user, self.project)
+            .filter(code__in=codes)
+            .values_list("code", flat=True)
+        )
+        return codes.issubset(granted)
 
     def codes(self):
         return list(
@@ -131,7 +154,10 @@ class HasProjectPermission(BasePermission):
     the same request against the same project — `has_object_permission`'s `obj` always
     belongs to the `project_id` already resolved, since `get_queryset()` is itself
     scoped to that project. The result is cached on `view` so the second check reuses
-    it instead of re-querying project access and the RBAC permission code."""
+    it instead of re-querying project access and the RBAC permission code.
+
+    `permission_code` may be a single code or a list — a list requires all of them
+    (e.g. an action that both creates a task and records time)."""
 
     def has_permission(self, request, view):
         project_id = view.kwargs.get("project_id")
@@ -173,8 +199,5 @@ class HasProjectPermission(BasePermission):
         if permission_code is None:
             return True
 
-        auth = ProjectAuthorization(request.user, project)
-        if permission_code == OWNER_ONLY:
-            return auth.is_owner
-
-        return auth.has(permission_code)
+        codes = [permission_code] if isinstance(permission_code, str) else permission_code
+        return ProjectAuthorization(request.user, project).has_all(codes)

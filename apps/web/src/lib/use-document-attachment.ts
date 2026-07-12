@@ -9,7 +9,7 @@ import { getErrorMessage } from "@/lib/errors";
 /** Rejects up front what the backend's `validate_document_file` would reject anyway
  * (`api/services/storage.py`), so the user finds out before filling out the rest
  * of the form instead of after a failed submit. */
-function validateDocumentFile(file: globalThis.File): string | null {
+export function validateDocumentFile(file: globalThis.File): string | null {
   if (file.size > documentUploadLimits.maxSizeBytes) {
     const maxMb = Math.round(documentUploadLimits.maxSizeBytes / (1024 * 1024));
     return `${file.name} : le fichier depasse la taille maximale (${maxMb} Mo).`;

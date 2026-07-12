@@ -626,9 +626,8 @@ class FinancialEntry(BaseModel):
     date = models.DateField(null=True, blank=True)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     type = models.CharField(max_length=50, choices=FinancialType.choices, db_index=True)
-    category = models.CharField(max_length=100, blank=True, null=True)
     description = models.TextField(blank=True, null=True)
-    
+
     def clean(self):
         super().clean()
 

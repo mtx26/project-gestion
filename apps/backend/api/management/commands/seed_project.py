@@ -118,27 +118,6 @@ TASK_TEMPLATES = [
     ("Optimisation cold start Lambda", "todo", "normal"),
 ]
 
-FINANCIAL_CATEGORIES = [
-    "Hébergement cloud",
-    "Licences logiciels",
-    "Matériel informatique",
-    "Formation",
-    "Prestation externe",
-    "Marketing digital",
-    "Design graphique",
-    "Déplacements",
-    "Restauration",
-    "Fournitures bureau",
-    "Abonnements SaaS",
-    "Maintenance serveur",
-    "Consulting",
-    "Publicité",
-    "Événement client",
-    "Télécommunications",
-    "Assurance",
-    "Sous-traitance",
-]
-
 FINANCIAL_DESCRIPTIONS = [
     "Facture mensuelle",
     "Renouvellement annuel",
@@ -371,7 +350,6 @@ class Command(BaseCommand):
                 created_by=owner,
                 type=entry_type,
                 amount=amount,
-                category=random.choice(FINANCIAL_CATEGORIES),
                 description=random.choice(FINANCIAL_DESCRIPTIONS),
                 date=entry_date,
                 created_at=created_at,

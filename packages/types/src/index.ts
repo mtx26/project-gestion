@@ -255,6 +255,22 @@ export type TaskPayload = {
   end_date?: string | null;
 };
 
+export type DayEntryPayload = {
+  title: string;
+  description?: string;
+  folder?: ID | null;
+  priority?: "low" | "normal" | "high";
+  start_date: string;
+  end_date: string;
+  documents?: ID[];
+  entries: { user: ID; hourly_rate?: string }[];
+};
+
+export type DayEntryResult = {
+  task: Task;
+  time_entries: TimeEntry[];
+};
+
 export type TimeEntry = {
   id: ID;
   project: ID;
@@ -327,7 +343,7 @@ export type FinancialEntry = {
   date: string | null;
   amount: string;
   type: "expense" | "refund";
-  category: string | null;
+  source: "manual" | "labor";
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -339,7 +355,6 @@ export type FinancialEntryPayload = {
   date?: string | null;
   amount: string;
   type: "expense" | "refund";
-  category?: string | null;
   description?: string | null;
   folder?: ID | null;
   task?: ID | null;
@@ -390,8 +405,8 @@ export type FinancialEntryChartSeriesPoint = FinancialEntryChartTotals & {
   period: string;
 };
 
-export type FinancialEntryChartCategory = FinancialEntryChartTotals & {
-  category: string | null;
+export type FinancialEntryChartSource = FinancialEntryChartTotals & {
+  source: "manual" | "labor";
 };
 
 export type FinancialEntryChart = {
@@ -400,7 +415,7 @@ export type FinancialEntryChart = {
   end_date: string | null;
   totals: FinancialEntryChartTotals;
   series: FinancialEntryChartSeriesPoint[];
-  categories: FinancialEntryChartCategory[];
+  sources: FinancialEntryChartSource[];
 };
 
 export type PaginatedResponse<T> = {

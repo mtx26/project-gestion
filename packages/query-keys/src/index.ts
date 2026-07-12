@@ -28,9 +28,10 @@ export const queryKeys = {
   },
   financialEntries: {
     all: (projectId: number) => ["projects", projectId, "financial-entries"] as const,
-    list: (projectId: number, query: { type?: string; folder?: number; createdBy?: number; ordering?: string; page?: number; search?: string; dateFrom?: string; dateTo?: string } = {}) =>
+    list: (projectId: number, query: { type?: string; source?: string; folder?: number; createdBy?: number; ordering?: string; page?: number; search?: string; dateFrom?: string; dateTo?: string } = {}) =>
       ["projects", projectId, "financial-entries", {
         type: query.type ?? "all",
+        source: query.source ?? "all",
         folder: query.folder ?? "all",
         createdBy: query.createdBy ?? "all",
         ordering: query.ordering ?? "",
@@ -39,8 +40,8 @@ export const queryKeys = {
         dateFrom: query.dateFrom ?? "",
         dateTo: query.dateTo ?? "",
       }] as const,
-    chart: (projectId: number, groupBy: "day" | "month", startDate?: string) =>
-      ["projects", projectId, "financial-entries", "chart", groupBy, startDate ?? ""] as const,
+    chart: (projectId: number, groupBy: "day" | "month", startDate?: string, endDate?: string) =>
+      ["projects", projectId, "financial-entries", "chart", groupBy, startDate ?? "", endDate ?? ""] as const,
     trash: (projectId: number, page = 1) => ["projects", projectId, "financial-entries", "trash", page] as const,
   },
   documents: {

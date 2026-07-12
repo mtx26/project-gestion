@@ -203,7 +203,7 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
           buttonLabel={folderFilterName ?? "Tous dossiers"}
           description="Filtrer les demandes par dossier."
           onSelect={(id) => updateUrlFilter({ folder: id })}
-          onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
+          onCreateFolderAction={canEditRequests ? handleCreateFolder : undefined}
         />
         {statusFilter === "all" ? (
           <FilterToggle pressed={showRejected} onPressedChange={(pressed) => updateUrlFilter({ show_rejected: pressed })}>
@@ -308,7 +308,7 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
         targetFolders={targetFolders}
         error={createRequest.error}
         isPending={createRequest.isPending}
-        onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
+        onCreateFolderAction={canEditRequests ? handleCreateFolder : undefined}
         onSubmit={(payload) => createRequest.mutate(payload)}
       />
       <ExpenseRequestFormDialog
@@ -321,7 +321,7 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
         targetFolders={targetFolders}
         error={updateRequest.error}
         isPending={updateRequest.isPending}
-        onCreateFolder={canEditRequests ? handleCreateFolder : undefined}
+        onCreateFolderAction={canEditRequests ? handleCreateFolder : undefined}
         onSubmit={(payload) => editingRequest && updateRequest.mutate({ id: editingRequest.id, payload })}
       />
       <ConfirmDeleteDialog

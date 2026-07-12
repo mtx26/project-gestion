@@ -17,6 +17,7 @@ from .services.invitations import (
     create_project_invitation,
     normalize_invitation_email,
 )
+from .services.financial_entries import FINANCIAL_ENTRY_SOURCES, financial_entry_source
 from .services.storage import get_document_download_url
 from .utils import get_user_display_name
 
@@ -878,6 +879,53 @@ class TimeEntrySerializer(serializers.ModelSerializer):
         return str(value.quantize(Decimal("0.01")))
 
 
+class DayEntryPersonSerializer(serializers.Serializer):
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    hourly_rate = serializers.DecimalField(max_digits=10, decimal_places=2, required=False)
+
+
+class DayEntryCreateSerializer(serializers.Serializer):
+    """Cree une tache deja terminee et une TimeEntry par personne en une seule
+    action (bouton "Nouvelle entree de journee") : voir `services.day_entries.
+    create_day_entry`, qui fait le travail reel dans une transaction. Toutes les
+    personnes listees partagent le meme `start_date`/`end_date` (donc la meme
+    duree) ; seul `hourly_rate` varie par personne."""
+
+    title = serializers.CharField(max_length=255, write_only=True)
+    description = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    folder = serializers.PrimaryKeyRelatedField(
+        queryset=Folder.objects.all(), required=False, allow_null=True, write_only=True,
+    )
+    priority = serializers.ChoiceField(choices=Task.Priority.choices, required=False, write_only=True)
+    start_date = serializers.DateTimeField(write_only=True)
+    end_date = serializers.DateTimeField(write_only=True)
+    documents = serializers.PrimaryKeyRelatedField(
+        many=True, queryset=Document.objects.all(), required=False, write_only=True,
+    )
+    entries = DayEntryPersonSerializer(many=True, write_only=True)
+    task = TaskSerializer(read_only=True)
+    time_entries = TimeEntrySerializer(many=True, read_only=True)
+
+    def validate_entries(self, value):
+        if not value:
+            raise serializers.ValidationError("errors.day_entry.entries_required")
+        return value
+
+    def validate(self, attrs):
+        if attrs["end_date"] <= attrs["start_date"]:
+            raise serializers.ValidationError({
+                "end_date": "errors.day_entry.end_date_before_start_date"
+            })
+        return attrs
+
+    def create(self, validated_data):
+        from .services.day_entries import create_day_entry
+
+        project = self.context["project"]
+        actor = self.context["request"].user
+        return create_day_entry(project=project, actor=actor, **validated_data)
+
+
 class TimeEntryPaymentSerializer(serializers.Serializer):
     amount = serializers.DecimalField(
         max_digits=10,
@@ -932,7 +980,6 @@ class TimeEntryPaymentSerializer(serializers.Serializer):
             created_by=request.user,
             amount=validated_data["amount"],
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="Main d'oeuvre",
             description=description,
         )
 
@@ -999,7 +1046,6 @@ class TimeEntryPaymentCorrectionSerializer(serializers.Serializer):
             created_by=request.user,
             amount=abs(delta),
             type=FinancialEntry.FinancialType.EXPENSE if delta > 0 else FinancialEntry.FinancialType.REFUND,
-            category="Correction de paiement",
         )
 
         return {
@@ -1018,6 +1064,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
     created_by_name = serializers.SerializerMethodField()
     time_entry_user_name = serializers.SerializerMethodField()
     documents_info = serializers.SerializerMethodField()
+    source = serializers.SerializerMethodField()
     documents = serializers.PrimaryKeyRelatedField(
         many=True, queryset=Document.objects.all(), required=False, write_only=True,
     )
@@ -1040,7 +1087,7 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
             "date",
             "amount",
             "type",
-            "category",
+            "source",
             "description",
             "created_at",
             "updated_at",
@@ -1070,6 +1117,9 @@ class FinancialEntrySerializer(serializers.ModelSerializer):
         if obj.time_entry_id and obj.time_entry:
             return get_user_display_name(obj.time_entry.user)
         return None
+
+    def get_source(self, obj):
+        return financial_entry_source(obj.time_entry_id is not None)
 
     def get_documents_info(self, obj):
         return [
@@ -1226,8 +1276,8 @@ class FinancialEntryChartSeriesPointSerializer(FinancialEntryChartTotalsSerializ
     period = serializers.CharField()
 
 
-class FinancialEntryChartCategorySerializer(FinancialEntryChartTotalsSerializer):
-    category = serializers.CharField(allow_null=True)
+class FinancialEntryChartSourceSerializer(FinancialEntryChartTotalsSerializer):
+    source = serializers.ChoiceField(choices=FINANCIAL_ENTRY_SOURCES)
 
 
 class FinancialEntryChartSerializer(serializers.Serializer):
@@ -1236,4 +1286,4 @@ class FinancialEntryChartSerializer(serializers.Serializer):
     end_date = serializers.DateField(allow_null=True)
     totals = FinancialEntryChartTotalsSerializer()
     series = FinancialEntryChartSeriesPointSerializer(many=True)
-    categories = FinancialEntryChartCategorySerializer(many=True)
+    sources = FinancialEntryChartSourceSerializer(many=True)

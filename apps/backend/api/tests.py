@@ -3154,6 +3154,156 @@ class TaskRestoreRoutePermissionTests(ProjectApiTestCase):
         self.assertIsNotNone(self.other_project_deleted_task.deleted_at)
 
 
+class DayEntryRoutePermissionTests(ProjectApiTestCase):
+    def setUp(self):
+        super().setUp()
+
+        self.folder = Folder.objects.create(
+            project=self.project,
+            name="Day entry folder",
+        )
+        self.other_project_folder = Folder.objects.create(
+            project=self.other_project,
+            name="Other day entry folder",
+        )
+        self.worker_a = User.objects.create_user(username="worker-a", email="worker-a@example.com")
+        self.worker_b = User.objects.create_user(username="worker-b", email="worker-b@example.com")
+        self.given_member_with_permissions([], user=self.worker_a)
+        self.given_member_with_permissions([], user=self.worker_b)
+        self.document = Document.objects.create(
+            project=self.project,
+            folder=self.folder,
+            name="Photo chantier",
+            file_id="day-entry-doc",
+            file_name="photo.jpg",
+        )
+        self.url = f"/api/projects/{self.project.id}/day-entries/"
+
+    # GIVEN
+    def default_payload(self, **overrides):
+        payload = {
+            "title": "Chantier termine",
+            "description": "Pose du carrelage",
+            "start_date": "2026-01-05T08:00:00Z",
+            "end_date": "2026-01-05T10:00:00Z",
+            "entries": [
+                {"user": self.worker_a.id},
+                {"user": self.worker_b.id, "hourly_rate": "30.00"},
+            ],
+        }
+        payload.update(overrides)
+        return payload
+
+    # WHEN
+    def when_create_day_entry(self, payload):
+        return self.api_post(self.url, payload)
+
+    # TESTS POST
+    def test_anonymous_cannot_create_day_entry(self):
+        response = self.when_create_day_entry(self.default_payload())
+
+        self.assert_unauthorized(response)
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 0)
+
+    def test_owner_can_create_day_entry(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_day_entry(self.default_payload())
+
+        self.assert_created(response)
+        data = self.response_data(response)
+        self.assertEqual(data["task"]["status"], "done")
+        self.assertIsNotNone(data["task"]["completed_at"])
+        self.assertCountEqual(data["task"]["assigned_to"], [self.worker_a.id, self.worker_b.id])
+        self.assertEqual(len(data["time_entries"]), 2)
+        self.assertTrue(all(e["duration_minutes"] == 120 for e in data["time_entries"]))
+
+        task = Task.objects.get(project=self.project, title="Chantier termine")
+        self.assertEqual(task.status, "done")
+        self.assertEqual(TimeEntry.objects.filter(task=task).count(), 2)
+        worker_b_entry = TimeEntry.objects.get(task=task, user=self.worker_b)
+        self.assertEqual(str(worker_b_entry.hourly_rate), "30.00")
+
+    def test_owner_can_create_day_entry_with_folder_and_documents(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_day_entry(
+            self.default_payload(folder=self.folder.id, documents=[self.document.id])
+        )
+
+        self.assert_created(response)
+        task = Task.objects.get(project=self.project, title="Chantier termine")
+        self.assertEqual(task.folder_id, self.folder.id)
+        self.assertEqual(list(task.documents.values_list("id", flat=True)), [self.document.id])
+
+    def test_member_with_both_permissions_can_create_day_entry(self):
+        self.given_member_authenticated(["task.edit", "time_entry.edit"])
+
+        response = self.when_create_day_entry(self.default_payload())
+
+        self.assert_created(response)
+
+    def test_member_without_time_entry_edit_cannot_create_day_entry(self):
+        self.given_member_authenticated(["task.edit"])
+
+        response = self.when_create_day_entry(self.default_payload())
+
+        self.assert_forbidden(response)
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 0)
+
+    def test_member_without_task_edit_cannot_create_day_entry(self):
+        self.given_member_authenticated(["time_entry.edit"])
+
+        response = self.when_create_day_entry(self.default_payload())
+
+        self.assert_forbidden(response)
+
+    def test_non_member_cannot_create_day_entry(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_create_day_entry(self.default_payload())
+
+        self.assert_forbidden(response)
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 0)
+
+    def test_create_rejects_empty_entries(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_day_entry(self.default_payload(entries=[]))
+
+        self.assert_bad_request(response)
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 0)
+
+    def test_create_rejects_user_not_project_member(self):
+        self.given_authenticated(self.owner)
+        outsider = User.objects.create_user(username="outsider", email="outsider@example.com")
+
+        response = self.when_create_day_entry(
+            self.default_payload(entries=[{"user": outsider.id}])
+        )
+
+        self.assert_bad_request(response)
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 0)
+
+    def test_create_rejects_end_date_before_start_date(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_day_entry(
+            self.default_payload(start_date="2026-01-05T10:00:00Z", end_date="2026-01-05T08:00:00Z")
+        )
+
+        self.assert_bad_request(response)
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 0)
+
+    def test_create_rejects_folder_from_another_project(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_day_entry(self.default_payload(folder=self.other_project_folder.id))
+
+        self.assert_bad_request(response)
+        self.assertEqual(Task.objects.filter(project=self.project).count(), 0)
+
+
 class TimeEntryRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()
@@ -3340,7 +3490,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="20.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Full payment",
         )
         self.given_authenticated(self.owner)
@@ -3366,7 +3515,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="20.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Full payment",
         )
         self.given_authenticated(self.owner)
@@ -3395,7 +3543,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="45.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Partial payment",
         )
         self.given_authenticated(self.owner)
@@ -3415,7 +3562,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="67.50",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Full payment",
         )
         self.given_authenticated(self.owner)
@@ -3435,7 +3581,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="67.50",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Full payment before refund",
         )
         FinancialEntry.objects.create(
@@ -3444,7 +3589,6 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="20.00",
             type=FinancialEntry.FinancialType.REFUND,
-            category="labor",
             description="Labor refund",
         )
         self.given_authenticated(self.owner)
@@ -3802,7 +3946,6 @@ class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
             created_by=self.owner,
             amount=Decimal("40.00"),
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="Main d'oeuvre",
         )
 
         self.assert_formulas_match()
@@ -3814,7 +3957,6 @@ class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
             created_by=self.owner,
             amount=Decimal("40.00"),
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="Main d'oeuvre",
         )
         FinancialEntry.objects.create(
             project=self.project,
@@ -3822,7 +3964,6 @@ class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
             created_by=self.owner,
             amount=Decimal("15.00"),
             type=FinancialEntry.FinancialType.REFUND,
-            category="Correction de paiement",
         )
 
         self.assert_formulas_match()
@@ -3834,7 +3975,6 @@ class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
             created_by=self.owner,
             amount=Decimal("100.00"),
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="Main d'oeuvre",
         )
 
         self.assert_formulas_match()
@@ -4046,7 +4186,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="120.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="material",
             description="Paint purchase",
         )
         self.expense.documents.set([self.document])
@@ -4055,7 +4194,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="30.00",
             type=FinancialEntry.FinancialType.REFUND,
-            category="material",
             description="Paint refund",
         )
         self.deleted_entry = FinancialEntry.objects.create(
@@ -4063,7 +4201,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="10.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="other",
             description="Deleted finance",
         )
         self.deleted_entry.soft_delete(self.owner)
@@ -4072,7 +4209,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.other_user,
             amount="80.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="other",
             description="Other project finance",
         )
         self.url = f"/api/projects/{self.project.id}/financial-entries/"
@@ -4149,13 +4285,21 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_financial_descriptions(response, ["Paint refund"])
 
-    def test_list_can_filter_by_category(self):
+    def test_list_can_filter_by_source(self):
+        FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.time_entry,
+            created_by=self.owner,
+            amount="50.00",
+            type=FinancialEntry.FinancialType.EXPENSE,
+            description="Labor payment",
+        )
         self.given_authenticated(self.owner)
 
-        response = self.when_list_financial_entries("?category=material")
+        response = self.when_list_financial_entries("?source=labor")
 
         self.assert_ok(response)
-        self.assert_visible_financial_descriptions(response, ["Paint purchase", "Paint refund"])
+        self.assert_visible_financial_descriptions(response, ["Labor payment"])
 
     def test_list_can_search_by_description(self):
         self.given_authenticated(self.owner)
@@ -4184,7 +4328,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             "documents": [self.document.id],
             "amount": "15.00",
             "type": "expense",
-            "category": "material",
             "description": "Created finance",
         })
 
@@ -4199,7 +4342,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_create_financial_entry({
             "amount": "25.00",
             "type": "expense",
-            "category": "labor",
             "description": "Partial time payment",
             "time_entry": self.time_entry.id,
         })
@@ -4224,7 +4366,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="25.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Existing time payment",
         )
         self.given_authenticated(self.owner)
@@ -4232,7 +4373,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_create_financial_entry({
             "amount": "30.00",
             "type": "expense",
-            "category": "labor",
             "description": "Too much time payment",
             "time_entry": self.time_entry.id,
         })
@@ -4247,7 +4387,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="25.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Existing partial time payment",
         )
         self.given_authenticated(self.owner)
@@ -4255,7 +4394,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_create_financial_entry({
             "amount": "25.00",
             "type": "expense",
-            "category": "labor",
             "description": "Exact remaining time payment",
             "time_entry": self.time_entry.id,
         })
@@ -4271,7 +4409,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="25.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Existing time payment",
         )
         self.given_authenticated(self.owner)
@@ -4279,7 +4416,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_create_financial_entry({
             "amount": "25.01",
             "type": "refund",
-            "category": "labor",
             "description": "Refund larger than paid amount",
             "time_entry": self.time_entry.id,
         })
@@ -4294,7 +4430,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="25.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Existing time payment",
         )
         self.given_authenticated(self.owner)
@@ -4302,7 +4437,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_create_financial_entry({
             "amount": "25.00",
             "type": "refund",
-            "category": "labor",
             "description": "Full refund of time payment",
             "time_entry": self.time_entry.id,
         })
@@ -4316,7 +4450,6 @@ class FinancialEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_create_financial_entry({
             "amount": "15.00",
             "type": "refund",
-            "category": "material",
             "description": "Member finance",
         })
 
@@ -4379,12 +4512,19 @@ class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
     def setUp(self):
         super().setUp()
 
+        self.chart_time_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Chart time",
+            start_date=timezone.now(),
+        )
         self.january_expense = FinancialEntry.objects.create(
             project=self.project,
             created_by=self.owner,
             amount="100.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="January labor",
         )
         self.january_refund = FinancialEntry.objects.create(
@@ -4392,15 +4532,14 @@ class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="25.00",
             type=FinancialEntry.FinancialType.REFUND,
-            category="labor",
             description="January refund",
         )
         self.february_expense = FinancialEntry.objects.create(
             project=self.project,
+            time_entry=self.chart_time_entry,
             created_by=self.owner,
             amount="50.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="material",
             description="February material",
         )
         self.deleted_entry = FinancialEntry.objects.create(
@@ -4408,7 +4547,6 @@ class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="900.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="deleted",
             description="Deleted chart entry",
         )
         self.deleted_entry.soft_delete(self.owner)
@@ -4417,7 +4555,6 @@ class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
             created_by=self.other_user,
             amount="800.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="other",
             description="Other project chart entry",
         )
 
@@ -4478,22 +4615,41 @@ class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
                 "balance": "50.00",
             },
         ])
-        self.assertEqual(data["categories"], [
+        self.assertEqual(data["sources"], [
             {
-                "category": "labor",
-                "count": 2,
-                "expenses": "100.00",
-                "refunds": "25.00",
-                "balance": "75.00",
-            },
-            {
-                "category": "material",
+                "source": "labor",
                 "count": 1,
                 "expenses": "50.00",
                 "refunds": "0.00",
                 "balance": "50.00",
             },
+            {
+                "source": "manual",
+                "count": 2,
+                "expenses": "100.00",
+                "refunds": "25.00",
+                "balance": "75.00",
+            },
         ])
+
+    def test_chart_zero_fills_months_with_no_entries(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_financial_chart("?start_date=2026-01-01&end_date=2026-03-31")
+
+        self.assert_ok(response)
+        data = self.response_data(response)
+        self.assertEqual(
+            [entry["period"] for entry in data["series"]],
+            ["2026-01", "2026-02", "2026-03"],
+        )
+        self.assertEqual(data["series"][2], {
+            "period": "2026-03",
+            "count": 0,
+            "expenses": "0.00",
+            "refunds": "0.00",
+            "balance": "0.00",
+        })
 
     def test_member_with_finance_view_can_get_financial_chart(self):
         self.given_member_authenticated(["finance.view"])
@@ -4535,15 +4691,20 @@ class FinancialEntryChartRoutePermissionTests(ProjectApiTestCase):
             "refunds": "0.00",
             "balance": "50.00",
         })
-        self.assertEqual(data["series"], [
-            {
-                "period": "2026-02-03",
-                "count": 1,
-                "expenses": "50.00",
-                "refunds": "0.00",
-                "balance": "50.00",
-            },
-        ])
+        # `series` now covers every day in the requested range (not just days
+        # with entries), so the timeline has no gaps.
+        expected_series = [
+            {"period": f"2026-02-{day:02d}", "count": 0, "expenses": "0.00", "refunds": "0.00", "balance": "0.00"}
+            for day in range(1, 29)
+        ]
+        expected_series[2] = {
+            "period": "2026-02-03",
+            "count": 1,
+            "expenses": "50.00",
+            "refunds": "0.00",
+            "balance": "50.00",
+        }
+        self.assertEqual(data["series"], expected_series)
 
     def test_chart_rejects_end_date_before_start_date(self):
         self.given_authenticated(self.owner)
@@ -4572,7 +4733,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="120.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="material",
             description="Target finance",
         )
         self.other_project_entry = FinancialEntry.objects.create(
@@ -4580,7 +4740,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
             created_by=self.other_user,
             amount="120.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="material",
             description="Other finance",
         )
         self.url = f"/api/projects/{self.project.id}/financial-entries/{self.entry.id}/"
@@ -4690,7 +4849,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="25.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Other detail time payment",
         )
         self.given_authenticated(self.owner)
@@ -4751,7 +4909,6 @@ class FinancialEntryDetailRoutePermissionTests(ProjectApiTestCase):
             created_by=self.owner,
             amount="50.00",
             type=FinancialEntry.FinancialType.EXPENSE,
-            category="labor",
             description="Linked full payment",
         )
         finance_url = f"/api/projects/{self.project.id}/financial-entries/{linked_entry.id}/"
@@ -6202,7 +6359,7 @@ class ExpenseRequestRoutePermissionTests(ProjectApiTestCase):
         self.assertEqual(entry.type, FinancialEntry.FinancialType.EXPENSE)
         self.assertEqual(str(entry.amount), self.pending_request.amount)
         self.assertEqual(entry.folder_id, self.pending_request.folder_id)
-        self.assertEqual(entry.category, self.pending_request.category)
+        self.assertIsNone(entry.time_entry_id)
 
     def test_member_with_approve_permission_can_approve(self):
         self.given_member_authenticated(["expense_request.view", "expense_request.approve"])

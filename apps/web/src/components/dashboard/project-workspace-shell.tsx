@@ -5,7 +5,7 @@ import { queryKeys } from "@project-gestion/query-keys";
 import { normalizeApiList } from "@project-gestion/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { CreateProjectDialog } from "@/components/dashboard/create-project-dialog";
 import { DashboardSidebar } from "@/components/dashboard/dashboard-sidebar";
@@ -75,6 +75,16 @@ export function ProjectWorkspaceShell({
       ? String(projects[0].id)
       : "";
   const selectedProject = projects.find((project) => String(project.id) === selectedProjectId) ?? null;
+
+  // Keeps `?project=` in the URL in sync with the resolved selection on every
+  // route this shell backs (dashboard, finance, tasks, ...) — without this, a
+  // page reached without the param (direct link, back/forward, bookmark) would
+  // render correctly via the manual/default fallback above but never persist
+  // that project into its own URL, so links copied from it would lose it.
+  useEffect(() => {
+    if (!selectedProjectId || selectedProjectId === selectedProjectIdFromUrl) return;
+    router.replace(buildProjectHref(pathname, selectedProjectId, searchParams), { scroll: false });
+  }, [selectedProjectId, selectedProjectIdFromUrl, pathname, router, searchParams]);
 
   const createProject = useCrudMutation({
     mutationFn: api.projects.create,
