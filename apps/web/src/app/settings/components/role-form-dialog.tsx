@@ -18,10 +18,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSection } from "@/components/dialogs/form-section";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
@@ -148,73 +148,67 @@ export function RoleFormDialog({
             <FieldError errors={[form.formState.errors.name]} />
           </Field>
 
-          <Separator />
+          <FormSection
+            title="Permissions"
+            description="Les actions dependent de la lecture: cocher une action ajoute automatiquement les droits necessaires."
+            action={
+              permissions.length > 0 ? (
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="permissions-select-all"
+                    checked={allSelected}
+                    onCheckedChange={(checked) => toggleAll(checked === true)}
+                  />
+                  <Label htmlFor="permissions-select-all" className="font-normal text-muted-foreground">
+                    Tout selectionner
+                  </Label>
+                </div>
+              ) : null
+            }
+          >
+            {permissionGroups.map((group) => {
+              const groupIds = group.permissions.map((permission) => permission.id);
+              const groupFullySelected = groupIds.every((id) => rolePermissionIds.includes(id));
+              const groupPartiallySelected =
+                !groupFullySelected && groupIds.some((id) => rolePermissionIds.includes(id));
 
-          <div className="flex items-center justify-between gap-3">
-            <Label>Permissions</Label>
-            {permissions.length > 0 ? (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id="permissions-select-all"
-                  checked={allSelected}
-                  onCheckedChange={(checked) => toggleAll(checked === true)}
-                />
-                <Label htmlFor="permissions-select-all" className="font-normal text-muted-foreground">
-                  Tout selectionner
-                </Label>
-              </div>
-            ) : null}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Les actions dependent de la lecture: cocher une action ajoute automatiquement les droits necessaires.
-          </p>
-
-          <div className="py-1">
-            <div className="space-y-3">
-              {permissionGroups.map((group) => {
-                const groupIds = group.permissions.map((permission) => permission.id);
-                const groupFullySelected = groupIds.every((id) => rolePermissionIds.includes(id));
-                const groupPartiallySelected =
-                  !groupFullySelected && groupIds.some((id) => rolePermissionIds.includes(id));
-
-                return (
-                  <div key={group.scope} className="rounded-lg border p-3">
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id={`permission-group-${group.scope}`}
-                        checked={groupPartiallySelected ? "indeterminate" : groupFullySelected}
-                        onCheckedChange={(checked) => toggleGroup(groupIds, checked === true)}
-                      />
-                      <Label htmlFor={`permission-group-${group.scope}`}>{group.label}</Label>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                      {group.permissions.map((permission) => {
-                        const fieldId = `permission-${permission.id}`;
-                        return (
-                          <div key={permission.id} className="flex items-center gap-2 rounded-md px-1 py-0.5">
-                            <Checkbox
-                              id={fieldId}
-                              checked={rolePermissionIds.includes(permission.id)}
-                              onCheckedChange={(checked) => togglePermission(permission.id, checked === true)}
-                            />
-                            <Label htmlFor={fieldId} className="font-normal">
-                              {getPermissionAction(permission.code)}
-                            </Label>
-                          </div>
-                        );
-                      })}
-                    </div>
+              return (
+                <div key={group.scope} className="rounded-lg border p-3">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`permission-group-${group.scope}`}
+                      checked={groupPartiallySelected ? "indeterminate" : groupFullySelected}
+                      onCheckedChange={(checked) => toggleGroup(groupIds, checked === true)}
+                    />
+                    <Label htmlFor={`permission-group-${group.scope}`}>{group.label}</Label>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    {group.permissions.map((permission) => {
+                      const fieldId = `permission-${permission.id}`;
+                      return (
+                        <div key={permission.id} className="flex items-center gap-2 rounded-md px-1 py-0.5">
+                          <Checkbox
+                            id={fieldId}
+                            checked={rolePermissionIds.includes(permission.id)}
+                            onCheckedChange={(checked) => togglePermission(permission.id, checked === true)}
+                          />
+                          <Label htmlFor={fieldId} className="font-normal">
+                            {getPermissionAction(permission.code)}
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
 
-          {!canSubmit ? (
-            <p className="text-xs text-muted-foreground">
-              Un role doit avoir un nom et au moins une permission.
-            </p>
-          ) : null}
+            {!canSubmit ? (
+              <p className="text-xs text-muted-foreground">
+                Un role doit avoir un nom et au moins une permission.
+              </p>
+            ) : null}
+          </FormSection>
         </form>
     </FormDialog>
   );

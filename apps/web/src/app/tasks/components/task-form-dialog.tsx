@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { DateRangeField } from "@/components/forms/date-range-field";
 import { DialogClose } from "@/components/ui/dialog";
 import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSection } from "@/components/dialogs/form-section";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -224,15 +225,17 @@ export function TaskFormDialog({
           <Textarea id="task-form-description" rows={3} {...form.register("description")} />
         </Field>
 
-        <MultiDocumentAttachmentField
-          projectId={projectId}
-          existingDocs={docs.existingDocs}
-          pendingFiles={docs.pendingFiles}
-          uploading={docs.uploading}
-          onRemoveDoc={docs.removeExistingDoc}
-          onAddFiles={docs.addPendingFiles}
-          onRemoveFile={docs.removePendingFile}
-        />
+        <FormSection title="Pieces jointes">
+          <MultiDocumentAttachmentField
+            projectId={projectId}
+            existingDocs={docs.existingDocs}
+            pendingFiles={docs.pendingFiles}
+            uploading={docs.uploading}
+            onRemoveDoc={docs.removeExistingDoc}
+            onAddFiles={docs.addPendingFiles}
+            onRemoveFile={docs.removePendingFile}
+          />
+        </FormSection>
       </form>
     </FormDialog>
   );

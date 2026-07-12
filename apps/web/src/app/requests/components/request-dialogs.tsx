@@ -3,25 +3,26 @@
 import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
 import { requestSchema, type RequestFormInput, type RequestFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, UserRound } from "lucide-react";
+import { Calendar, Pencil, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { DialogClose } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSection } from "@/components/dialogs/form-section";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Input } from "@/components/ui/input";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { Textarea } from "@/components/ui/textarea";
-import { TargetField } from "@/components/pickers/tree-picker";
+import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
 import { getEntryTarget, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
-import { DetailField, DetailModal, EntryCategorySection, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
+import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 export function ExpenseRequestFormDialog({
@@ -137,15 +138,17 @@ export function ExpenseRequestFormDialog({
             onCreateFolderAction={onCreateFolderAction}
           />
 
-          <MultiDocumentAttachmentField
-            projectId={projectId}
-            existingDocs={docs.existingDocs}
-            pendingFiles={docs.pendingFiles}
-            uploading={docs.uploading}
-            onRemoveDoc={docs.removeExistingDoc}
-            onAddFiles={docs.addPendingFiles}
-            onRemoveFile={docs.removePendingFile}
-          />
+          <FormSection title="Pieces jointes">
+            <MultiDocumentAttachmentField
+              projectId={projectId}
+              existingDocs={docs.existingDocs}
+              pendingFiles={docs.pendingFiles}
+              uploading={docs.uploading}
+              onRemoveDoc={docs.removeExistingDoc}
+              onAddFiles={docs.addPendingFiles}
+              onRemoveFile={docs.removePendingFile}
+            />
+          </FormSection>
         </form>
     </FormDialog>
   );
@@ -154,22 +157,54 @@ export function ExpenseRequestFormDialog({
 export function ExpenseRequestDetailModal({
   request,
   projectId,
+  canEdit = false,
+  canDelete = false,
+  deletingId,
   isOpeningDocument,
   onOpenDocument,
   onClose,
+  onEdit,
+  onDelete,
 }: {
   request: ExpenseRequest | null;
   projectId: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  deletingId?: number | null;
   isOpeningDocument: boolean;
   onOpenDocument: (documentId: number) => void;
   onClose: () => void;
+  onEdit?: (request: ExpenseRequest) => void;
+  onDelete?: (request: ExpenseRequest) => void;
 }) {
+  const target = request ? getEntryTarget(request) : null;
+
   return (
     <DetailModal
       open={request != null}
       onClose={onClose}
       title={request?.title ?? "Detail de la demande"}
-      footer={<ModalFooter />}
+      footer={
+        <ModalFooter
+          destructive={
+            canDelete && request && onDelete
+              ? {
+                  label: deletingId === request.id ? "Suppression..." : "Supprimer",
+                  onClick: () => onDelete(request),
+                  disabled: deletingId === request.id,
+                }
+              : undefined
+          }
+          actions={
+            canEdit && request && onEdit ? (
+              <Button type="button" size="sm" onClick={() => onEdit(request)}>
+                <Pencil className="size-4" />
+                Modifier
+              </Button>
+            ) : undefined
+          }
+        />
+      }
     >
       {request ? (
         <>
@@ -178,13 +213,12 @@ export function ExpenseRequestDetailModal({
             <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">{formatMoney(request.amount)}</p>
           </ModalHero>
 
-          <EntryCategorySection
-            category={request.category}
-            description={request.description}
-            target={getEntryTarget(request)}
-          />
-
           <ModalGrid>
+            {request.category ? (
+              <DetailField label="Categorie">
+                <span className="font-medium">{request.category}</span>
+              </DetailField>
+            ) : null}
             {request.requested_by_name ? (
               <DetailField label="Demande par" icon={UserRound}>
                 <span>{request.requested_by_name}</span>
@@ -193,7 +227,20 @@ export function ExpenseRequestDetailModal({
             <DetailField label="Date" icon={Calendar}>
               <span>{formatDate(request.created_at)}</span>
             </DetailField>
+            {target ? (
+              <DetailField label="Cible" className="col-span-2">
+                <TreeIcon type={target.type} />
+                <span className="font-medium">{target.name ?? `${target.type === "task" ? "Tache" : "Dossier"} #${target.id}`}</span>
+              </DetailField>
+            ) : null}
           </ModalGrid>
+
+          {request.description ? (
+            <div className="pt-5">
+              <DetailLabel>Description</DetailLabel>
+              <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{request.description}</p>
+            </div>
+          ) : null}
 
           <ModalDocs
             docs={request.documents_info ?? []}

@@ -112,9 +112,6 @@ export function TaskDetailModal({
                 <span>{formatDate(task.end_date)}</span>
               </DetailField>
             ) : null}
-            <DetailField label="Cree par" icon={UserRound}>
-              <span>{task.created_by_name ?? "—"}</span>
-            </DetailField>
             {assigneeNames.length > 0 ? (
               <DetailField
                 label="Assignes"
@@ -124,9 +121,9 @@ export function TaskDetailModal({
                 <span>{assigneeNames.join(", ")}</span>
               </DetailField>
             ) : null}
-          </ModalGrid>
-
-          <ModalGrid>
+            <DetailField label="Cree par" icon={UserRound}>
+              <span>{task.created_by_name ?? "—"}</span>
+            </DetailField>
             <DetailField label="Cree le" icon={Clock}>
               <span>{formatDate(task.created_at)}</span>
             </DetailField>

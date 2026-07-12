@@ -334,9 +334,14 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
       <ExpenseRequestDetailModal
         request={viewingRequest}
         projectId={projectId!}
+        canEdit={canEditRequests && viewingRequest?.status === "pending"}
+        canDelete={canDeleteRequests}
+        deletingId={deleteRequest.isPending ? deleteRequest.variables : null}
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingRequest(null)}
+        onEdit={(request) => { setViewingRequest(null); updateRequest.reset(); setEditingRequest(request); }}
+        onDelete={(request) => { setViewingRequest(null); setDeletingId(request.id); }}
       />
       <DocumentPreviewDialog
         document={previewDocument}

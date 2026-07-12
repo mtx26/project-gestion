@@ -130,6 +130,11 @@ export function TaskDraftDialog({
     >
       <form id="task-draft-form" className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
         <Field>
+          <FieldLabel htmlFor="project-task-title">Titre</FieldLabel>
+          <Input id="project-task-title" {...form.register("title")} />
+          <FieldError errors={[form.formState.errors.title]} />
+        </Field>
+        <Field>
           <FieldLabel>Dossier</FieldLabel>
           <TreePickerDialog
             mode="folder"
@@ -140,11 +145,6 @@ export function TaskDraftDialog({
             onSelect={onFolderChange}
             onCreateFolderAction={onCreateFolderAction}
           />
-        </Field>
-        <Field>
-          <FieldLabel htmlFor="project-task-title">Titre</FieldLabel>
-          <Input id="project-task-title" {...form.register("title")} />
-          <FieldError errors={[form.formState.errors.title]} />
         </Field>
         <div className="grid gap-3 sm:grid-cols-2">
           <Field>

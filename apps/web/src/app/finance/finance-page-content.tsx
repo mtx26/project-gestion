@@ -352,9 +352,14 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
       <FinancialEntryDetailModal
         entry={viewingEntry}
         projectId={projectId!}
+        canEdit={canEditFinance}
+        canDelete={canDeleteFinance}
+        deletingId={deleteEntry.isPending ? deleteEntry.variables : null}
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingEntry(null)}
+        onEdit={(entry) => { setViewingEntry(null); updateEntry.reset(); setEditingEntry(entry); }}
+        onDelete={(entry) => { setViewingEntry(null); setDeletingEntryId(entry.id); }}
         onTimeEntryClick={canViewTime ? handleTimeEntryClick : undefined}
       />
       <TimeEntryDetailModal

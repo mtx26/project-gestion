@@ -195,7 +195,7 @@ export function TreePickerDialog(props: TreePickerProps) {
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader className="sticky top-0 z-10 -mx-4 -mt-4 rounded-t-xl bg-popover px-4 pt-4 pb-2">
+        <DialogHeader>
           <DialogTitle className="pr-6">
             {props.mode === "folder" ? "Choisir un dossier" : "Choisir une cible"}
           </DialogTitle>

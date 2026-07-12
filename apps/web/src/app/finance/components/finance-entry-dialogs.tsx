@@ -3,7 +3,7 @@
 import type { FinancialEntry, FinancialEntryPayload, FolderTreeNode } from "@project-gestion/types";
 import { financeSchema, type FinanceFormInput, type FinanceFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Calendar, Clock, UserRound } from "lucide-react";
+import { Calendar, Clock, Pencil, UserRound } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -12,17 +12,18 @@ import { DialogClose } from "@/components/ui/dialog";
 import { EntryTypeBadge } from "@/components/badges/entry-type-badge";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSection } from "@/components/dialogs/form-section";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { TargetField } from "@/components/pickers/tree-picker";
+import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
 import { getEntryTarget, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
-import { DetailField, DetailModal, EntryCategorySection, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
+import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { FINANCIAL_SOURCE_LABELS } from "@/lib/finance-chart-utils";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
@@ -156,15 +157,17 @@ export function FinancialEntryFormDialog({
             onCreateFolderAction={onCreateFolderAction}
           />
 
-          <MultiDocumentAttachmentField
-            projectId={projectId}
-            existingDocs={docs.existingDocs}
-            pendingFiles={docs.pendingFiles}
-            uploading={docs.uploading}
-            onRemoveDoc={docs.removeExistingDoc}
-            onAddFiles={docs.addPendingFiles}
-            onRemoveFile={docs.removePendingFile}
-          />
+          <FormSection title="Pieces jointes">
+            <MultiDocumentAttachmentField
+              projectId={projectId}
+              existingDocs={docs.existingDocs}
+              pendingFiles={docs.pendingFiles}
+              uploading={docs.uploading}
+              onRemoveDoc={docs.removeExistingDoc}
+              onAddFiles={docs.addPendingFiles}
+              onRemoveFile={docs.removePendingFile}
+            />
+          </FormSection>
         </form>
     </FormDialog>
   );
@@ -173,24 +176,56 @@ export function FinancialEntryFormDialog({
 export function FinancialEntryDetailModal({
   entry,
   projectId,
+  canEdit = false,
+  canDelete = false,
+  deletingId,
   isOpeningDocument,
   onOpenDocument,
   onClose,
+  onEdit,
+  onDelete,
   onTimeEntryClick,
 }: {
   entry: FinancialEntry | null;
   projectId: number;
+  canEdit?: boolean;
+  canDelete?: boolean;
+  deletingId?: number | null;
   isOpeningDocument: boolean;
   onOpenDocument: (documentId: number) => void;
   onClose: () => void;
+  onEdit?: (entry: FinancialEntry) => void;
+  onDelete?: (entry: FinancialEntry) => void;
   onTimeEntryClick?: (timeEntryId: number) => void;
 }) {
+  const target = entry ? getEntryTarget(entry) : null;
+
   return (
     <DetailModal
       open={entry != null}
       onClose={onClose}
       title="Detail de l'entree"
-      footer={<ModalFooter />}
+      footer={
+        <ModalFooter
+          destructive={
+            canDelete && entry && onDelete
+              ? {
+                  label: deletingId === entry.id ? "Suppression..." : "Supprimer",
+                  onClick: () => onDelete(entry),
+                  disabled: deletingId === entry.id,
+                }
+              : undefined
+          }
+          actions={
+            canEdit && entry && onEdit ? (
+              <Button type="button" size="sm" onClick={() => onEdit(entry)}>
+                <Pencil className="size-4" />
+                Modifier
+              </Button>
+            ) : undefined
+          }
+        />
+      }
     >
       {entry ? (
         <>
@@ -201,13 +236,10 @@ export function FinancialEntryDetailModal({
             </p>
           </ModalHero>
 
-          <EntryCategorySection
-            category={FINANCIAL_SOURCE_LABELS[entry.source]}
-            description={entry.description}
-            target={getEntryTarget(entry)}
-          />
-
           <ModalGrid>
+            <DetailField label="Categorie">
+              <span className="font-medium">{FINANCIAL_SOURCE_LABELS[entry.source]}</span>
+            </DetailField>
             {entry.time_entry_user_name ? (
               <DetailField label="Pour" icon={UserRound} iconClassName="text-violet-500">
                 <span>{entry.time_entry_user_name}</span>
@@ -220,6 +252,12 @@ export function FinancialEntryDetailModal({
             <DetailField label="Date" icon={Calendar}>
               <span>{formatDate(entry.created_at)}</span>
             </DetailField>
+            {target ? (
+              <DetailField label="Cible" className="col-span-2">
+                <TreeIcon type={target.type} />
+                <span className="font-medium">{target.name ?? `${target.type === "task" ? "Tache" : "Dossier"} #${target.id}`}</span>
+              </DetailField>
+            ) : null}
             {entry.time_entry != null && onTimeEntryClick ? (
               <DetailField label="Entree de temps" className="col-span-2">
                 <button
@@ -233,6 +271,13 @@ export function FinancialEntryDetailModal({
               </DetailField>
             ) : null}
           </ModalGrid>
+
+          {entry.description ? (
+            <div className="pt-5">
+              <DetailLabel>Description</DetailLabel>
+              <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{entry.description}</p>
+            </div>
+          ) : null}
 
           <ModalDocs
             docs={entry.documents_info ?? []}

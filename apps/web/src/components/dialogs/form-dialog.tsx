@@ -9,6 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
+import { cn } from "@/lib/utils";
 
 interface FormDialogProps {
   open: boolean;
@@ -34,13 +35,20 @@ export function FormDialog({
 }: FormDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={maxWidth === "md" ? "sm:max-w-md" : "sm:max-w-lg"}>
-        <DialogHeader className="sticky top-0 z-10 -mx-4 -mt-4 rounded-t-xl bg-popover px-4 pt-4 pb-2">
+      <DialogContent
+        className={cn(
+          "flex max-h-[85vh] flex-col overflow-hidden",
+          maxWidth === "md" ? "sm:max-w-md" : "sm:max-w-lg",
+        )}
+      >
+        <DialogHeader>
           <DialogTitle className="pr-6">{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        {children}
-        <FormErrorAlert error={error} />
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+          {children}
+          <FormErrorAlert error={error} />
+        </div>
         <DialogFooter className="flex-row flex-wrap items-center justify-end">{footer}</DialogFooter>
       </DialogContent>
     </Dialog>

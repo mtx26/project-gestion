@@ -21,6 +21,7 @@ import { DialogClose } from "@/components/ui/dialog";
 import { DateRangeField } from "@/components/forms/date-range-field";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
+import { FormSection } from "@/components/dialogs/form-section";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/forms/money-input";
@@ -203,6 +204,11 @@ export function TimeEntryFormDialog({
             </p>
           </div>
 
+          <Field>
+            <FieldLabel htmlFor="time-entry-description">Description</FieldLabel>
+            <Textarea id="time-entry-description" rows={4} {...form.register("description")} />
+          </Field>
+
           <TargetField
             folders={targetFolders}
             value={targetValue}
@@ -210,20 +216,17 @@ export function TimeEntryFormDialog({
             onCreateFolderAction={onCreateFolderAction}
           />
 
-          <Field>
-            <FieldLabel htmlFor="time-entry-description">Description</FieldLabel>
-            <Textarea id="time-entry-description" rows={4} {...form.register("description")} />
-          </Field>
-
-          <MultiDocumentAttachmentField
-            projectId={projectId}
-            existingDocs={docs.existingDocs}
-            pendingFiles={docs.pendingFiles}
-            uploading={docs.uploading}
-            onRemoveDoc={docs.removeExistingDoc}
-            onAddFiles={docs.addPendingFiles}
-            onRemoveFile={docs.removePendingFile}
-          />
+          <FormSection title="Pieces jointes">
+            <MultiDocumentAttachmentField
+              projectId={projectId}
+              existingDocs={docs.existingDocs}
+              pendingFiles={docs.pendingFiles}
+              uploading={docs.uploading}
+              onRemoveDoc={docs.removeExistingDoc}
+              onAddFiles={docs.addPendingFiles}
+              onRemoveFile={docs.removePendingFile}
+            />
+          </FormSection>
         </form>
       )}
     </FormDialog>
@@ -275,7 +278,7 @@ export function TimeEntryDetailModal({
     <DetailModal
       open
       onClose={onClose}
-      title={entry.description || "Temps enregistre"}
+      title="Detail du temps"
       footer={
         <ModalFooter
           destructive={canDelete && onDelete ? {
@@ -348,6 +351,13 @@ export function TimeEntryDetailModal({
           </DetailField>
         ) : null}
       </ModalGrid>
+
+      {entry.description ? (
+        <div className="pt-5">
+          <DetailLabel>Description</DetailLabel>
+          <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{entry.description}</p>
+        </div>
+      ) : null}
 
       <div className="pt-5">
         <DetailLabel className="mb-3">Paiement</DetailLabel>
