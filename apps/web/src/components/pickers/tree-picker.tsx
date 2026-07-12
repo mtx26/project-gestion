@@ -4,7 +4,10 @@ import type { FolderTreeNode } from "@project-gestion/types";
 import { ChevronDown, ChevronRight, Folder, FolderOpen, FolderPlus, ListTodo } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { closeThenNotify } from "@/lib/close-then-notify";
 import { addToSet, toggleSetValue } from "@/lib/utils";
@@ -192,8 +195,8 @@ export function TreePickerDialog(props: TreePickerProps) {
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>
+        <DialogHeader className="sticky top-0 z-10 -mx-4 -mt-4 rounded-t-xl bg-popover px-4 pt-4 pb-2">
+          <DialogTitle className="pr-6">
             {props.mode === "folder" ? "Choisir un dossier" : "Choisir une cible"}
           </DialogTitle>
           {props.description ? (
@@ -208,16 +211,15 @@ export function TreePickerDialog(props: TreePickerProps) {
         </DialogHeader>
 
         {props.mode === "target" ? (
-          <div className="flex items-center justify-end">
-            <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground select-none">
-              <input
-                type="checkbox"
-                className="size-4 rounded"
-                checked={includeCompleted}
-                onChange={(e) => setIncludeCompleted(e.target.checked)}
-              />
+          <div className="flex items-center justify-end gap-2">
+            <Checkbox
+              id="tree-picker-include-completed"
+              checked={includeCompleted}
+              onCheckedChange={(checked) => setIncludeCompleted(checked === true)}
+            />
+            <Label htmlFor="tree-picker-include-completed" className="font-normal text-muted-foreground">
               Inclure les terminees
-            </label>
+            </Label>
           </div>
         ) : null}
 
@@ -238,7 +240,7 @@ export function TreePickerDialog(props: TreePickerProps) {
           />
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-row flex-wrap items-center justify-end">
           <DialogClose asChild>
             <Button type="button" variant="outline">Fermer</Button>
           </DialogClose>
@@ -417,10 +419,10 @@ function InlineFolderInput({
       style={{ paddingLeft: `${getTreePickerIndent(depth) + 32}px` }}
     >
       <Folder className="size-4 shrink-0 text-amber-500" />
-      <input
+      <Input
         ref={inputRef}
         autoFocus
-        className="h-7 flex-1 rounded-md border border-teal-500 bg-background px-2 text-sm outline-none ring-1 ring-teal-500/40 placeholder:text-muted-foreground"
+        className="h-7 flex-1 border-teal-500 ring-1 ring-teal-500/40"
         placeholder="Nom du dossier"
         value={name}
         maxLength={255}

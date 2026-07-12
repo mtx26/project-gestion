@@ -169,8 +169,8 @@ export function RoleFormDialog({
             Les actions dependent de la lecture: cocher une action ajoute automatiquement les droits necessaires.
           </p>
 
-          <div className="-mx-4 no-scrollbar max-h-[50vh] overflow-y-auto px-4">
-            <div className="space-y-3 py-1">
+          <div className="py-1">
+            <div className="space-y-3">
               {permissionGroups.map((group) => {
                 const groupIds = group.permissions.map((permission) => permission.id);
                 const groupFullySelected = groupIds.every((id) => rolePermissionIds.includes(id));

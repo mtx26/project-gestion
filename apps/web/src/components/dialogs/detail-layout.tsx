@@ -10,7 +10,6 @@ import { TreeIcon } from "@/components/pickers/tree-picker";
 import type { EntryTarget } from "@/lib/target-utils";
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -157,18 +156,23 @@ export function ModalFooter({
   destructive?: { label: string; onClick: () => void; disabled?: boolean };
   actions?: React.ReactNode;
 }) {
+  if (!destructive && !actions) return null;
+
   return (
-    <DialogFooter className={cn(destructive && "flex-row items-center justify-between sm:justify-between")}>
+    <DialogFooter className="flex-row flex-wrap items-center justify-end">
       {destructive ? (
-        <Button type="button" variant="destructive" size="sm" disabled={destructive.disabled} onClick={destructive.onClick}>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          disabled={destructive.disabled}
+          onClick={destructive.onClick}
+        >
           <Trash2 className="size-4" />
           {destructive.label}
         </Button>
       ) : null}
-      <div className="flex gap-2">
-        <DialogClose asChild>
-          <Button type="button" variant="outline" size="sm">Fermer</Button>
-        </DialogClose>
+      <div className="flex flex-wrap justify-end gap-2">
         {actions}
       </div>
     </DialogFooter>
@@ -193,7 +197,7 @@ export function DetailModal({
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
+        <DialogHeader className="sticky top-0 z-10 -mx-4 -mt-4 rounded-t-xl bg-popover px-4 pt-4 pb-2">
           <DialogTitle className="pr-6">{title}</DialogTitle>
         </DialogHeader>
         <div className="divide-y">{children}</div>

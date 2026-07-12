@@ -35,13 +35,13 @@ export function FormDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className={maxWidth === "md" ? "sm:max-w-md" : "sm:max-w-lg"}>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
+        <DialogHeader className="sticky top-0 z-10 -mx-4 -mt-4 rounded-t-xl bg-popover px-4 pt-4 pb-2">
+          <DialogTitle className="pr-6">{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
         {children}
         <FormErrorAlert error={error} />
-        <DialogFooter>{footer}</DialogFooter>
+        <DialogFooter className="flex-row flex-wrap items-center justify-end">{footer}</DialogFooter>
       </DialogContent>
     </Dialog>
   );

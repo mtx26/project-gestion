@@ -181,7 +181,7 @@ export function TimeEntryFormDialog({
     >
       {!canRecordTime ? (
         <Alert>
-          <AlertDescription>Permission time_entry.edit requise pour enregistrer du temps.</AlertDescription>
+          <AlertDescription>Vous n&apos;avez pas le droit d&apos;enregistrer du temps sur ce projet.</AlertDescription>
         </Alert>
       ) : (
         <form id="time-entry-form" className="space-y-4" onSubmit={form.handleSubmit(submitForm)}>

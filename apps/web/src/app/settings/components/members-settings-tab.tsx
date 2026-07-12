@@ -1,6 +1,6 @@
 "use client";
 
-import type { Project, ProjectMember, Role } from "@project-gestion/types";
+import type { Invitation, Project, ProjectMember, Role } from "@project-gestion/types";
 import { inviteMemberSchema, normalizeAmountInput, type InviteMemberFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
@@ -42,6 +42,7 @@ export function MembersSettingsTab({
   canEditRates: boolean;
 }) {
   const [deletingMember, setDeletingMember] = useState<ProjectMember | null>(null);
+  const [cancelingInvitation, setCancelingInvitation] = useState<Invitation | null>(null);
 
   const membersQuery = useQuery({
     queryKey: queryKeys.members.list(selectedProject.id),
@@ -74,6 +75,7 @@ export function MembersSettingsTab({
     mutationFn: (invitationId: number) => api.invitations.remove(selectedProject.id, invitationId),
     invalidateKey: queryKeys.invitations.all(selectedProject.id),
     successMessage: "Invitation annulee",
+    onSuccess: () => setCancelingInvitation(null),
   });
 
   const updateInvitationRole = useCrudMutation({
@@ -169,7 +171,7 @@ export function MembersSettingsTab({
             return (
               <div
                 key={member.id}
-                className={`rounded-md border p-3 text-sm ${
+                className={`min-w-0 rounded-md border p-3 text-sm ${
                   member.role_deleted ? "border-red-200 bg-red-50/70" : "bg-muted/30"
                 }`}
               >
@@ -289,7 +291,7 @@ export function MembersSettingsTab({
                       size="icon-sm"
                       aria-label={`Annuler l'invitation ${invitation.email}`}
                       disabled={removeInvitation.isPending}
-                      onClick={() => removeInvitation.mutate(invitation.id)}
+                      onClick={() => setCancelingInvitation(invitation)}
                     >
                       <Trash2 className="size-4" />
                     </Button>
@@ -314,6 +316,14 @@ export function MembersSettingsTab({
         isPending={removeMember.isPending}
         onConfirm={() => deletingMember && removeMember.mutate(deletingMember.id)}
         onClose={() => setDeletingMember(null)}
+      />
+      <ConfirmDeleteDialog
+        open={cancelingInvitation != null}
+        title={`Annuler l'invitation de ${cancelingInvitation?.email} ?`}
+        description="Cette personne ne pourra plus rejoindre le projet avec ce lien."
+        isPending={removeInvitation.isPending}
+        onConfirm={() => cancelingInvitation && removeInvitation.mutate(cancelingInvitation.id)}
+        onClose={() => setCancelingInvitation(null)}
       />
     </Card>
   );

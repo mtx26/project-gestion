@@ -154,7 +154,7 @@ export function FilterPeriodPicker({
 
       <DialogContent className="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Période</DialogTitle>
+          <DialogTitle className="pr-6">Période</DialogTitle>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto sm:flex-row">
