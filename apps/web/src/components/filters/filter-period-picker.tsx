@@ -142,7 +142,7 @@ export function FilterPeriodPicker({
           type="button"
           variant="outline"
           className={cn(
-            "w-fit gap-2 bg-background px-3 font-normal",
+            "w-full justify-start gap-2 bg-background px-3 font-normal sm:w-fit",
             isActive && "border-primary/60 text-primary",
             className,
           )}

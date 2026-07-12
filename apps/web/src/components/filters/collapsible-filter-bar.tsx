@@ -52,7 +52,7 @@ export function CollapsibleFilterBar({
             <SheetHeader>
               <SheetTitle>{sheetTitle}</SheetTitle>
             </SheetHeader>
-            <div className="mt-4 flex flex-col gap-3 overflow-y-auto pb-6">
+            <div className="mt-4 flex flex-col gap-3 overflow-y-auto px-4 pb-6">
               {children}
               <FilterClear path={clearPath} removeKeys={clearKeys} />
             </div>
