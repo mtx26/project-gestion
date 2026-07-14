@@ -6,7 +6,7 @@ import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Clock3, Lock, Plus } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
@@ -25,8 +25,9 @@ import { useDocumentPreview } from "@/lib/use-document-preview";
 import {
   findTargetLabel,
   getTargetPayload,
+  type EntryTarget,
 } from "@/lib/target-utils";
-import { parseBooleanParam, parsePageParam } from "@/lib/url-params";
+import { buildProjectHref, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useSearchParam } from "@/lib/use-search-param";
@@ -64,6 +65,7 @@ function TimeView({
   projectsQuery,
   openCreateProject,
 }: ProjectWorkspaceState) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const projectId = selectedProject?.id ?? null;
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
@@ -73,6 +75,7 @@ function TimeView({
   const canPayTime = can(permissionCodes.timeEntryPay);
   const canDeleteTime = can(permissionCodes.timeEntryDelete);
   const canViewTasks = can(permissionCodes.taskView);
+  const canViewFiles = can(permissionCodes.fileView);
   const defaultUserFilter: UserFilter = canViewAllTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
@@ -236,9 +239,14 @@ function TimeView({
     onSuccess: setViewingTask,
   });
 
-  function handleTaskClick(taskId: number) {
+  function handleTargetClick(target: EntryTarget) {
     if (!projectId) return;
-    openTask.mutate(taskId);
+    setViewingEntry(null);
+    if (target.type === "task") {
+      openTask.mutate(target.id);
+    } else {
+      router.push(buildProjectHref("/files", projectId));
+    }
   }
 
   if (projectsQuery.isLoading || !selectedProject || (!canViewTime && !canRecordTime)) {
@@ -431,7 +439,9 @@ function TimeView({
         onPay={(entry) => { setViewingEntry(null); setPaymentTarget(entry); }}
         onCorrectPayment={(entry) => { setViewingEntry(null); setCorrectionTarget(entry); }}
         onDelete={(entry) => { setViewingEntry(null); setDeletingEntry(entry); }}
-        onTaskClick={canViewTasks ? (taskId) => { setViewingEntry(null); handleTaskClick(taskId); } : undefined}
+        canViewTaskTarget={canViewTasks}
+        canViewFolderTarget={canViewFiles}
+        onTargetClick={handleTargetClick}
       />
       <TaskDetailModal
         task={viewingTask}

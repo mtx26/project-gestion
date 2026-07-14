@@ -1,17 +1,18 @@
 "use client";
 
-import type { ExpenseRequest, ExpenseRequestPayload } from "@project-gestion/types";
+import type { ExpenseRequest, ExpenseRequestPayload, Task } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Plus, XCircle } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
+import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
 import { EntryRowActions } from "@/components/entries/entry-row-actions";
@@ -27,7 +28,8 @@ import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/task-utils";
-import { parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
+import type { EntryTarget } from "@/lib/target-utils";
+import { buildProjectHref, parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
@@ -46,12 +48,15 @@ export function RequestsPageContent() {
 }
 
 function RequestsView({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewRequests = can(permissionCodes.expenseRequestView);
   const canEditRequests = can(permissionCodes.expenseRequestEdit);
   const canDeleteRequests = can(permissionCodes.expenseRequestDelete);
   const canApproveRequests = can(permissionCodes.expenseRequestApprove);
+  const canViewTasks = can(permissionCodes.taskView);
+  const canViewFiles = can(permissionCodes.fileView);
   const projectId = selectedProject?.id ?? null;
 
   const searchFromUrl = searchParams.get("search") ?? "";
@@ -69,6 +74,7 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
   const [editingRequest, setEditingRequest] = useState<ExpenseRequest | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [viewingRequest, setViewingRequest] = useState<ExpenseRequest | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const updateUrlFilter = useUrlFilter("/requests", searchParams, projectId);
   const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
@@ -142,6 +148,22 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
     successMessage: "Remboursement rejete",
     onSuccess: () => setViewingRequest(null),
   });
+
+  const openTask = useCrudMutation({
+    mutationFn: (taskId: number) => api.tasks.get(projectId!, taskId),
+    errorMessage: "Impossible de charger la tache",
+    onSuccess: setViewingTask,
+  });
+
+  function handleTargetClick(target: EntryTarget) {
+    if (!projectId) return;
+    setViewingRequest(null);
+    if (target.type === "task") {
+      openTask.mutate(target.id);
+    } else {
+      router.push(buildProjectHref("/files", projectId));
+    }
+  }
 
   if (projectsQuery.isLoading || !selectedProject || !canViewRequests) {
     return (
@@ -342,6 +364,16 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
         onClose={() => setViewingRequest(null)}
         onEdit={(request) => { setViewingRequest(null); updateRequest.reset(); setEditingRequest(request); }}
         onDelete={(request) => { setViewingRequest(null); setDeletingId(request.id); }}
+        canViewTaskTarget={canViewTasks}
+        canViewFolderTarget={canViewFiles}
+        onTargetClick={handleTargetClick}
+      />
+      <TaskDetailModal
+        task={viewingTask}
+        projectId={projectId!}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
+        onClose={() => setViewingTask(null)}
       />
       <DocumentPreviewDialog
         document={previewDocument}

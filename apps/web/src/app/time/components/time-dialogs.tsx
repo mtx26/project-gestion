@@ -11,7 +11,7 @@ import {
   type TimeEntryFormValues,
 } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { CalendarDays, Clock, CreditCard, ListTodo, Pencil, UserRound } from "lucide-react";
+import { CalendarDays, Clock, CreditCard, Pencil, UserRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -30,7 +30,7 @@ import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
-import { getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
+import { getEntryTarget, getTargetPayload, getTargetValueFromEntry, type EntryTarget } from "@/lib/target-utils";
 import { Textarea } from "@/components/ui/textarea";
 import { addMinutes, format, parseISO } from "date-fns";
 import { formatDateTime, fromDateTimeLocalInput, toDateTimeLocalInput } from "@/lib/date-utils";
@@ -247,7 +247,9 @@ export function TimeEntryDetailModal({
   onPay,
   onCorrectPayment,
   onDelete,
-  onTaskClick,
+  canViewTaskTarget = false,
+  canViewFolderTarget = false,
+  onTargetClick,
 }: {
   entry: TimeEntry | null;
   projectId: number;
@@ -262,12 +264,17 @@ export function TimeEntryDetailModal({
   onPay?: (entry: TimeEntry) => void;
   onCorrectPayment?: (entry: TimeEntry) => void;
   onDelete?: (entry: TimeEntry) => void;
-  onTaskClick?: (taskId: number) => void;
+  canViewTaskTarget?: boolean;
+  canViewFolderTarget?: boolean;
+  onTargetClick?: (target: EntryTarget) => void;
 }) {
   if (!entry) return null;
 
   const paymentStatus = getPaymentStatus(entry);
+  const target = getEntryTarget(entry);
   const targetLabel = getEntryTargetLabel(entry);
+  const targetClickable =
+    target != null && onTargetClick != null && (target.type === "task" ? canViewTaskTarget : canViewFolderTarget);
   const displayName = entry.user_display_name;
   const paidRatio =
     Number(entry.cost_amount) > 0
@@ -331,20 +338,20 @@ export function TimeEntryDetailModal({
         <DetailField label="Date" icon={CalendarDays}>
           <span>{formatDateTime(entry.start_date)}</span>
         </DetailField>
-        {(entry.task != null || entry.folder != null) ? (
+        {target ? (
           <DetailField label="Cible" className="col-span-2">
-            {entry.task != null && onTaskClick ? (
+            {targetClickable ? (
               <button
                 type="button"
                 className="flex items-center gap-2 font-medium text-primary underline-offset-2 hover:underline"
-                onClick={() => onTaskClick(entry.task!)}
+                onClick={() => onTargetClick!(target)}
               >
-                <ListTodo className="size-4 shrink-0 text-sky-600" />
+                <TreeIcon type={target.type} />
                 {targetLabel}
               </button>
             ) : (
               <>
-                <TreeIcon type={entry.task != null ? "task" : "folder"} />
+                <TreeIcon type={target.type} />
                 <span>{targetLabel}</span>
               </>
             )}

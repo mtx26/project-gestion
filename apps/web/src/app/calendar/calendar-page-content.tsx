@@ -7,6 +7,7 @@ import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { ProjectAccessGate } from "@/components/states/project-access-gate";
@@ -20,6 +21,8 @@ import { TimeEntryDetailModal } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
 import { getMonthCalendarDays } from "./lib/calendar-utils";
 import { toIsoDateString } from "@/lib/period-utils";
+import type { EntryTarget } from "@/lib/target-utils";
+import { buildProjectHref } from "@/lib/url-params";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 
@@ -44,10 +47,12 @@ export function CalendarPageContent() {
 }
 
 function CalendarView({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
+  const router = useRouter();
   const projectId = selectedProject?.id ?? null;
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewTime = can(permissionCodes.timeEntryView);
   const canViewTasks = can(permissionCodes.taskView);
+  const canViewFiles = can(permissionCodes.fileView);
 
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [showTasks, setShowTasks] = useState(true);
@@ -90,11 +95,15 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
     setSelectedTimeEntry(timeEntries.find((e) => e.id === timeEntryId) ?? null);
   }
 
-  async function handleTimeEntryTaskClick(taskId: number) {
+  async function handleTimeEntryTargetClick(target: EntryTarget) {
     if (!projectId) return;
     setSelectedTimeEntry(null);
+    if (target.type === "folder") {
+      router.push(buildProjectHref("/files", projectId));
+      return;
+    }
     try {
-      const task = await api.tasks.get(projectId, taskId);
+      const task = await api.tasks.get(projectId, target.id);
       setSelectedTask(task);
     } catch {
       // task not found or no permission
@@ -168,7 +177,9 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setSelectedTimeEntry(null)}
-        onTaskClick={canViewTasks ? handleTimeEntryTaskClick : undefined}
+        canViewTaskTarget={canViewTasks}
+        canViewFolderTarget={canViewFiles}
+        onTargetClick={handleTimeEntryTargetClick}
       />
 
       <DocumentPreviewDialog

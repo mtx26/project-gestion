@@ -1,18 +1,19 @@
 "use client";
 
-import type { FinancialEntry, FinancialEntryPayload, TimeEntry } from "@project-gestion/types";
+import type { FinancialEntry, FinancialEntryPayload, Task, TimeEntry } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Banknote, Plus } from "lucide-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
+import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import { EntryMetadataRow } from "@/components/entries/entry-metadata-row";
 import { EntryRowActions } from "@/components/entries/entry-row-actions";
@@ -30,7 +31,8 @@ import { TimeEntryDetailModal } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
 import { FINANCIAL_SOURCE_LABELS } from "@/lib/finance-chart-utils";
 import { formatMoney } from "@/lib/task-utils";
-import { parseEnumParam, parseIdParam, parsePageParam } from "@/lib/url-params";
+import type { EntryTarget } from "@/lib/target-utils";
+import { buildProjectHref, parseEnumParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
@@ -63,12 +65,15 @@ function SummaryCard({ label, value, className }: { label: string; value: string
 }
 
 function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }: ProjectWorkspaceState) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewFinance = can(permissionCodes.financeView);
   const canEditFinance = can(permissionCodes.financeEdit);
   const canDeleteFinance = can(permissionCodes.financeDelete);
   const canViewTime = can(permissionCodes.timeEntryView);
+  const canViewTasks = can(permissionCodes.taskView);
+  const canViewFiles = can(permissionCodes.fileView);
   const projectId = selectedProject?.id ?? null;
   const searchFromUrl = searchParams.get("search") ?? "";
   const dateFrom = searchParams.get("date_from") ?? undefined;
@@ -85,6 +90,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
   const [deletingEntryId, setDeletingEntryId] = useState<number | null>(null);
   const [viewingEntry, setViewingEntry] = useState<FinancialEntry | null>(null);
   const [viewingTimeEntry, setViewingTimeEntry] = useState<TimeEntry | null>(null);
+  const [viewingTask, setViewingTask] = useState<Task | null>(null);
   const updateUrlFilter = useUrlFilter("/finance", searchParams, projectId);
   const [searchQuery, handleSearchChange] = useSearchParam(searchFromUrl, updateUrlFilter);
   const { folders, targetFolders, members, folderNameById, handleCreateFolder } =
@@ -173,6 +179,23 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
     if (!projectId) return;
     setViewingEntry(null);
     openTimeEntry.mutate(timeEntryId);
+  }
+
+  const openTask = useCrudMutation({
+    mutationFn: (taskId: number) => api.tasks.get(projectId!, taskId),
+    errorMessage: "Impossible de charger la tache",
+    onSuccess: setViewingTask,
+  });
+
+  function handleTargetClick(target: EntryTarget) {
+    if (!projectId) return;
+    setViewingEntry(null);
+    setViewingTimeEntry(null);
+    if (target.type === "task") {
+      openTask.mutate(target.id);
+    } else {
+      router.push(buildProjectHref("/files", projectId));
+    }
   }
 
   if (projectsQuery.isLoading || !selectedProject || !canViewFinance) {
@@ -361,6 +384,9 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
         onEdit={(entry) => { setViewingEntry(null); updateEntry.reset(); setEditingEntry(entry); }}
         onDelete={(entry) => { setViewingEntry(null); setDeletingEntryId(entry.id); }}
         onTimeEntryClick={canViewTime ? handleTimeEntryClick : undefined}
+        canViewTaskTarget={canViewTasks}
+        canViewFolderTarget={canViewFiles}
+        onTargetClick={handleTargetClick}
       />
       <TimeEntryDetailModal
         entry={viewingTimeEntry}
@@ -368,6 +394,16 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
         isOpeningDocument={openDocument.isPending}
         onOpenDocument={(id) => openDocument.mutate(id)}
         onClose={() => setViewingTimeEntry(null)}
+        canViewTaskTarget={canViewTasks}
+        canViewFolderTarget={canViewFiles}
+        onTargetClick={handleTargetClick}
+      />
+      <TaskDetailModal
+        task={viewingTask}
+        projectId={projectId!}
+        isOpeningDocument={openDocument.isPending}
+        onOpenDocument={(id) => openDocument.mutate(id)}
+        onClose={() => setViewingTask(null)}
       />
       <DocumentPreviewDialog
         document={previewDocument}

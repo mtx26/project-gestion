@@ -19,7 +19,7 @@ import { MultiDocumentAttachmentField } from "@/components/documents/multi-docum
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
-import { getEntryTarget, getTargetPayload, getTargetValueFromEntry } from "@/lib/target-utils";
+import { getEntryTarget, getTargetPayload, getTargetValueFromEntry, type EntryTarget } from "@/lib/target-utils";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
@@ -185,6 +185,9 @@ export function FinancialEntryDetailModal({
   onEdit,
   onDelete,
   onTimeEntryClick,
+  canViewTaskTarget = false,
+  canViewFolderTarget = false,
+  onTargetClick,
 }: {
   entry: FinancialEntry | null;
   projectId: number;
@@ -197,8 +200,13 @@ export function FinancialEntryDetailModal({
   onEdit?: (entry: FinancialEntry) => void;
   onDelete?: (entry: FinancialEntry) => void;
   onTimeEntryClick?: (timeEntryId: number) => void;
+  canViewTaskTarget?: boolean;
+  canViewFolderTarget?: boolean;
+  onTargetClick?: (target: EntryTarget) => void;
 }) {
   const target = entry ? getEntryTarget(entry) : null;
+  const targetClickable =
+    target != null && onTargetClick != null && (target.type === "task" ? canViewTaskTarget : canViewFolderTarget);
 
   return (
     <DetailModal
@@ -254,8 +262,21 @@ export function FinancialEntryDetailModal({
             </DetailField>
             {target ? (
               <DetailField label="Cible" className="col-span-2">
-                <TreeIcon type={target.type} />
-                <span className="font-medium">{target.name ?? `${target.type === "task" ? "Tache" : "Dossier"} #${target.id}`}</span>
+                {targetClickable ? (
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 font-medium text-primary underline-offset-2 hover:underline"
+                    onClick={() => onTargetClick!(target)}
+                  >
+                    <TreeIcon type={target.type} />
+                    {target.name ?? `${target.type === "task" ? "Tache" : "Dossier"} #${target.id}`}
+                  </button>
+                ) : (
+                  <>
+                    <TreeIcon type={target.type} />
+                    <span className="font-medium">{target.name ?? `${target.type === "task" ? "Tache" : "Dossier"} #${target.id}`}</span>
+                  </>
+                )}
               </DetailField>
             ) : null}
             {entry.time_entry != null && onTimeEntryClick ? (
