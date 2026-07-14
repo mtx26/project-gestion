@@ -298,34 +298,36 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className="flex cursor-pointer items-center gap-4 rounded-lg border bg-card px-4 py-3 hover:bg-muted/30"
+              className="flex cursor-pointer flex-col gap-3 rounded-lg border bg-card px-4 py-3 hover:bg-muted/30 sm:flex-row sm:items-center sm:gap-4"
               onClick={() => setViewingEntry(entry)}
             >
-              <EntryTypeBadge type={entry.type} />
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className="font-semibold tabular-nums">
-                    {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
-                  </span>
-                  <span className="truncate text-sm text-muted-foreground">
-                    {FINANCIAL_SOURCE_LABELS[entry.source]}
-                  </span>
+              <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-center sm:gap-4">
+                <EntryTypeBadge type={entry.type} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="font-semibold tabular-nums">
+                      {entry.type === "expense" ? "-" : "+"}{formatMoney(entry.amount)}
+                    </span>
+                    <span className="truncate text-sm text-muted-foreground">
+                      {FINANCIAL_SOURCE_LABELS[entry.source]}
+                    </span>
+                  </div>
+                  {entry.description ? (
+                    <p className="truncate text-sm text-muted-foreground">{entry.description}</p>
+                  ) : null}
+                  <EntryMetadataRow
+                    taskId={entry.task}
+                    taskName={entry.task_name}
+                    folderId={entry.folder}
+                    folderName={entry.folder_name ?? (entry.folder ? `Dossier #${entry.folder}` : null)}
+                    documents={entry.documents_info}
+                    userName={entry.time_entry_user_name ?? entry.created_by_name}
+                    userIconClassName={entry.time_entry_user_name ? "text-violet-500" : undefined}
+                    userPrefix={entry.time_entry_user_name ? "Pour " : undefined}
+                    date={entry.created_at}
+                    showDateIcon
+                  />
                 </div>
-                {entry.description ? (
-                  <p className="truncate text-sm text-muted-foreground">{entry.description}</p>
-                ) : null}
-                <EntryMetadataRow
-                  taskId={entry.task}
-                  taskName={entry.task_name}
-                  folderId={entry.folder}
-                  folderName={entry.folder_name ?? (entry.folder ? `Dossier #${entry.folder}` : null)}
-                  documents={entry.documents_info}
-                  userName={entry.time_entry_user_name ?? entry.created_by_name}
-                  userIconClassName={entry.time_entry_user_name ? "text-violet-500" : undefined}
-                  userPrefix={entry.time_entry_user_name ? "Pour " : undefined}
-                  date={entry.created_at}
-                  showDateIcon
-                />
               </div>
               <EntryRowActions
                 entryLabel={`l'entree de ${formatMoney(entry.amount)}`}

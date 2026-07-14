@@ -109,7 +109,7 @@ function TimeEntryRow({
 
   return (
     <div className={getTimeEntryCardClassName(paymentStatus)}>
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1 cursor-pointer space-y-1" onClick={onDetail}>
           <div className="flex flex-wrap items-center gap-2">
             <PaymentStatusBadge status={paymentStatus} />
@@ -129,7 +129,7 @@ function TimeEntryRow({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center gap-1">
           {canPay && paymentStatus !== "paid" ? (
             <Button type="button" variant="outline" size="sm" onClick={onPay}>
               <CreditCard className="size-4" />

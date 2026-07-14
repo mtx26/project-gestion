@@ -254,33 +254,35 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
           {requests.map((req) => (
             <div
               key={req.id}
-              className="flex cursor-pointer items-start gap-4 rounded-lg border bg-card px-4 py-3 hover:bg-muted/30"
+              className="flex cursor-pointer flex-col gap-3 rounded-lg border bg-card px-4 py-3 hover:bg-muted/30 sm:flex-row sm:items-start sm:gap-4"
               onClick={() => setViewingRequest(req)}
             >
-              <div className="pt-0.5">
-                <RequestStatusBadge status={req.status} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{req.title}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">{formatMoney(req.amount)}</span>
+              <div className="flex min-w-0 flex-1 flex-col gap-1 sm:flex-row sm:items-start sm:gap-4">
+                <div className="sm:pt-0.5">
+                  <RequestStatusBadge status={req.status} />
                 </div>
-                {req.category || req.description ? (
-                  <p className="truncate text-sm text-muted-foreground">
-                    {[req.category, req.description].filter(Boolean).join(" · ")}
-                  </p>
-                ) : null}
-                <EntryMetadataRow
-                  taskId={req.task}
-                  taskName={req.task_name}
-                  folderId={req.folder}
-                  folderName={req.folder_name ?? (req.folder ? `Dossier #${req.folder}` : null)}
-                  documents={req.documents_info}
-                  userName={req.requested_by_name}
-                  date={req.created_at}
-                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{req.title}</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{formatMoney(req.amount)}</span>
+                  </div>
+                  {req.category || req.description ? (
+                    <p className="truncate text-sm text-muted-foreground">
+                      {[req.category, req.description].filter(Boolean).join(" · ")}
+                    </p>
+                  ) : null}
+                  <EntryMetadataRow
+                    taskId={req.task}
+                    taskName={req.task_name}
+                    folderId={req.folder}
+                    folderName={req.folder_name ?? (req.folder ? `Dossier #${req.folder}` : null)}
+                    documents={req.documents_info}
+                    userName={req.requested_by_name}
+                    date={req.created_at}
+                  />
+                </div>
               </div>
-              <div className="flex shrink-0 flex-col items-end gap-1 sm:flex-row sm:items-center">
+              <div className="flex shrink-0 flex-wrap items-center gap-1 sm:flex-nowrap">
                 {canApproveRequests && req.status === "pending" ? (
                   <>
                     <Button
