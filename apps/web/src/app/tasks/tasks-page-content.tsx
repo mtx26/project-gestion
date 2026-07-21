@@ -187,7 +187,7 @@ function TasksView({
   function handleStatusChange(task: Task, status: Task["status"]) {
     const payload: Partial<TaskPayload> = { status };
     if (status === "in_progress" && !task.start_date) {
-      payload.start_date = new Date().toISOString().split("T")[0];
+      payload.start_date = new Date().toISOString();
     }
     updateTask.mutate({ taskId: task.id, payload });
   }

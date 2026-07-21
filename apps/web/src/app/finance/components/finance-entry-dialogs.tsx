@@ -25,6 +25,7 @@ import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
 import { FINANCIAL_SOURCE_LABELS } from "@/lib/finance-chart-utils";
+import { toIsoDateString } from "@/lib/period-utils";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 
 export function FinancialEntryFormDialog({
@@ -57,7 +58,7 @@ export function FinancialEntryFormDialog({
     defaultValues: {
       type: entry?.type ?? "expense",
       amount: String(entry?.amount ?? ""),
-      date: entry?.date ?? new Date().toISOString().split("T")[0],
+      date: entry?.date ?? toIsoDateString(new Date()),
       description: entry?.description ?? "",
     },
   });
