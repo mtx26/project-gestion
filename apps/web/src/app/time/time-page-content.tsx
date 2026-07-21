@@ -418,12 +418,14 @@ function TimeView({
         mode="edit"
         entry={editingEntry}
         projectId={selectedProject?.id ?? 0}
+        canPay={canPayTime}
         targetFolders={targetFolders}
         isPending={updateTimeEntry.isPending}
         error={updateTimeEntry.error}
         onCreateFolderAction={canRecordTime ? handleCreateFolder : undefined}
         onOpenChange={(open) => { if (!open) { setEditingEntry(null); updateTimeEntry.reset(); } }}
         onSubmit={(data) => updateTimeEntry.mutate(data)}
+        onCorrectPayment={(entry) => { setEditingEntry(null); setCorrectionTarget(entry); }}
       />
       <TimeEntryDetailModal
         entry={viewingEntry}
@@ -437,7 +439,6 @@ function TimeView({
         onClose={() => setViewingEntry(null)}
         onEdit={(entry) => { setViewingEntry(null); setEditingEntry(entry); }}
         onPay={(entry) => { setViewingEntry(null); setPaymentTarget(entry); }}
-        onCorrectPayment={(entry) => { setViewingEntry(null); setCorrectionTarget(entry); }}
         onDelete={(entry) => { setViewingEntry(null); setDeletingEntry(entry); }}
         canViewTaskTarget={canViewTasks}
         canViewFolderTarget={canViewFiles}

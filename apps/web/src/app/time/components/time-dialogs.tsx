@@ -63,6 +63,7 @@ export function TimeEntryFormDialog({
   entry,
   projectId,
   canRecordTime = true,
+  canPay = false,
   defaultHourlyRate,
   targetFolders,
   isPending,
@@ -70,12 +71,14 @@ export function TimeEntryFormDialog({
   onCreateFolderAction,
   onOpenChange,
   onSubmit,
+  onCorrectPayment,
 }: {
   mode: "create" | "edit";
   open?: boolean;
   entry?: TimeEntry | null;
   projectId: number;
   canRecordTime?: boolean;
+  canPay?: boolean;
   defaultHourlyRate?: string;
   targetFolders: FolderTreeNode[];
   isPending: boolean;
@@ -83,6 +86,7 @@ export function TimeEntryFormDialog({
   onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: TimeEntrySubmitData) => void;
+  onCorrectPayment?: (entry: TimeEntry) => void;
 }) {
   const isOpen = mode === "create" ? (open ?? false) : entry != null;
   const referenceStart = entry ? toDateTimeLocalInput(entry.start_date) : "";
@@ -112,6 +116,7 @@ export function TimeEntryFormDialog({
     : 0;
   const durationHours = durationMinutes / 60;
   const computedTotal = durationHours > 0 ? durationHours * Number(hourlyRate) : 0;
+  const paymentStatus = mode === "edit" && entry ? getPaymentStatus(entry) : null;
 
   useServerFieldErrors(form, error, [
     { name: "startDate", serverField: "start_date" },
@@ -162,6 +167,12 @@ export function TimeEntryFormDialog({
       footer={
         canRecordTime ? (
           <>
+            {mode === "edit" && entry && canPay && onCorrectPayment && paymentStatus !== "unpaid" ? (
+              <Button type="button" variant="outline" onClick={() => onCorrectPayment(entry)}>
+                <Pencil className="size-4" />
+                Corriger le paiement
+              </Button>
+            ) : null}
             <DialogClose asChild>
               <Button type="button" variant="outline">Annuler</Button>
             </DialogClose>
@@ -245,7 +256,6 @@ export function TimeEntryDetailModal({
   onClose,
   onEdit,
   onPay,
-  onCorrectPayment,
   onDelete,
   canViewTaskTarget = false,
   canViewFolderTarget = false,
@@ -262,7 +272,6 @@ export function TimeEntryDetailModal({
   onClose: () => void;
   onEdit?: (entry: TimeEntry) => void;
   onPay?: (entry: TimeEntry) => void;
-  onCorrectPayment?: (entry: TimeEntry) => void;
   onDelete?: (entry: TimeEntry) => void;
   canViewTaskTarget?: boolean;
   canViewFolderTarget?: boolean;
@@ -299,12 +308,6 @@ export function TimeEntryDetailModal({
                 <Button type="button" variant="outline" size="sm" onClick={() => onPay(entry)}>
                   <CreditCard className="size-4" />
                   Payer
-                </Button>
-              ) : null}
-              {canPay && onCorrectPayment && paymentStatus !== "unpaid" ? (
-                <Button type="button" variant="outline" size="sm" onClick={() => onCorrectPayment(entry)}>
-                  <Pencil className="size-4" />
-                  Corriger le paiement
                 </Button>
               ) : null}
               {canEdit && onEdit ? (
