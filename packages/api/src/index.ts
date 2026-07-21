@@ -1,6 +1,7 @@
 import type {
   ApiFieldErrors,
   AuthTokens,
+  CalendarData,
   DayEntryPayload,
   DayEntryResult,
   ExpenseRequest,
@@ -433,6 +434,20 @@ export function createApiClient({
         ),
       restore: (projectId: number, timeEntryId: number) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/restore/`, { method: "POST" }),
+    },
+    calendar: {
+      get: (
+        projectId: number,
+        query: { start_date: string; end_date: string; include_tasks?: boolean; include_time?: boolean },
+      ) =>
+        request<CalendarData>(
+          `/api/projects/${projectId}/calendar/${buildQueryString({
+            start_date: query.start_date,
+            end_date: query.end_date,
+            include_tasks: query.include_tasks === false ? "false" : undefined,
+            include_time: query.include_time === false ? "false" : undefined,
+          })}`,
+        ),
     },
     tasks: {
       list: (

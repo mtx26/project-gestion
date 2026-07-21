@@ -271,6 +271,27 @@ export type DayEntryResult = {
   time_entries: TimeEntry[];
 };
 
+export type CalendarEventKind = "time" | "task-span" | "task-point-start" | "task-point-due";
+
+export type CalendarEvent = {
+  id: string;
+  kind: CalendarEventKind;
+  title: string;
+  /** "YYYY-MM-DD" */
+  start: string;
+  /** "YYYY-MM-DD", exclusive upper bound for a "task-span" event; null otherwise. */
+  end: string | null;
+  entity_id: ID;
+  status: Task["status"] | null;
+  priority: Task["priority"] | null;
+  pay_status: "paid" | "partial" | "unpaid" | null;
+  duration_label: string | null;
+};
+
+export type CalendarData = {
+  events: CalendarEvent[];
+};
+
 export type TimeEntry = {
   id: ID;
   project: ID;

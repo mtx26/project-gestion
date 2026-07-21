@@ -69,8 +69,6 @@ export const queryKeys = {
   },
   tasks: {
     all: (projectId: number) => ["projects", projectId, "tasks"] as const,
-    calendar: (projectId: number, dateFrom: string, dateTo: string) =>
-      ["projects", projectId, "tasks", "calendar", dateFrom, dateTo] as const,
     list: (
       projectId: number,
       query: {
@@ -154,5 +152,19 @@ export const queryKeys = {
         target: query.target ?? "",
       }] as const,
     trash: (projectId: number, page = 1) => ["projects", projectId, "time-entries", "trash", page] as const,
+  },
+  calendar: {
+    get: (
+      projectId: number,
+      startDate: string,
+      endDate: string,
+      query: { includeTasks?: boolean; includeTime?: boolean } = {},
+    ) =>
+      ["projects", projectId, "calendar", {
+        startDate,
+        endDate,
+        includeTasks: query.includeTasks ?? true,
+        includeTime: query.includeTime ?? true,
+      }] as const,
   },
 } as const;

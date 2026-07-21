@@ -2,7 +2,6 @@
 
 import type { Task, TimeEntry } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
-import { normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { CalendarDays } from "lucide-react";
@@ -32,12 +31,6 @@ const ProjectCalendarView = dynamic(
 );
 
 
-function getMonthRange(monthDate: Date): { startDate: string; endDate: string } {
-  const first = new Date(monthDate.getFullYear(), monthDate.getMonth(), 1);
-  const last = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
-  return { startDate: toIsoDateString(first), endDate: toIsoDateString(last) };
-}
-
 export function CalendarPageContent() {
   return (
     <ProjectWorkspaceShell>
@@ -61,38 +54,47 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
-  const monthRange = useMemo(() => getMonthRange(monthDate), [monthDate]);
   const calendarDays = useMemo(() => getMonthCalendarDays(monthDate), [monthDate]);
   const firstCalStr = useMemo(() => toIsoDateString(calendarDays[0]!), [calendarDays]);
   const lastCalStr = useMemo(() => toIsoDateString(calendarDays[calendarDays.length - 1]!), [calendarDays]);
 
-  const timeEntriesQuery = useQuery({
-    queryKey: projectId && canViewTime
-      ? queryKeys.timeEntries.list(projectId, { startDate: monthRange.startDate, endDate: monthRange.endDate })
+  const includeTasks = canViewTasks && showTasks;
+  const includeTime = canViewTime && showTime;
+
+  const calendarQuery = useQuery({
+    queryKey: projectId && (canViewTasks || canViewTime)
+      ? queryKeys.calendar.get(projectId, firstCalStr, lastCalStr, { includeTasks, includeTime })
       : queryKeys.disabled(),
-    queryFn: () => api.timeEntries.list(projectId!, { start_date: monthRange.startDate, end_date: monthRange.endDate }),
-    enabled: Boolean(projectId && canViewTime),
+    queryFn: () =>
+      api.calendar.get(projectId!, {
+        start_date: firstCalStr,
+        end_date: lastCalStr,
+        include_tasks: includeTasks,
+        include_time: includeTime,
+      }),
+    enabled: Boolean(projectId && (canViewTasks || canViewTime)),
   });
 
-  const tasksQuery = useQuery({
-    queryKey: projectId && canViewTasks
-      ? queryKeys.tasks.calendar(projectId, firstCalStr, lastCalStr)
-      : queryKeys.disabled(),
-    queryFn: () => api.tasks.list(projectId!, { date_from: firstCalStr, date_to: lastCalStr }),
-    enabled: Boolean(projectId && canViewTasks),
-  });
+  const events = calendarQuery.data?.events ?? [];
 
-
-  const timeEntries = normalizeApiList(timeEntriesQuery.data);
-  const tasks = normalizeApiList(tasksQuery.data);
-
-
-  function handleTaskClick(taskId: number) {
-    setSelectedTask(tasks.find((t) => t.id === taskId) ?? null);
+  async function handleTaskClick(taskId: number) {
+    if (!projectId) return;
+    try {
+      const task = await api.tasks.get(projectId, taskId);
+      setSelectedTask(task);
+    } catch {
+      // task not found or no permission
+    }
   }
 
-  function handleTimeClick(timeEntryId: number) {
-    setSelectedTimeEntry(timeEntries.find((e) => e.id === timeEntryId) ?? null);
+  async function handleTimeClick(timeEntryId: number) {
+    if (!projectId) return;
+    try {
+      const entry = await api.timeEntries.get(projectId, timeEntryId);
+      setSelectedTimeEntry(entry);
+    } catch {
+      // entry not found or no permission
+    }
   }
 
   async function handleTimeEntryTargetClick(target: EntryTarget) {
@@ -124,7 +126,7 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
     );
   }
 
-  const isLoading = timeEntriesQuery.isLoading || tasksQuery.isLoading;
+  const isLoading = calendarQuery.isLoading;
 
   return (
     <div className="space-y-5">
@@ -155,8 +157,7 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
       </div>
 
       <ProjectCalendarView
-        timeEntries={canViewTime && showTime ? timeEntries : []}
-        tasks={canViewTasks && showTasks ? tasks : []}
+        events={events}
         isLoading={isLoading}
         onDatesChange={(start) => setMonthDate(new Date(start.getFullYear(), start.getMonth(), 1))}
         onTaskClick={handleTaskClick}

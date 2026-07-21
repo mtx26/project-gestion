@@ -1265,6 +1265,21 @@ class FinancialEntryChartQuerySerializer(serializers.Serializer):
         return attrs
 
 
+class ProjectCalendarQuerySerializer(serializers.Serializer):
+    start_date = serializers.DateField()
+    end_date = serializers.DateField()
+    include_tasks = serializers.BooleanField(required=False, default=True)
+    include_time = serializers.BooleanField(required=False, default=True)
+
+    def validate(self, attrs):
+        if attrs["start_date"] > attrs["end_date"]:
+            raise serializers.ValidationError({
+                "end_date": "errors.calendar.end_date_before_start_date"
+            })
+
+        return attrs
+
+
 class FinancialEntryChartTotalsSerializer(serializers.Serializer):
     count = serializers.IntegerField()
     expenses = serializers.CharField()

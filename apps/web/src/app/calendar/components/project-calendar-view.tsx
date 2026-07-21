@@ -1,6 +1,6 @@
 "use client";
 
-import type { Task, TimeEntry } from "@project-gestion/types";
+import type { CalendarEvent, CalendarEventKind, Task } from "@project-gestion/types";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import type { EventClickArg, EventContentArg } from "@fullcalendar/core";
@@ -9,73 +9,35 @@ import { useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { getTaskStatusChipClassName } from "@/components/badges/task-status-badge";
 import { getPaymentStatusChipClassName, type PaymentStatus } from "@/components/badges/payment-status-badge";
-import { getPaymentStatus } from "@/lib/time-utils";
-import { toIsoDateString } from "@/lib/period-utils";
 
-type EventKind = "time" | "task-span" | "task-point-start" | "task-point-due";
-
-type CalEvent = {
-  id: string;
-  title: string;
-  start: string;
-  end?: string;
-  allDay: boolean;
-  extendedProps: {
-    kind: EventKind;
-    entityId: number;
-    status?: Task["status"];
-    priority?: Task["priority"];
-    payStatus?: PaymentStatus;
-    durationLabel?: string;
-  };
+type EventExtendedProps = {
+  kind: CalendarEventKind;
+  entityId: number;
+  status?: Task["status"];
+  priority?: Task["priority"];
+  payStatus?: PaymentStatus;
+  durationLabel?: string;
 };
 
-function addOneDay(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number) as [number, number, number];
-  return toIsoDateString(new Date(y, m - 1, d + 1));
-}
-
-function formatDurationShort(minutes: number): string {
-  const h = Math.floor(minutes / 60);
-  const m = minutes % 60;
-  return m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`;
-}
-
-function buildEvents(timeEntries: TimeEntry[], tasks: Task[]): CalEvent[] {
-  const events: CalEvent[] = [];
-
-  for (const e of timeEntries) {
-    const dateStr = e.start_date.slice(0, 10);
-    const durationLabel = formatDurationShort(e.duration_minutes);
-    const label = [durationLabel, e.description || e.user_display_name].filter(Boolean).join(" · ");
-    events.push({
-      id: `time-${e.id}`,
-      title: label,
-      start: dateStr,
-      allDay: true,
-      extendedProps: { kind: "time", entityId: e.id, payStatus: getPaymentStatus(e), durationLabel },
-    });
-  }
-
-  for (const t of tasks) {
-    const base = { entityId: t.id, status: t.status, priority: t.priority };
-    if (t.start_date && t.end_date) {
-      events.push({
-        id: `task-${t.id}`,
-        title: t.title,
-        start: t.start_date,
-        end: addOneDay(t.end_date),
-        allDay: true,
-        extendedProps: { kind: "task-span", ...base },
-      });
-    } else if (t.start_date) {
-      events.push({ id: `task-start-${t.id}`, title: t.title, start: t.start_date, allDay: true, extendedProps: { kind: "task-point-start", ...base } });
-    } else if (t.end_date) {
-      events.push({ id: `task-due-${t.id}`, title: t.title, start: t.end_date, allDay: true, extendedProps: { kind: "task-point-due", ...base } });
-    }
-  }
-
-  return events;
+/** Le backend renvoie deja des evenements fusionnes/tries/formates (dates simples,
+ * libelles, statut de paiement) — ce composant ne fait plus que les traduire dans
+ * le format attendu par FullCalendar. */
+function toFullCalendarEvent(e: CalendarEvent) {
+  return {
+    id: e.id,
+    title: e.title,
+    start: e.start,
+    end: e.end ?? undefined,
+    allDay: true,
+    extendedProps: {
+      kind: e.kind,
+      entityId: e.entity_id,
+      status: e.status ?? undefined,
+      priority: e.priority ?? undefined,
+      payStatus: e.pay_status ?? undefined,
+      durationLabel: e.duration_label ?? undefined,
+    } satisfies EventExtendedProps,
+  };
 }
 
 const PRIORITY_DOT: Record<NonNullable<Task["priority"]>, string> = {
@@ -99,7 +61,7 @@ function PriorityDot({ priority }: { priority?: Task["priority"] }) {
 }
 
 function EventChip({ arg }: { arg: EventContentArg }) {
-  const { kind, status, priority, payStatus } = arg.event.extendedProps as CalEvent["extendedProps"];
+  const { kind, status, priority, payStatus } = arg.event.extendedProps as EventExtendedProps;
   const title = arg.event.title;
 
   if (kind === "time") {
@@ -139,25 +101,34 @@ function EventChip({ arg }: { arg: EventContentArg }) {
   );
 }
 
+/** Priorise les entrees de temps sur les taches dans le tri d'affichage : sans ca,
+ * le tri par defaut de FullCalendar (duree decroissante) relegue une entree d'une
+ * journee derriere le lien "+N" des qu'assez de taches multi-jours couvrent la
+ * meme date. Le backend renvoie deja les evenements dans cet ordre ; FullCalendar
+ * re-trie systematiquement selon `eventOrder`, donc ce n'est pas facultatif. */
+function eventOrder(a: unknown, b: unknown): number {
+  const rank = (ev: unknown) =>
+    ((ev as { extendedProps: EventExtendedProps }).extendedProps.kind === "time" ? 0 : 1);
+  return rank(a) - rank(b);
+}
+
 export function ProjectCalendarView({
-  timeEntries,
-  tasks,
+  events: calendarEvents,
   isLoading,
   onDatesChange,
   onTaskClick,
   onTimeClick,
 }: {
-  timeEntries: TimeEntry[];
-  tasks: Task[];
+  events: CalendarEvent[];
   isLoading: boolean;
   onDatesChange?: (start: Date) => void;
   onTaskClick?: (taskId: number) => void;
   onTimeClick?: (timeEntryId: number) => void;
 }) {
-  const events = useMemo(() => buildEvents(timeEntries, tasks), [timeEntries, tasks]);
+  const events = useMemo(() => calendarEvents.map(toFullCalendarEvent), [calendarEvents]);
 
   function handleEventClick(arg: EventClickArg) {
-    const { kind, entityId } = arg.event.extendedProps as CalEvent["extendedProps"];
+    const { kind, entityId } = arg.event.extendedProps as EventExtendedProps;
     if (kind === "time") {
       onTimeClick?.(entityId);
     } else {
@@ -183,6 +154,7 @@ export function ProjectCalendarView({
         eventContent={(arg) => <EventChip arg={arg} />}
         eventDisplay="block"
         displayEventTime={false}
+        eventOrder={eventOrder}
         dayMaxEvents={4}
         datesSet={(info) => onDatesChange?.(info.start)}
         eventClick={handleEventClick}
