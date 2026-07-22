@@ -13,6 +13,7 @@ import { useSearchParams } from "next/navigation";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 import { AccessDeniedState } from "@/components/states/access-denied-state";
 import { NoProjectState } from "@/components/states/no-project-state";
 import { Item, ItemActions, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
@@ -373,8 +374,8 @@ function DocumentTrashSection({
               onClick={() => onRestore(doc)}
               disabled={isRestoring}
             >
-              <RotateCcw className="size-3.5" />
-              Restaurer
+              {isRestoring ? <Spinner /> : <RotateCcw className="size-3.5" />}
+              {isRestoring ? "Restauration..." : "Restaurer"}
             </Button>
           }
         />
@@ -435,8 +436,8 @@ function TrashSection<T extends { id: number }>({
                 onClick={() => onRestore(item)}
                 disabled={isRestoring}
               >
-                <RotateCcw className="size-3.5" />
-                Restaurer
+                {isRestoring ? <Spinner /> : <RotateCcw className="size-3.5" />}
+                {isRestoring ? "Restauration..." : "Restaurer"}
               </Button>
             </ItemActions>
           ) : null}

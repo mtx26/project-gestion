@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { MemberAvatar } from "@/components/member-avatar";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MutedInfoCard } from "@/components/muted-info-card";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -115,7 +116,7 @@ export function AccountProfileForm({
             <Label htmlFor="account-picture" className="mb-2 block">Photo de profil</Label>
             <Button asChild type="button" variant="outline" size="sm" disabled={uploadPicture.isPending}>
               <label htmlFor="account-picture" className="cursor-pointer">
-                <Camera className="size-4" />
+                {uploadPicture.isPending ? <Spinner /> : <Camera className="size-4" />}
                 {uploadPicture.isPending ? "Upload..." : "Modifier"}
               </label>
             </Button>

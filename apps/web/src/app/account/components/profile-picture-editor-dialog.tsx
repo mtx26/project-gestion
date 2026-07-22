@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import {
   createProfilePictureFile,
   type ProfilePictureCrop,
@@ -86,7 +87,7 @@ export function ProfilePictureEditorDialog({
             Reinitialiser
           </Button>
           <Button type="button" onClick={onApply} disabled={!croppedArea || isPending}>
-            <Crop className="size-4" />
+            {isPending ? <Spinner /> : <Crop className="size-4" />}
             {isPending ? "Envoi..." : "Utiliser"}
           </Button>
         </>

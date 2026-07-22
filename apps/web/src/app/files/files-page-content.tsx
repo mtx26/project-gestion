@@ -38,6 +38,7 @@ import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { Input } from "@/components/ui/input";
 import { PageTitle } from "@/components/page-title";
+import { Spinner } from "@/components/ui/spinner";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -350,8 +351,14 @@ function FilesView({
                     </Tooltip>
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <Button variant="outline" size="icon-sm" aria-label="Importer un fichier" onClick={() => onPickFile(selectedFolderId)}>
-                          <Upload className="size-4" />
+                        <Button
+                          variant="outline"
+                          size="icon-sm"
+                          aria-label="Importer un fichier"
+                          disabled={uploadDocument.isPending}
+                          onClick={() => onPickFile(selectedFolderId)}
+                        >
+                          {uploadDocument.isPending ? <Spinner /> : <Upload className="size-4" />}
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Importer un fichier</TooltipContent>
@@ -576,6 +583,7 @@ function FilesView({
               disabled={!renameValue.trim() || renameItem.isPending}
               onClick={() => { if (itemToRename && renameValue.trim()) renameItem.mutate({ target: itemToRename, name: renameValue.trim() }); }}
             >
+              {renameItem.isPending ? <Spinner /> : null}
               {renameItem.isPending ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </>

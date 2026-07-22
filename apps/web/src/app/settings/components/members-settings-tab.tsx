@@ -19,6 +19,7 @@ import { MemberTypeBadge } from "@/components/badges/member-type-badge";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MutedInfoCard } from "@/components/muted-info-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { MemberAvatar } from "@/components/member-avatar";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
@@ -149,7 +150,8 @@ export function MembersSettingsTab({
               )}
             />
             <Button type="submit" disabled={inviteMember.isPending}>
-              Inviter
+              {inviteMember.isPending ? <Spinner /> : null}
+              {inviteMember.isPending ? "Envoi..." : "Inviter"}
             </Button>
             <FormError message={getErrorMessage(inviteMember.error)} />
           </form>

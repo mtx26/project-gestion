@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { ConfirmDeleteDialog } from "@/components/dialogs/confirm-delete-dialog";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
 import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
@@ -283,32 +284,36 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap items-center gap-1 sm:flex-nowrap">
-                {canApproveRequests && req.status === "pending" ? (
-                  <>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5"
-                      disabled={approveRequest.isPending || rejectRequest.isPending}
-                      onClick={(e) => { e.stopPropagation(); approveRequest.mutate(req.id); }}
-                    >
-                      <CheckCircle2 className="size-3.5" />
-                      Approuver
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700"
-                      disabled={approveRequest.isPending || rejectRequest.isPending}
-                      onClick={(e) => { e.stopPropagation(); rejectRequest.mutate(req.id); }}
-                    >
-                      <XCircle className="size-3.5" />
-                      Refuser
-                    </Button>
-                  </>
-                ) : null}
+                {canApproveRequests && req.status === "pending" ? (() => {
+                  const isApprovingThis = approveRequest.isPending && approveRequest.variables === req.id;
+                  const isRejectingThis = rejectRequest.isPending && rejectRequest.variables === req.id;
+                  return (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={approveRequest.isPending || rejectRequest.isPending}
+                        onClick={(e) => { e.stopPropagation(); approveRequest.mutate(req.id); }}
+                      >
+                        {isApprovingThis ? <Spinner /> : <CheckCircle2 className="size-3.5" />}
+                        {isApprovingThis ? "Approbation..." : "Approuver"}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-700"
+                        disabled={approveRequest.isPending || rejectRequest.isPending}
+                        onClick={(e) => { e.stopPropagation(); rejectRequest.mutate(req.id); }}
+                      >
+                        {isRejectingThis ? <Spinner /> : <XCircle className="size-3.5" />}
+                        {isRejectingThis ? "Refus..." : "Refuser"}
+                      </Button>
+                    </>
+                  );
+                })() : null}
                 <EntryRowActions
                   entryLabel={req.title}
                   canEdit={canEditRequests && req.status === "pending"}

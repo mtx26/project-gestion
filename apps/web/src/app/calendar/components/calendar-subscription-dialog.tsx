@@ -15,6 +15,7 @@ import { FormDialog } from "@/components/dialogs/form-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { getErrorMessage, toastError } from "@/lib/errors";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
@@ -147,8 +148,8 @@ function CalendarSubscriptionForm({
               onClick={() => saveMutation.mutate()}
               disabled={(!includeTasks && !includeTime) || !isDirty || saveMutation.isPending}
             >
-              <LinkIcon className="size-4" />
-              {subscription ? "Mettre a jour" : "Generer le lien"}
+              {saveMutation.isPending ? <Spinner /> : <LinkIcon className="size-4" />}
+              {saveMutation.isPending ? "Enregistrement..." : subscription ? "Mettre a jour" : "Generer le lien"}
             </Button>
           </>
         }

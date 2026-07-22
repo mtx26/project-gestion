@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 
 interface FormSubmitButtonProps {
   /** Id du <form> a soumettre — requis quand le bouton est rendu en dehors du
@@ -17,6 +18,7 @@ interface FormSubmitButtonProps {
 export function FormSubmitButton({ form, pending, disabled, label, pendingLabel }: FormSubmitButtonProps) {
   return (
     <Button type="submit" form={form} disabled={disabled || pending}>
+      {pending ? <Spinner /> : null}
       {pending ? pendingLabel : label}
     </Button>
   );

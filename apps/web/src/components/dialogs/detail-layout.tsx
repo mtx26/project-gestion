@@ -5,6 +5,7 @@ import type { LucideIcon } from "lucide-react";
 import { Eye, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { FileAttachment } from "@/components/documents/file-attachment";
 import {
   Dialog,
@@ -92,7 +93,7 @@ export function ModalDocs({
             className="w-full"
             actions={
               <Button type="button" variant="outline" size="sm" disabled={isOpening} onClick={() => onOpen(doc.id)}>
-                <Eye className="size-3.5" />
+                {isOpening ? <Spinner /> : <Eye className="size-3.5" />}
                 Apercu
               </Button>
             }
@@ -124,7 +125,7 @@ export function ModalFooter({
           disabled={destructive.disabled}
           onClick={destructive.onClick}
         >
-          <Trash2 className="size-4" />
+          {destructive.disabled ? <Spinner /> : <Trash2 className="size-4" />}
           {destructive.label}
         </Button>
       ) : null}

@@ -30,6 +30,7 @@ import { NoProjectState } from "@/components/states/no-project-state";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollableTabsList } from "@/components/scrollable-tabs-list";
 import { Textarea } from "@/components/ui/textarea";
@@ -295,7 +296,7 @@ function GeneralSettingsCard({
           </Field>
           <FormError message={error} />
           <Button type="submit" disabled={!canEdit || isPending}>
-            <Save className="size-4" />
+            {isPending ? <Spinner /> : <Save className="size-4" />}
             {isPending ? "Enregistrement..." : "Enregistrer"}
           </Button>
         </form>

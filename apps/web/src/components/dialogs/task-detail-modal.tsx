@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { TaskPriorityBadge } from "@/components/badges/task-priority-badge";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { DocumentThumbnailImage } from "@/components/documents/document-thumbnail-image";
+import { Spinner } from "@/components/ui/spinner";
 import {
   DetailField,
   DetailLabel,
@@ -154,7 +155,7 @@ export function TaskDetailModal({
                       key={doc.id}
                       type="button"
                       aria-label={`Ouvrir ${doc.name ?? "la photo"}`}
-                      className="aspect-square overflow-hidden rounded-lg border bg-muted transition-opacity hover:opacity-80 disabled:opacity-60"
+                      className="relative aspect-square overflow-hidden rounded-lg border bg-muted transition-opacity hover:opacity-80 disabled:opacity-60"
                       disabled={isOpeningDocument}
                       onClick={() => onOpenDocument?.(doc.id)}
                     >
@@ -164,6 +165,11 @@ export function TaskDetailModal({
                         alt={doc.name ?? "Photo"}
                         fallback={<Icon className={iconClassName} />}
                       />
+                      {isOpeningDocument ? (
+                        <span className="absolute inset-0 flex items-center justify-center bg-background/60">
+                          <Spinner />
+                        </span>
+                      ) : null}
                     </button>
                   );
                 })}
