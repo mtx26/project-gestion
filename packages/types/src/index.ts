@@ -292,6 +292,20 @@ export type CalendarData = {
   events: CalendarEvent[];
 };
 
+export type CalendarSubscription = {
+  id: ID;
+  token: string;
+  include_tasks: boolean;
+  include_time: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CalendarSubscriptionPayload = {
+  include_tasks?: boolean;
+  include_time?: boolean;
+};
+
 export type TimeEntry = {
   id: ID;
   project: ID;

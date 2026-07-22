@@ -36,6 +36,7 @@ from .models import (
     TimeEntry,
     FinancialEntry,
     ExpenseRequest,
+    ProjectCalendarSubscription,
 )
 
 
@@ -1278,6 +1279,24 @@ class ProjectCalendarQuerySerializer(serializers.Serializer):
             })
 
         return attrs
+
+
+class ProjectCalendarSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProjectCalendarSubscription
+        fields = ["id", "token", "include_tasks", "include_time", "created_at", "updated_at"]
+        read_only_fields = fields
+
+
+class ProjectCalendarSubscriptionWriteSerializer(serializers.Serializer):
+    """No cross-field `validate()` here on purpose: `include_tasks`/`include_time`
+    can't both be false, but that's a `ProjectCalendarSubscription` invariant, not a
+    request-shape one — enforced once in `ProjectCalendarSubscription.clean()` (called
+    via `full_clean()` in `create_or_update_calendar_subscription`) rather than
+    duplicated here."""
+
+    include_tasks = serializers.BooleanField(required=False, default=True)
+    include_time = serializers.BooleanField(required=False, default=True)
 
 
 class FinancialEntryChartTotalsSerializer(serializers.Serializer):

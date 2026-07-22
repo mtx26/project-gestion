@@ -1,16 +1,27 @@
-from datetime import timedelta
+from datetime import date, timedelta
 
 from django.db.models import Q
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 
-from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
+from icalendar import Calendar, Event as IcsEvent
+
+from rest_framework import generics, status
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from drf_spectacular.utils import extend_schema
 
 from ..authorization import HasProjectPermission, ProjectAuthorization
-from ..serializers import ProjectCalendarQuerySerializer
+from ..models import ProjectCalendarSubscription
+from ..serializers import (
+    ProjectCalendarQuerySerializer,
+    ProjectCalendarSubscriptionSerializer,
+    ProjectCalendarSubscriptionWriteSerializer,
+)
+from ..services.calendar import create_or_update_calendar_subscription, get_calendar_subscription
 from ..services.projects import get_accessible_projects
 from ..services.tasks import get_project_tasks
 from ..services.time_entries import get_project_time_entries
@@ -165,3 +176,133 @@ class ProjectCalendarView(generics.GenericAPIView):
         events.sort(key=lambda e: 0 if e["kind"] == "time" else 1)
 
         return Response({"events": events})
+
+
+def _ics_event(event: dict, project_id: int) -> IcsEvent:
+    """Reuses the same event dicts as the web calendar (`_time_entry_event`/
+    `_task_event`) so the ICS feed can never drift from what `/calendar/` shows —
+    only the serialization format differs."""
+    ics_event = IcsEvent()
+    ics_event.add("uid", f"{event['id']}-project{project_id}@project-gestion")
+    ics_event.add("summary", event["title"])
+    ics_event.add("dtstamp", timezone.now())
+
+    start = date.fromisoformat(event["start"])
+    end = date.fromisoformat(event["end"]) if event["end"] else start + timedelta(days=1)
+    ics_event.add("dtstart", start)
+    ics_event.add("dtend", end)
+
+    description = "\n".join(filter(None, [
+        f"Statut : {event['status']}" if event["status"] else None,
+        f"Priorite : {event['priority']}" if event["priority"] else None,
+        f"Paiement : {event['pay_status']}" if event["pay_status"] else None,
+    ]))
+    if description:
+        ics_event.add("description", description)
+
+    return ics_event
+
+
+@extend_schema(
+    tags=["calendar"],
+    summary="Souscription calendrier (lien ICS) de l'utilisateur pour un projet",
+    description=(
+        "Gere le lien d'abonnement ICS (`webcal`) de l'utilisateur connecte pour ce "
+        "projet — un seul par (projet, utilisateur).\n\n"
+        "- `GET` retourne la souscription existante (404 si aucune).\n"
+        "- `POST` cree la souscription si absente, sinon met a jour `include_tasks`/"
+        "`include_time` sans changer le `token` deja distribue aux applications de "
+        "calendrier.\n"
+        "- `DELETE` revoque la souscription (le lien existant cesse de fonctionner).\n\n"
+        "Le flux lui-meme est servi sans authentification sur `/api/calendar/<token>.ics` "
+        "— l'acces y est reevalue a chaque requete via les permissions "
+        "`task.view`/`time_entry.view` de l'utilisateur qui a cree la souscription."
+    ),
+)
+class ProjectCalendarSubscriptionView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    serializer_class = ProjectCalendarSubscriptionSerializer
+
+    def get(self, request, project_id):
+        get_object_or_404(get_accessible_projects(request.user), pk=project_id)
+        subscription = get_calendar_subscription(request.user, project_id)
+        if subscription is None:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+
+        return Response(self.get_serializer(subscription).data)
+
+    def post(self, request, project_id):
+        project = get_object_or_404(get_accessible_projects(request.user), pk=project_id)
+
+        write_serializer = ProjectCalendarSubscriptionWriteSerializer(data=request.data)
+        write_serializer.is_valid(raise_exception=True)
+
+        subscription = create_or_update_calendar_subscription(
+            project=project,
+            user=request.user,
+            include_tasks=write_serializer.validated_data["include_tasks"],
+            include_time=write_serializer.validated_data["include_time"],
+        )
+
+        return Response(self.get_serializer(subscription).data)
+
+    def delete(self, request, project_id):
+        get_object_or_404(get_accessible_projects(request.user), pk=project_id)
+        subscription = get_calendar_subscription(request.user, project_id)
+        if subscription is not None:
+            subscription.soft_delete(request.user)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(
+    tags=["calendar"],
+    summary="Flux ICS public d'une souscription calendrier",
+    description=(
+        "Flux `text/calendar` non authentifie, identifie par le `token` secret de la "
+        "souscription — pense pour etre colle tel quel dans Google Calendar/Outlook/"
+        "Apple Calendar. Les evenements retournes sont ceux que l'utilisateur ayant "
+        "cree la souscription peut voir *au moment de la requete* (permissions "
+        "reevaluees a chaque appel, aucune date de peremption fixe)."
+    ),
+)
+class ProjectCalendarFeedView(APIView):
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, token):
+        subscription = get_object_or_404(
+            ProjectCalendarSubscription.objects.select_related("project", "user"),
+            token=token,
+        )
+        project = subscription.project
+        user = subscription.user
+        auth = ProjectAuthorization(user, project)
+
+        events = []
+        if subscription.include_time and auth.has("time_entry.view"):
+            time_entries = get_project_time_entries(user, project.id).order_by("-start_date", "-id")
+            events.extend(_time_entry_event(entry) for entry in time_entries)
+
+        if subscription.include_tasks and auth.has("task.view"):
+            # Unlike `/calendar/`, this feed has no date range to implicitly exclude
+            # dateless tasks (its `Q(...)` filters all require at least one date field
+            # to fall in range) — exclude them explicitly instead, since `_task_event`
+            # requires at least one of `start_date`/`end_date` to be set.
+            tasks = get_project_tasks(user, project.id).exclude(
+                start_date__isnull=True, end_date__isnull=True,
+            ).order_by("start_date", "end_date", "id")
+            events.extend(_task_event(task) for task in tasks)
+
+        calendar = Calendar()
+        calendar.add("prodid", f"-//project-gestion//project-{project.id}//FR")
+        calendar.add("version", "2.0")
+        calendar.add("calscale", "GREGORIAN")
+        calendar.add("method", "PUBLISH")
+        calendar.add("x-wr-calname", project.name)
+        for event in events:
+            calendar.add_component(_ics_event(event, project.id))
+
+        response = HttpResponse(calendar.to_ical(), content_type="text/calendar; charset=utf-8")
+        response["Content-Disposition"] = f'inline; filename="{project.id}.ics"'
+        return response

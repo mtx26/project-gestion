@@ -52,7 +52,7 @@ from .views.tasks import (
     TaskTrashListView,
     TaskRestoreView,
 )
-from .views.calendar import ProjectCalendarView
+from .views.calendar import ProjectCalendarView, ProjectCalendarFeedView, ProjectCalendarSubscriptionView
 from .views.time_entries import (
     TimeEntryListCreateView,
     TimeEntryDetailView,
@@ -131,6 +131,8 @@ urlpatterns = [
     path("projects/<int:project_id>/time-entries/<int:pk>/restore/", TimeEntryRestoreView.as_view(), name="project-time-entry-restore"),
     # Calendar
     path("projects/<int:project_id>/calendar/", ProjectCalendarView.as_view(), name="project-calendar"),
+    path("projects/<int:project_id>/calendar/subscription/", ProjectCalendarSubscriptionView.as_view(), name="project-calendar-subscription"),
+    path("calendar/<str:token>.ics", ProjectCalendarFeedView.as_view(), name="project-calendar-feed"),
     # Financial Entries
     path("projects/<int:project_id>/financial-entries/", FinancialEntryListCreateView.as_view(), name="project-financial-entries"),
     path("projects/<int:project_id>/financial-entries/chart/", FinancialEntryChartView.as_view(), name="project-financial-entries-chart"),

@@ -4,13 +4,15 @@ import type { Task, TimeEntry } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, Link as LinkIcon } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { ProjectWorkspaceShell, type ProjectWorkspaceState } from "@/components/dashboard/project-workspace-shell";
 import { ProjectAccessGate } from "@/components/states/project-access-gate";
 import { PageTitle } from "@/components/page-title";
+import { MutedInfoCard } from "@/components/muted-info-card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -18,6 +20,7 @@ import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
 import { TimeEntryDetailModal } from "@/app/time/components/time-dialogs";
 import { api } from "@/lib/api";
+import { CalendarSubscriptionDialog } from "./components/calendar-subscription-dialog";
 import { getMonthCalendarDays } from "./lib/calendar-utils";
 import { toIsoDateString } from "@/lib/period-utils";
 import type { EntryTarget } from "@/lib/target-utils";
@@ -52,6 +55,7 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
   const [showTime, setShowTime] = useState(true);
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
+  const [subscriptionDialogOpen, setSubscriptionDialogOpen] = useState(false);
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
   const calendarDays = useMemo(() => getMonthCalendarDays(monthDate), [monthDate]);
@@ -133,36 +137,53 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <PageTitle category="Calendrier" title="Vue mensuelle" />
         <div className="flex items-center gap-5">
-          {canViewTasks ? (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="show-tasks"
-                checked={showTasks}
-                onCheckedChange={(v) => setShowTasks(Boolean(v))}
-              />
-              <Label htmlFor="show-tasks" className="cursor-pointer text-sm font-normal">Taches</Label>
-            </div>
-          ) : null}
-          {canViewTime ? (
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="show-time"
-                checked={showTime}
-                onCheckedChange={(v) => setShowTime(Boolean(v))}
-              />
-              <Label htmlFor="show-time" className="cursor-pointer text-sm font-normal">Temps</Label>
-            </div>
-          ) : null}
+          <Button type="button" onClick={() => setSubscriptionDialogOpen(true)}>
+            <LinkIcon className="size-4" />
+            S&apos;abonner au calendrier
+          </Button>
+          <div className="hidden items-center gap-5 md:flex">
+            {canViewTasks ? (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-tasks"
+                  checked={showTasks}
+                  onCheckedChange={(v) => setShowTasks(Boolean(v))}
+                />
+                <Label htmlFor="show-tasks" className="cursor-pointer text-sm font-normal">Taches</Label>
+              </div>
+            ) : null}
+            {canViewTime ? (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="show-time"
+                  checked={showTime}
+                  onCheckedChange={(v) => setShowTime(Boolean(v))}
+                />
+                <Label htmlFor="show-time" className="cursor-pointer text-sm font-normal">Temps</Label>
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
 
-      <ProjectCalendarView
-        events={events}
-        isLoading={isLoading}
-        onDatesChange={(start) => setMonthDate(new Date(start.getFullYear(), start.getMonth(), 1))}
-        onTaskClick={handleTaskClick}
-        onTimeClick={handleTimeClick}
-      />
+      <div className="hidden md:block">
+        <ProjectCalendarView
+          events={events}
+          isLoading={isLoading}
+          onDatesChange={(start) => setMonthDate(new Date(start.getFullYear(), start.getMonth(), 1))}
+          onTaskClick={handleTaskClick}
+          onTimeClick={handleTimeClick}
+        />
+      </div>
+
+      <MutedInfoCard className="flex flex-col items-center gap-2 border-dashed py-8 text-center md:hidden">
+        <CalendarDays className="size-8 text-muted-foreground" />
+        <p className="font-medium">Le calendrier n&apos;est pas disponible sur mobile</p>
+        <p className="text-sm text-muted-foreground">
+          Abonne-toi ci-dessus pour le retrouver dans ton application de calendrier
+          (Google Calendar, Outlook, Apple Calendar...).
+        </p>
+      </MutedInfoCard>
 
       <TaskDetailModal
         task={selectedTask}
@@ -186,6 +207,14 @@ function CalendarView({ user, selectedProject, projectsQuery, openCreateProject 
       <DocumentPreviewDialog
         document={previewDocument}
         onClose={() => setPreviewDocument(null)}
+      />
+
+      <CalendarSubscriptionDialog
+        projectId={projectId ?? 0}
+        open={subscriptionDialogOpen}
+        onOpenChange={setSubscriptionDialogOpen}
+        canViewTasks={canViewTasks}
+        canViewTime={canViewTime}
       />
     </div>
   );

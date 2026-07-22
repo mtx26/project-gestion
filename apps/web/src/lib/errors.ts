@@ -127,6 +127,9 @@ export function translateError(code: string) {
     "errors.expense_request.amount_must_be_positive": "Le montant doit etre superieur a 0.",
 
     "errors.financial_chart.end_date_before_start_date": "La date de fin ne peut pas preceder la date de debut.",
+
+    "errors.calendar.end_date_before_start_date": "La date de fin ne peut pas preceder la date de debut.",
+    "errors.calendar_subscription.at_least_one_required": "Coche au moins taches ou temps.",
   };
 
   if (messages[code]) return messages[code];

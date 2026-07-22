@@ -37,7 +37,6 @@ export function FormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={cn(
-          "flex max-h-[85vh] flex-col overflow-hidden",
           maxWidth === "md" ? "sm:max-w-md" : "sm:max-w-lg",
         )}
       >
@@ -45,7 +44,7 @@ export function FormDialog({
           <DialogTitle className="pr-6">{title}</DialogTitle>
           {description ? <DialogDescription>{description}</DialogDescription> : null}
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+        <div className="min-h-0 flex-1 space-y-4">
           {children}
           <FormErrorAlert error={error} />
         </div>

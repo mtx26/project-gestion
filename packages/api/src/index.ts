@@ -2,6 +2,8 @@ import type {
   ApiFieldErrors,
   AuthTokens,
   CalendarData,
+  CalendarSubscription,
+  CalendarSubscriptionPayload,
   DayEntryPayload,
   DayEntryResult,
   ExpenseRequest,
@@ -448,6 +450,17 @@ export function createApiClient({
             include_time: query.include_time === false ? "false" : undefined,
           })}`,
         ),
+      getSubscription: (projectId: number) =>
+        request<CalendarSubscription>(`/api/projects/${projectId}/calendar/subscription/`),
+      createSubscription: (projectId: number, payload: CalendarSubscriptionPayload) =>
+        request<CalendarSubscription>(`/api/projects/${projectId}/calendar/subscription/`, {
+          method: "POST",
+          body: payload,
+        }),
+      deleteSubscription: (projectId: number) =>
+        request<void>(`/api/projects/${projectId}/calendar/subscription/`, {
+          method: "DELETE",
+        }),
     },
     tasks: {
       list: (

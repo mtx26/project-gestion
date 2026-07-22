@@ -717,3 +717,49 @@ class ExpenseRequest(BaseModel):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+## Calendar
+class ProjectCalendarSubscriptionQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
+    pass
+
+
+class ActiveProjectCalendarSubscriptionManager(ActiveManagerMixin, models.Manager.from_queryset(ProjectCalendarSubscriptionQuerySet)):
+    pass
+
+
+class DeletedProjectCalendarSubscriptionManager(DeletedManagerMixin, models.Manager.from_queryset(ProjectCalendarSubscriptionQuerySet)):
+    pass
+
+
+class ProjectCalendarSubscription(BaseModel):
+    """A per-user, per-project ICS subscription link (`token`): calendar apps poll
+    it unauthenticated, so access is re-checked against `user`'s permissions on
+    every fetch (see `ProjectCalendarFeedView`) rather than baked in once — a user
+    losing `task.view`/`time_entry.view` after generating the link loses the feed
+    too, without needing to revoke it."""
+
+    objects = ActiveProjectCalendarSubscriptionManager()
+    deleted_objects = DeletedProjectCalendarSubscriptionManager()
+    all_objects = models.Manager.from_queryset(ProjectCalendarSubscriptionQuerySet)()
+
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="calendar_subscriptions")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="calendar_subscriptions")
+    token = models.CharField(max_length=255, unique=True)
+    include_tasks = models.BooleanField(default=True)
+    include_time = models.BooleanField(default=True)
+
+    def clean(self):
+        super().clean()
+
+        if not self.include_tasks and not self.include_time:
+            raise ValidationError({"include_tasks": "errors.calendar_subscription.at_least_one_required"})
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "user"],
+                condition=models.Q(deleted_at__isnull=True),
+                name="unique_active_calendar_subscription_per_user_project",
+            )
+        ]

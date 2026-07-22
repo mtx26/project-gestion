@@ -166,5 +166,6 @@ export const queryKeys = {
         includeTasks: query.includeTasks ?? true,
         includeTime: query.includeTime ?? true,
       }] as const,
+    subscription: (projectId: number) => ["projects", projectId, "calendar", "subscription"] as const,
   },
 } as const;
