@@ -29,4 +29,3 @@ export function translateError(code: string) {
   };
   return messages[code] ?? code;
 }
-

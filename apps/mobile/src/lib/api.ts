@@ -21,4 +21,3 @@ export const api = createApiClient({
   baseUrl: API_BASE_URL,
   tokenStore: mobileTokenStore,
 });
-
