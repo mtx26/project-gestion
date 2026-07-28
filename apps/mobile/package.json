@@ -11,6 +11,7 @@
     "@project-gestion/query-keys": "workspace:*",
     "@project-gestion/types": "workspace:*",
     "@project-gestion/validation": "workspace:*",
+    "@react-navigation/drawer": "^7.13.5",
     "@tanstack/react-query": "^5.101.0",
     "expo": "~54.0.36",
     "expo-constants": "~18.0.13",
@@ -25,6 +26,7 @@
     "react-hook-form": "^7.79.0",
     "react-native": "0.81.5",
     "react-native-css-interop": "^0.2.5",
+    "react-native-gesture-handler": "~2.28.0",
     "react-native-reanimated": "4.1.7",
     "react-native-safe-area-context": "^5.6.2",
     "react-native-screens": "^4.16.0",
@@ -37,16 +39,16 @@
   "devDependencies": {
     "@types/react": "~19.1.10",
     "babel-preset-expo": "~54.0.10",
-    "dotenv-cli": "^7.4.4",
+    "dotenv": "^16.4.5",
     "prettier-plugin-tailwindcss": "0.5.11",
     "tailwindcss": "3.4.17",
     "typescript": "~5.9.2"
   },
   "scripts": {
-    "start": "dotenv -e ../../.env -v EXPO_NO_DEPENDENCY_VALIDATION=1 -- expo start",
-    "android": "dotenv -e ../../.env -v EXPO_NO_DEPENDENCY_VALIDATION=1 -- expo start --android",
-    "ios": "dotenv -e ../../.env -v EXPO_NO_DEPENDENCY_VALIDATION=1 -- expo start --ios",
-    "web": "dotenv -e ../../.env -v EXPO_NO_DEPENDENCY_VALIDATION=1 -- expo start --web",
+    "start": "node scripts/start.js",
+    "android": "node scripts/start.js --android",
+    "ios": "node scripts/start.js --ios",
+    "web": "node scripts/start.js --web",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"No mobile lint configured\""
   },

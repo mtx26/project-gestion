@@ -1,3 +1,4 @@
+import "react-native-gesture-handler";
 import "../global.css";
 
 import { theme } from "@project-gestion/config";
