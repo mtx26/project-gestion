@@ -9,7 +9,7 @@ export function CalendarScreen() {
       requiredPermission={(can) => can(permissionCodes.taskView) || can(permissionCodes.timeEntryView)}
     >
       {(project) => (
-        <Text className="text-sm text-muted">
+        <Text className="px-5 text-sm text-muted">
           Vue calendrier de « {project.name} » — a venir.
         </Text>
       )}

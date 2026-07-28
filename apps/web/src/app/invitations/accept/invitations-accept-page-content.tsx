@@ -10,8 +10,9 @@ import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-
 import { FormError } from "@/components/forms/form-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getFieldError } from "@project-gestion/api";
 import { api } from "@/lib/api";
-import { getErrorMessage, getFieldError } from "@/lib/errors";
+import { getErrorMessage } from "@/lib/errors";
 
 export function InvitationsAcceptPageContent() {
   return (

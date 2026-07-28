@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { getErrorMessage, isEmailVerificationRequired } from "@/lib/errors";
+import { isEmailVerificationRequired } from "@project-gestion/api";
+import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useAuthStore } from "@/stores/auth-store";
 

@@ -6,7 +6,7 @@ export function FinanceScreen() {
   return (
     <ProjectSectionScreen title="Finances" requiredPermission={permissionCodes.financeView}>
       {(project) => (
-        <Text className="text-sm text-muted">
+        <Text className="px-5 text-sm text-muted">
           Finances de « {project.name} » — a venir.
         </Text>
       )}

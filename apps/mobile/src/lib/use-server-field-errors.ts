@@ -1,5 +1,3 @@
-"use client";
-
 import { getFieldError } from "@project-gestion/api";
 import { useEffect } from "react";
 import type { FieldValues, Path, UseFormReturn } from "react-hook-form";
@@ -7,12 +5,7 @@ import type { FieldValues, Path, UseFormReturn } from "react-hook-form";
 type FieldMapping<T extends FieldValues> = Path<T> | { name: Path<T>; serverField: string };
 
 /** Maps a mutation's ApiError.fieldErrors onto react-hook-form fields, so a 400 response
- * surfaces under the right input instead of only in the dialog's generic alert.
- *
- * Accepts `UseFormReturn<T, any, any>` (not just `UseFormReturn<T>`) so it also works
- * with a form whose Zod schema transforms its output to a different shape (`useForm<Input,
- * Context, Output>`) — `setError` always targets the *input* field names (`T`), regardless
- * of what the resolver eventually returns on submit. */
+ * surfaces under the right input instead of only in the screen's generic banner. */
 export function useServerFieldErrors<T extends FieldValues>(
   form: UseFormReturn<T, unknown, FieldValues>,
   error: unknown,

@@ -6,7 +6,7 @@ export function RequestsScreen() {
   return (
     <ProjectSectionScreen title="Remboursements" requiredPermission={permissionCodes.expenseRequestView}>
       {(project) => (
-        <Text className="text-sm text-muted">
+        <Text className="px-5 text-sm text-muted">
           Notes de frais de « {project.name} » — a venir.
         </Text>
       )}

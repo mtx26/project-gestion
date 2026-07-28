@@ -7,6 +7,9 @@ export default function AppLayout() {
       <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
       <Stack.Screen name="account" options={{ presentation: "modal" }} />
       <Stack.Screen name="projects/create" options={{ presentation: "modal" }} />
+      <Stack.Screen name="tasks/create" options={{ presentation: "modal" }} />
+      <Stack.Screen name="tasks/[id]/index" />
+      <Stack.Screen name="tasks/[id]/edit" options={{ presentation: "modal" }} />
     </Stack>
   );
 }

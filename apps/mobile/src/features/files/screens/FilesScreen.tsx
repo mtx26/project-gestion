@@ -6,7 +6,7 @@ export function FilesScreen() {
   return (
     <ProjectSectionScreen title="Fichiers" requiredPermission={permissionCodes.fileView}>
       {(project) => (
-        <Text className="text-sm text-muted">
+        <Text className="px-5 text-sm text-muted">
           Dossiers et documents de « {project.name} » — a venir.
         </Text>
       )}

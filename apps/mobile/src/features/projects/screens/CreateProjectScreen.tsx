@@ -12,19 +12,22 @@ import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
 import { getErrorMessage } from "../../../lib/errors";
+import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 import { useCreateProject } from "../hooks/use-projects";
 
 export function CreateProjectScreen() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const createProject = useCreateProject();
   const form = useForm<ProjectFormInput, any, ProjectFormValues>({
     resolver: zodResolver(projectSchema),
     defaultValues: { name: "", description: "" },
   });
 
+  useServerFieldErrors(form, rawError, ["name", "description"]);
+
   async function onSubmit(values: ProjectFormValues) {
-    setError(null);
+    setRawError(null);
     try {
       await createProject.mutateAsync({
         name: values.name,
@@ -32,7 +35,7 @@ export function CreateProjectScreen() {
       });
       router.back();
     } catch (caught) {
-      setError(getErrorMessage(caught));
+      setRawError(caught);
     }
   }
 
@@ -66,7 +69,7 @@ export function CreateProjectScreen() {
           />
         )}
       />
-      <InlineMessage variant="danger">{error}</InlineMessage>
+      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
         Creer
       </Button>

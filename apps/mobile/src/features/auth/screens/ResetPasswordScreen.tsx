@@ -12,11 +12,12 @@ import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
 import { api, mobileTokenStore } from "../../../lib/api";
 import { getErrorMessage } from "../../../lib/errors";
+import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 
 export function ResetPasswordScreen() {
   const router = useRouter();
   const { uid, token } = useLocalSearchParams<{ uid?: string; token?: string }>();
-  const [error, setError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<ResetPasswordConfirmFormValues>({
     resolver: zodResolver(resetPasswordConfirmSchema),
     defaultValues: {
@@ -26,14 +27,16 @@ export function ResetPasswordScreen() {
     },
   });
 
+  useServerFieldErrors(form, rawError, ["uid", "token", "new_password"]);
+
   async function onSubmit(values: ResetPasswordConfirmFormValues) {
-    setError(null);
+    setRawError(null);
     try {
       await api.auth.resetPasswordConfirm(values);
       await mobileTokenStore.clearTokens();
       router.replace("/");
     } catch (caught) {
-      setError(getErrorMessage(caught));
+      setRawError(caught);
     }
   }
 
@@ -59,7 +62,9 @@ export function ResetPasswordScreen() {
         )}
       />
       <InlineMessage variant="danger">
-        {form.formState.errors.uid?.message ?? form.formState.errors.token?.message ?? error}
+        {form.formState.errors.uid?.message ??
+          form.formState.errors.token?.message ??
+          getErrorMessage(rawError)}
       </InlineMessage>
       <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
         Mettre a jour

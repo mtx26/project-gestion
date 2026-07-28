@@ -9,23 +9,26 @@ import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
 import { api } from "../../../lib/api";
 import { getErrorMessage } from "../../../lib/errors";
+import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 
 export function ForgotPasswordScreen() {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<ResetPasswordFormValues>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: { email: "" },
   });
 
+  useServerFieldErrors(form, rawError, ["email"]);
+
   async function onSubmit(values: ResetPasswordFormValues) {
-    setError(null);
+    setRawError(null);
     try {
       await api.auth.resetPassword(values.email);
       setMessage("Si un compte existe, un email de reinitialisation a ete envoye.");
     } catch (caught) {
-      setError(getErrorMessage(caught));
+      setRawError(caught);
     }
   }
 
@@ -51,7 +54,7 @@ export function ForgotPasswordScreen() {
           />
         )}
       />
-      <InlineMessage variant="danger">{error}</InlineMessage>
+      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
         Envoyer le lien
       </Button>

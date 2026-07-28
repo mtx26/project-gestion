@@ -12,6 +12,7 @@ import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
 import { api } from "../../../lib/api";
 import { getErrorMessage } from "../../../lib/errors";
+import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 
 export function ResendVerificationScreen() {
   const router = useRouter();
@@ -19,19 +20,21 @@ export function ResendVerificationScreen() {
   const [message, setMessage] = useState<string | null>(
     registered === "true" ? "Verifie ton email." : null,
   );
-  const [error, setError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const form = useForm<ResendVerificationFormValues>({
     resolver: zodResolver(resendVerificationSchema),
     defaultValues: { email: email ?? "" },
   });
 
+  useServerFieldErrors(form, rawError, ["email"]);
+
   async function onSubmit(values: ResendVerificationFormValues) {
-    setError(null);
+    setRawError(null);
     try {
       await api.auth.resendVerification(values.email);
       setMessage("Si un compte existe et n'est pas verifie, un email a ete envoye.");
     } catch (caught) {
-      setError(getErrorMessage(caught));
+      setRawError(caught);
     }
   }
 
@@ -57,7 +60,7 @@ export function ResendVerificationScreen() {
           />
         )}
       />
-      <InlineMessage variant="danger">{error}</InlineMessage>
+      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
         Renvoyer l'email
       </Button>

@@ -2,7 +2,7 @@ import type { PermissionCode, ProjectPermissionState } from "@project-gestion/pe
 import type { Project } from "@project-gestion/types";
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { ScrollView, Text } from "react-native";
+import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useProjectPermissions } from "../../features/projects/hooks/use-project-permissions";
 import { useSelectedProject } from "../../features/projects/hooks/use-selected-project";
@@ -14,6 +14,8 @@ import { NoProjectState } from "../feedback/NoProjectState";
 interface ProjectSectionScreenProps {
   title: string;
   requiredPermission?: PermissionCode | ((can: (code: PermissionCode) => boolean) => boolean);
+  /** Children control their own scrolling (FlatList, ScrollView, or plain content) —
+   * this wrapper only owns the safe area, title, and loading/no-project/locked states. */
   children: (project: Project) => ReactNode;
 }
 
@@ -35,21 +37,25 @@ export function ProjectSectionScreen({
 
   return (
     <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
-      <ScrollView className="flex-1 px-5 py-6" contentContainerStyle={{ flexGrow: 1 }}>
-        <Text className="mb-4 text-2xl font-semibold text-foreground">{title}</Text>
+      <Text className="px-5 pb-2 pt-6 text-2xl font-semibold text-foreground">{title}</Text>
+      <View className="flex-1">
         {isLoading ? (
           <LoadingState />
         ) : !selectedProject ? (
-          <NoProjectState
-            description="Cree un projet depuis le menu pour commencer."
-            onCreateProject={() => router.push("/projects/create")}
-          />
+          <View className="px-5">
+            <NoProjectState
+              description="Cree un projet depuis le menu pour commencer."
+              onCreateProject={() => router.push("/projects/create")}
+            />
+          </View>
         ) : !hasAccess ? (
-          <AccessDeniedState label={title} />
+          <View className="px-5">
+            <AccessDeniedState label={title} />
+          </View>
         ) : (
           children(selectedProject)
         )}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { isEmailVerificationRequired } from "@project-gestion/api";
 import { loginSchema, type LoginFormValues } from "@project-gestion/validation";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
@@ -9,13 +10,14 @@ import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
-import { getErrorMessage, isEmailVerificationRequired } from "../../../lib/errors";
+import { getErrorMessage } from "../../../lib/errors";
+import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 import { useAuthStore } from "../../../stores/auth-store";
 
 export function LoginScreen() {
   const router = useRouter();
   const login = useAuthStore((state) => state.login);
-  const [error, setError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const passwordRef = useRef<RNTextInput>(null);
   const form = useForm<LoginFormValues>({
@@ -23,8 +25,14 @@ export function LoginScreen() {
     defaultValues: { identifier: "", password: "" },
   });
 
+  useServerFieldErrors(form, rawError, [
+    "identifier",
+    { name: "identifier", serverField: "username" },
+    "password",
+  ]);
+
   async function onSubmit(values: LoginFormValues) {
-    setError(null);
+    setRawError(null);
     setUnverifiedEmail(null);
     try {
       await login(values);
@@ -33,7 +41,7 @@ export function LoginScreen() {
         setUnverifiedEmail(values.identifier);
         return;
       }
-      setError(getErrorMessage(caught));
+      setRawError(caught);
     }
   }
 
@@ -79,7 +87,7 @@ export function LoginScreen() {
           />
         )}
       />
-      <InlineMessage variant="danger">{error}</InlineMessage>
+      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <InlineMessage variant="danger">
         {unverifiedEmail ? "Email non verifie. Renvoyez l'email de verification." : null}
       </InlineMessage>

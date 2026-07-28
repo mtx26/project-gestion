@@ -10,10 +10,11 @@ import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
 import { api } from "../../../lib/api";
 import { getErrorMessage } from "../../../lib/errors";
+import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 
 export function RegisterScreen() {
   const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
+  const [rawError, setRawError] = useState<unknown>(null);
   const lastNameRef = useRef<RNTextInput>(null);
   const emailRef = useRef<RNTextInput>(null);
   const passwordRef = useRef<RNTextInput>(null);
@@ -22,8 +23,10 @@ export function RegisterScreen() {
     defaultValues: { email: "", password: "", first_name: "", last_name: "" },
   });
 
+  useServerFieldErrors(form, rawError, ["email", "password", "first_name", "last_name"]);
+
   async function onSubmit(values: RegisterFormValues) {
-    setError(null);
+    setRawError(null);
     try {
       await api.auth.register(values);
       router.replace({
@@ -31,7 +34,7 @@ export function RegisterScreen() {
         params: { email: values.email, registered: "true" },
       });
     } catch (caught) {
-      setError(getErrorMessage(caught));
+      setRawError(caught);
     }
   }
 
@@ -115,7 +118,7 @@ export function RegisterScreen() {
           />
         )}
       />
-      <InlineMessage variant="danger">{error}</InlineMessage>
+      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
         Creer le compte
       </Button>
