@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  resendVerificationFieldMap,
   resendVerificationSchema,
   type ResendVerificationFormValues,
 } from "@project-gestion/validation";
@@ -26,7 +27,7 @@ export function ResendVerificationScreen() {
     defaultValues: { email: email ?? "" },
   });
 
-  useServerFieldErrors(form, rawError, ["email"]);
+  useServerFieldErrors(form, rawError, resendVerificationFieldMap);
 
   async function onSubmit(values: ResendVerificationFormValues) {
     setRawError(null);

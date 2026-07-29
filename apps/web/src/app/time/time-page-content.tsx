@@ -2,7 +2,13 @@
 
 import type { Task, TimeEntry } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
-import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
+import {
+  buildTimeEntriesListQuery,
+  getApiCount,
+  getApiPageSize,
+  normalizeApiList,
+  type TimeEntryListFilters,
+} from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Clock3, Lock, Plus } from "lucide-react";
@@ -114,30 +120,21 @@ function TimeView({
     canFetchMembers: canViewAllTime,
   });
 
+  const timeFilters: TimeEntryListFilters = {
+    userId: selectedUserId ?? "all",
+    startDate: periodRange.startDate,
+    endDate: periodRange.endDate,
+    includePaid,
+    paymentStatus: paymentStatusFilter,
+    target: targetFilter ?? undefined,
+    search: searchFromUrl || undefined,
+  };
+
   const timeEntriesQuery = useQuery({
     queryKey: selectedProject
-      ? queryKeys.timeEntries.list(selectedProject.id, {
-          userId: selectedUserId ?? "all",
-          startDate: periodRange.startDate,
-          endDate: periodRange.endDate,
-          includePaid,
-          paymentStatus: paymentStatusFilter,
-          target: targetFilter ?? undefined,
-          search: searchFromUrl || undefined,
-          page,
-        })
+      ? buildTimeEntriesListQuery(api, selectedProject.id, timeFilters, page).queryKey
       : queryKeys.disabled(),
-    queryFn: () =>
-      api.timeEntries.list(selectedProject!.id, {
-        ...(selectedUserId == null ? {} : { user: selectedUserId }),
-        start_date: periodRange.startDate,
-        end_date: periodRange.endDate,
-        include_paid: includePaid,
-        payment_status: paymentStatusFilter,
-        target: targetFilter ?? undefined,
-        search: searchFromUrl || undefined,
-        page,
-      }),
+    queryFn: () => buildTimeEntriesListQuery(api, selectedProject!.id, timeFilters, page).queryFn(),
     enabled: Boolean(projectId && canViewTime),
     placeholderData: keepPreviousData,
   });

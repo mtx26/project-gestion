@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registerSchema, type RegisterFormValues } from "@project-gestion/validation";
+import { registerFieldMap, registerSchema, type RegisterFormValues } from "@project-gestion/validation";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -23,7 +23,7 @@ export function RegisterScreen() {
     defaultValues: { email: "", password: "", first_name: "", last_name: "" },
   });
 
-  useServerFieldErrors(form, rawError, ["email", "password", "first_name", "last_name"]);
+  useServerFieldErrors(form, rawError, registerFieldMap);
 
   async function onSubmit(values: RegisterFormValues) {
     setRawError(null);

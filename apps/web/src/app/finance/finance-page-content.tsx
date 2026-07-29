@@ -2,7 +2,13 @@
 
 import type { FinancialEntry, FinancialEntryPayload, Task, TimeEntry } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
-import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
+import {
+  buildFinanceEntriesListQuery,
+  getApiCount,
+  getApiPageSize,
+  normalizeApiList,
+  type FinanceEntryListFilters,
+} from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Banknote, Plus } from "lucide-react";
@@ -114,32 +120,22 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
     enabled: Boolean(projectId && canViewFinance),
   });
 
+  const financeFilters: FinanceEntryListFilters = {
+    search: searchFromUrl || undefined,
+    type: typeFilter !== "all" ? typeFilter : undefined,
+    source: sourceFilter !== "all" ? sourceFilter : undefined,
+    createdBy: userFilterId ?? undefined,
+    folderId: folderFilterId ?? undefined,
+    ordering: ordering !== "all" ? ordering : undefined,
+    dateFrom,
+    dateTo,
+  };
+
   const entriesQuery = useQuery({
     queryKey: projectId
-      ? queryKeys.financialEntries.list(projectId, {
-          search: searchFromUrl || undefined,
-          type: typeFilter !== "all" ? typeFilter : undefined,
-          source: sourceFilter !== "all" ? sourceFilter : undefined,
-          createdBy: userFilterId ?? undefined,
-          folder: folderFilterId ?? undefined,
-          ordering: ordering !== "all" ? ordering : undefined,
-          page,
-          dateFrom: dateFrom,
-          dateTo: dateTo,
-        })
+      ? buildFinanceEntriesListQuery(api, projectId, financeFilters, page).queryKey
       : queryKeys.disabled(),
-    queryFn: () =>
-      api.financialEntries.list(projectId!, {
-        search: searchFromUrl || undefined,
-        type: typeFilter !== "all" ? typeFilter : undefined,
-        source: sourceFilter !== "all" ? sourceFilter : undefined,
-        created_by: userFilterId ?? undefined,
-        folder: folderFilterId ?? undefined,
-        ordering: ordering !== "all" ? ordering : undefined,
-        page,
-        date_from: dateFrom,
-        date_to: dateTo,
-      }),
+    queryFn: () => buildFinanceEntriesListQuery(api, projectId!, financeFilters, page).queryFn(),
     enabled: Boolean(projectId && canViewFinance),
     placeholderData: keepPreviousData,
   });

@@ -265,6 +265,9 @@ importers:
 
   packages/api:
     dependencies:
+      '@project-gestion/query-keys':
+        specifier: workspace:*
+        version: link:../query-keys
       '@project-gestion/types':
         specifier: workspace:*
         version: link:../types
@@ -279,6 +282,9 @@ importers:
 
   packages/validation:
     dependencies:
+      react-hook-form:
+        specifier: ^7.79.0
+        version: 7.79.0(react@19.2.4)
       zod:
         specifier: 4.0.17
         version: 4.0.17

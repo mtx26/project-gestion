@@ -9,7 +9,7 @@ import { getErrorMessage } from "../../../lib/errors";
 export function VerifyEmailScreen() {
   const router = useRouter();
   const { key } = useLocalSearchParams<{ key?: string }>();
-  const [message, setMessage] = useState("Verification en cours...");
+  const [message, setMessage] = useState<string | null>("Verification en cours...");
   const [danger, setDanger] = useState(false);
 
   useEffect(() => {

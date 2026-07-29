@@ -1,8 +1,7 @@
 import { getFieldError } from "@project-gestion/api";
+import type { FieldMapping } from "@project-gestion/validation";
 import { useEffect } from "react";
-import type { FieldValues, Path, UseFormReturn } from "react-hook-form";
-
-type FieldMapping<T extends FieldValues> = Path<T> | { name: Path<T>; serverField: string };
+import type { FieldValues, UseFormReturn } from "react-hook-form";
 
 /** Maps a mutation's ApiError.fieldErrors onto react-hook-form fields, so a 400 response
  * surfaces under the right input instead of only in the screen's generic banner. */

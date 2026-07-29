@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { emailSchema, requiredTextSchema } from "./shared";
+import type { FieldMapping } from "./server-fields";
 
 const passwordSchema = z
   .string()
@@ -54,3 +55,25 @@ export type VerifyEmailFormValues = z.infer<typeof verifyEmailSchema>;
 export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 export type ResetPasswordConfirmFormValues = z.infer<typeof resetPasswordConfirmSchema>;
 export type ChangePasswordFormValues = z.infer<typeof changePasswordSchema>;
+
+// Server-field mappings for useServerFieldErrors — shared so web and mobile
+// map a 400 response onto the same form fields instead of hand-copying the
+// same array per platform.
+export const loginFieldMap: FieldMapping<LoginFormValues>[] = [
+  "identifier",
+  { name: "identifier", serverField: "username" },
+  "password",
+];
+export const registerFieldMap: FieldMapping<RegisterFormValues>[] = [
+  "email",
+  "password",
+  "first_name",
+  "last_name",
+];
+export const resendVerificationFieldMap: FieldMapping<ResendVerificationFormValues>[] = ["email"];
+export const resetPasswordFieldMap: FieldMapping<ResetPasswordFormValues>[] = ["email"];
+export const resetPasswordConfirmFieldMap: FieldMapping<ResetPasswordConfirmFormValues>[] = [
+  "uid",
+  "token",
+  "new_password",
+];

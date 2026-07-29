@@ -29,10 +29,17 @@ export function MemberMultiSelectModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
-        <View className="flex-row items-center justify-between border-b border-border px-5 py-4">
+      {/* No "top" edge: a pageSheet already slides up below the status bar, so an
+          added top inset here would just create an extra gap above the header. */}
+      <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+        <View className="flex-row items-center justify-between border-b border-border px-5 py-2">
           <Text className="text-lg font-semibold text-foreground">Assigner des membres</Text>
-          <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fermer" hitSlop={8}>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            className="h-11 w-11 items-center justify-center"
+          >
             <X size={theme.iconSize.md} color={theme.colors.foreground} />
           </Pressable>
         </View>

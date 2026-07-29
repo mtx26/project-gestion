@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, type LoginFormValues } from "@project-gestion/validation";
+import { loginFieldMap, loginSchema, type LoginFormValues } from "@project-gestion/validation";
 import { MailWarning } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,11 +30,7 @@ export default function LoginPage() {
     defaultValues: { identifier: "", password: "" },
   });
 
-  useServerFieldErrors(form, rawError, [
-    "identifier",
-    { name: "identifier", serverField: "username" },
-    "password",
-  ]);
+  useServerFieldErrors(form, rawError, loginFieldMap);
 
   async function onSubmit(values: LoginFormValues) {
     setRawError(null);

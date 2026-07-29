@@ -1,20 +1,19 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Task } from "@project-gestion/types";
-import { taskSchema, type TaskFormInput, type TaskFormValues } from "@project-gestion/validation";
+import { taskFieldMap, taskSchema, type TaskFormInput, type TaskFormValues } from "@project-gestion/validation";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useRouter } from "expo-router";
-import { Calendar } from "lucide-react-native";
+import { Calendar, ChevronDown } from "lucide-react-native";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Platform, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
 import { MemberMultiSelectModal } from "../../../components/pickers/MemberMultiSelectModal";
-import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { Screen } from "../../../components/ui/Screen";
+import { FormScreen } from "../../../components/layout/FormScreen";
 import { showActionSheet } from "../../../lib/action-sheet";
 import { formatDateTime } from "../../../lib/date-format";
 import { findFolderName } from "../../../lib/folder-tree";
@@ -92,14 +91,7 @@ function TaskFormBody({
     },
   });
 
-  useServerFieldErrors(form, rawError, [
-    "title",
-    "priority",
-    { name: "folder", serverField: "folder" },
-    { name: "startDate", serverField: "start_date" },
-    { name: "endDate", serverField: "end_date" },
-    { name: "assignees", serverField: "assigned_to" },
-  ]);
+  useServerFieldErrors(form, rawError, taskFieldMap);
 
   function pickStatus() {
     showActionSheet("Statut", STATUS_OPTIONS, (value) => form.setValue("status", value as Task["status"]));
@@ -150,14 +142,14 @@ function TaskFormBody({
   const isSubmitting = createTask.isPending || updateTask.isPending;
 
   return (
-    <Screen
+    <FormScreen
       title={mode === "create" ? "Nouvelle tache" : "Modifier la tache"}
-      subtitle={
-        mode === "create"
-          ? "Ajoute une tache a ce projet."
-          : "Modifie le titre, le statut et les informations de suivi."
-      }
+      submitLabel={mode === "create" ? "Creer" : "Enregistrer"}
+      submitDisabled={isSubmitting}
+      onCancel={() => router.back()}
+      onSubmit={form.handleSubmit(onSubmit)}
     >
+      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <Controller
         control={form.control}
         name="title"
@@ -273,14 +265,7 @@ function TaskFormBody({
         )}
       />
 
-      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
-      <Button onPress={form.handleSubmit(onSubmit)} disabled={isSubmitting}>
-        {mode === "create" ? "Creer" : "Enregistrer"}
-      </Button>
-      <Button variant="ghost" onPress={() => router.back()}>
-        Annuler
-      </Button>
-    </Screen>
+    </FormScreen>
   );
 }
 
@@ -291,9 +276,12 @@ function PickerField({ label, value, onPress }: { label: string; value: string; 
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
-        className="h-11 min-h-[44px] justify-center rounded-md border border-border bg-surface px-3"
+        className="h-11 min-h-[44px] flex-row items-center justify-between rounded-md border border-border bg-surface px-3"
       >
-        <Text className="text-base text-foreground">{value}</Text>
+        <Text className="flex-1 text-base text-foreground" numberOfLines={1} ellipsizeMode="tail">
+          {value}
+        </Text>
+        <ChevronDown size={theme.iconSize.sm} color={theme.colors.muted} />
       </Pressable>
     </View>
   );
@@ -308,42 +296,64 @@ function DateField({
   value: string;
   onChange: (iso: string) => void;
 }) {
-  const [show, setShow] = useState(false);
-  const dateValue = value ? new Date(value) : new Date();
+  const [revealed, setRevealed] = useState(false);
+  const [showAndroidPicker, setShowAndroidPicker] = useState(false);
+  const hasValue = Boolean(value);
+  const dateValue = hasValue ? new Date(value) : new Date();
 
   function handleChange(event: { type: string }, selectedDate?: Date) {
-    if (Platform.OS === "android") {
-      setShow(false);
-    }
+    setShowAndroidPicker(false);
     if (event.type === "set" && selectedDate) {
       onChange(selectedDate.toISOString());
     }
   }
 
+  // iOS: once revealed (or a value already exists), show the library's own
+  // "compact" control directly — it's a real native component that opens the
+  // system's own popover on tap, so there's nothing of ours to build or
+  // dismiss. Before that, a plain button stands in so the field can look
+  // genuinely empty instead of always showing "now".
+  const showCompactPicker = Platform.OS === "ios" && (revealed || hasValue);
+
   return (
     <View className="gap-2">
       <Text className="text-sm font-medium text-foreground">{label}</Text>
-      {Platform.OS === "ios" ? (
-        <View className="flex-row items-center justify-between rounded-md border border-border bg-surface px-3 py-2">
-          <Text className="text-base text-foreground">{value ? formatDateTime(value) : "Non definie"}</Text>
-          <DateTimePicker value={dateValue} mode="datetime" display="compact" onChange={handleChange} />
-        </View>
+
+      {showCompactPicker ? (
+        <DateTimePicker
+          value={dateValue}
+          mode="datetime"
+          display="compact"
+          themeVariant="light"
+          accentColor={theme.colors.primary}
+          onChange={handleChange}
+        />
       ) : (
         <Pressable
-          onPress={() => setShow(true)}
+          onPress={() => (Platform.OS === "ios" ? setRevealed(true) : setShowAndroidPicker(true))}
           accessibilityRole="button"
           className="h-11 min-h-[44px] flex-row items-center justify-between rounded-md border border-border bg-surface px-3"
         >
-          <Text className="text-base text-foreground">{value ? formatDateTime(value) : "Non definie"}</Text>
+          <Text className={`text-base ${hasValue ? "text-foreground" : "text-muted"}`}>
+            {hasValue ? formatDateTime(value) : "Non definie"}
+          </Text>
           <Calendar size={theme.iconSize.sm} color={theme.colors.muted} />
         </Pressable>
       )}
-      {value ? (
-        <Pressable onPress={() => onChange("")} accessibilityRole="button">
+
+      {hasValue ? (
+        <Pressable
+          onPress={() => {
+            onChange("");
+            setRevealed(false);
+          }}
+          accessibilityRole="button"
+        >
           <Text className="text-xs text-danger">Effacer la date</Text>
         </Pressable>
       ) : null}
-      {show && Platform.OS === "android" ? (
+
+      {showAndroidPicker && Platform.OS === "android" ? (
         <DateTimePicker value={dateValue} mode="datetime" display="default" onChange={handleChange} />
       ) : null}
     </View>

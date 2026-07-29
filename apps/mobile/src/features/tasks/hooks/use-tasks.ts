@@ -1,43 +1,17 @@
-import { normalizeApiList } from "@project-gestion/api";
+import { buildTasksListQuery, getApiCount, normalizeApiList, type TaskListFilters } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import type { PaginatedResponse, Task, TaskPayload } from "@project-gestion/types";
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../lib/api";
 
-interface TaskListFilters {
-  search?: string;
-  status?: Task["status"];
-  priority?: Task["priority"];
-  assignedTo?: number;
-  folderId?: number;
-  ordering?: string;
-}
-
 export function useTasks(projectId: number | null, filters: TaskListFilters = {}) {
   const query = useQuery({
-    queryKey: projectId
-      ? queryKeys.tasks.list(projectId, {
-          search: filters.search || undefined,
-          status: filters.status,
-          priority: filters.priority,
-          assignedTo: filters.assignedTo,
-          folderId: filters.folderId,
-          excludeDone: filters.status ? undefined : true,
-        })
-      : queryKeys.disabled(),
-    queryFn: () =>
-      api.tasks.list(projectId!, {
-        search: filters.search || undefined,
-        status: filters.status,
-        priority: filters.priority,
-        assigned_to: filters.assignedTo,
-        folder: filters.folderId,
-        exclude_done: filters.status ? undefined : true,
-      }),
+    queryKey: projectId ? buildTasksListQuery(api, projectId, filters).queryKey : queryKeys.disabled(),
+    queryFn: () => buildTasksListQuery(api, projectId!, filters).queryFn(),
     enabled: Boolean(projectId),
   });
 
-  return { ...query, tasks: normalizeApiList(query.data) };
+  return { ...query, tasks: normalizeApiList(query.data), count: getApiCount(query.data) };
 }
 
 /** Paginated variant backing the main list — loads more pages as the user
@@ -45,30 +19,9 @@ export function useTasks(projectId: number | null, filters: TaskListFilters = {}
 export function useTasksInfinite(projectId: number | null, filters: TaskListFilters = {}) {
   const query = useInfiniteQuery({
     queryKey: projectId
-      ? [
-          ...queryKeys.tasks.list(projectId, {
-            search: filters.search || undefined,
-            status: filters.status,
-            priority: filters.priority,
-            assignedTo: filters.assignedTo,
-            folderId: filters.folderId,
-            ordering: filters.ordering,
-            excludeDone: filters.status ? undefined : true,
-          }),
-          "infinite",
-        ]
+      ? [...buildTasksListQuery(api, projectId, filters).queryKey, "infinite"]
       : queryKeys.disabled(),
-    queryFn: ({ pageParam }) =>
-      api.tasks.list(projectId!, {
-        search: filters.search || undefined,
-        status: filters.status,
-        priority: filters.priority,
-        assigned_to: filters.assignedTo,
-        folder: filters.folderId,
-        ordering: filters.ordering,
-        exclude_done: filters.status ? undefined : true,
-        page: pageParam,
-      }),
+    queryFn: ({ pageParam }) => buildTasksListQuery(api, projectId!, filters, pageParam).queryFn(),
     initialPageParam: 1,
     getNextPageParam: (lastPage, allPages) => {
       if (Array.isArray(lastPage)) {
@@ -80,8 +33,12 @@ export function useTasksInfinite(projectId: number | null, filters: TaskListFilt
   });
 
   const tasks = (query.data?.pages ?? []).flatMap((page) => normalizeApiList(page));
+  // Total match count from the backend's pagination envelope, not just what's
+  // been scrolled into view so far — the first page's count is authoritative
+  // since it doesn't change as later pages load.
+  const count = getApiCount(query.data?.pages?.[0]);
 
-  return { ...query, tasks };
+  return { ...query, tasks, count };
 }
 
 export function useTask(projectId: number | null, taskId: number | null) {

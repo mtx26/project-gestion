@@ -4,7 +4,7 @@ import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionS
 
 export function FilesScreen() {
   return (
-    <ProjectSectionScreen title="Fichiers" requiredPermission={permissionCodes.fileView}>
+    <ProjectSectionScreen title="Projet" requiredPermission={permissionCodes.fileView}>
       {(project) => (
         <Text className="px-5 text-sm text-muted">
           Dossiers et documents de « {project.name} » — a venir.

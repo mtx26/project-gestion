@@ -1,16 +1,28 @@
 import { permissionCodes } from "@project-gestion/permissions";
 import type { Task } from "@project-gestion/types";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { Alert, Pressable, Text, View } from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import {
+  Calendar,
+  CalendarClock,
+  CircleCheck,
+  Clock,
+  Folder,
+  Pencil,
+  Trash2,
+  UserRound,
+  Users,
+} from "lucide-react-native";
+import type { ComponentType } from "react";
+import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { TaskPriorityBadge } from "../../../components/badges/TaskPriorityBadge";
 import { TaskStatusBadge } from "../../../components/badges/TaskStatusBadge";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { Button } from "../../../components/ui/Button";
 import { showActionSheet } from "../../../lib/action-sheet";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
+import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
 import { useSelectedProject } from "../../projects/hooks/use-selected-project";
@@ -65,77 +77,113 @@ export function TaskDetailScreen() {
     ]);
   }
 
+  const folderName = !task ? null : task.folder == null ? null : (task.folder_name ?? `Dossier #${task.folder}`);
+  const assigneeNames = task?.assigned_to_display_names ?? [];
+
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
-      <View className="flex-1 justify-between px-5 py-6">
-        {isLoading ? (
-          <LoadingState />
-        ) : isError || !task ? (
+    // No "top" edge: the native header (back button + title + "Modifier") already
+    // sits above this screen and accounts for the status bar.
+    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+      <Stack.Screen
+        options={{
+          title: task?.title ?? "Tache",
+          // headerRight is always the same function (never undefined) so the
+          // native header never has to remeasure between "no button" and
+          // "button" while canEdit/canDelete resolve — that swap was what
+          // made the icon look off-center on some loads.
+          headerRight: () => (
+            <View className="flex-row items-center">
+              {canDelete ? (
+                <Pressable
+                  onPress={confirmDelete}
+                  accessibilityRole="button"
+                  accessibilityLabel="Supprimer"
+                  hitSlop={8}
+                  className="h-11 w-11 items-center justify-center"
+                >
+                  <Trash2 size={theme.iconSize.sm} color={theme.colors.danger} />
+                </Pressable>
+              ) : null}
+              {canEdit ? (
+                <Pressable
+                  onPress={() =>
+                    task && router.push({ pathname: "/tasks/[id]/edit", params: { id: String(task.id) } })
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Modifier"
+                  hitSlop={8}
+                  className="mr-1 h-11 w-11 items-center justify-center"
+                >
+                  <Pencil size={theme.iconSize.sm} color={theme.colors.primary} />
+                </Pressable>
+              ) : null}
+            </View>
+          ),
+        }}
+      />
+
+      {isLoading ? (
+        <LoadingState />
+      ) : isError || !task ? (
+        <View className="px-5 py-6">
           <ErrorState
             message={task ? "Tache introuvable." : getErrorMessage(error)}
             onRetry={() => refetch()}
           />
-        ) : (
-          <View className="flex-1 gap-4">
-            <View className="gap-3">
-              <Text className="text-2xl font-semibold text-foreground">{task.title}</Text>
-              <View className="flex-row flex-wrap items-center gap-2">
-                <Pressable onPress={canEdit ? changeStatus : undefined} disabled={!canEdit}>
-                  <TaskStatusBadge status={task.status} />
-                </Pressable>
-                <TaskPriorityBadge priority={task.priority} />
-              </View>
-              {task.description ? (
-                <Text className="text-sm leading-6 text-muted">{task.description}</Text>
-              ) : null}
-            </View>
-
-            <View className="gap-2 rounded-md border border-border bg-surface p-4">
-              <DetailRow label="Dossier" value={task.folder_name ?? "Projet"} />
-              <DetailRow label="Debut" value={task.start_date ? formatDate(task.start_date) : "-"} />
-              <DetailRow label="Echeance" value={task.end_date ? formatDate(task.end_date) : "-"} />
-              <DetailRow
-                label="Assignes"
-                value={
-                  task.assigned_to_display_names.length > 0
-                    ? task.assigned_to_display_names.join(", ")
-                    : "Personne"
-                }
-              />
-              <DetailRow label="Cree par" value={task.created_by_name ?? "-"} />
-            </View>
-
-            <View className="gap-2">
-              {canEdit ? (
-                <Button
-                  onPress={() =>
-                    router.push({ pathname: "/tasks/[id]/edit", params: { id: String(task.id) } })
-                  }
-                >
-                  Modifier
-                </Button>
-              ) : null}
-              {canDelete ? (
-                <Button variant="danger" onPress={confirmDelete} disabled={deleteTask.isPending}>
-                  Supprimer
-                </Button>
-              ) : null}
-            </View>
+        </View>
+      ) : (
+        <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, gap: 16 }}>
+          <View className="flex-row flex-wrap items-center gap-2">
+            <Pressable onPress={canEdit ? changeStatus : undefined} disabled={!canEdit}>
+              <TaskStatusBadge status={task.status} />
+            </Pressable>
+            <TaskPriorityBadge priority={task.priority} />
           </View>
-        )}
-        <Button variant="ghost" onPress={() => router.back()}>
-          Retour
-        </Button>
-      </View>
+
+          <View className="gap-3 rounded-md border border-border bg-surface p-4">
+            {folderName ? <DetailRow icon={Folder} label="Dossier" value={folderName} /> : null}
+            {task.start_date ? (
+              <DetailRow icon={CalendarClock} label="Date de debut" value={formatDate(task.start_date)} />
+            ) : null}
+            {task.end_date ? (
+              <DetailRow icon={Calendar} label="Date de fin" value={formatDate(task.end_date)} />
+            ) : null}
+            {assigneeNames.length > 0 ? (
+              <DetailRow icon={Users} label="Assignes" value={assigneeNames.join(", ")} />
+            ) : null}
+            <DetailRow icon={UserRound} label="Cree par" value={task.created_by_name ?? "-"} />
+            <DetailRow icon={Clock} label="Cree le" value={formatDate(task.created_at)} />
+            {task.completed_at ? (
+              <DetailRow icon={CircleCheck} label="Terminee le" value={formatDate(task.completed_at)} />
+            ) : null}
+          </View>
+
+          {task.description ? (
+            <View className="gap-1.5">
+              <Text className="text-sm font-medium text-foreground">Description</Text>
+              <Text className="text-sm leading-relaxed text-muted">{task.description}</Text>
+            </View>
+          ) : null}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
-function DetailRow({ label, value }: { label: string; value: string }) {
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: ComponentType<{ size?: number; color?: string }>;
+  label: string;
+  value: string;
+}) {
   return (
-    <View className="flex-row items-center justify-between gap-3">
-      <Text className="text-sm text-muted">{label}</Text>
-      <Text className="max-w-[70%] text-sm font-medium text-foreground" numberOfLines={1}>
+    <View className="flex-row items-center gap-3">
+      <Icon size={theme.iconSize.sm} color={theme.colors.muted} />
+      <Text className="w-28 text-sm text-muted">{label}</Text>
+      <Text className="flex-1 text-sm font-medium text-foreground" numberOfLines={1}>
         {value}
       </Text>
     </View>

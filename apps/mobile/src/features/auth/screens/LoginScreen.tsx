@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { isEmailVerificationRequired } from "@project-gestion/api";
-import { loginSchema, type LoginFormValues } from "@project-gestion/validation";
+import { loginFieldMap, loginSchema, type LoginFormValues } from "@project-gestion/validation";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -25,11 +25,7 @@ export function LoginScreen() {
     defaultValues: { identifier: "", password: "" },
   });
 
-  useServerFieldErrors(form, rawError, [
-    "identifier",
-    { name: "identifier", serverField: "username" },
-    "password",
-  ]);
+  useServerFieldErrors(form, rawError, loginFieldMap);
 
   async function onSubmit(values: LoginFormValues) {
     setRawError(null);

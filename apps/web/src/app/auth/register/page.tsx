@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { registerSchema, type RegisterFormValues } from "@project-gestion/validation";
+import { registerFieldMap, registerSchema, type RegisterFormValues } from "@project-gestion/validation";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -25,7 +25,7 @@ export default function RegisterPage() {
     defaultValues: { email: "", password: "", first_name: "", last_name: "" },
   });
 
-  useServerFieldErrors(form, rawError, ["email", "password", "first_name", "last_name"]);
+  useServerFieldErrors(form, rawError, registerFieldMap);
 
   async function onSubmit(values: RegisterFormValues) {
     setRawError(null);

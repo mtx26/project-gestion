@@ -782,6 +782,10 @@ export function createApiClient({
   };
 }
 
+export type ApiClient = ReturnType<typeof createApiClient>;
+
+export * from "./query-builders";
+
 async function buildHeaders(options: RequestOptions, tokenStore?: TokenStore) {
   const headers = new Headers(options.headers);
   if (!headers.has("Content-Type") && options.body != null && !isFormData(options.body)) {

@@ -1,14 +1,11 @@
-import { normalizeApiList } from "@project-gestion/api";
+import { buildProjectsListQuery, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import type { ProjectPayload } from "@project-gestion/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../lib/api";
 
 export function useProjects() {
-  const query = useQuery({
-    queryKey: queryKeys.projects.lists(),
-    queryFn: api.projects.list,
-  });
+  const query = useQuery(buildProjectsListQuery(api));
 
   return { ...query, projects: normalizeApiList(query.data) };
 }

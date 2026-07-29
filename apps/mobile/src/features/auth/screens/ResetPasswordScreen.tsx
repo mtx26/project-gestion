@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  resetPasswordConfirmFieldMap,
   resetPasswordConfirmSchema,
   type ResetPasswordConfirmFormValues,
 } from "@project-gestion/validation";
@@ -27,7 +28,7 @@ export function ResetPasswordScreen() {
     },
   });
 
-  useServerFieldErrors(form, rawError, ["uid", "token", "new_password"]);
+  useServerFieldErrors(form, rawError, resetPasswordConfirmFieldMap);
 
   async function onSubmit(values: ResetPasswordConfirmFormValues) {
     setRawError(null);

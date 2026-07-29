@@ -1,7 +1,11 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { resetPasswordSchema, type ResetPasswordFormValues } from "@project-gestion/validation";
+import {
+  resetPasswordFieldMap,
+  resetPasswordSchema,
+  type ResetPasswordFormValues,
+} from "@project-gestion/validation";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -23,7 +27,7 @@ export default function ForgotPasswordPage() {
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: { email: "" },
   });
-  useServerFieldErrors(form, rawError, ["email"]);
+  useServerFieldErrors(form, rawError, resetPasswordFieldMap);
 
   async function onSubmit(values: ResetPasswordFormValues) {
     setRawError(null);

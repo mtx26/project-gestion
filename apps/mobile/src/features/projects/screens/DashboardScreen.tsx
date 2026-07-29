@@ -1,7 +1,7 @@
 import { permissionCodes } from "@project-gestion/permissions";
 import { useRouter } from "expo-router";
 import { Banknote, CheckCircle2, Clock3, Users } from "lucide-react-native";
-import { Pressable, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MemberAvatar } from "../../../components/ui/MemberAvatar";
 import { EmptyState } from "../../../components/feedback/EmptyState";
@@ -25,13 +25,18 @@ export function DashboardScreen() {
   const canViewMembers = can(permissionCodes.memberView);
 
   const projectId = selectedProject?.id ?? null;
+  // exclude_done defaults to true server-side whenever status isn't set, so
+  // this is already "high priority, not done" — count comes straight from
+  // the backend's pagination total, not the size of whatever page loaded.
   const urgentTasksQuery = useTasks(canViewTasks ? projectId : null, { priority: "high" });
-  const urgentTasks = urgentTasksQuery.tasks.filter((task) => task.status !== "done");
+  const urgentTasksCount = urgentTasksQuery.count;
   const membersQuery = useProjectMembers(canViewMembers ? projectId : null);
 
+  // No "top" edge: the Drawer's native header (title + notifications bell) already
+  // sits above this screen and accounts for the status bar.
   if (isLoading) {
     return (
-      <SafeAreaView className="flex-1 bg-background">
+      <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
         <LoadingState />
       </SafeAreaView>
     );
@@ -39,27 +44,25 @@ export function DashboardScreen() {
 
   if (isError) {
     return (
-      <SafeAreaView className="flex-1 bg-background px-5 py-6">
+      <SafeAreaView className="flex-1 bg-background px-5 py-6" edges={["bottom", "left", "right"]}>
         <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
-      <View className="flex-1 px-5 py-6">
-        <Text className="text-sm font-semibold text-primary">Project Gestion</Text>
-        <Text className="mt-2 text-2xl font-semibold text-foreground">Dashboard</Text>
-
+    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 }}
+      >
         {!selectedProject ? (
-          <View className="mt-6">
-            <NoProjectState
-              description="Cree ton premier projet pour commencer."
-              onCreateProject={() => router.push("/projects/create")}
-            />
-          </View>
+          <NoProjectState
+            description="Cree ton premier projet pour commencer."
+            onCreateProject={() => router.push("/projects/create")}
+          />
         ) : (
-          <View className="mt-6 gap-3">
+          <View className="gap-3">
             <View className="rounded-md border border-border bg-surface p-4">
               <Text className="text-xs font-medium uppercase text-primary">Projet actif</Text>
               <Text className="mt-2 text-xl font-semibold text-foreground">{selectedProject.name}</Text>
@@ -73,13 +76,19 @@ export function DashboardScreen() {
                 <SummaryTile
                   icon={CheckCircle2}
                   label="Taches urgentes"
-                  value={urgentTasksQuery.isLoading ? "..." : String(urgentTasks.length)}
-                  detail={urgentTasks.length === 0 ? "Aucune urgence." : "Priorite haute, non terminees."}
+                  value={urgentTasksQuery.isLoading ? "..." : String(urgentTasksCount)}
+                  detail={urgentTasksCount === 0 ? "Aucune urgence." : "Priorite haute, non terminees."}
                   onPress={() => router.push({ pathname: "/tasks", params: { priority: "high" } })}
                 />
               ) : null}
               {can(permissionCodes.timeEntryView) ? (
-                <SummaryTile icon={Clock3} label="Temps" value="-" detail="A venir" onPress={() => router.push("/time")} />
+                <SummaryTile
+                  icon={Clock3}
+                  label="Temps"
+                  value="-"
+                  detail="A venir"
+                  onPress={() => router.push("/time")}
+                />
               ) : null}
               {can(permissionCodes.financeView) ? (
                 <SummaryTile
@@ -120,7 +129,7 @@ export function DashboardScreen() {
             />
           </View>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

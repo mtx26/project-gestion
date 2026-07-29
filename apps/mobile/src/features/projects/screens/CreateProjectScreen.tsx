@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  projectFieldMap,
   projectSchema,
   type ProjectFormInput,
   type ProjectFormValues,
@@ -7,10 +8,9 @@ import {
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Button } from "../../../components/ui/Button";
+import { FormScreen } from "../../../components/layout/FormScreen";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
-import { Screen } from "../../../components/ui/Screen";
 import { getErrorMessage } from "../../../lib/errors";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 import { useCreateProject } from "../hooks/use-projects";
@@ -24,7 +24,7 @@ export function CreateProjectScreen() {
     defaultValues: { name: "", description: "" },
   });
 
-  useServerFieldErrors(form, rawError, ["name", "description"]);
+  useServerFieldErrors(form, rawError, projectFieldMap);
 
   async function onSubmit(values: ProjectFormValues) {
     setRawError(null);
@@ -40,7 +40,14 @@ export function CreateProjectScreen() {
   }
 
   return (
-    <Screen title="Nouveau projet" subtitle="Cree un projet pour commencer a organiser ton travail.">
+    <FormScreen
+      title="Nouveau projet"
+      submitLabel="Creer"
+      submitDisabled={form.formState.isSubmitting}
+      onCancel={() => router.back()}
+      onSubmit={form.handleSubmit(onSubmit)}
+    >
+      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <Controller
         control={form.control}
         name="name"
@@ -69,13 +76,6 @@ export function CreateProjectScreen() {
           />
         )}
       />
-      <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
-      <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
-        Creer
-      </Button>
-      <Button variant="ghost" onPress={() => router.back()}>
-        Annuler
-      </Button>
-    </Screen>
+    </FormScreen>
   );
 }

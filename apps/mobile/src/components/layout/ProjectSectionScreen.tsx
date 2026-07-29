@@ -2,7 +2,7 @@ import type { PermissionCode, ProjectPermissionState } from "@project-gestion/pe
 import type { Project } from "@project-gestion/types";
 import { useRouter } from "expo-router";
 import type { ReactNode } from "react";
-import { Text, View } from "react-native";
+import { View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useProjectPermissions } from "../../features/projects/hooks/use-project-permissions";
 import { useSelectedProject } from "../../features/projects/hooks/use-selected-project";
@@ -12,10 +12,13 @@ import { LoadingState } from "../feedback/LoadingState";
 import { NoProjectState } from "../feedback/NoProjectState";
 
 interface ProjectSectionScreenProps {
+  /** Only used for the access-denied message — the visible title comes from this
+   * screen's Drawer.Screen `title` option (native header), not rendered here, so
+   * the two never show up twice. */
   title: string;
   requiredPermission?: PermissionCode | ((can: (code: PermissionCode) => boolean) => boolean);
   /** Children control their own scrolling (FlatList, ScrollView, or plain content) —
-   * this wrapper only owns the safe area, title, and loading/no-project/locked states. */
+   * this wrapper only owns the safe area and loading/no-project/locked states. */
   children: (project: Project) => ReactNode;
 }
 
@@ -36,9 +39,10 @@ export function ProjectSectionScreen({
       : can(requiredPermission);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
-      <Text className="px-5 pb-2 pt-6 text-2xl font-semibold text-foreground">{title}</Text>
-      <View className="flex-1">
+    // No "top" edge: this screen already sits below the Drawer's native header,
+    // which already accounts for the status bar — adding it here would double-pad.
+    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+      <View className="flex-1 pt-4">
         {isLoading ? (
           <LoadingState />
         ) : !selectedProject ? (

@@ -1,5 +1,9 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { resetPasswordSchema, type ResetPasswordFormValues } from "@project-gestion/validation";
+import {
+  resetPasswordFieldMap,
+  resetPasswordSchema,
+  type ResetPasswordFormValues,
+} from "@project-gestion/validation";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
@@ -20,7 +24,7 @@ export function ForgotPasswordScreen() {
     defaultValues: { email: "" },
   });
 
-  useServerFieldErrors(form, rawError, ["email"]);
+  useServerFieldErrors(form, rawError, resetPasswordFieldMap);
 
   async function onSubmit(values: ResetPasswordFormValues) {
     setRawError(null);

@@ -2,7 +2,13 @@
 
 import type { Task, TaskPayload } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
-import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
+import {
+  buildTasksListQuery,
+  getApiCount,
+  getApiPageSize,
+  normalizeApiList,
+  type TaskListFilters,
+} from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Check, UserCheck } from "lucide-react";
@@ -75,7 +81,6 @@ function TasksView({
   const folderFilter = parseFolderFilter(searchParams.get("folder"));
   const folderId = getFolderId(folderFilter);
   const includeCompleted = parseBooleanParam(searchParams.get("include_completed"));
-  const excludeDone = !includeCompleted && statusFilter === "all";
   const page = parsePageParam(searchParams.get("page"));
   const sortField = searchParams.get("sort") ?? "";
   const sortDir = (searchParams.get("order") === "desc" ? "desc" : "asc") as "asc" | "desc";
@@ -94,64 +99,30 @@ function TasksView({
     { canView: canViewFiles, canEdit: false, canFetchMembers: canViewTasks },
   );
 
+  const taskFilters: TaskListFilters = {
+    search: searchFromUrl || undefined,
+    status: statusFilter === "all" ? undefined : statusFilter,
+    priority: priorityFilter === "all" ? undefined : priorityFilter,
+    createdBy: createdByFilter ?? undefined,
+    folderId: folderId ?? undefined,
+    dateFrom,
+    dateTo,
+    includeCompleted,
+    ordering,
+  };
+
   const tasksQuery = useQuery({
-    queryKey: selectedProject
-      ? queryKeys.tasks.list(selectedProject.id, {
-          search: searchFromUrl || undefined,
-          status: statusFilter === "all" ? undefined : statusFilter,
-          priority: priorityFilter === "all" ? undefined : priorityFilter,
-          createdBy: createdByFilter ?? undefined,
-          folderId: folderId ?? undefined,
-          excludeDone: excludeDone || undefined,
-          ordering,
-          page,
-          dateFrom: dateFrom,
-          dateTo: dateTo,
-        })
-      : queryKeys.disabled(),
-    queryFn: () =>
-      api.tasks.list(selectedProject!.id, {
-        search: searchFromUrl || undefined,
-        ...(statusFilter === "all" ? {} : { status: statusFilter }),
-        ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
-        ...(createdByFilter == null ? {} : { created_by: createdByFilter }),
-        ...(folderId == null ? {} : { folder: folderId }),
-        exclude_done: excludeDone || undefined,
-        ordering,
-        page,
-        date_from: dateFrom,
-        date_to: dateTo,
-      }),
+    queryKey: selectedProject ? buildTasksListQuery(api, selectedProject.id, taskFilters, page).queryKey : queryKeys.disabled(),
+    queryFn: () => buildTasksListQuery(api, selectedProject!.id, taskFilters, page).queryFn(),
     enabled: Boolean(projectId && canViewTasks),
     placeholderData: keepPreviousData,
   });
 
+  const myTasksFilters: TaskListFilters = { ...taskFilters, createdBy: undefined, assignedTo: user?.id };
+
   const myTasksQuery = useQuery({
-    queryKey: selectedProject && user
-      ? queryKeys.tasks.list(selectedProject.id, {
-          search: searchFromUrl || undefined,
-          status: statusFilter === "all" ? undefined : statusFilter,
-          priority: priorityFilter === "all" ? undefined : priorityFilter,
-          assignedTo: user.id,
-          folderId: folderId ?? undefined,
-          excludeDone: excludeDone || undefined,
-          ordering,
-          dateFrom: dateFrom,
-          dateTo: dateTo,
-        })
-      : queryKeys.disabled(),
-    queryFn: () =>
-      api.tasks.list(selectedProject!.id, {
-        search: searchFromUrl || undefined,
-        ...(statusFilter === "all" ? {} : { status: statusFilter }),
-        ...(priorityFilter === "all" ? {} : { priority: priorityFilter }),
-        assigned_to: user!.id,
-        ...(folderId == null ? {} : { folder: folderId }),
-        exclude_done: excludeDone || undefined,
-        ordering,
-        date_from: dateFrom,
-        date_to: dateTo,
-      }),
+    queryKey: selectedProject && user ? buildTasksListQuery(api, selectedProject.id, myTasksFilters).queryKey : queryKeys.disabled(),
+    queryFn: () => buildTasksListQuery(api, selectedProject!.id, myTasksFilters).queryFn(),
     enabled: Boolean(projectId && canViewTasks && !!user),
     placeholderData: keepPreviousData,
   });

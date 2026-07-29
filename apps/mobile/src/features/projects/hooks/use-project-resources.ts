@@ -1,4 +1,4 @@
-import { normalizeApiList } from "@project-gestion/api";
+import { buildProjectFoldersQuery, buildProjectMembersQuery, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "../../../lib/api";
@@ -6,7 +6,7 @@ import { api } from "../../../lib/api";
 export function useProjectMembers(projectId: number | null) {
   const query = useQuery({
     queryKey: projectId ? queryKeys.members.list(projectId) : queryKeys.disabled(),
-    queryFn: () => api.members.list(projectId!),
+    queryFn: () => buildProjectMembersQuery(api, projectId!).queryFn(),
     enabled: Boolean(projectId),
   });
 
@@ -16,7 +16,7 @@ export function useProjectMembers(projectId: number | null) {
 export function useProjectFolders(projectId: number | null) {
   const query = useQuery({
     queryKey: projectId ? queryKeys.folders.tree(projectId, { includeFiles: false }) : queryKeys.disabled(),
-    queryFn: () => api.folders.tree(projectId!, { includeFiles: false }),
+    queryFn: () => buildProjectFoldersQuery(api, projectId!).queryFn(),
     enabled: Boolean(projectId),
   });
 
