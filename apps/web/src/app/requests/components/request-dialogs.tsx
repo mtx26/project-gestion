@@ -1,7 +1,12 @@
 "use client";
 
 import type { ExpenseRequest, ExpenseRequestPayload, FolderTreeNode } from "@project-gestion/types";
-import { requestSchema, type RequestFormInput, type RequestFormValues } from "@project-gestion/validation";
+import {
+  requestFieldMap,
+  requestSchema,
+  type RequestFormInput,
+  type RequestFormValues,
+} from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Calendar, Pencil, UserRound } from "lucide-react";
 import { useState } from "react";
@@ -64,7 +69,7 @@ export function ExpenseRequestFormDialog({
     request?.documents_info ?? [],
   );
 
-  useServerFieldErrors(form, error, ["title", "amount", "category", "description"]);
+  useServerFieldErrors(form, error, requestFieldMap);
 
   function handleOpenChange(next: boolean) {
     if (!next) {

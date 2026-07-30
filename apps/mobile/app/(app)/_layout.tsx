@@ -10,6 +10,9 @@ export default function AppLayout() {
       <Stack.Screen name="tasks/create" options={{ presentation: "modal", headerShown: true }} />
       <Stack.Screen name="tasks/[id]/index" options={{ headerShown: true, headerBackTitle: "" }} />
       <Stack.Screen name="tasks/[id]/edit" options={{ presentation: "modal", headerShown: true }} />
+      <Stack.Screen name="requests/create" options={{ presentation: "modal", headerShown: true }} />
+      <Stack.Screen name="requests/[id]/index" options={{ headerShown: true, headerBackTitle: "" }} />
+      <Stack.Screen name="requests/[id]/edit" options={{ presentation: "modal", headerShown: true }} />
     </Stack>
   );
 }
