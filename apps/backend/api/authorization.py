@@ -8,7 +8,7 @@ query per row. `HasProjectPermission`/`PermissionCodeByMethodMixin` are the DRF-
 adapter that wires a view's declared `permission_code` to `ProjectAuthorization`.
 
 Not in scope here (each lives with the resource it concerns, not with authorization):
-- `TimeEntryQuerySet.own_unless_can_view_all` (models.py) — row-level restriction,
+- `TimeEntryQuerySet.own_unless_has_permission` (models.py) — row-level restriction,
   not an allow/deny decision.
 - `authorize_member_update` (services/members.py) — permission that depends on which
   fields are being changed, not a static `permission_code`.

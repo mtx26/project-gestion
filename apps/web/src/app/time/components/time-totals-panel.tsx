@@ -1,6 +1,6 @@
 "use client";
 
-import type { TimeEntry } from "@project-gestion/types";
+import type { TimeEntryUserStats } from "@project-gestion/types";
 import { useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDuration, formatMoney } from "@/lib/task-utils";
@@ -17,33 +17,29 @@ export function TimeSummary({ label, value }: { label: string; value: string }) 
 export function TimeTotalsPanel({
   label,
   totals,
-  entries,
+  byUser,
   userNameById,
   currentUserId,
 }: {
   label: string;
   totals: { durationMinutes: number; costAmount: number; remainingAmount: number };
-  entries: TimeEntry[];
+  byUser: TimeEntryUserStats[];
   userNameById: Map<number, string>;
   currentUserId: number | null;
 }) {
   const userBreakdown = useMemo(() => {
-    const byUser = new Map<number, number>();
-    for (const entry of entries) {
-      if (entry.user != null) byUser.set(entry.user, (byUser.get(entry.user) ?? 0) + entry.duration_minutes);
-    }
-    return Array.from(byUser.entries())
-      .map(([userId, minutes]) => ({
-        name: userId === currentUserId ? "Toi" : (userNameById.get(userId) ?? `Utilisateur ${userId}`),
-        minutes,
-        isCurrentUser: userId === currentUserId,
+    return byUser
+      .map((row) => ({
+        name: row.user === currentUserId ? "Toi" : (userNameById.get(row.user) ?? `Utilisateur ${row.user}`),
+        minutes: row.duration_minutes,
+        isCurrentUser: row.user === currentUserId,
       }))
       .sort((a, b) => {
         if (a.isCurrentUser) return -1;
         if (b.isCurrentUser) return 1;
         return a.name.localeCompare(b.name, "fr");
       });
-  }, [entries, userNameById, currentUserId]);
+  }, [byUser, userNameById, currentUserId]);
 
   return (
     <Card className="rounded-lg">

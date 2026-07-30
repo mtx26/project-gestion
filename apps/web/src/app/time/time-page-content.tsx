@@ -71,6 +71,7 @@ function TimeView({
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewTime = can(permissionCodes.timeEntryView);
   const canViewAllTime = can(permissionCodes.timeEntryViewAll);
+  const canViewOthersDetail = can(permissionCodes.timeEntryViewOthersDetail);
   const canRecordTime = can(permissionCodes.timeEntryEdit);
   const canPayTime = can(permissionCodes.timeEntryPay);
   const canDeleteTime = can(permissionCodes.timeEntryDelete);
@@ -326,7 +327,7 @@ function TimeView({
           <TimeTotalsPanel
             label={totalsLabel}
             totals={totals}
-            entries={timeEntries}
+            byUser={statsQuery.data?.by_user ?? []}
             userNameById={userNameById}
             currentUserId={user?.id ?? null}
           />
@@ -357,7 +358,7 @@ function TimeView({
               <CardTitle>Entrees de temps</CardTitle>
             </CardHeader>
             <CardContent>
-              {!canViewAllTime && canViewTime ? (
+              {!canViewOthersDetail && canViewTime ? (
                 <p className="mb-3 text-sm text-muted-foreground">Vue limitee a tes propres entrees.</p>
               ) : null}
               <TimeEntryList

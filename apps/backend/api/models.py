@@ -446,12 +446,14 @@ class EmailDelivery(BaseModel):
     clicked_at = models.DateTimeField(null=True, blank=True)
 
 class TimeEntryQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
-    def own_unless_can_view_all(self, user, project):
-        """Restricts to `user`'s own entries unless they hold `time_entry.view_all`
-        on `project`."""
+    def own_unless_has_permission(self, user, project, permission_code):
+        """Restricts to `user`'s own entries unless they hold `permission_code` on
+        `project`. Used with `time_entry.view_all` (stats/synthesis scoping) and
+        `time_entry.view_others_detail` (entry-level list/detail scoping) — two
+        independent axes, each falling back to "own entries only"."""
         from .authorization import ProjectAuthorization
 
-        if ProjectAuthorization(user, project).has("time_entry.view_all"):
+        if ProjectAuthorization(user, project).has(permission_code):
             return self
         return self.filter(user=user)
 
@@ -462,8 +464,19 @@ class TimeEntryQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
 
     def with_financial_totals(self):
         """Annotates `filter_cost_amount`/`filter_paid_amount` (duration × hourly rate;
-        net of linked FinancialEntry expenses/refunds), used by `TimeEntryFilter`
-        (`payment_status`/`include_paid`) and by `compute_time_entry_stats`.
+        net of linked, non-deleted FinancialEntry expenses/refunds), used by
+        `TimeEntryFilter` (`payment_status`/`include_paid`) and by the stats endpoint's
+        project-wide and per-user totals.
+
+        `filter_paid_amount` is a correlated `Subquery` (via `OuterRef`) rather than a
+        plain `Sum` over the joined `financial_entries` relation, for two reasons:
+        a join+`Sum` bypasses `FinancialEntry`'s soft-delete manager entirely (a `__`
+        lookup join always hits the raw table, ignoring `FinancialEntry.objects`'s
+        `deleted_at__isnull=True` filter — a soft-deleted expense would otherwise still
+        count as paid), and it can't be re-aggregated under a further `GROUP BY` (e.g.
+        the per-user breakdown), since Django treats an already-aggregated annotation as
+        an aggregate itself. A `Subquery` resolves per-row through the active manager and
+        is opaque to the outer query, so it behaves like a plain column downstream.
 
         Mirrors, at the SQL/aggregate level, the same formula as the per-instance
         `TimeEntry.get_cost_amount`/`get_paid_amount` methods below — the two can't be
@@ -478,45 +491,26 @@ class TimeEntryQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
             ),
             precision=2,
         )
+        paid_amount_per_entry = models.Sum(
+            models.Case(
+                models.When(type=FinancialEntry.FinancialType.EXPENSE, then=models.F("amount")),
+                models.When(type=FinancialEntry.FinancialType.REFUND, then=-models.F("amount")),
+                default=models.Value(0),
+                output_field=models.DecimalField(max_digits=12, decimal_places=2),
+            )
+        )
+        paid_amount_subquery = (
+            FinancialEntry.objects.filter(time_entry_id=models.OuterRef("pk"))
+            .values("time_entry_id")
+            .annotate(total=paid_amount_per_entry)
+            .values("total")
+        )
         paid_amount = Coalesce(
-            models.Sum(
-                models.Case(
-                    models.When(
-                        financial_entries__type=FinancialEntry.FinancialType.EXPENSE,
-                        then=models.F("financial_entries__amount"),
-                    ),
-                    models.When(
-                        financial_entries__type=FinancialEntry.FinancialType.REFUND,
-                        then=-models.F("financial_entries__amount"),
-                    ),
-                    default=models.Value(0),
-                    output_field=models.DecimalField(max_digits=12, decimal_places=2),
-                )
-            ),
+            models.Subquery(paid_amount_subquery, output_field=models.DecimalField(max_digits=12, decimal_places=2)),
             models.Value(0),
             output_field=models.DecimalField(max_digits=12, decimal_places=2),
         )
         return self.annotate(filter_cost_amount=cost_amount, filter_paid_amount=paid_amount)
-
-    def financial_totals(self):
-        """Raw aggregate (duration/cost/paid/count) for `compute_time_entry_stats`,
-        which turns this into a response payload (clamping `remaining` at zero,
-        quantizing to cents). Requires `with_financial_totals()` to have been applied
-        first."""
-        return self.aggregate(
-            total_duration=Coalesce(models.Sum("duration_minutes"), models.Value(0)),
-            total_cost=Coalesce(
-                models.Sum("filter_cost_amount"),
-                models.Value(Decimal("0.00")),
-                output_field=models.DecimalField(max_digits=12, decimal_places=2),
-            ),
-            total_paid=Coalesce(
-                models.Sum("filter_paid_amount"),
-                models.Value(Decimal("0.00")),
-                output_field=models.DecimalField(max_digits=12, decimal_places=2),
-            ),
-            entry_count=models.Count("id"),
-        )
 
 
 class ActiveTimeEntryManager(ActiveManagerMixin, models.Manager.from_queryset(TimeEntryQuerySet)):

@@ -3415,8 +3415,19 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Own member work"])
 
-    def test_member_with_time_entry_view_all_can_list_time_entries(self):
+    def test_member_with_time_entry_view_all_only_still_lists_own_time_entries_only(self):
+        # `time_entry.view_all` gouverne la synthese (stats/by_user), pas la liste
+        # detaillee : sans `time_entry.view_others_detail`, la liste reste limitee
+        # aux entrees du membre lui-meme, qui n'en a aucune ici.
         self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+
+        response = self.when_list_time_entries()
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, [])
+
+    def test_member_with_time_entry_view_others_detail_can_list_time_entries(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_others_detail"])
 
         response = self.when_list_time_entries()
 
@@ -3764,8 +3775,17 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_not_found(response)
 
-    def test_member_with_time_entry_view_all_can_get_time_entry(self):
+    def test_member_with_time_entry_view_all_only_cannot_get_other_member_time_entry(self):
+        # Meme remarque que pour la liste : `time_entry.view_all` seul ne donne pas
+        # acces au detail d'une entree d'un autre membre.
         self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+
+        response = self.when_get_time_entry()
+
+        self.assert_not_found(response)
+
+    def test_member_with_time_entry_view_others_detail_can_get_time_entry(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_others_detail"])
 
         response = self.when_get_time_entry()
 
@@ -3842,6 +3862,86 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
 
         self.assert_forbidden(response)
         self.assert_time_entry_not_deleted()
+
+
+class TimeEntryStatsRoutePermissionTests(ProjectApiTestCase):
+    """Couvre les deux axes independants de `own_unless_has_permission` sur le meme
+    projet : `time_entry.view_all` (repartition par membre, `by_user`) et
+    `time_entry.view_others_detail` (liste detaillee), pour verifier qu'ils ne se
+    debloquent pas l'un l'autre."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.worker = User.objects.create_user(
+            username="stats-worker",
+            email="stats-worker@example.com",
+        )
+        self.given_member_with_permissions([], user=self.worker)
+        self.worker_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.worker,
+            duration_minutes=90,
+            hourly_rate="45.00",
+            description="Worker stats work",
+            start_date=timezone.now(),
+        )
+        self.owner_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="20.00",
+            description="Owner stats work",
+            start_date=timezone.now(),
+        )
+        self.stats_url = f"/api/projects/{self.project.id}/time-entries/stats/"
+        self.list_url = f"/api/projects/{self.project.id}/time-entries/"
+
+    # WHEN
+    def when_get_stats(self):
+        return self.api_get(self.stats_url)
+
+    # ASSERT
+    def assert_by_user_ids(self, response, expected_user_ids):
+        by_user = self.response_data(response)["by_user"]
+        self.assertEqual({row["user"] for row in by_user}, set(expected_user_ids))
+
+    # TESTS
+    def test_member_without_time_entry_view_all_sees_only_own_breakdown(self):
+        self.given_member_authenticated(["time_entry.view"])
+        TimeEntry.objects.create(
+            project=self.project,
+            user=self.member,
+            duration_minutes=45,
+            hourly_rate="30.00",
+            description="Member stats work",
+            start_date=timezone.now(),
+        )
+
+        response = self.when_get_stats()
+
+        self.assert_ok(response)
+        self.assert_by_user_ids(response, [self.member.id])
+
+    def test_member_with_time_entry_view_all_sees_breakdown_for_all_members(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+
+        response = self.when_get_stats()
+
+        self.assert_ok(response)
+        self.assert_by_user_ids(response, [self.worker.id, self.owner.id])
+
+    def test_member_with_time_entry_view_all_only_still_has_own_detail_list_only(self):
+        # `view_all` donne acces a la synthese complete mais pas a la liste
+        # detaillee des autres membres : les deux permissions sont independantes.
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+
+        stats_response = self.when_get_stats()
+        list_response = self.api_get(self.list_url)
+
+        self.assert_ok(stats_response)
+        self.assert_by_user_ids(stats_response, [self.worker.id, self.owner.id])
+        self.assertEqual(self.response_results(list_response), [])
 
 
 class TimeEntryPaymentRoutePermissionTests(ProjectApiTestCase):
@@ -3967,6 +4067,28 @@ class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
         )
 
         self.assert_formulas_match()
+
+    def test_formulas_exclude_soft_deleted_financial_entry(self):
+        # Regression : `filter_paid_amount` traversait `financial_entries__amount` via
+        # un JOIN brut qui ignore le manager soft-delete de FinancialEntry — une depense
+        # supprimee comptait quand meme comme payee cote SQL, alors que le calcul Python
+        # (get_paid_amount, via le manager actif) l'excluait deja correctement.
+        payment = FinancialEntry.objects.create(
+            project=self.project,
+            time_entry=self.entry,
+            created_by=self.owner,
+            amount=Decimal("40.00"),
+            type=FinancialEntry.FinancialType.EXPENSE,
+        )
+        payment.soft_delete(self.owner)
+
+        self.assert_formulas_match()
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.get_paid_amount(), Decimal("0.00"))
+        annotated = TimeEntry.objects.filter(pk=self.entry.pk).with_financial_totals().values(
+            "filter_paid_amount",
+        ).get()
+        self.assertEqual(annotated["filter_paid_amount"], Decimal("0.00"))
 
     def test_formulas_match_when_fully_paid(self):
         FinancialEntry.objects.create(

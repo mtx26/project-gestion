@@ -124,7 +124,7 @@ class TimeEntryListFilter(TimeEntryFilter):
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.view`.\n\n"
-            "- Restriction : sans `time_entry.view_all`, seules les entrées de l'utilisateur connecté sont retournées."
+            "- Restriction : sans `time_entry.view_others_detail`, seules les entrées de l'utilisateur connecté sont retournées."
         ),
     ),
     post=extend_schema(
@@ -143,7 +143,7 @@ class TimeEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAP
         if getattr(self, "swagger_fake_view", False):
             return TimeEntry.objects.none()
 
-        queryset = get_project_time_entries(self.request.user, self.kwargs["project_id"])
+        queryset = get_project_time_entries(self.request.user, self.kwargs["project_id"], "time_entry.view_others_detail")
         return queryset.order_by("-start_date", "-id")
 
     def get_serializer_context(self):
@@ -170,7 +170,9 @@ class TimeEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAP
     get=extend_schema(
         summary="Statistiques des entrées de temps",
         description=(
-            "Retourne les totaux agrégés pour l'ensemble des entrées correspondant aux filtres.\n\n"
+            "Retourne les totaux agrégés pour l'ensemble des entrées correspondant aux filtres,\n"
+            "ainsi que la répartition par membre (`by_user`) — visible dès `time_entry.view_all`,\n"
+            "indépendamment de `time_entry.view_others_detail`.\n\n"
             "Accepte les mêmes filtres que le endpoint de liste (sauf `page`).\n\n"
             "Permission requise : `time_entry.view`."
         ),
@@ -188,9 +190,10 @@ class TimeEntryStatsView(generics.GenericAPIView):
                 "paid_amount": "0.00",
                 "remaining_amount": "0.00",
                 "entry_count": 0,
+                "by_user": [],
             })
 
-        queryset = get_project_time_entries(request.user, project_id)
+        queryset = get_project_time_entries(request.user, project_id, "time_entry.view_all")
         filterset = TimeEntryListFilter(request.query_params, queryset=queryset, request=request)
 
         return Response(compute_time_entry_stats(filterset.qs))
@@ -236,7 +239,7 @@ class TimeEntryDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, g
                 get_accessible_projects(self.request.user),
                 pk=self.kwargs["project_id"],
             )
-            queryset = queryset.own_unless_can_view_all(self.request.user, project)
+            queryset = queryset.own_unless_has_permission(self.request.user, project, "time_entry.view_others_detail")
 
         return queryset
 

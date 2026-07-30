@@ -18,6 +18,7 @@
   taskRestore: "task.restore",
   timeEntryView: "time_entry.view",
   timeEntryViewAll: "time_entry.view_all",
+  timeEntryViewOthersDetail: "time_entry.view_others_detail",
   timeEntryEdit: "time_entry.edit",
   timeEntryPay: "time_entry.pay",
   timeEntryDelete: "time_entry.delete",
@@ -52,6 +53,7 @@ export const permissionScopeLabels = {
 const permissionActionLabels: Record<string, string> = {
   view: "Voir",
   view_all: "Voir toute l'equipe",
+  view_others_detail: "Voir le detail des autres",
   edit: "Creer / modifier",
   edit_own_rate: "Modifier son propre taux horaire",
   edit_rates: "Modifier les taux horaires",
@@ -77,6 +79,7 @@ export const permissionDependencyCodes: Partial<Record<PermissionCode, Permissio
   [permissionCodes.taskDelete]: [permissionCodes.taskView],
   [permissionCodes.taskRestore]: [permissionCodes.taskView],
   [permissionCodes.timeEntryViewAll]: [permissionCodes.timeEntryView],
+  [permissionCodes.timeEntryViewOthersDetail]: [permissionCodes.timeEntryView, permissionCodes.timeEntryViewAll],
   [permissionCodes.timeEntryEdit]: [permissionCodes.timeEntryView],
   [permissionCodes.timeEntryDelete]: [permissionCodes.timeEntryView],
   [permissionCodes.timeEntryRestore]: [permissionCodes.timeEntryView],
