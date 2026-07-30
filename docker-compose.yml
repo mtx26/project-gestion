@@ -47,6 +47,27 @@ services:
         mc anonymous set download local/${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures};
       "
 
+  # ── Sauvegarde DB → Google Drive ─────────────────────────────────────────────
+  backup:
+    image: ghcr.io/mtx26/project-gestion-backup:latest
+    deploy:
+      restart_policy:
+        condition: any
+    depends_on:
+      - db
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: project_gestion
+      PGUSER: project_gestion
+      PGPASSWORD: ${DB_PASSWORD:-changeme}
+      GDRIVE_REMOTE: ${GDRIVE_REMOTE:-gdrive:project-gestion-backups}
+      BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      RCLONE_CONFIG_B64: ${RCLONE_CONFIG_B64:-}
+    volumes:
+      - backup_data:/backups
+
   # ── Django backend ──────────────────────────────────────────────────────────
   backend:
     image: ghcr.io/mtx26/project-gestion-backend:latest
@@ -98,3 +119,4 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  backup_data:
