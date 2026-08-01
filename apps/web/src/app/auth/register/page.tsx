@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { GoogleLoginButton } from "@/components/google-login-button";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
@@ -31,7 +32,7 @@ export default function RegisterPage() {
     setRawError(null);
     try {
       await api.auth.register(values);
-      router.push(`/auth/resend-verification?email=${encodeURIComponent(values.email)}&registered=1`);
+      router.push(`/auth/verification-sent?email=${encodeURIComponent(values.email)}`);
     } catch (error) {
       setRawError(error);
     }
@@ -76,6 +77,7 @@ export default function RegisterPage() {
               Creer le compte
             </Button>
           </form>
+          <GoogleLoginButton label="S'inscrire avec Google" />
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Deja inscrit ?{" "}
             <Link className="font-medium text-teal-700" href="/auth/login">

@@ -30,7 +30,7 @@ export function AccountPageContent() {
 function AccountView({ user }: { user: User | null }) {
   const passwordForm = useForm<ChangePasswordFormValues>({
     resolver: zodResolver(changePasswordSchema),
-    defaultValues: { old_password: "", new_password: "" },
+    defaultValues: { current_password: "", new_password: "" },
   });
 
   const changePassword = useCrudMutation({
@@ -38,7 +38,7 @@ function AccountView({ user }: { user: User | null }) {
     successMessage: "Mot de passe mis a jour",
     onSuccess: () => passwordForm.reset(),
   });
-  useServerFieldErrors(passwordForm, changePassword.error, ["old_password", "new_password"]);
+  useServerFieldErrors(passwordForm, changePassword.error, ["current_password", "new_password"]);
 
   function onChangePassword(values: ChangePasswordFormValues) {
     changePassword.mutate(values);
@@ -79,9 +79,9 @@ function AccountView({ user }: { user: User | null }) {
                 <CardContent>
                   <form className="max-w-md space-y-4" onSubmit={passwordForm.handleSubmit(onChangePassword)}>
                     <Field>
-                      <FieldLabel htmlFor="old-password">Mot de passe actuel</FieldLabel>
-                      <PasswordInput id="old-password" autoComplete="current-password" {...passwordForm.register("old_password")} />
-                      <FieldError errors={[passwordForm.formState.errors.old_password]} />
+                      <FieldLabel htmlFor="current-password">Mot de passe actuel</FieldLabel>
+                      <PasswordInput id="current-password" autoComplete="current-password" {...passwordForm.register("current_password")} />
+                      <FieldError errors={[passwordForm.formState.errors.current_password]} />
                     </Field>
                     <Field>
                       <FieldLabel htmlFor="new-password">Nouveau mot de passe</FieldLabel>

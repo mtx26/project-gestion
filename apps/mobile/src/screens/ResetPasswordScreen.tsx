@@ -8,7 +8,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { View } from "react-native";
 import { Button, Field, Message, Screen } from "../components/ui";
-import { api, mobileTokenStore } from "../lib/api";
+import { api } from "../lib/api";
 import { getErrorMessage } from "../lib/errors";
 import type { AuthStackParamList } from "../types/navigation";
 
@@ -19,9 +19,8 @@ export function ResetPasswordScreen({ navigation, route }: Props) {
   const form = useForm<ResetPasswordConfirmFormValues>({
     resolver: zodResolver(resetPasswordConfirmSchema),
     defaultValues: {
-      uid: route.params?.uid ?? "",
-      token: route.params?.token ?? "",
-      new_password: "",
+      key: route.params?.key ?? "",
+      password: "",
     },
   });
 
@@ -29,7 +28,6 @@ export function ResetPasswordScreen({ navigation, route }: Props) {
     setError(null);
     try {
       await api.auth.resetPasswordConfirm(values);
-      await mobileTokenStore.clearTokens();
       navigation.replace("Login");
     } catch (caught) {
       setError(getErrorMessage(caught));
@@ -41,7 +39,7 @@ export function ResetPasswordScreen({ navigation, route }: Props) {
       <View className="gap-4">
         <Controller
           control={form.control}
-          name="new_password"
+          name="password"
           render={({ field, fieldState }) => (
             <Field
               label="Nouveau mot de passe"
@@ -53,7 +51,7 @@ export function ResetPasswordScreen({ navigation, route }: Props) {
           )}
         />
         <Message danger>
-          {form.formState.errors.uid?.message ?? form.formState.errors.token?.message ?? error}
+          {form.formState.errors.key?.message ?? error}
         </Message>
         <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
           Mettre a jour

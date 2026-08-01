@@ -5,7 +5,8 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { View } from "react-native";
 import { Button, Field, Message, Screen } from "../components/ui";
-import { getErrorMessage, isEmailVerificationRequired } from "../lib/errors";
+import { ApiError } from "@project-gestion/api";
+import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../stores/auth-store";
 import type { AuthStackParamList } from "../types/navigation";
 
@@ -26,7 +27,8 @@ export function LoginScreen({ navigation }: Props) {
     try {
       await login(values);
     } catch (caught) {
-      if (isEmailVerificationRequired(caught)) {
+      // 401 = etape restante (email non verifie) ; allauth vient de renvoyer un lien.
+      if (caught instanceof ApiError && caught.status === 401) {
         setUnverifiedEmail(values.identifier);
         return;
       }
@@ -64,16 +66,10 @@ export function LoginScreen({ navigation }: Props) {
         />
         <Message danger>{error}</Message>
         <Message danger>
-          {unverifiedEmail ? "Email non verifie. Renvoyez l'email de verification." : null}
+          {unverifiedEmail
+            ? `Email non verifie. Un nouveau lien vient d'etre envoye a ${unverifiedEmail}.`
+            : null}
         </Message>
-        {unverifiedEmail ? (
-          <Button
-            variant="secondary"
-            onPress={() => navigation.navigate("ResendVerification", { email: unverifiedEmail })}
-          >
-            Renvoyer l'email
-          </Button>
-        ) : null}
         <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
           Se connecter
         </Button>

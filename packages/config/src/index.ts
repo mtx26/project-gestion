@@ -3,10 +3,10 @@ export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   "http://127.0.0.1:8000";
 
-export const tokenStorageKeys = {
-  access: "project-gestion.access",
-  refresh: "project-gestion.refresh",
-} as const;
+/** Cle de stockage du session token du client headless `app` (mobile uniquement,
+ * dans le keystore securise). Le web n'a rien a stocker : sa session vit dans un
+ * cookie HttpOnly pose par Django. */
+export const sessionTokenStorageKey = "project-gestion.session-token";
 
 /** Mirrors the backend's default document-upload limits (`DOCUMENT_MAX_UPLOAD_SIZE_BYTES` /
  * `DOCUMENT_ALLOWED_FILE_EXTENSIONS` / `DOCUMENT_ALLOWED_MIME_TYPES` in `config/settings.py`),

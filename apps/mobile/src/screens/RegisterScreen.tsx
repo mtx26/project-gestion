@@ -22,7 +22,7 @@ export function RegisterScreen({ navigation }: Props) {
     setError(null);
     try {
       await api.auth.register(values);
-      navigation.replace("ResendVerification", { email: values.email, registered: true });
+      navigation.replace("VerificationSent", { email: values.email });
     } catch (caught) {
       setError(getErrorMessage(caught));
     }

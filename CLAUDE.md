@@ -9,7 +9,7 @@ Toujours lire `AI_DIRECTIVES.md` en complément — les règles ci-dessous s'y a
 
 | Couche | Tech |
 |---|---|
-| Backend | Django 6, DRF, SimpleJWT, django-guardian, Resend, S3 |
+| Backend | Django 6, DRF, django-allauth (headless, sessions), django-guardian, Resend, S3 |
 | Web | Next.js 16 App Router, React 19, TypeScript |
 | Mobile | Expo 56, React Native 0.85, Nativewind |
 | UI web | **shadcn/ui** + Tailwind CSS 4 + Radix UI + Lucide |

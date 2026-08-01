@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { ApiError } from "@project-gestion/api";
 import { loginSchema, type LoginFormValues } from "@project-gestion/validation";
 import { MailWarning } from "lucide-react";
 import Link from "next/link";
@@ -15,7 +16,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { getErrorMessage, isEmailVerificationRequired } from "@/lib/errors";
+import { GoogleLoginButton } from "@/components/google-login-button";
+import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -43,7 +45,9 @@ export default function LoginPage() {
       const setupAfterLogin = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("setup") === "1";
       router.replace(setupAfterLogin ? "/account/setup" : "/dashboard");
     } catch (error) {
-      if (isEmailVerificationRequired(error)) {
+      // allauth renvoie 401 + etape `verify_email` tant que l'email n'est pas
+      // confirme, et renvoie a cette occasion un nouveau lien de verification.
+      if (error instanceof ApiError && error.status === 401) {
         setUnverifiedEmail(values.identifier);
         return;
       }
@@ -60,12 +64,10 @@ export default function LoginPage() {
               <MailWarning className="size-4" />
               <AlertTitle>Email non verifie</AlertTitle>
               <AlertDescription className="space-y-3">
-                <span>Verifie ton email avant de te connecter.</span>
-                <Button asChild variant="secondary" size="sm">
-                  <Link href={`/auth/resend-verification?email=${encodeURIComponent(unverifiedEmail)}`}>
-                    Renvoyer l&apos;email
-                  </Link>
-                </Button>
+                <span>
+                  Verifie ton email avant de te connecter. Un nouveau lien vient
+                  d&apos;etre envoye a {unverifiedEmail}.
+                </span>
               </AlertDescription>
             </Alert>
           ) : null}
@@ -89,6 +91,7 @@ export default function LoginPage() {
               Se connecter
             </Button>
           </form>
+          <GoogleLoginButton />
           <div className="flex items-center justify-between text-sm">
             <Link className="text-muted-foreground hover:text-foreground" href="/auth/forgot-password">
               Mot de passe oublie

@@ -1,24 +1,22 @@
-import { createApiClient, type TokenStore } from "@project-gestion/api";
-import { API_BASE_URL, tokenStorageKeys } from "@project-gestion/config";
+import { createApiClient, type SessionTokenStore } from "@project-gestion/api";
+import { API_BASE_URL, sessionTokenStorageKey } from "@project-gestion/config";
 import * as SecureStore from "expo-secure-store";
 
-let memoryAccessToken: string | null = null;
-
-export const mobileTokenStore: TokenStore = {
-  getAccessToken: () => memoryAccessToken,
-  getRefreshToken: () => SecureStore.getItemAsync(tokenStorageKeys.refresh),
-  setTokens: async ({ access, refresh }) => {
-    memoryAccessToken = access;
-    await SecureStore.setItemAsync(tokenStorageKeys.refresh, refresh);
-  },
-  clearTokens: async () => {
-    memoryAccessToken = null;
-    await SecureStore.deleteItemAsync(tokenStorageKeys.refresh);
+export const mobileSessionTokenStore: SessionTokenStore = {
+  getSessionToken: () => SecureStore.getItemAsync(sessionTokenStorageKey),
+  setSessionToken: async (token) => {
+    if (token === null) {
+      await SecureStore.deleteItemAsync(sessionTokenStorageKey);
+      return;
+    }
+    await SecureStore.setItemAsync(sessionTokenStorageKey, token);
   },
 };
 
 export const api = createApiClient({
   baseUrl: API_BASE_URL,
-  tokenStore: mobileTokenStore,
+  // Client headless "app" : pas de cookie sur mobile, la session est portee par
+  // l'en-tete `X-Session-Token` et conservee dans le keystore securise.
+  client: "app",
+  sessionTokenStore: mobileSessionTokenStore,
 });
-

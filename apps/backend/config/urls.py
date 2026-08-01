@@ -24,6 +24,12 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),
+    # Endpoints d'authentification officiels de django-allauth headless
+    # (/_allauth/browser/v1/... pour le web, /_allauth/app/v1/... pour le mobile).
+    path("_allauth/", include("allauth.headless.urls")),
+    # `HEADLESS_ONLY = True` : allauth.urls n'expose plus que les vues de redirection
+    # et de callback OAuth des providers, indispensables au flux Google.
+    path("accounts/", include("allauth.urls")),
     path("api/accounts/", include("accounts.urls")),
     path("api/", include("api.urls")),
     path("anymail/", include("anymail.urls")),

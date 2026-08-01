@@ -24,10 +24,6 @@ export const loginSchema = z.object({
   password: z.string().min(1, "Mot de passe requis"),
 });
 
-export const resendVerificationSchema = z.object({
-  email: emailSchema,
-});
-
 export const verifyEmailSchema = z.object({
   key: z.string().min(1, "Cle de verification manquante"),
 });
@@ -36,20 +32,21 @@ export const resetPasswordSchema = z.object({
   email: emailSchema,
 });
 
+/** `key` et `password` sont les champs attendus par
+ * `POST /_allauth/<client>/v1/auth/password/reset`. */
 export const resetPasswordConfirmSchema = z.object({
-  uid: z.string().min(1, "Identifiant manquant"),
-  token: z.string().min(1, "Token manquant"),
-  new_password: passwordSchema,
+  key: z.string().min(1, "Cle de reinitialisation manquante"),
+  password: passwordSchema,
 });
 
+/** Champs attendus par `POST /_allauth/<client>/v1/account/password/change`. */
 export const changePasswordSchema = z.object({
-  old_password: z.string().min(1, "Mot de passe actuel requis"),
+  current_password: z.string().min(1, "Mot de passe actuel requis"),
   new_password: passwordSchema,
 });
 
 export type RegisterFormValues = z.infer<typeof registerSchema>;
 export type LoginFormValues = z.infer<typeof loginSchema>;
-export type ResendVerificationFormValues = z.infer<typeof resendVerificationSchema>;
 export type VerifyEmailFormValues = z.infer<typeof verifyEmailSchema>;
 export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
 export type ResetPasswordConfirmFormValues = z.infer<typeof resetPasswordConfirmSchema>;

@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -51,7 +50,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     "rest_framework",
-    "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "anymail",
     "corsheaders",
@@ -59,8 +57,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
-    "dj_rest_auth",
-    "dj_rest_auth.registration",
+    "allauth.headless",
     "accounts.apps.AccountsConfig",
     "api.apps.ApiConfig",
     "core",
@@ -287,17 +284,51 @@ EMAIL_VERIFICATION_URL = env(
     "EMAIL_VERIFICATION_URL",
     default=f"{FRONTEND_APP_URL}/auth/verify-email",
 )
-GOOGLE_OAUTH_CALLBACK_URL = env(
-    "GOOGLE_OAUTH_CALLBACK_URL",
-    default=f"{FRONTEND_APP_URL}/auth/google/callback",
-)
 INVITATION_EXPIRES_DAYS = env.int("INVITATION_EXPIRES_DAYS", default=7)
+
+# Le frontend appelle l'API depuis une autre origine avec `credentials: "include"`,
+# donc le navigateur exige `Access-Control-Allow-Credentials` + une liste d'origines
+# explicite (le wildcard `*` est interdit avec des cookies).
+# `x-csrftoken` fait deja partie des en-tetes autorises par defaut.
+CORS_ALLOW_CREDENTIALS = True
+
+# Origines autorisees a poster un token CSRF. `AccountAdapter.is_safe_url` s'appuie
+# aussi dessus pour valider le `callback_url` du flux OAuth headless.
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=CORS_ALLOWED_ORIGINS)
+
+
+# Sessions Django (aucun token n'est expose au JavaScript du frontend)
+# https://docs.djangoproject.com/en/6.0/ref/settings/#sessions
+
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = env.bool("SESSION_COOKIE_SECURE", default=not DEBUG)
+# "Lax" suffit tant que le frontend et l'API partagent le meme site (meme domaine
+# enregistrable, le port n'entre pas en compte). Pour un deploiement reellement
+# cross-site il faut "None" + cookies `Secure`.
+SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE", default="Lax")
+SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default=None) or None
+SESSION_COOKIE_AGE = env.int("SESSION_COOKIE_AGE", default=60 * 60 * 24 * 14)
+# Prolonge la session a chaque requete authentifiee (expiration glissante).
+SESSION_SAVE_EVERY_REQUEST = True
+
+# Le frontend doit pouvoir lire le cookie CSRF pour renvoyer l'en-tete `X-CSRFToken`,
+# il ne peut donc pas etre HttpOnly (c'est le fonctionnement nominal de Django).
+CSRF_COOKIE_HTTPONLY = False
+CSRF_COOKIE_SECURE = env.bool("CSRF_COOKIE_SECURE", default=not DEBUG)
+CSRF_COOKIE_SAMESITE = env("CSRF_COOKIE_SAMESITE", default=SESSION_COOKIE_SAMESITE)
+CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN", default=None) or None
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "api.exceptions.exception_handler",
+    # `SessionAuthentication` lit le cookie de session Django et applique la
+    # verification CSRF sur les requetes non idempotentes (clients navigateur).
+    # `XSessionTokenAuthentication` est l'integration DRF officielle d'allauth pour
+    # le client "app" (mobile), qui transporte le meme session key via l'en-tete
+    # `X-Session-Token` au lieu d'un cookie.
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.authentication.SessionAuthentication",
+        "allauth.headless.contrib.rest_framework.authentication.XSessionTokenAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -317,45 +348,43 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": [
         "rest_framework.throttling.ScopedRateThrottle",
     ],
+    # Les flux d'authentification sont limites par allauth lui-meme
+    # (`ACCOUNT_RATE_LIMITS`), ce throttle ne couvre que les vues du projet.
     "DEFAULT_THROTTLE_RATES": {
-        "login": env("THROTTLE_LOGIN_RATE", default="5/min"),
-        "register": env("THROTTLE_REGISTER_RATE", default="5/hour"),
-        "password_reset": env("THROTTLE_PASSWORD_RESET_RATE", default="3/hour"),
-        "password_reset_confirm": env(
-            "THROTTLE_PASSWORD_RESET_CONFIRM_RATE",
-            default="10/hour",
-        ),
-        "password_change": env("THROTTLE_PASSWORD_CHANGE_RATE", default="10/hour"),
-        "email_verify": env("THROTTLE_EMAIL_VERIFY_RATE", default="10/hour"),
-        "email_resend": env("THROTTLE_EMAIL_RESEND_RATE", default="3/hour"),
-        "google_login": env("THROTTLE_GOOGLE_LOGIN_RATE", default="10/min"),
         "profile_picture": env("THROTTLE_PROFILE_PICTURE_RATE", default="10/hour"),
     },
 }
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(
-        minutes=env.int("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=15),
-    ),
-    "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7),
-    ),
-    "ROTATE_REFRESH_TOKENS": env.bool("JWT_ROTATE_REFRESH_TOKENS", default=False),
-    "BLACKLIST_AFTER_ROTATION": env.bool("JWT_BLACKLIST_AFTER_ROTATION", default=True),
-}
 
-REST_AUTH = {
-    "USE_JWT": True,
-    "JWT_AUTH_HTTPONLY": False,
-    "TOKEN_MODEL": None,
-    "USER_DETAILS_SERIALIZER": "accounts.serializers.UserSerializer",
+# django-allauth
+# https://docs.allauth.org/en/latest/account/configuration.html
+
+ACCOUNT_ADAPTER = "accounts.adapters.AccountAdapter"
+# Le username n'est pas demande a l'inscription : allauth le derive de l'email
+# via `DefaultAccountAdapter.generate_unique_username`.
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*"]
+ACCOUNT_SIGNUP_FORM_CLASS = "accounts.forms.SignupExtraFieldsForm"
+ACCOUNT_LOGIN_METHODS = {"email", "username"}
+ACCOUNT_EMAIL_VERIFICATION = "mandatory"
+ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+ACCOUNT_UNIQUE_EMAIL = True
+ACCOUNT_PREVENT_ENUMERATION = True
+ACCOUNT_RATE_LIMITS = {
+    "login": env("THROTTLE_LOGIN_RATE", default="30/m/ip"),
+    "login_failed": env("THROTTLE_LOGIN_FAILED_RATE", default="10/m/ip,5/300s/key"),
+    "signup": env("THROTTLE_SIGNUP_RATE", default="20/m/ip"),
+    "reset_password": env("THROTTLE_PASSWORD_RESET_RATE", default="20/m/ip,5/m/key"),
+    "reset_password_from_key": env(
+        "THROTTLE_PASSWORD_RESET_CONFIRM_RATE",
+        default="20/m/ip",
+    ),
+    "change_password": env("THROTTLE_PASSWORD_CHANGE_RATE", default="5/m/user"),
+    "confirm_email": env("THROTTLE_EMAIL_RESEND_RATE", default="1/180s/key"),
 }
 
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
-ACCOUNT_ADAPTER = "accounts.adapters.AccountAdapter"
-ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
-ACCOUNT_EMAIL_VERIFICATION = "mandatory"
-ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+GOOGLE_OAUTH_CLIENT_ID = env("GOOGLE_OAUTH_CLIENT_ID", default="")
+GOOGLE_OAUTH_CLIENT_SECRET = env("GOOGLE_OAUTH_CLIENT_SECRET", default="")
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
@@ -369,9 +398,43 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
+# Credentials via settings plutot que via le modele `SocialApp` en base : le secret
+# reste dans l'environnement et aucune donnee a saisir dans l'admin.
+if GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET:
+    SOCIALACCOUNT_PROVIDERS["google"]["APPS"] = [
+        {
+            "client_id": GOOGLE_OAUTH_CLIENT_ID,
+            "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+            "key": "",
+        }
+    ]
+
+
+# django-allauth headless
+# https://docs.allauth.org/en/latest/headless/configuration.html
+
+# Aucune vue HTML d'allauth n'est exposee : le projet ne sert que l'API headless.
+HEADLESS_ONLY = True
+# "browser" -> web (cookie de session + CSRF), "app" -> mobile (X-Session-Token).
+HEADLESS_CLIENTS = ("browser", "app")
+HEADLESS_SERVE_SPECIFICATION = env.bool("HEADLESS_SERVE_SPECIFICATION", default=DEBUG)
+# URLs du frontend inserees dans les emails envoyes par allauth.
+HEADLESS_FRONTEND_URLS = {
+    "account_confirm_email": f"{EMAIL_VERIFICATION_URL.rstrip('/')}?key={{key}}",
+    "account_reset_password": f"{FRONTEND_APP_URL.rstrip('/')}/auth/forgot-password",
+    "account_reset_password_from_key": (
+        f"{PASSWORD_RESET_CONFIRM_URL.rstrip('/')}?key={{key}}"
+    ),
+    "account_signup": f"{FRONTEND_APP_URL.rstrip('/')}/auth/register",
+    "socialaccount_login_error": f"{FRONTEND_APP_URL.rstrip('/')}/auth/login",
+}
+
 SPECTACULAR_SETTINGS = {
     "TITLE": "Project Gestion API",
-    "DESCRIPTION": "API de gestion de projets avec authentification JWT.",
+    "DESCRIPTION": (
+        "API de gestion de projets. L'authentification est assuree par "
+        "django-allauth headless sous /_allauth/ (sessions Django)."
+    ),
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     #"POSTPROCESSING_HOOKS": [

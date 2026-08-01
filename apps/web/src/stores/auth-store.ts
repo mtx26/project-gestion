@@ -1,85 +1,55 @@
 "use client";
 
-import type { AuthTokens, LoginPayload, User } from "@project-gestion/types";
+import type { LoginPayload, User } from "@project-gestion/types";
 import { create } from "zustand";
-import { api, webTokenStore } from "@/lib/api";
+import { api } from "@/lib/api";
+import { ensureCsrfToken } from "@/lib/csrf";
 
 type AuthState = {
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (payload: LoginPayload) => Promise<void>;
   logout: () => Promise<void>;
   restoreSession: () => Promise<void>;
-  setTokens: (tokens: AuthTokens) => Promise<void>;
   setUser: (user: User) => void;
-  clearSession: () => Promise<void>;
+  clearSession: () => void;
 };
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  accessToken: null,
-  refreshToken: null,
   isAuthenticated: false,
   isLoading: true,
   login: async (payload) => {
-    const result = await api.auth.login(payload);
-    await get().setTokens({ access: result.access, refresh: result.refresh });
+    // Le POST de connexion est protege par CSRF : le cookie doit exister avant.
+    await ensureCsrfToken();
+    await api.auth.login(payload);
     const user = await api.auth.me();
     set({ user, isAuthenticated: true, isLoading: false });
   },
   logout: async () => {
-    const refresh = await webTokenStore.getRefreshToken();
     try {
-      if (refresh) {
-        await api.auth.logout(refresh);
-      }
+      await api.auth.logout();
     } finally {
-      await get().clearSession();
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
   restoreSession: async () => {
     set({ isLoading: true });
-    const access = await webTokenStore.getAccessToken();
-    const refresh = await webTokenStore.getRefreshToken();
-    if (!access && !refresh) {
-      set({ isLoading: false, isAuthenticated: false });
+    // Repose uniquement sur le cookie de session : rien n'est lu depuis le storage.
+    const session = await api.auth.session();
+    if (!session.meta?.is_authenticated) {
+      set({ user: null, isAuthenticated: false, isLoading: false });
       return;
     }
 
     try {
       const user = await api.auth.me();
-      set({
-        user,
-        accessToken: await webTokenStore.getAccessToken(),
-        refreshToken: await webTokenStore.getRefreshToken(),
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      set({ user, isAuthenticated: true, isLoading: false });
     } catch {
-      await get().clearSession();
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
-  setTokens: async (tokens) => {
-    await webTokenStore.setTokens(tokens);
-    set({
-      accessToken: tokens.access,
-      refreshToken: tokens.refresh,
-      isAuthenticated: true,
-    });
-  },
   setUser: (user) => set({ user }),
-  clearSession: async () => {
-    await webTokenStore.clearTokens();
-    set({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-  },
+  clearSession: () => set({ user: null, isAuthenticated: false, isLoading: false }),
 }));
-

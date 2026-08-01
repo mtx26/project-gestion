@@ -1,6 +1,6 @@
 import type {
   ApiFieldErrors,
-  AuthTokens,
+  AuthSessionResponse,
   CalendarData,
   CalendarSubscription,
   CalendarSubscriptionPayload,
@@ -15,7 +15,6 @@ import type {
   Invitation,
   InvitationAcceptResponse,
   LoginPayload,
-  LoginResponse,
   Notification,
   PaginatedResponse,
   Permission,
@@ -41,16 +40,26 @@ import type {
   DocumentUploadPayload,
 } from "@project-gestion/types";
 
-export type TokenStore = {
-  getAccessToken: () => string | null | Promise<string | null>;
-  getRefreshToken: () => string | null | Promise<string | null>;
-  setTokens: (tokens: AuthTokens) => void | Promise<void>;
-  clearTokens: () => void | Promise<void>;
+/** Client django-allauth headless. `browser` s'appuie sur le cookie de session
+ * Django et la protection CSRF ; `app` transporte la meme session via l'en-tete
+ * `X-Session-Token` (voir la documentation headless d'allauth). */
+export type HeadlessClient = "browser" | "app";
+
+/** Stockage du session token du client `app`. Inutile pour le client `browser`,
+ * dont la session vit uniquement dans un cookie HttpOnly. */
+export type SessionTokenStore = {
+  getSessionToken: () => string | null | Promise<string | null>;
+  setSessionToken: (token: string | null) => void | Promise<void>;
 };
 
 export type ApiClientOptions = {
   baseUrl: string;
-  tokenStore?: TokenStore;
+  /** Defaut : `browser`. */
+  client?: HeadlessClient;
+  /** Requis pour le client `app`. */
+  sessionTokenStore?: SessionTokenStore;
+  /** Lecture du cookie CSRF, cote navigateur uniquement. */
+  getCsrfToken?: () => string | null;
   onSessionInvalid?: () => void;
 };
 
@@ -83,72 +92,197 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
     this.data = data;
-    this.fieldErrors = isRecord(data) ? (data as ApiFieldErrors) : {};
+    this.fieldErrors = toFieldErrors(data);
   }
+}
+
+/** django-allauth headless renvoie ses erreurs sous la forme
+ * `{ errors: [{ message, code, param }] }`, DRF sous la forme `{ champ: [code] }`.
+ * Les deux sont ramenees au format DRF, seul connu des formulaires. Le `code`
+ * d'allauth est privilegie sur le `message` : ce dernier est en anglais, alors que
+ * le code est traduisible cote app comme les codes `errors.*` du backend. */
+function toFieldErrors(data: unknown): ApiFieldErrors {
+  if (!isRecord(data)) {
+    return {};
+  }
+
+  const allauthErrors = data.errors;
+  if (!Array.isArray(allauthErrors)) {
+    return data as ApiFieldErrors;
+  }
+
+  const fieldErrors: ApiFieldErrors = {};
+  for (const error of allauthErrors) {
+    if (!isRecord(error)) continue;
+    const value =
+      typeof error.code === "string"
+        ? error.code
+        : typeof error.message === "string"
+          ? error.message
+          : null;
+    if (value === null) continue;
+    const field = typeof error.param === "string" ? error.param : "detail";
+    const messages = (fieldErrors[field] ??= []) as string[];
+    messages.push(value);
+  }
+  return fieldErrors;
 }
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
-  skipAuth?: boolean;
-  retryOnUnauthorized?: boolean;
+  /** Ne pas notifier `onSessionInvalid` sur un 401 attendu (probe de session). */
+  ignoreUnauthorized?: boolean;
 };
 
 export function createApiClient({
   baseUrl,
-  tokenStore,
+  client = "browser",
+  sessionTokenStore,
+  getCsrfToken,
   onSessionInvalid,
 }: ApiClientOptions) {
-  const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
-    const shouldRetry = options.retryOnUnauthorized !== false;
-    return execute<T>(path, options, shouldRetry);
-  };
+  const headlessUrl = (path: string) => `/_allauth/${client}/v1${path}`;
 
-  const execute = async <T>(
-    path: string,
-    options: RequestOptions,
-    canRetry: boolean,
-  ): Promise<T> => {
+  const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
     const response = await fetch(buildUrl(baseUrl, path), {
       ...options,
-      headers: await buildHeaders(options, tokenStore),
+      // Le client `browser` s'authentifie par cookie de session : sans cela le
+      // navigateur ne le joindrait pas a une requete cross-origin.
+      credentials: client === "browser" ? "include" : options.credentials,
+      headers: await buildHeaders(options),
       body: serializeBody(options.body),
     });
 
-    if (response.status === 401 && tokenStore && canRetry) {
-      const refreshed = await refreshAccessToken(baseUrl, tokenStore);
-      if (refreshed) {
-        return execute<T>(path, options, false);
-      }
+    // Le client `app` recoit son session token dans `meta`, y compris quand la
+    // reponse est un 401 (etape d'authentification encore en cours).
+    const payload = response.status === 204 ? null : await readJson(response);
+    await storeSessionToken(payload);
 
-      await tokenStore.clearTokens();
+    if (response.status === 401 && !options.ignoreUnauthorized) {
+      await sessionTokenStore?.setSessionToken(null);
       onSessionInvalid?.();
     }
 
     if (!response.ok) {
-      throw new ApiError(response.status, await readJson(response));
+      throw new ApiError(response.status, payload);
     }
 
-    if (response.status === 204) {
-      return undefined as T;
+    return payload as T;
+  };
+
+  const buildHeaders = async (options: RequestOptions) => {
+    const headers = new Headers(options.headers);
+    if (!headers.has("Content-Type") && options.body != null && !isFormData(options.body)) {
+      headers.set("Content-Type", "application/json");
+    }
+    if (!headers.has("Accept")) {
+      headers.set("Accept", "application/json");
     }
 
-    return (await readJson(response)) as T;
+    if (client === "app") {
+      const sessionToken = await sessionTokenStore?.getSessionToken();
+      if (sessionToken) {
+        headers.set("X-Session-Token", sessionToken);
+      }
+      return headers;
+    }
+
+    const method = (options.method ?? "GET").toUpperCase();
+    if (!SAFE_METHODS.has(method)) {
+      const csrfToken = getCsrfToken?.();
+      if (csrfToken) {
+        headers.set("X-CSRFToken", csrfToken);
+      }
+    }
+    return headers;
+  };
+
+  const storeSessionToken = async (payload: unknown) => {
+    if (client !== "app" || !sessionTokenStore || !isRecord(payload)) return;
+    const meta = payload.meta;
+    if (isRecord(meta) && typeof meta.session_token === "string") {
+      await sessionTokenStore.setSessionToken(meta.session_token);
+    }
   };
 
   return {
     request,
     auth: {
-      register: (payload: RegisterPayload) =>
-        request<{ detail: string; email: string; email_verified: boolean }>(
-          "/api/accounts/register/",
-          { method: "POST", body: payload, skipAuth: true },
+      /** POST /_allauth/<client>/v1/auth/signup. Avec verification d'email
+       * obligatoire, allauth repond 401 : le compte est cree mais la session
+       * reste bloquee sur l'etape `verify_email`. */
+      register: ({ email, password, first_name, last_name }: RegisterPayload) =>
+        readSession(
+          request<AuthSessionResponse>(headlessUrl("/auth/signup"), {
+            method: "POST",
+            body: { email, password, first_name, last_name },
+            ignoreUnauthorized: true,
+          }),
         ),
-      login: (payload: LoginPayload) =>
-        request<LoginResponse>("/api/accounts/login/", {
+      /** POST /_allauth/<client>/v1/auth/login. allauth attend exactement une
+       * methode de connexion, l'identifiant saisi est donc route vers `email` ou
+       * `username` selon sa forme. */
+      login: ({ identifier, password }: LoginPayload) =>
+        request<AuthSessionResponse>(headlessUrl("/auth/login"), {
+          method: "POST",
+          body: identifier.includes("@")
+            ? { email: identifier, password }
+            : { username: identifier, password },
+          // Un 401 signale ici une etape restante (email non verifie), pas une
+          // session expiree : la page de connexion doit pouvoir la lire.
+          ignoreUnauthorized: true,
+        }),
+      /** GET /_allauth/<client>/v1/auth/session — 401 quand aucune session n'est ouverte. */
+      session: () =>
+        readSession(
+          request<AuthSessionResponse>(headlessUrl("/auth/session"), {
+            ignoreUnauthorized: true,
+          }),
+        ),
+      /** DELETE /_allauth/<client>/v1/auth/session. allauth repond 401 une fois la
+       * session fermee : c'est le resultat attendu, pas une erreur. */
+      logout: () =>
+        readSession(
+          request<AuthSessionResponse>(headlessUrl("/auth/session"), {
+            method: "DELETE",
+            ignoreUnauthorized: true,
+          }),
+        ),
+      /** POST /_allauth/<client>/v1/auth/email/verify. 401 = email confirme mais
+       * session non ouverte (l'utilisateur doit encore se connecter). */
+      verifyEmail: (key: string) =>
+        readSession(
+          request<AuthSessionResponse>(headlessUrl("/auth/email/verify"), {
+            method: "POST",
+            body: { key },
+            ignoreUnauthorized: true,
+          }),
+        ),
+      /** POST /_allauth/<client>/v1/auth/password/request */
+      resetPassword: (email: string) =>
+        request<AuthSessionResponse>(headlessUrl("/auth/password/request"), {
+          method: "POST",
+          body: { email },
+        }),
+      /** POST /_allauth/<client>/v1/auth/password/reset */
+      resetPasswordConfirm: (payload: { key: string; password: string }) =>
+        readSession(
+          request<AuthSessionResponse>(headlessUrl("/auth/password/reset"), {
+            method: "POST",
+            body: payload,
+            ignoreUnauthorized: true,
+          }),
+        ),
+      /** POST /_allauth/<client>/v1/account/password/change */
+      changePassword: (payload: { current_password: string; new_password: string }) =>
+        request<AuthSessionResponse>(headlessUrl("/account/password/change"), {
           method: "POST",
           body: payload,
-          skipAuth: true,
         }),
+      /** URL de `POST /_allauth/browser/v1/auth/provider/redirect`. Ce flux est une
+       * soumission de formulaire navigateur (redirection vers le provider), il ne
+       * peut pas passer par `fetch`. */
+      providerRedirectUrl: () => buildUrl(baseUrl, headlessUrl("/auth/provider/redirect")),
       me: () => request<User>("/api/accounts/me/"),
       updateMe: (payload: UserUpdatePayload) =>
         request<User>("/api/accounts/me/", {
@@ -164,49 +298,6 @@ export function createApiClient({
           body: formData,
         });
       },
-      refresh: (refresh: string) =>
-        request<{ access: string }>("/api/accounts/refresh/", {
-          method: "POST",
-          body: { refresh },
-          skipAuth: true,
-          retryOnUnauthorized: false,
-        }),
-      logout: (refresh: string) =>
-        request<void>("/api/accounts/logout/", {
-          method: "POST",
-          body: { refresh },
-          skipAuth: true,
-          retryOnUnauthorized: false,
-        }),
-      verifyEmail: (key: string) =>
-        request<{ detail: string }>("/api/accounts/email/verify/", {
-          method: "POST",
-          body: { key },
-          skipAuth: true,
-        }),
-      resendVerification: (email: string) =>
-        request<{ detail: string }>("/api/accounts/email/resend/", {
-          method: "POST",
-          body: { email },
-          skipAuth: true,
-        }),
-      resetPassword: (email: string) =>
-        request<{ detail: string }>("/api/accounts/password/reset/", {
-          method: "POST",
-          body: { email },
-          skipAuth: true,
-        }),
-      resetPasswordConfirm: (payload: { uid: string; token: string; new_password: string }) =>
-        request<{ detail: string }>("/api/accounts/password/reset/confirm/", {
-          method: "POST",
-          body: payload,
-          skipAuth: true,
-        }),
-      changePassword: (payload: { old_password: string; new_password: string }) =>
-        request<{ detail: string }>("/api/accounts/password/change/", {
-          method: "POST",
-          body: payload,
-        }),
     },
     projects: {
       list: () => request<Project[] | PaginatedResponse<Project>>("/api/projects/"),
@@ -656,21 +747,19 @@ export function createApiClient({
   };
 }
 
-async function buildHeaders(options: RequestOptions, tokenStore?: TokenStore) {
-  const headers = new Headers(options.headers);
-  if (!headers.has("Content-Type") && options.body != null && !isFormData(options.body)) {
-    headers.set("Content-Type", "application/json");
-  }
-  if (!headers.has("Accept")) {
-    headers.set("Accept", "application/json");
-  }
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS", "TRACE"]);
 
-  const access = options.skipAuth ? null : await tokenStore?.getAccessToken();
-  if (access) {
-    headers.set("Authorization", `Bearer ${access}`);
+/** Sur les endpoints de session, un 401 est une reponse metier ("pas connecte")
+ * et non un echec : allauth y renvoie la meme enveloppe qu'en 200. */
+async function readSession(pending: Promise<AuthSessionResponse>) {
+  try {
+    return await pending;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return error.data as AuthSessionResponse;
+    }
+    throw error;
   }
-
-  return headers;
 }
 
 function serializeBody(body: unknown) {
@@ -689,34 +778,6 @@ function appendFormDataValue(formData: FormData, key: string, value: string | nu
   if (value != null && value !== "") {
     formData.set(key, String(value));
   }
-}
-
-async function refreshAccessToken(baseUrl: string, tokenStore: TokenStore) {
-  const refresh = await tokenStore.getRefreshToken();
-  if (!refresh) {
-    return false;
-  }
-
-  const response = await fetch(buildUrl(baseUrl, "/api/accounts/refresh/"), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ refresh }),
-  });
-
-  if (!response.ok) {
-    return false;
-  }
-
-  const data = (await response.json()) as { access?: string; refresh?: string };
-  if (!data.access) {
-    return false;
-  }
-
-  await tokenStore.setTokens({ access: data.access, refresh: data.refresh ?? refresh });
-  return true;
 }
 
 function buildUrl(baseUrl: string, path: string) {
@@ -756,6 +817,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function getErrorMessage(status: number, data: unknown) {
   if (isRecord(data) && typeof data.detail === "string") {
     return data.detail;
+  }
+  if (isRecord(data) && Array.isArray(data.errors)) {
+    const first = data.errors.find(
+      (error) => isRecord(error) && typeof error.message === "string",
+    );
+    if (isRecord(first) && typeof first.message === "string") {
+      return first.message;
+    }
   }
   if (typeof data === "string" && data.trim()) {
     return data;

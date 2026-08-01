@@ -11,7 +11,7 @@ import { DashboardScreen } from "./src/screens/DashboardScreen";
 import { ForgotPasswordScreen } from "./src/screens/ForgotPasswordScreen";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { RegisterScreen } from "./src/screens/RegisterScreen";
-import { ResendVerificationScreen } from "./src/screens/ResendVerificationScreen";
+import { VerificationSentScreen } from "./src/screens/VerificationSentScreen";
 import { ResetPasswordScreen } from "./src/screens/ResetPasswordScreen";
 import { VerifyEmailScreen } from "./src/screens/VerifyEmailScreen";
 import { useAuthStore } from "./src/stores/auth-store";
@@ -26,7 +26,7 @@ function AuthNavigator() {
       <AuthStack.Screen name="Login" component={LoginScreen} />
       <AuthStack.Screen name="Register" component={RegisterScreen} />
       <AuthStack.Screen name="VerifyEmail" component={VerifyEmailScreen} />
-      <AuthStack.Screen name="ResendVerification" component={ResendVerificationScreen} />
+      <AuthStack.Screen name="VerificationSent" component={VerificationSentScreen} />
       <AuthStack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
       <AuthStack.Screen name="ResetPassword" component={ResetPasswordScreen} />
     </AuthStack.Navigator>

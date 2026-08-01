@@ -16,7 +16,7 @@ import { PasswordInput } from "@/components/forms/password-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { api, webTokenStore } from "@/lib/api";
+import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
@@ -27,18 +27,16 @@ function ResetPasswordContent() {
   const form = useForm<ResetPasswordConfirmFormValues>({
     resolver: zodResolver(resetPasswordConfirmSchema),
     defaultValues: {
-      uid: params.get("uid") ?? "",
-      token: params.get("token") ?? "",
-      new_password: "",
+      key: params.get("key") ?? "",
+      password: "",
     },
   });
-  useServerFieldErrors(form, rawError, ["uid", "token", "new_password"]);
+  useServerFieldErrors(form, rawError, ["key", "password"]);
 
   async function onSubmit(values: ResetPasswordConfirmFormValues) {
     setRawError(null);
     try {
       await api.auth.resetPasswordConfirm(values);
-      await webTokenStore.clearTokens();
       router.replace("/auth/login?password_reset=1");
     } catch (error) {
       setRawError(error);
@@ -50,23 +48,18 @@ function ResetPasswordContent() {
       <Card>
         <CardContent className="pt-6">
           <form className="space-y-4" onSubmit={form.handleSubmit(onSubmit)}>
-            <input type="hidden" {...form.register("uid")} />
-            <input type="hidden" {...form.register("token")} />
+            <input type="hidden" {...form.register("key")} />
             <Field>
-              <FieldLabel htmlFor="new_password">Nouveau mot de passe</FieldLabel>
+              <FieldLabel htmlFor="password">Nouveau mot de passe</FieldLabel>
               <PasswordInput
-                id="new_password"
+                id="password"
                 autoComplete="new-password"
-                {...form.register("new_password")}
+                {...form.register("password")}
               />
-              <FieldError errors={[form.formState.errors.new_password]} />
+              <FieldError errors={[form.formState.errors.password]} />
             </Field>
             <FormError
-              message={
-                form.formState.errors.uid?.message ??
-                form.formState.errors.token?.message ??
-                getErrorMessage(rawError)
-              }
+              message={form.formState.errors.key?.message ?? getErrorMessage(rawError)}
             />
             <Button className="w-full" type="submit" disabled={form.formState.isSubmitting}>
               Mettre a jour

@@ -33,3 +33,31 @@ class AccountAdapter(DefaultAccountAdapter):
             metadata={"user_id": str(user.id), "signup": signup},
             reply_to=settings.DEFAULT_REPLY_TO_EMAIL,
         )
+
+    def send_password_reset_mail(self, user, email, context):
+        """Remplace le template Django d'allauth par l'envoi Resend du projet.
+
+        `context["password_reset_url"]` est deja construit par allauth a partir de
+        `HEADLESS_FRONTEND_URLS["account_reset_password_from_key"]`.
+        """
+        reset_url = context["password_reset_url"]
+        username = user.get_full_name() or user.get_username()
+
+        send_email(
+            to_email=email,
+            subject="Reinitialisation de votre mot de passe",
+            type="password_reset",
+            resend_template_id=settings.RESEND_PASSWORD_RESET_TEMPLATE_ID or None,
+            resend_template_variables={
+                "USER_NAME": username,
+                "RESET_URL": reset_url,
+            },
+            text_body=(
+                f"Bonjour {username},\n\n"
+                "Vous avez demande la reinitialisation de votre mot de passe.\n"
+                f"Changer votre mot de passe : {reset_url}\n\n"
+                "Si vous n'etes pas a l'origine de cette demande, ignorez cet email."
+            ),
+            metadata={"user_id": str(user.id)},
+            reply_to=settings.DEFAULT_REPLY_TO_EMAIL,
+        )

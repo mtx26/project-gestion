@@ -1,4 +1,5 @@
 import { ApiError } from "@project-gestion/api";
+import type { AuthSessionResponse } from "@project-gestion/types";
 import { toast } from "sonner";
 
 export function getFieldError(error: unknown, field: string) {
@@ -35,47 +36,39 @@ export function toastError(err: unknown): void {
   toast.error(getErrorMessage(err));
 }
 
-export function isEmailVerificationRequired(error: unknown) {
-  return (
-    error instanceof ApiError &&
-    Array.isArray(error.fieldErrors.email) &&
-    error.fieldErrors.email.includes("errors.email_verification.required")
+/** django-allauth headless ne traite pas l'email non verifie comme une erreur :
+ * il repond 200/401 avec une etape `verify_email` marquee `is_pending`. */
+export function isEmailVerificationPending(session: AuthSessionResponse) {
+  return Boolean(
+    session.data.flows?.some((flow) => flow.id === "verify_email" && flow.is_pending),
   );
 }
 
-const PASSWORD_VALIDATOR_ATTRIBUTE_LABELS: Record<string, string> = {
-  email: "l'email",
-  username: "le nom d'utilisateur",
-  "first name": "le prenom",
-  "last name": "le nom",
-};
-
-/** Django's `validate_password()` (accounts/serializers.py) raises its own English
- * sentences rather than this app's usual `errors.xxx` codes — matched here by
- * pattern since two of them interpolate a count/attribute name. */
-const PASSWORD_VALIDATOR_MESSAGES: Array<[RegExp, (match: RegExpMatchArray) => string]> = [
-  [
-    /^This password is too short\. It must contain at least (\d+) characters?\.$/,
-    (m) => `Le mot de passe doit contenir au moins ${m[1]} caracteres.`,
-  ],
-  [
-    /^The password is too similar to the (.+)\.$/,
-    (m) => `Le mot de passe est trop proche de ${PASSWORD_VALIDATOR_ATTRIBUTE_LABELS[m[1]] ?? m[1]}.`,
-  ],
-  [/^This password is too common\.$/, () => "Ce mot de passe est trop courant."],
-  [/^This password is entirely numeric\.$/, () => "Le mot de passe ne peut pas etre uniquement numerique."],
-];
-
 export function translateError(code: string) {
   const messages: Record<string, string> = {
-    "errors.email_verification.required": "Ton email n'est pas encore verifie.",
-    "errors.auth.identifier_required": "Email ou nom d'utilisateur requis.",
-    "errors.token.invalid": "Session invalide.",
-    "errors.email_verification.invalid_key": "Lien de verification invalide ou expire.",
-    "errors.user.email_already_exists": "Un compte existe deja avec cet email.",
-    "errors.user.username_already_exists": "Ce nom d'utilisateur est deja utilise.",
-    "errors.password.invalid_current_password": "Mot de passe actuel incorrect.",
-    "errors.password_reset.invalid_token": "Lien de reinitialisation invalide ou expire.",
+    // Codes d'erreur de django-allauth (headless renvoie `code`, pas de message FR).
+    account_inactive: "Ce compte est desactive.",
+    email_password_mismatch: "Email ou mot de passe incorrect.",
+    username_password_mismatch: "Nom d'utilisateur ou mot de passe incorrect.",
+    email_taken: "Un compte existe deja avec cet email.",
+    username_taken: "Ce nom d'utilisateur est deja utilise.",
+    enter_current_password: "Saisis ton mot de passe actuel.",
+    incorrect_password: "Mot de passe actuel incorrect.",
+    invalid_or_expired_key: "Lien invalide ou expire.",
+    invalid_login: "Identifiants invalides.",
+    invalid_password_reset: "Lien de reinitialisation invalide ou expire.",
+    too_many_login_attempts: "Trop de tentatives echouees. Reessaie plus tard.",
+    unknown_email: "Aucun compte n'est associe a cet email.",
+    unverified_primary_email: "Ton email principal doit etre verifie.",
+    username_blacklisted: "Ce nom d'utilisateur n'est pas autorise.",
+    same_as_current: "La nouvelle valeur doit etre differente de l'actuelle.",
+    rate_limited: "Trop de requetes. Reessaie plus tard.",
+    // Codes des validateurs de mot de passe de Django.
+    password_too_short: "Le mot de passe est trop court.",
+    password_too_common: "Ce mot de passe est trop courant.",
+    password_too_similar: "Le mot de passe est trop proche de tes informations personnelles.",
+    password_entirely_numeric: "Le mot de passe ne peut pas etre uniquement numerique.",
+
 
     "errors.task.start_date_after_end_date": "La date de debut ne peut pas depasser la date de fin.",
     "errors.task.folder_project_mismatch": "Ce dossier n'appartient pas a ce projet.",
@@ -132,12 +125,5 @@ export function translateError(code: string) {
     "errors.calendar_subscription.at_least_one_required": "Coche au moins taches ou temps.",
   };
 
-  if (messages[code]) return messages[code];
-
-  for (const [pattern, translate] of PASSWORD_VALIDATOR_MESSAGES) {
-    const match = code.match(pattern);
-    if (match) return translate(match);
-  }
-
-  return code;
+  return messages[code] ?? code;
 }

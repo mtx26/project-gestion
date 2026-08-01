@@ -33,17 +33,11 @@ export type UserUpdatePayload = {
   };
 };
 
-export type AuthTokens = {
-  access: string;
-  refresh: string;
-};
-
 export type RegisterPayload = {
   email: string;
   password: string;
   first_name: string;
   last_name: string;
-  username?: string;
 };
 
 export type LoginPayload = {
@@ -51,8 +45,37 @@ export type LoginPayload = {
   password: string;
 };
 
-export type LoginResponse = AuthTokens & {
-  user: User;
+/** Utilisateur tel que serialise par django-allauth headless, plus restreint que
+ * `User` : les endpoints d'authentification n'exposent pas le profil applicatif. */
+export type AuthUser = {
+  id: ID;
+  display: string;
+  email?: string;
+  username?: string;
+  has_usable_password: boolean;
+};
+
+/** Etape d'authentification renvoyee par allauth headless (`login`, `signup`,
+ * `verify_email`, `provider_redirect`...). `is_pending` marque celle qui bloque
+ * la session en cours. */
+export type AuthFlow = {
+  id: string;
+  is_pending?: boolean;
+  providers?: string[];
+};
+
+/** Enveloppe commune a toutes les reponses de django-allauth headless. */
+export type AuthSessionResponse = {
+  status: number;
+  data: {
+    user?: AuthUser;
+    flows?: AuthFlow[];
+    methods?: { method: string; at: number; email?: string; username?: string }[];
+  };
+  meta?: {
+    is_authenticated?: boolean;
+    session_token?: string;
+  };
 };
 
 export type Permission = {
