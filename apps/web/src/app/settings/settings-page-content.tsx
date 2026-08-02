@@ -1,7 +1,12 @@
 "use client";
 
 import type { Project, Permission } from "@project-gestion/types";
-import { projectSchema, type ProjectFormInput, type ProjectFormValues } from "@project-gestion/validation";
+import {
+  projectFieldMap,
+  projectSchema,
+  type ProjectFormInput,
+  type ProjectFormValues,
+} from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { queryKeys } from "@project-gestion/query-keys";
 import {
@@ -132,7 +137,7 @@ function SettingsView({
     invalidateKey: queryKeys.projects.all,
     successMessage: "Projet mis a jour",
   });
-  useServerFieldErrors(editForm, updateProject.error, ["name", "description"]);
+  useServerFieldErrors(editForm, updateProject.error, projectFieldMap);
 
   const deleteProject = useCrudMutation({
     mutationFn: api.projects.remove,

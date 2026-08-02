@@ -2,7 +2,13 @@
 
 import type { ExpenseRequest, ExpenseRequestPayload, Task } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
-import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
+import {
+  buildExpenseRequestsListQuery,
+  getApiCount,
+  getApiPageSize,
+  normalizeApiList,
+  type ExpenseRequestListFilters,
+} from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { CheckCircle2, ClipboardList, Plus, XCircle } from "lucide-react";
@@ -82,31 +88,22 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
     useProjectResources(projectId, { canView: canViewRequests, canEdit: canEditRequests, canFetchMembers: canViewRequests });
   const { openDocument, previewDocument, setPreviewDocument } = useDocumentPreview(projectId);
 
+  const requestFilters: ExpenseRequestListFilters = {
+    search: searchFromUrl || undefined,
+    status: statusFilter !== "all" ? statusFilter : undefined,
+    requestedBy: userFilterId ?? undefined,
+    folderId: folderFilterId ?? undefined,
+    excludeRejected,
+    ordering: ordering !== "all" ? ordering : undefined,
+    dateFrom,
+    dateTo,
+  };
+
   const requestsQuery = useQuery({
     queryKey: projectId
-      ? queryKeys.expenseRequests.list(projectId, {
-          search: searchFromUrl || undefined,
-          status: statusFilter !== "all" ? statusFilter : undefined,
-          requestedBy: userFilterId ?? undefined,
-          folder: folderFilterId ?? undefined,
-          excludeRejected,
-          ordering: ordering !== "all" ? ordering : undefined,
-          page,
-          dateFrom: dateFrom,
-          dateTo: dateTo,
-        })
+      ? buildExpenseRequestsListQuery(api, projectId, requestFilters, page).queryKey
       : queryKeys.disabled(),
-    queryFn: () => api.expenseRequests.list(projectId!, {
-      search: searchFromUrl || undefined,
-      status: statusFilter !== "all" ? statusFilter : undefined,
-      requested_by: userFilterId ?? undefined,
-      folder: folderFilterId ?? undefined,
-      exclude_rejected: excludeRejected || undefined,
-      ordering: ordering !== "all" ? ordering : undefined,
-      page,
-      date_from: dateFrom,
-      date_to: dateTo,
-    }),
+    queryFn: () => buildExpenseRequestsListQuery(api, projectId!, requestFilters, page).queryFn(),
     enabled: Boolean(projectId && canViewRequests),
     placeholderData: keepPreviousData,
   });

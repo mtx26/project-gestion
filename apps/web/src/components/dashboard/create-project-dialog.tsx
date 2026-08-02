@@ -1,4 +1,9 @@
-import { projectSchema, type ProjectFormInput, type ProjectFormValues } from "@project-gestion/validation";
+import {
+  projectFieldMap,
+  projectSchema,
+  type ProjectFormInput,
+  type ProjectFormValues,
+} from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
@@ -30,7 +35,7 @@ export function CreateProjectDialog({
     resolver: zodResolver(projectSchema),
     defaultValues: { name: "", description: "" },
   });
-  useServerFieldErrors(form, error, ["name", "description"]);
+  useServerFieldErrors(form, error, projectFieldMap);
 
   function handleOpenChange(next: boolean) {
     if (!next) form.reset();

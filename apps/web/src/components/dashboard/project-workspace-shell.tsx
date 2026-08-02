@@ -2,7 +2,7 @@
 
 import type { Project } from "@project-gestion/types";
 import { queryKeys } from "@project-gestion/query-keys";
-import { normalizeApiList } from "@project-gestion/api";
+import { buildProjectsListQuery, normalizeApiList } from "@project-gestion/api";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -61,10 +61,7 @@ export function ProjectWorkspaceShell({
   const [manualSelectedProjectId, setManualSelectedProjectId] = useState("");
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
-  const projectsQuery = useQuery({
-    queryKey: queryKeys.projects.lists(),
-    queryFn: api.projects.list,
-  });
+  const projectsQuery = useQuery(buildProjectsListQuery(api));
 
   const projects = normalizeApiList(projectsQuery.data);
   const backendDefaultProjectId = user?.profile?.default_project ? String(user.profile.default_project) : "";

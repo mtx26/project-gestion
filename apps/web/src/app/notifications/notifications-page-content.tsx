@@ -1,7 +1,7 @@
 "use client";
 
 import type { Notification, PaginatedResponse } from "@project-gestion/types";
-import { getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
+import { buildNotificationsListQuery, getApiCount, getApiPageSize, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { Bell, Check, MailOpen } from "lucide-react";
@@ -82,8 +82,7 @@ function NotificationsView() {
   const updateUrlFilter = useUrlFilter("/notifications", searchParams, null);
 
   const notificationsQuery = useQuery({
-    queryKey: queryKeys.notifications.list(unreadOnly, page),
-    queryFn: () => api.notifications.list({ unread: unreadOnly || undefined, page }),
+    ...buildNotificationsListQuery(api, unreadOnly, page),
     placeholderData: keepPreviousData,
   });
   const currentListKey = queryKeys.notifications.list(unreadOnly, page);

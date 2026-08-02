@@ -1,10 +1,9 @@
 "use client";
 
+import { getFieldError } from "@project-gestion/api";
+import type { FieldMapping } from "@project-gestion/validation";
 import { useEffect } from "react";
 import type { FieldValues, Path, UseFormReturn } from "react-hook-form";
-import { getFieldError } from "@/lib/errors";
-
-type FieldMapping<T extends FieldValues> = Path<T> | { name: Path<T>; serverField: string };
 
 /** Maps a mutation's ApiError.fieldErrors onto react-hook-form fields, so a 400 response
  * surfaces under the right input instead of only in the dialog's generic alert.
@@ -24,7 +23,7 @@ export function useServerFieldErrors<T extends FieldValues>(
       const name = typeof field === "string" ? field : field.name;
       const serverField = typeof field === "string" ? field : field.serverField;
       const message = getFieldError(error, serverField);
-      if (message) form.setError(name, { message });
+      if (message) form.setError(name as unknown as Path<T>, { message });
     }
     // form/fields are stable per mount; re-running only when a new error comes in is intentional.
     // eslint-disable-next-line react-hooks/exhaustive-deps

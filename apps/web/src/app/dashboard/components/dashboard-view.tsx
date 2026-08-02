@@ -2,7 +2,7 @@
 
 import type { DayEntryPayload, Project } from "@project-gestion/types";
 import { permissionCodes } from "@project-gestion/permissions";
-import { normalizeApiList } from "@project-gestion/api";
+import { buildTasksListQuery, getApiCount, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useQuery } from "@tanstack/react-query";
 import type { ComponentType } from "react";
@@ -98,12 +98,15 @@ export function DashboardView({
     }),
     enabled: Boolean(project && canViewTime),
   });
+  // exclude_done defaults to true server-side whenever status isn't set, so
+  // this is already "high priority, not done" — count comes straight from
+  // the backend's pagination total, not the size of whatever page loaded.
   const urgentTasksQuery = useQuery({
-    queryKey: project ? queryKeys.tasks.list(project.id, { priority: "high" }) : queryKeys.disabled(),
-    queryFn: () => api.tasks.list(project!.id, { priority: "high" }),
+    queryKey: project ? buildTasksListQuery(api, project.id, { priority: "high" }).queryKey : queryKeys.disabled(),
+    queryFn: () => buildTasksListQuery(api, project!.id, { priority: "high" }).queryFn(),
     enabled: Boolean(project && canViewTasks),
   });
-  const urgentTasks = normalizeApiList(urgentTasksQuery.data).filter((t) => t.status !== "done");
+  const urgentTasksCount = getApiCount(urgentTasksQuery.data);
   const createDayEntry = useCrudMutation({
     mutationFn: (payload: DayEntryPayload) => api.tasks.createDayEntry(project!.id, payload),
     invalidateKey: project ? [queryKeys.tasks.all(project.id), queryKeys.timeEntries.all(project.id)] : undefined,
@@ -175,8 +178,8 @@ export function DashboardView({
             <SummaryTile
               icon={CheckCircle2}
               label="Taches urgentes"
-              value={urgentTasksQuery.isLoading ? "..." : String(urgentTasks.length)}
-              detail={urgentTasks.length === 0 ? "Aucune urgence pour le moment." : `${urgentTasks.length} tache${urgentTasks.length > 1 ? "s" : ""} haute priorite.`}
+              value={urgentTasksQuery.isLoading ? "..." : String(urgentTasksCount)}
+              detail={urgentTasksCount === 0 ? "Aucune urgence pour le moment." : `${urgentTasksCount} tache${urgentTasksCount > 1 ? "s" : ""} haute priorite.`}
               href={`/tasks?project=${project.id}&priority=high`}
             />
           ) : null}

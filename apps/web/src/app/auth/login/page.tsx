@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { loginSchema, type LoginFormValues } from "@project-gestion/validation";
+import { loginFieldMap, loginSchema, type LoginFormValues } from "@project-gestion/validation";
 import { MailWarning } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,7 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { getErrorMessage, isEmailVerificationRequired } from "@/lib/errors";
+import { isEmailVerificationRequired } from "@project-gestion/api";
+import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -29,11 +30,7 @@ export default function LoginPage() {
     defaultValues: { identifier: "", password: "" },
   });
 
-  useServerFieldErrors(form, rawError, [
-    "identifier",
-    { name: "identifier", serverField: "username" },
-    "password",
-  ]);
+  useServerFieldErrors(form, rawError, loginFieldMap);
 
   async function onSubmit(values: LoginFormValues) {
     setRawError(null);

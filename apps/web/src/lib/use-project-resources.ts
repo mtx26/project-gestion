@@ -1,6 +1,6 @@
 "use client";
 
-import { normalizeApiList } from "@project-gestion/api";
+import { buildProjectFoldersQuery, buildProjectMembersQuery, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
@@ -36,7 +36,7 @@ export function useProjectResources(
 
   const foldersQuery = useQuery({
     queryKey: projectId ? queryKeys.folders.tree(projectId, { includeFiles: false }) : queryKeys.disabled(),
-    queryFn: () => api.folders.tree(projectId!, { includeFiles: false }),
+    queryFn: () => buildProjectFoldersQuery(api, projectId!).queryFn(),
     enabled: Boolean(projectId && canView),
   });
 
@@ -48,7 +48,7 @@ export function useProjectResources(
 
   const membersQuery = useQuery({
     queryKey: projectId ? queryKeys.members.list(projectId) : queryKeys.disabled(),
-    queryFn: () => api.members.list(projectId!),
+    queryFn: () => buildProjectMembersQuery(api, projectId!).queryFn(),
     enabled: Boolean(projectId && (canFetchMembers ?? canView)),
   });
 

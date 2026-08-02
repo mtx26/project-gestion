@@ -53,6 +53,7 @@ export const queryKeys = {
   },
   expenseRequests: {
     all: (projectId: number) => ["projects", projectId, "expense-requests"] as const,
+    detail: (projectId: number, id: number) => ["projects", projectId, "expense-requests", id] as const,
     list: (projectId: number, query: { status?: string; folder?: number; requestedBy?: number; excludeRejected?: boolean; ordering?: string; page?: number; search?: string; dateFrom?: string; dateTo?: string } = {}) =>
       ["projects", projectId, "expense-requests", {
         status: query.status ?? "all",
@@ -69,6 +70,7 @@ export const queryKeys = {
   },
   tasks: {
     all: (projectId: number) => ["projects", projectId, "tasks"] as const,
+    detail: (projectId: number, taskId: number) => ["projects", projectId, "tasks", taskId] as const,
     list: (
       projectId: number,
       query: {

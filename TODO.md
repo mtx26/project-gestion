@@ -1,5 +1,7 @@
 # TODO
 
+  faut comme dans le web et fait un modal qui souvre en bas , une age shett je crox et juste fait commpe dans le web, si on met staus sur teminier ca coche rinclu terminer autoamqiquetment etc, totu le truc comme ca , le slogic dois etre comme dans le web, aussi extarit  les logique qui seron reutisie dans le uare page et general 
+  regarde les useQuery et c'est pas mieux de rasmeble les logic web et mobile dans package ? 
 ## Email Deliverability
 
 - [ ] Evaluate BIMI later for sender logo display in supported inboxes.

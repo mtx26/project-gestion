@@ -1,6 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./App.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
+  content: ["./app/**/*.{js,jsx,ts,tsx}", "./src/**/*.{js,jsx,ts,tsx}"],
   presets: [require("nativewind/preset")],
   theme: {
     extend: {
@@ -11,6 +11,7 @@ module.exports = {
         muted: "#6b7280",
         border: "#e5e7eb",
         primary: "#0f766e",
+        primaryForeground: "#ffffff",
         danger: "#dc2626",
       },
       borderRadius: {
@@ -20,4 +21,3 @@ module.exports = {
   },
   plugins: [],
 };
-

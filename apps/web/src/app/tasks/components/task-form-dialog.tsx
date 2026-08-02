@@ -1,7 +1,7 @@
 "use client";
 
 import type { FolderTreeNode, Task, TaskPayload } from "@project-gestion/types";
-import { taskSchema, type TaskFormInput, type TaskFormValues } from "@project-gestion/validation";
+import { taskFieldMap, taskSchema, type TaskFormInput, type TaskFormValues } from "@project-gestion/validation";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -76,14 +76,7 @@ export function TaskFormDialog({
     },
   });
 
-  useServerFieldErrors(form, error, [
-    "title",
-    "priority",
-    { name: "folder", serverField: "folder" },
-    { name: "startDate", serverField: "start_date" },
-    { name: "endDate", serverField: "end_date" },
-    { name: "assignees", serverField: "assigned_to" },
-  ]);
+  useServerFieldErrors(form, error, taskFieldMap);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
