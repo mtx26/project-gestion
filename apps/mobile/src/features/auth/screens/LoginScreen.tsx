@@ -1,15 +1,17 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { isEmailVerificationRequired } from "@project-gestion/api";
 import { loginFieldMap, loginSchema, type LoginFormValues } from "@project-gestion/validation";
+import { needsProfileCompletion } from "@project-gestion/types";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import type { TextInput as RNTextInput } from "react-native";
 import { View } from "react-native";
+import { GoogleSignInButton } from "../../../components/GoogleSignInButton";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
+import { isEmailVerificationPending } from "../../../lib/allauth-client";
 import { getErrorMessage } from "../../../lib/errors";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 import { useAuthStore } from "../../../stores/auth-store";
@@ -31,9 +33,12 @@ export function LoginScreen() {
     setRawError(null);
     setUnverifiedEmail(null);
     try {
-      await login(values);
+      const user = await login(values);
+      if (needsProfileCompletion(user)) {
+        router.replace("/account-setup");
+      }
     } catch (caught) {
-      if (isEmailVerificationRequired(caught)) {
+      if (isEmailVerificationPending(caught)) {
         setUnverifiedEmail(values.identifier);
         return;
       }
@@ -43,6 +48,7 @@ export function LoginScreen() {
 
   return (
     <Screen title="Connexion" subtitle="Connecte-toi pour acceder a ton dashboard.">
+      <GoogleSignInButton onError={setRawError} />
       <Controller
         control={form.control}
         name="identifier"

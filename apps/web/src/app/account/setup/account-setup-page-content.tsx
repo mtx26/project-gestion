@@ -1,11 +1,12 @@
 "use client";
 
 import type { User } from "@project-gestion/types";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { AccountProfileForm } from "@/app/account/components/account-profile-form";
 import { ProjectWorkspaceShell } from "@/components/dashboard/project-workspace-shell";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getSafeNextPath } from "@/lib/next-path";
 
 export function AccountSetupPageContent() {
   return (
@@ -17,6 +18,9 @@ export function AccountSetupPageContent() {
 
 function AccountSetupView({ user }: { user: User | null }) {
   const router = useRouter();
+  // Page initialement demandee (ex. lien d'invitation), transportee depuis le
+  // login pour ne pas la perdre en passant par cet ecran.
+  const nextPath = getSafeNextPath(useSearchParams().get("next")) ?? "/dashboard";
 
   return (
     <div className="space-y-5">
@@ -37,11 +41,11 @@ function AccountSetupView({ user }: { user: User | null }) {
             user={user}
             submitLabel="Terminer"
             showEmail={false}
-            showNameFields={false}
-            onProfileSaved={() => router.replace("/dashboard")}
+            showNameFields={true}
+            onProfileSaved={() => router.replace(nextPath)}
           />
           <div className="mt-4">
-            <Button type="button" variant="ghost" onClick={() => router.replace("/dashboard")}>
+            <Button type="button" variant="ghost" onClick={() => router.replace(nextPath)}>
               Plus tard
             </Button>
           </div>

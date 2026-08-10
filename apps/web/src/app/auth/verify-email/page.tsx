@@ -48,7 +48,7 @@ function VerifyEmailContent() {
           </Alert>
           {status === "success" ? (
             <Button asChild className="w-full">
-              <Link href="/auth/login?setup=1">Se connecter et completer le profil</Link>
+              <Link href="/auth/login">Se connecter et completer le profil</Link>
             </Button>
           ) : null}
         </CardContent>

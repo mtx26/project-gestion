@@ -2,7 +2,7 @@ import { z } from "zod";
 import { emailSchema, requiredTextSchema } from "./shared";
 import type { FieldMapping } from "./server-fields";
 
-const passwordSchema = z
+export const passwordSchema = z
   .string()
   .min(8, "Le mot de passe doit contenir au moins 8 caracteres")
   .regex(/[A-Z]/, "Ajoute au moins une majuscule")
@@ -13,11 +13,9 @@ const passwordSchema = z
  * than the 255 most other name/title fields use, so it can't reuse the default. */
 export const personNameSchema = (message: string) => requiredTextSchema(message, 150);
 
-export const registerSchema = z.object({
+export const signupSchema = z.object({
   email: emailSchema,
   password: passwordSchema,
-  first_name: personNameSchema("Le prenom est requis"),
-  last_name: personNameSchema("Le nom est requis"),
 });
 
 export const loginSchema = z.object({
@@ -48,7 +46,7 @@ export const changePasswordSchema = z.object({
   new_password: passwordSchema,
 });
 
-export type RegisterFormValues = z.infer<typeof registerSchema>;
+export type SignupFormValues = z.infer<typeof signupSchema>;
 export type LoginFormValues = z.infer<typeof loginSchema>;
 export type ResendVerificationFormValues = z.infer<typeof resendVerificationSchema>;
 export type VerifyEmailFormValues = z.infer<typeof verifyEmailSchema>;
@@ -63,12 +61,6 @@ export const loginFieldMap: FieldMapping<LoginFormValues>[] = [
   "identifier",
   { name: "identifier", serverField: "username" },
   "password",
-];
-export const registerFieldMap: FieldMapping<RegisterFormValues>[] = [
-  "email",
-  "password",
-  "first_name",
-  "last_name",
 ];
 export const resendVerificationFieldMap: FieldMapping<ResendVerificationFormValues>[] = ["email"];
 export const resetPasswordFieldMap: FieldMapping<ResetPasswordFormValues>[] = ["email"];

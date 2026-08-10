@@ -10,7 +10,6 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
-from datetime import timedelta
 from pathlib import Path
 
 import environ
@@ -51,7 +50,6 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     "rest_framework",
-    "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "anymail",
     "corsheaders",
@@ -59,8 +57,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
-    "dj_rest_auth",
-    "dj_rest_auth.registration",
+    "allauth.headless",
     "accounts.apps.AccountsConfig",
     "api.apps.ApiConfig",
     "core",
@@ -267,10 +264,10 @@ if RESEND_API_KEY:
 if RESEND_SIGNING_SECRET:
     ANYMAIL["RESEND_SIGNING_SECRET"] = RESEND_SIGNING_SECRET
 
-FRONTEND_APP_URL = env("FRONTEND_APP_URL", default="") or env(
-    "NEXT_PUBLIC_APP_URL",
-    default="http://localhost:3000",
-)
+FRONTEND_APP_URL = (
+    env("FRONTEND_APP_URL", default="")
+    or env("NEXT_PUBLIC_APP_URL", default="http://localhost:3000")
+).rstrip("/")
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=[
@@ -279,25 +276,41 @@ CORS_ALLOWED_ORIGINS = env.list(
         "http://127.0.0.1:3000",
     ],
 )
-PASSWORD_RESET_CONFIRM_URL = env(
-    "PASSWORD_RESET_CONFIRM_URL",
-    default=f"{FRONTEND_APP_URL}/auth/reset-password",
-)
-EMAIL_VERIFICATION_URL = env(
-    "EMAIL_VERIFICATION_URL",
-    default=f"{FRONTEND_APP_URL}/auth/verify-email",
-)
-GOOGLE_OAUTH_CALLBACK_URL = env(
-    "GOOGLE_OAUTH_CALLBACK_URL",
-    default=f"{FRONTEND_APP_URL}/auth/google/callback",
-)
+CORS_ALLOW_CREDENTIALS = True
+CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[FRONTEND_APP_URL])
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+# Requis uniquement quand front et back vivent sur des sous-domaines distincts
+# d'un meme domaine (ex. app.example.com / api.example.com) : sans Domain
+# explicite, le cookie de session est host-only et n'est jamais renvoye au
+# sous-domaine du front. Laisser vide en local (meme host, ports differents).
+SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default=None) or None
+CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN", default=None) or None
 INVITATION_EXPIRES_DAYS = env.int("INVITATION_EXPIRES_DAYS", default=7)
+
+# Pages d'authentification du frontend. Seule la base (FRONTEND_APP_URL) est
+# configurable : les chemins suivent le routing du frontend, donc ils sont
+# definis ici et nulle part ailleurs.
+# HEADLESS_FRONTEND_URLS est obligatoire en HEADLESS_ONLY (allauth n'a plus de
+# page a lui) : sans, ImproperlyConfigured des qu'il doit mettre un lien dans
+# un email — ex. inscription avec un email deja utilise.
+FRONTEND_RESET_PASSWORD_URL = f"{FRONTEND_APP_URL}/auth/reset-password"
+HEADLESS_FRONTEND_URLS = {
+    "account_signup": f"{FRONTEND_APP_URL}/auth/register",
+    "account_reset_password": f"{FRONTEND_APP_URL}/auth/forgot-password",
+    "account_reset_password_from_key": f"{FRONTEND_RESET_PASSWORD_URL}?key={{key}}",
+    "account_confirm_email": f"{FRONTEND_APP_URL}/auth/verify-email?key={{key}}",
+    "socialaccount_login_error": f"{FRONTEND_APP_URL}/auth/login",
+}
 
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "EXCEPTION_HANDLER": "api.exceptions.exception_handler",
+    # HeadlessSessionTokenAuthentication en premier : cf. son authenticate_header
+    # (c'est le premier authenticator qui decide du 401-vs-403 anonyme).
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework_simplejwt.authentication.JWTAuthentication",
+        "accounts.authentication.HeadlessSessionTokenAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
@@ -318,8 +331,6 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "login": env("THROTTLE_LOGIN_RATE", default="5/min"),
-        "register": env("THROTTLE_REGISTER_RATE", default="5/hour"),
         "password_reset": env("THROTTLE_PASSWORD_RESET_RATE", default="3/hour"),
         "password_reset_confirm": env(
             "THROTTLE_PASSWORD_RESET_CONFIRM_RATE",
@@ -328,50 +339,58 @@ REST_FRAMEWORK = {
         "password_change": env("THROTTLE_PASSWORD_CHANGE_RATE", default="10/hour"),
         "email_verify": env("THROTTLE_EMAIL_VERIFY_RATE", default="10/hour"),
         "email_resend": env("THROTTLE_EMAIL_RESEND_RATE", default="3/hour"),
-        "google_login": env("THROTTLE_GOOGLE_LOGIN_RATE", default="10/min"),
         "profile_picture": env("THROTTLE_PROFILE_PICTURE_RATE", default="10/hour"),
     },
 }
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(
-        minutes=env.int("JWT_ACCESS_TOKEN_LIFETIME_MINUTES", default=15),
-    ),
-    "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=env.int("JWT_REFRESH_TOKEN_LIFETIME_DAYS", default=7),
-    ),
-    "ROTATE_REFRESH_TOKENS": env.bool("JWT_ROTATE_REFRESH_TOKENS", default=False),
-    "BLACKLIST_AFTER_ROTATION": env.bool("JWT_BLACKLIST_AFTER_ROTATION", default=True),
-}
-
-REST_AUTH = {
-    "USE_JWT": True,
-    "JWT_AUTH_HTTPONLY": False,
-    "TOKEN_MODEL": None,
-    "USER_DETAILS_SERIALIZER": "accounts.serializers.UserSerializer",
-}
-
+# Connexion sociale : un compte local existant avec le meme email est reconnu
+# (EMAIL_AUTHENTICATION cote provider) et le compte social lui est rattache.
 SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
+# Seul adapter custom : envoi des emails via Resend (le reste est natif).
 ACCOUNT_ADAPTER = "accounts.adapters.AccountAdapter"
-ACCOUNT_SIGNUP_FIELDS = ["email*", "username*", "password1*", "password2*"]
+# "username*" retire : auth/signup (web et mobile, tous deux sur allauth
+# Headless) ne collecte que email + mot de passe -> username auto-genere
+# nativement depuis l'email par DefaultAccountAdapter.populate_username().
+ACCOUNT_SIGNUP_FIELDS = ["email*", "password1*", "password2*"]
 ACCOUNT_EMAIL_VERIFICATION = "mandatory"
-ACCOUNT_EMAIL_CONFIRMATION_HMAC = True
+# Sans ce reglage, LOGIN_METHODS retombe sur {"username"} seul (deduit de
+# l'ancien ACCOUNT_AUTHENTICATION_METHOD) et allauth Headless n'exposerait pas
+# le champ "email" sur /auth/login.
+ACCOUNT_LOGIN_METHODS = {"email", "username"}
+
+# allauth Headless : "browser" (web, sessions + cookies) et "app" (mobile,
+# token de session dans l'en-tete X-Session-Token via accounts.authentication.
+# HeadlessSessionTokenAuthentication).
+HEADLESS_CLIENTS = ("browser", "app")
+HEADLESS_SERVE_SPECIFICATION = DEBUG
+# Aucune vue Django classique d'allauth n'est montee dans ce projet (ni
+# allauth.account.urls, ni la vue d'initiation OAuth classique) : uniquement
+# les vues headless + le callback OAuth Google (qui ne depend pas de ce
+# reglage). Sans ca, certains flux internes d'allauth (ex. signup) tentent un
+# reverse() vers une page Django classique inexistante et plantent (NoReverseMatch).
+HEADLESS_ONLY = True
 
 SOCIALACCOUNT_PROVIDERS = {
     "google": {
-        "SCOPE": ["profile", "email"],
-        "AUTH_PARAMS": {
-            "access_type": "online",
-        },
+        "AUTH_PARAMS": {"access_type": "online"},
+        # Connexion possible sur un compte local existant au meme email.
         "EMAIL_AUTHENTICATION": True,
         "VERIFIED_EMAIL": True,
         "OAUTH_PKCE_ENABLED": True,
+        # Configure via env plutot qu'un SocialApp en base : un seul client
+        # OAuth Google, partage par le flux mobile (code/token direct) et le
+        # flux web headless (provider redirect).
+        "APP": {
+            "client_id": env("GOOGLE_OAUTH_CLIENT_ID", default=""),
+            "secret": env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
+            "key": "",
+        },
     }
 }
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Project Gestion API",
-    "DESCRIPTION": "API de gestion de projets avec authentification JWT.",
+    "DESCRIPTION": "API de gestion de projets avec authentification par session (allauth Headless).",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     #"POSTPROCESSING_HOOKS": [

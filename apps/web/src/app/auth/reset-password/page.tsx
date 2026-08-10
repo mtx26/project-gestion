@@ -17,7 +17,7 @@ import { PasswordInput } from "@/components/forms/password-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
-import { api, webTokenStore } from "@/lib/api";
+import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 
@@ -39,7 +39,6 @@ function ResetPasswordContent() {
     setRawError(null);
     try {
       await api.auth.resetPasswordConfirm(values);
-      await webTokenStore.clearTokens();
       router.replace("/auth/login?password_reset=1");
     } catch (error) {
       setRawError(error);

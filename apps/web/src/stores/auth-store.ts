@@ -1,85 +1,59 @@
 "use client";
 
-import type { AuthTokens, LoginPayload, User } from "@project-gestion/types";
+import type { User } from "@project-gestion/types";
 import { create } from "zustand";
-import { api, webTokenStore } from "@/lib/api";
+import { api } from "@/lib/api";
+import * as allauthClient from "@/lib/allauth-client";
+
+type LoginCredentials = { identifier: string; password: string };
 
 type AuthState = {
   user: User | null;
-  accessToken: string | null;
-  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (payload: LoginPayload) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<User>;
   logout: () => Promise<void>;
-  restoreSession: () => Promise<void>;
-  setTokens: (tokens: AuthTokens) => Promise<void>;
+  /** Retourne l'utilisateur si une session est active, sinon `null`. */
+  restoreSession: () => Promise<User | null>;
   setUser: (user: User) => void;
-  clearSession: () => Promise<void>;
+  clearSession: () => void;
 };
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   user: null,
-  accessToken: null,
-  refreshToken: null,
   isAuthenticated: false,
   isLoading: true,
-  login: async (payload) => {
-    const result = await api.auth.login(payload);
-    await get().setTokens({ access: result.access, refresh: result.refresh });
+  login: async ({ identifier, password }) => {
+    await allauthClient.login(
+      identifier.includes("@") ? { email: identifier, password } : { username: identifier, password },
+    );
     const user = await api.auth.me();
     set({ user, isAuthenticated: true, isLoading: false });
+    return user;
   },
   logout: async () => {
-    const refresh = await webTokenStore.getRefreshToken();
     try {
-      if (refresh) {
-        await api.auth.logout(refresh);
-      }
+      await allauthClient.logout();
     } finally {
-      await get().clearSession();
+      set({ user: null, isAuthenticated: false, isLoading: false });
     }
   },
   restoreSession: async () => {
     set({ isLoading: true });
-    const access = await webTokenStore.getAccessToken();
-    const refresh = await webTokenStore.getRefreshToken();
-    if (!access && !refresh) {
-      set({ isLoading: false, isAuthenticated: false });
-      return;
-    }
-
     try {
+      const session = await allauthClient.getSession();
+      if (!session.meta?.is_authenticated) {
+        set({ user: null, isAuthenticated: false, isLoading: false });
+        return null;
+      }
       const user = await api.auth.me();
-      set({
-        user,
-        accessToken: await webTokenStore.getAccessToken(),
-        refreshToken: await webTokenStore.getRefreshToken(),
-        isAuthenticated: true,
-        isLoading: false,
-      });
+      set({ user, isAuthenticated: true, isLoading: false });
+      return user;
     } catch {
-      await get().clearSession();
+      set({ user: null, isAuthenticated: false, isLoading: false });
+      return null;
     }
-  },
-  setTokens: async (tokens) => {
-    await webTokenStore.setTokens(tokens);
-    set({
-      accessToken: tokens.access,
-      refreshToken: tokens.refresh,
-      isAuthenticated: true,
-    });
   },
   setUser: (user) => set({ user }),
-  clearSession: async () => {
-    await webTokenStore.clearTokens();
-    set({
-      user: null,
-      accessToken: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-  },
+  clearSession: () => set({ user: null, isAuthenticated: false, isLoading: false }),
 }));
-

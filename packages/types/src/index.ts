@@ -23,6 +23,16 @@ export type User = {
   profile?: Profile | null;
 };
 
+/** allauth Headless `auth/signup` ne collecte que email + mot de passe (web
+ * et mobile) — prenom/nom restent vides tant que le profil n'est pas
+ * complete. Verifie l'utilisateur fraichement recupere (pas un flag mis en
+ * cache) pour que web et mobile redemandent a chaque login tant que ce n'est
+ * pas fait, meme si une tentative precedente de completion a echoue/ete
+ * ignoree. */
+export function needsProfileCompletion(user: Pick<User, "first_name" | "last_name">): boolean {
+  return !user.first_name || !user.last_name;
+}
+
 export type UserUpdatePayload = {
   username?: string;
   first_name?: string;
@@ -31,28 +41,6 @@ export type UserUpdatePayload = {
     default_hourly_rate?: string;
     default_project?: number | null;
   };
-};
-
-export type AuthTokens = {
-  access: string;
-  refresh: string;
-};
-
-export type RegisterPayload = {
-  email: string;
-  password: string;
-  first_name: string;
-  last_name: string;
-  username?: string;
-};
-
-export type LoginPayload = {
-  identifier: string;
-  password: string;
-};
-
-export type LoginResponse = AuthTokens & {
-  user: User;
 };
 
 export type Permission = {

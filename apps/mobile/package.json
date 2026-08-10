@@ -12,10 +12,12 @@
     "@project-gestion/types": "workspace:*",
     "@project-gestion/validation": "workspace:*",
     "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-google-signin/google-signin": "^16.1.4",
     "@react-navigation/drawer": "^7.13.5",
     "@tanstack/react-query": "^5.101.0",
     "expo": "~54.0.36",
     "expo-constants": "~18.0.13",
+    "expo-dev-client": "~6.0.21",
     "expo-image": "~3.0.11",
     "expo-linking": "~8.0.12",
     "expo-router": "~6.0.24",
@@ -41,7 +43,7 @@
   "devDependencies": {
     "@types/react": "~19.1.10",
     "babel-preset-expo": "~54.0.10",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.4.7",
     "prettier-plugin-tailwindcss": "0.5.11",
     "tailwindcss": "3.4.17",
     "typescript": "~5.9.2"

@@ -27,6 +27,12 @@ urlpatterns = [
     path("api/accounts/", include("accounts.urls")),
     path("api/", include("api.urls")),
     path("anymail/", include("anymail.urls")),
+    path("_allauth/", include("allauth.headless.urls")),
+    # Callback OAuth Google natif (redirection navigateur classique) requis par
+    # le flux headless "provider redirect" du web. Monte uniquement le module
+    # du provider, pas allauth.urls en entier (pas de vues template classiques
+    # a exposer ici).
+    path("accounts/", include("allauth.socialaccount.providers.google.urls")),
 ]
 
 if settings.DEBUG:

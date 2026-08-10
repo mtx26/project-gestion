@@ -1,6 +1,5 @@
 import type {
   ApiFieldErrors,
-  AuthTokens,
   CalendarData,
   CalendarSubscription,
   CalendarSubscriptionPayload,
@@ -14,15 +13,12 @@ import type {
   FolderTreeNode,
   Invitation,
   InvitationAcceptResponse,
-  LoginPayload,
-  LoginResponse,
   Notification,
   PaginatedResponse,
   Permission,
   Project,
   ProjectMember,
   ProjectPayload,
-  RegisterPayload,
   Role,
   RolePayload,
   Task,
@@ -42,17 +38,23 @@ import type {
 } from "@project-gestion/types";
 import { queryKeys } from "@project-gestion/query-keys";
 
-export type TokenStore = {
-  getAccessToken: () => string | null | Promise<string | null>;
-  getRefreshToken: () => string | null | Promise<string | null>;
-  setTokens: (tokens: AuthTokens) => void | Promise<void>;
-  clearTokens: () => void | Promise<void>;
-};
-
 export type ApiClientOptions = {
   baseUrl: string;
-  tokenStore?: TokenStore;
+  /** Called on a 401 from a call that expects auth (not `skipAuth`) — the
+   * session died (cookie or token expired/revoked) mid-use. Both web and
+   * mobile are allauth Headless sessions now; neither has a refresh flow. */
   onSessionInvalid?: () => void;
+  /** Cookie-session clients (web) only — sends cookies cross-port with `fetch`. */
+  credentials?: RequestCredentials;
+  /** Cookie-session clients (web) only — read the CSRF cookie for the `X-CSRFToken`
+   * header Django's `CsrfViewMiddleware`/DRF `SessionAuthentication` require on
+   * non-safe methods. */
+  getCsrfToken?: () => string | null | undefined;
+  /** Header-token clients (mobile) only — allauth Headless "app" client token,
+   * sent as `X-Session-Token` and read by the backend's
+   * `HeadlessSessionTokenAuthentication`. Persisted by the app (`expo-secure-store`),
+   * so reading it may be async. */
+  getSessionToken?: () => string | null | undefined | Promise<string | null | undefined>;
 };
 
 export function normalizeApiList<T>(data: T[] | PaginatedResponse<T> | undefined) {
@@ -216,38 +218,27 @@ export function getFieldError(error: unknown, field: string) {
 
 type RequestOptions = Omit<RequestInit, "body"> & {
   body?: unknown;
+  /** No session credential (cookie/token) attached, and a 401 isn't treated
+   * as a dead session — for the handful of endpoints allowed anonymously. */
   skipAuth?: boolean;
-  retryOnUnauthorized?: boolean;
 };
 
 export function createApiClient({
   baseUrl,
-  tokenStore,
   onSessionInvalid,
+  credentials,
+  getCsrfToken,
+  getSessionToken,
 }: ApiClientOptions) {
   const request = async <T>(path: string, options: RequestOptions = {}): Promise<T> => {
-    const shouldRetry = options.retryOnUnauthorized !== false;
-    return execute<T>(path, options, shouldRetry);
-  };
-
-  const execute = async <T>(
-    path: string,
-    options: RequestOptions,
-    canRetry: boolean,
-  ): Promise<T> => {
     const response = await fetch(buildUrl(baseUrl, path), {
       ...options,
-      headers: await buildHeaders(options, tokenStore),
+      credentials,
+      headers: await buildHeaders(options, getCsrfToken, getSessionToken),
       body: serializeBody(options.body),
     });
 
-    if (response.status === 401 && tokenStore && canRetry) {
-      const refreshed = await refreshAccessToken(baseUrl, tokenStore);
-      if (refreshed) {
-        return execute<T>(path, options, false);
-      }
-
-      await tokenStore.clearTokens();
+    if (response.status === 401 && !options.skipAuth) {
       onSessionInvalid?.();
     }
 
@@ -265,17 +256,6 @@ export function createApiClient({
   return {
     request,
     auth: {
-      register: (payload: RegisterPayload) =>
-        request<{ detail: string; email: string; email_verified: boolean }>(
-          "/api/accounts/register/",
-          { method: "POST", body: payload, skipAuth: true },
-        ),
-      login: (payload: LoginPayload) =>
-        request<LoginResponse>("/api/accounts/login/", {
-          method: "POST",
-          body: payload,
-          skipAuth: true,
-        }),
       me: () => request<User>("/api/accounts/me/"),
       updateMe: (payload: UserUpdatePayload) =>
         request<User>("/api/accounts/me/", {
@@ -291,20 +271,6 @@ export function createApiClient({
           body: formData,
         });
       },
-      refresh: (refresh: string) =>
-        request<{ access: string }>("/api/accounts/refresh/", {
-          method: "POST",
-          body: { refresh },
-          skipAuth: true,
-          retryOnUnauthorized: false,
-        }),
-      logout: (refresh: string) =>
-        request<void>("/api/accounts/logout/", {
-          method: "POST",
-          body: { refresh },
-          skipAuth: true,
-          retryOnUnauthorized: false,
-        }),
       verifyEmail: (key: string) =>
         request<{ detail: string }>("/api/accounts/email/verify/", {
           method: "POST",
@@ -1022,7 +988,13 @@ export function buildNotificationsListQuery(api: ApiClient, unreadOnly: boolean,
   };
 }
 
-async function buildHeaders(options: RequestOptions, tokenStore?: TokenStore) {
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+async function buildHeaders(
+  options: RequestOptions,
+  getCsrfToken?: () => string | null | undefined,
+  getSessionToken?: () => string | null | undefined | Promise<string | null | undefined>,
+) {
   const headers = new Headers(options.headers);
   if (!headers.has("Content-Type") && options.body != null && !isFormData(options.body)) {
     headers.set("Content-Type", "application/json");
@@ -1031,9 +1003,17 @@ async function buildHeaders(options: RequestOptions, tokenStore?: TokenStore) {
     headers.set("Accept", "application/json");
   }
 
-  const access = options.skipAuth ? null : await tokenStore?.getAccessToken();
-  if (access) {
-    headers.set("Authorization", `Bearer ${access}`);
+  const sessionToken = options.skipAuth ? null : await getSessionToken?.();
+  if (sessionToken) {
+    headers.set("X-Session-Token", sessionToken);
+  }
+
+  const method = (options.method ?? "GET").toUpperCase();
+  if (getCsrfToken && !SAFE_METHODS.has(method)) {
+    const csrfToken = getCsrfToken();
+    if (csrfToken) {
+      headers.set("X-CSRFToken", csrfToken);
+    }
   }
 
   return headers;
@@ -1055,34 +1035,6 @@ function appendFormDataValue(formData: FormData, key: string, value: string | nu
   if (value != null && value !== "") {
     formData.set(key, String(value));
   }
-}
-
-async function refreshAccessToken(baseUrl: string, tokenStore: TokenStore) {
-  const refresh = await tokenStore.getRefreshToken();
-  if (!refresh) {
-    return false;
-  }
-
-  const response = await fetch(buildUrl(baseUrl, "/api/accounts/refresh/"), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ refresh }),
-  });
-
-  if (!response.ok) {
-    return false;
-  }
-
-  const data = (await response.json()) as { access?: string; refresh?: string };
-  if (!data.access) {
-    return false;
-  }
-
-  await tokenStore.setTokens({ access: data.access, refresh: data.refresh ?? refresh });
-  return true;
 }
 
 function buildUrl(baseUrl: string, path: string) {

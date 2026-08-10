@@ -11,9 +11,11 @@ import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
-import { api, mobileTokenStore } from "../../../lib/api";
+import * as allauthClient from "../../../lib/allauth-client";
+import { api } from "../../../lib/api";
 import { getErrorMessage } from "../../../lib/errors";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
+import { useAuthStore } from "../../../stores/auth-store";
 
 export function ResetPasswordScreen() {
   const router = useRouter();
@@ -34,7 +36,11 @@ export function ResetPasswordScreen() {
     setRawError(null);
     try {
       await api.auth.resetPasswordConfirm(values);
-      await mobileTokenStore.clearTokens();
+      // Purge une session eventuellement encore active/en cache (le lien de
+      // reinitialisation est typiquement ouvert deconnecte, mais on force
+      // quand meme un login propre avec le nouveau mot de passe).
+      await allauthClient.logout();
+      useAuthStore.getState().clearSession();
       router.replace("/");
     } catch (caught) {
       setRawError(caught);

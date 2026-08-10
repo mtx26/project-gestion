@@ -1,6 +1,7 @@
 import { permissionCodes } from "@project-gestion/permissions";
 import type { DrawerContentComponentProps } from "@react-navigation/drawer";
 import { DrawerContentScrollView } from "@react-navigation/drawer";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import {
   Banknote,
@@ -36,6 +37,7 @@ interface NavItem {
 
 export function ProjectDrawerContent(props: DrawerContentComponentProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const [projectListOpen, setProjectListOpen] = useState(false);
@@ -106,6 +108,10 @@ export function ProjectDrawerContent(props: DrawerContentComponentProps) {
 
   async function onLogout() {
     await logout();
+    // Comme sur le web : purger les donnees du compte precedent, sinon elles
+    // restent visibles au prochain login sur le meme appareil.
+    queryClient.clear();
+    selectProject("");
   }
 
   return (

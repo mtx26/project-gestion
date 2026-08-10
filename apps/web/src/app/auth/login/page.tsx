@@ -2,12 +2,14 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { loginFieldMap, loginSchema, type LoginFormValues } from "@project-gestion/validation";
+import { needsProfileCompletion } from "@project-gestion/types";
 import { MailWarning } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { AuthShell } from "@/components/auth-shell";
+import { GoogleSignInButton } from "@/components/google-signin-button";
 import { FormError } from "@/components/forms/form-error";
 import { PasswordInput } from "@/components/forms/password-input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -15,13 +17,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { isEmailVerificationRequired } from "@project-gestion/api";
+import { isEmailVerificationPending } from "@/lib/allauth-client";
 import { getErrorMessage } from "@/lib/errors";
+import { getSafeNextPath, withNextParam } from "@/lib/next-path";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { useAuthStore } from "@/stores/auth-store";
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  // Page demandee avant d'etre redirige ici (cf. ProtectedRoute) — ex. un lien
+  // d'invitation. On y revient une fois connecte.
+  const nextPath = getSafeNextPath(useSearchParams().get("next"));
   const login = useAuthStore((state) => state.login);
   const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null);
   const [rawError, setRawError] = useState<unknown>(null);
@@ -36,11 +42,14 @@ export default function LoginPage() {
     setRawError(null);
     setUnverifiedEmail(null);
     try {
-      await login(values);
-      const setupAfterLogin = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("setup") === "1";
-      router.replace(setupAfterLogin ? "/account/setup" : "/dashboard");
+      const user = await login(values);
+      router.replace(
+        needsProfileCompletion(user)
+          ? withNextParam("/account/setup", nextPath)
+          : (nextPath ?? "/dashboard"),
+      );
     } catch (error) {
-      if (isEmailVerificationRequired(error)) {
+      if (isEmailVerificationPending(error)) {
         setUnverifiedEmail(values.identifier);
         return;
       }
@@ -52,6 +61,12 @@ export default function LoginPage() {
     <AuthShell title="Connexion" description="Connecte-toi pour acceder a ton dashboard.">
       <Card>
         <CardContent className="space-y-4 pt-6">
+          <GoogleSignInButton nextPath={nextPath} />
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="h-px flex-1 bg-border" />
+            ou
+            <div className="h-px flex-1 bg-border" />
+          </div>
           {unverifiedEmail ? (
             <Alert>
               <MailWarning className="size-4" />
@@ -97,5 +112,13 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </AuthShell>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginContent />
+    </Suspense>
   );
 }

@@ -12,7 +12,7 @@ def build_password_reset_url(user):
     uid = urlsafe_base64_encode(force_bytes(user.pk))
     token = default_token_generator.make_token(user)
     query = urlencode({"uid": uid, "token": token})
-    return f"{settings.PASSWORD_RESET_CONFIRM_URL.rstrip('/')}?{query}"
+    return f"{settings.FRONTEND_RESET_PASSWORD_URL}?{query}"
 
 
 def send_password_reset_email(user):

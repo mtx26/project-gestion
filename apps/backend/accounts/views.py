@@ -6,15 +6,7 @@ from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from drf_spectacular.utils import extend_schema, extend_schema_view, inline_serializer
-
-from allauth.account.models import EmailAddress
-from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
-from allauth.socialaccount.providers.oauth2.client import OAuth2Client
-from django.conf import settings
-from django.contrib.auth.models import User
-from dj_rest_auth.registration.views import SocialLoginView
 
 from api.services.storage import (
     delete_profile_picture_file,
@@ -26,86 +18,15 @@ from .models import Profile
 from .serializers import (
     CurrentUserUpdateSerializer,
     EmailVerificationConfirmSerializer,
-    LoginSerializer,
-    LogoutSerializer,
     PasswordChangeSerializer,
     PasswordResetConfirmSerializer,
     PasswordResetSerializer,
     ProfilePictureUploadSerializer,
-    RegisterSerializer,
     ResendEmailVerificationSerializer,
     UserSerializer,
 )
 
 logger = logging.getLogger(__name__)
-
-
-@extend_schema(tags=["user"])
-@extend_schema_view(
-    post=extend_schema(
-        summary="Creer un compte",
-        description="Cree un nouvel utilisateur et son profil.",
-    ),
-)
-class RegisterView(generics.CreateAPIView):
-    queryset = User.objects.all()
-    permission_classes = [AllowAny]
-    serializer_class = RegisterSerializer
-    throttle_scope = "register"
-
-
-@extend_schema(tags=["user"])
-@extend_schema_view(
-    post=extend_schema(
-        summary="Se connecter",
-        description="Retourne les tokens JWT d'acces et de rafraichissement.",
-        responses={
-            status.HTTP_200_OK: inline_serializer(
-                name="LoginResponse",
-                fields={
-                    "access": serializers.CharField(),
-                    "refresh": serializers.CharField(),
-                    "user": UserSerializer(),
-                },
-            ),
-        },
-    ),
-)
-class LoginView(TokenObtainPairView):
-    permission_classes = [AllowAny]
-    serializer_class = LoginSerializer
-    throttle_scope = "login"
-
-
-@extend_schema(tags=["user"])
-@extend_schema_view(
-    post=extend_schema(
-        summary="Rafraichir le token",
-        description="Retourne un nouveau token d'acces a partir du refresh token.",
-    ),
-)
-class RefreshTokenView(TokenRefreshView):
-    permission_classes = [AllowAny]
-
-
-@extend_schema(tags=["user"])
-@extend_schema_view(
-    post=extend_schema(
-        summary="Se deconnecter",
-        description="Blackliste le refresh token fourni.",
-        request=LogoutSerializer,
-        responses={status.HTTP_204_NO_CONTENT: None},
-    ),
-)
-class LogoutView(generics.GenericAPIView):
-    permission_classes = [AllowAny]
-    serializer_class = LogoutSerializer
-
-    def post(self, request):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
-        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @extend_schema(tags=["user"])
@@ -244,56 +165,6 @@ class ResendEmailVerificationView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response({"detail": "messages.email.verification_sent_if_account_exists"})
-
-
-@extend_schema(tags=["user"])
-@extend_schema_view(
-    post=extend_schema(
-        summary="Se connecter avec Google",
-        description="Connecte ou cree un utilisateur via Google OAuth et retourne des tokens JWT.",
-        request=inline_serializer(
-            name="GoogleLoginRequest",
-            fields={
-                "code": serializers.CharField(required=False),
-                "access_token": serializers.CharField(required=False),
-                "id_token": serializers.CharField(required=False),
-            },
-        ),
-        responses={
-            status.HTTP_200_OK: inline_serializer(
-                name="GoogleLoginResponse",
-                fields={
-                    "access": serializers.CharField(),
-                    "refresh": serializers.CharField(),
-                    "user": UserSerializer(),
-                },
-            ),
-        },
-    ),
-)
-class GoogleLoginView(SocialLoginView):
-    adapter_class = GoogleOAuth2Adapter
-    callback_url = settings.GOOGLE_OAUTH_CALLBACK_URL
-    client_class = OAuth2Client
-    throttle_scope = "google_login"
-
-    def process_login(self):
-        Profile.objects.get_or_create(user=self.user, defaults={"picture_url": ""})
-        email_address, _ = EmailAddress.objects.get_or_create(
-            user=self.user,
-            email=self.user.email,
-            defaults={"primary": True, "verified": True},
-        )
-        changed_fields = []
-        if not email_address.primary:
-            email_address.primary = True
-            changed_fields.append("primary")
-        if not email_address.verified:
-            email_address.verified = True
-            changed_fields.append("verified")
-        if changed_fields:
-            email_address.save(update_fields=changed_fields)
-        return super().process_login()
 
 
 @extend_schema(tags=["user"])

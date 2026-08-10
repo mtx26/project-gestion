@@ -1,5 +1,3 @@
-from urllib.parse import urlencode
-
 from allauth.account.adapter import DefaultAccountAdapter
 from django.conf import settings
 
@@ -7,10 +5,6 @@ from api.services.mail import send_email
 
 
 class AccountAdapter(DefaultAccountAdapter):
-    def get_email_confirmation_url(self, request, emailconfirmation):
-        query = urlencode({"key": emailconfirmation.key})
-        return f"{settings.EMAIL_VERIFICATION_URL.rstrip('/')}?{query}"
-
     def send_confirmation_mail(self, request, emailconfirmation, signup):
         user = emailconfirmation.email_address.user
         verify_url = self.get_email_confirmation_url(request, emailconfirmation)

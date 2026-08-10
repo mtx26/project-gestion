@@ -1,42 +1,26 @@
-import { createApiClient, type TokenStore } from "@project-gestion/api";
-import { API_BASE_URL, tokenStorageKeys } from "@project-gestion/config";
-
-let memoryAccessToken: string | null = null;
+import { createApiClient } from "@project-gestion/api";
+import { API_BASE_URL } from "@project-gestion/config";
 
 const isBrowser = () => typeof window !== "undefined";
 
-export const webTokenStore: TokenStore = {
-  getAccessToken: () => {
-    if (memoryAccessToken) {
-      return memoryAccessToken;
-    }
-    return isBrowser() ? window.localStorage.getItem(tokenStorageKeys.access) : null;
-  },
-  getRefreshToken: () =>
-    isBrowser() ? window.localStorage.getItem(tokenStorageKeys.refresh) : null,
-  setTokens: ({ access, refresh }) => {
-    memoryAccessToken = access;
-    if (isBrowser()) {
-      window.localStorage.setItem(tokenStorageKeys.access, access);
-      window.localStorage.setItem(tokenStorageKeys.refresh, refresh);
-    }
-  },
-  clearTokens: () => {
-    memoryAccessToken = null;
-    if (isBrowser()) {
-      window.localStorage.removeItem(tokenStorageKeys.access);
-      window.localStorage.removeItem(tokenStorageKeys.refresh);
-    }
-  },
-};
+/** Reads Django's `csrftoken` cookie (set on any allauth Headless browser-view
+ * response) so mutating requests can carry it back as `X-CSRFToken`. */
+export function getCsrfToken(): string | null {
+  if (!isBrowser()) {
+    return null;
+  }
+
+  const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
 
 export const api = createApiClient({
   baseUrl: API_BASE_URL,
-  tokenStore: webTokenStore,
+  credentials: "include",
+  getCsrfToken,
   onSessionInvalid: () => {
     if (isBrowser() && !window.location.pathname.startsWith("/auth")) {
       window.location.assign("/auth/login");
     }
   },
 });
-

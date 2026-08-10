@@ -1,77 +1,80 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { signupSchema, type SignupFormValues } from "@project-gestion/validation";
+import { personNameSchema } from "@project-gestion/validation";
 import { useRouter } from "expo-router";
 import { useRef, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import type { TextInput as RNTextInput } from "react-native";
-import { GoogleSignInButton } from "../../../components/GoogleSignInButton";
+import { z } from "zod";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { Screen } from "../../../components/ui/Screen";
-import * as allauthClient from "../../../lib/allauth-client";
+import { api } from "../../../lib/api";
 import { getErrorMessage } from "../../../lib/errors";
+import { useAuthStore } from "../../../stores/auth-store";
 
-export function RegisterScreen() {
+/** allauth Headless `auth/signup` ne collecte que email + mot de passe —
+ * prenom/nom sont completes ici, apres la 1ere connexion (voir
+ * LoginScreen : redirige ici tant que `needsProfileCompletion` est vrai). */
+const accountSetupSchema = z.object({
+  first_name: personNameSchema("Le prenom est requis"),
+  last_name: personNameSchema("Le nom est requis"),
+});
+type AccountSetupFormValues = z.infer<typeof accountSetupSchema>;
+
+export function AccountSetupScreen() {
   const router = useRouter();
   const [rawError, setRawError] = useState<unknown>(null);
-  const passwordRef = useRef<RNTextInput>(null);
-  const form = useForm<SignupFormValues>({
-    resolver: zodResolver(signupSchema),
-    defaultValues: { email: "", password: "" },
+  const lastNameRef = useRef<RNTextInput>(null);
+  const form = useForm<AccountSetupFormValues>({
+    resolver: zodResolver(accountSetupSchema),
+    defaultValues: { first_name: "", last_name: "" },
   });
 
-  async function onSubmit(values: SignupFormValues) {
+  async function onSubmit(values: AccountSetupFormValues) {
     setRawError(null);
     try {
-      await allauthClient.signup(values);
-      router.replace({
-        pathname: "/resend-verification",
-        params: { email: values.email, registered: "true" },
-      });
+      const user = await api.auth.updateMe(values);
+      useAuthStore.setState({ user });
+      router.replace("/");
     } catch (caught) {
       setRawError(caught);
     }
   }
 
   return (
-    <Screen title="Creer un compte" subtitle="Verifie ton email avant la premiere connexion.">
-      <GoogleSignInButton onError={setRawError} />
+    <Screen title="Complete ton profil" subtitle="Ajoute ton prenom et ton nom.">
       <Controller
         control={form.control}
-        name="email"
+        name="first_name"
         render={({ field, fieldState }) => (
           <FormField
-            label="Email"
+            label="Prenom"
             value={field.value}
             onChangeText={field.onChange}
             error={fieldState.error?.message}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            autoComplete="email"
+            autoCapitalize="words"
+            textContentType="givenName"
+            autoComplete="given-name"
             returnKeyType="next"
-            onSubmitEditing={() => passwordRef.current?.focus()}
+            onSubmitEditing={() => lastNameRef.current?.focus()}
             blurOnSubmit={false}
           />
         )}
       />
       <Controller
         control={form.control}
-        name="password"
+        name="last_name"
         render={({ field, fieldState }) => (
           <FormField
-            ref={passwordRef}
-            label="Mot de passe"
+            ref={lastNameRef}
+            label="Nom"
             value={field.value}
             onChangeText={field.onChange}
             error={fieldState.error?.message}
-            secureTextEntry
-            autoCapitalize="none"
-            autoCorrect={false}
-            textContentType="newPassword"
-            autoComplete="new-password"
+            autoCapitalize="words"
+            textContentType="familyName"
+            autoComplete="family-name"
             returnKeyType="done"
             onSubmitEditing={form.handleSubmit(onSubmit)}
           />
@@ -79,10 +82,7 @@ export function RegisterScreen() {
       />
       <InlineMessage variant="danger">{getErrorMessage(rawError)}</InlineMessage>
       <Button onPress={form.handleSubmit(onSubmit)} disabled={form.formState.isSubmitting}>
-        Creer le compte
-      </Button>
-      <Button variant="ghost" onPress={() => router.push("/")}>
-        Retour connexion
+        Terminer
       </Button>
     </Screen>
   );

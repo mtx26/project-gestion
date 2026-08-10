@@ -3,11 +3,6 @@ export const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ??
   "http://127.0.0.1:8000";
 
-export const tokenStorageKeys = {
-  access: "project-gestion.access",
-  refresh: "project-gestion.refresh",
-} as const;
-
 /** Mirrors the backend's default document-upload limits (`DOCUMENT_MAX_UPLOAD_SIZE_BYTES` /
  * `DOCUMENT_ALLOWED_FILE_EXTENSIONS` / `DOCUMENT_ALLOWED_MIME_TYPES` in `config/settings.py`),
  * so a file Zod-side validation accepts can't be rejected by the backend on size or type.

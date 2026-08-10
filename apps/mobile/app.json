@@ -1,16 +1,18 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Project Gestion",
+    "slug": "project-gestion",
     "version": "1.0.0",
     "scheme": "projectgestion",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mtx26.projectgestion"
     },
     "android": {
+      "package": "com.mtx26.projectgestion",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -30,6 +32,13 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "58fa5012-8277-437f-bdcc-cf4e2a5b2601"
+      }
+    },
+    "owner": "mtx_26"
   }
 }
