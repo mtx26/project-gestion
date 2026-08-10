@@ -20,5 +20,10 @@
     "turbo": "^2.9.18"
   },
   "private": true,
-  "pnpm": {}
+  "pnpm": {
+    "overrides": {
+      "@types/react": "19.1.17",
+      "@types/react-dom": "19.1.11"
+    }
+  }
 }

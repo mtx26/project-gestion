@@ -86,8 +86,12 @@ pnpm --filter web typecheck
 # Build web
 pnpm --filter web build
 
-# Build package modifié
-pnpm --filter @project-gestion/<package> build
+# Typecheck package modifié (les packages n'ont pas d'étape de build :
+# ils exportent leur source TS, transpilée par chaque app)
+pnpm --filter @project-gestion/<package> typecheck
+
+# Typecheck tout le monorepo (apps + packages)
+pnpm typecheck
 
 # Lint tout
 pnpm lint

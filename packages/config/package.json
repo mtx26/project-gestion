@@ -9,6 +9,12 @@
   },
   "dependencies": {
     "dotenv": "^16.4.7"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/node": "^20"
   }
 }
-

@@ -9,6 +9,11 @@
   "dependencies": {
     "react-hook-form": "^7.79.0",
     "zod": "4.0.17"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5"
   }
 }
-
