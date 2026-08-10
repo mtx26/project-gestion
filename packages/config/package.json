@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./load-root-env": "./load-root-env.cjs"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
   }
 }
 

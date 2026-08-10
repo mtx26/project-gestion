@@ -6,12 +6,11 @@
  * reconnect, router reboot...), which silently breaks API calls from a
  * physical device running Expo Go (127.0.0.1 there means the phone itself).
  */
+require("@project-gestion/config/load-root-env");
+
 const { spawn } = require("node:child_process");
 const os = require("node:os");
 const path = require("node:path");
-const dotenv = require("dotenv");
-
-dotenv.config({ path: path.resolve(__dirname, "../../../.env") });
 
 const lanIp = resolveLanIp();
 if (lanIp) {

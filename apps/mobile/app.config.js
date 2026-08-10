@@ -1,5 +1,4 @@
-const path = require("node:path");
-require("dotenv").config({ path: path.resolve(__dirname, "../../.env") });
+require("@project-gestion/config/load-root-env");
 
 /** Schema d'URL attendu par Google sur iOS : le client ID a l'envers.
  * `123-abc.apps.googleusercontent.com` -> `com.googleusercontent.apps.123-abc`
@@ -15,7 +14,7 @@ function toReversedClientId(iosClientId) {
 
 // Config dynamique plutot que app.json seul : le plugin Google Sign-In a besoin
 // d'un identifiant propre a chaque projet Google Cloud, qui vient donc du .env
-// de la racine. Charge ici et pas seulement dans scripts/start.js, pour que
+// racine. Charge ici et pas seulement dans scripts/start.js, pour que
 // `expo prebuild`/`eas build` (qui ne passent pas par ce script) le voient aussi.
 //
 // `config` est le contenu de app.json fourni par Expo — ne jamais le remplacer
