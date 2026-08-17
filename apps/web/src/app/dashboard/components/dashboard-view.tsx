@@ -455,7 +455,6 @@ function SummaryTile({
 function buildUnpaidTimeHref(projectId: number, userFilter: "mine" | "all") {
   const params = new URLSearchParams({
     project: String(projectId),
-    payment: "unpaid",
     user: userFilter,
   });
   return `/time?${params.toString()}`;

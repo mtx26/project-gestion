@@ -91,7 +91,10 @@ function TimeView({
   // (totaux + repartition par membre) et au bouton de paiement groupe.
   const showEntryList = canViewTime && (canViewOthersDetail || !canPayTime);
   const showTotalsPanel = canViewTime && (canRecordTime || canPayTime);
-  const defaultUserFilter: UserFilter = canViewAllTime ? "all" : "mine";
+  // Meme regle que le dashboard : sans avoir a payer qui que ce soit, on arrive sur ses
+  // propres heures. Un payeur, lui, ouvre la page pour suivre l'equipe. Le selecteur de
+  // membre reste disponible des `time_entry.view_all` dans les deux cas.
+  const defaultUserFilter: UserFilter = canViewAllTime && canPayTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
   const searchFromUrl = searchParams.get("search") ?? "";
