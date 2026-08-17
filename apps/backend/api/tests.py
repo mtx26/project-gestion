@@ -3395,9 +3395,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        # "Root work" a un cout nul (taux horaire 0) : elle est consideree deja
-        # couverte et masquee par defaut, comme n'importe quelle entree payee.
-        self.assert_visible_time_descriptions(response, ["Folder work"])
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
     def test_member_with_time_entry_view_can_list_own_time_entries_only(self):
         self.given_member_authenticated(["time_entry.view"])
@@ -3432,8 +3430,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        # "Root work" a un cout nul : masquee par defaut (voir plus haut).
-        self.assert_visible_time_descriptions(response, ["Folder work"])
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
     def test_member_with_time_entry_pay_only_cannot_list_time_entries(self):
         self.given_member_authenticated(["time_entry.pay"])
@@ -3503,7 +3500,9 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
 
-    def test_list_hides_fully_paid_entries_by_default(self):
+    def test_list_returns_every_entry_without_payment_status_filter(self):
+        # Aucun masquage implicite : `payment_status` est le seul axe de filtrage sur le
+        # paiement (le front envoie `not_paid` par defaut).
         paid_entry = TimeEntry.objects.create(
             project=self.project,
             user=self.owner,
@@ -3525,10 +3524,11 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        # "Fully paid work" est masquee (payee) et "Root work" aussi (cout nul).
-        self.assert_visible_time_descriptions(response, ["Folder work"])
+        self.assert_visible_time_descriptions(
+            response, ["Folder work", "Root work", "Fully paid work"],
+        )
 
-    def test_list_can_include_paid_entries(self):
+    def test_list_can_filter_out_settled_entries(self):
         paid_entry = TimeEntry.objects.create(
             project=self.project,
             user=self.owner,
@@ -3547,19 +3547,17 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         )
         self.given_authenticated(self.owner)
 
-        response = self.when_list_time_entries("?include_paid=true")
+        response = self.when_list_time_entries("?payment_status=not_paid")
 
         self.assert_ok(response)
-        self.assert_visible_time_descriptions(
-            response, ["Folder work", "Root work", "Fully paid work"],
-        )
+        # "Fully paid work" est soldee et "Root work" a un cout nul : ni l'une ni l'autre
+        # ne reste a payer.
+        self.assert_visible_time_descriptions(response, ["Folder work"])
 
     def test_list_can_search_by_description(self):
         self.given_authenticated(self.owner)
 
-        # "Root work" a un cout nul et serait masquee par le filtre par defaut ;
-        # include_paid=true isole ce test sur le comportement de la recherche.
-        response = self.when_list_time_entries("?search=Root&include_paid=true")
+        response = self.when_list_time_entries("?search=Root")
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Root work"])
@@ -3594,7 +3592,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         )
         self.given_authenticated(self.owner)
 
-        response = self.when_list_time_entries(f"?folder={self.folder.id}&include_paid=true")
+        response = self.when_list_time_entries(f"?folder={self.folder.id}")
 
         self.assert_ok(response)
         entry = self.response_results(response)[0]

@@ -17,9 +17,11 @@ export function parseUserFilter(value: string | null, fallback: UserFilter, canV
   return fallback;
 }
 
+/** Defaut `not_paid` : la page sert d'abord a suivre ce qui reste du (pas paye + partiel).
+ * `all` est le seul statut qui reintegre les entrees soldees. */
 export function parsePaymentStatusFilter(value: string | null): PaymentStatusFilter {
-  if (value === "unpaid" || value === "partial" || value === "paid" || value === "not_paid") return value;
-  return "all";
+  if (value === "unpaid" || value === "partial" || value === "paid" || value === "all") return value;
+  return "not_paid";
 }
 
 export function parseTargetFilter(value: string | null): string | null {
@@ -47,7 +49,7 @@ export function getPaymentStatusLabel(status: Exclude<PaymentStatusFilter, "all"
   if (status === "paid") return "Paye";
   if (status === "partial") return "Partiel";
   if (status === "not_paid") return "Non regle";
-  return "A payer";
+  return "Pas paye";
 }
 
 export function getTimeEntryCardClassName(status: "paid" | "partial" | "unpaid"): string {

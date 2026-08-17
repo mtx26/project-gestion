@@ -24,8 +24,8 @@ def get_project_deleted_time_entries_base(user, project_id):
 def get_project_time_entries(user, project_id, permission_code):
     """Base queryset for the active `/time-entries/` endpoints: scoped to
     `project_id`, restricted to the user's own entries unless they hold
-    `permission_code`, and annotated for `TimeEntryFilter` (payment_status,
-    include_paid). Callers pass the permission that matches what they expose:
+    `permission_code`, and annotated for `TimeEntryFilter` (payment_status).
+    Callers pass the permission that matches what they expose:
     `time_entry.view_others_detail` for the list/detail endpoints, `time_entry.view_all`
     for the `/stats/` endpoint — two independent axes (see `TimeEntryQuerySet.own_unless_has_permission`)."""
     project = get_object_or_404(Project.objects.accessible_to(user), pk=project_id)

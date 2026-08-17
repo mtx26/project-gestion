@@ -35,7 +35,7 @@ import {
   getTargetPayload,
   type EntryTarget,
 } from "@/lib/target-utils";
-import { buildProjectHref, parseBooleanParam, parsePageParam } from "@/lib/url-params";
+import { buildProjectHref, parsePageParam } from "@/lib/url-params";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useSearchParam } from "@/lib/use-search-param";
@@ -44,7 +44,7 @@ import { PaginationBar } from "@/components/pagination-bar";
 import { TimeSummary, TimeTotalsPanel } from "./components/time-totals-panel";
 import { TimeEntryList } from "./components/time-entry-list";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
-import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/filters/filter-bar";
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
@@ -98,7 +98,6 @@ function TimeView({
   const dateFrom = searchParams.get("date_from") ?? undefined;
   const dateTo = searchParams.get("date_to") ?? undefined;
   const targetFilter = parseTargetFilter(searchParams.get("target"));
-  const includePaid = parseBooleanParam(searchParams.get("include_paid"));
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
   const userFilterId: number | "none" | null =
     userFilter === "all" ? null :
@@ -135,7 +134,6 @@ function TimeView({
     userId: selectedUserId ?? "all",
     startDate: periodRange.startDate,
     endDate: periodRange.endDate,
-    includePaid,
     paymentStatus: paymentStatusFilter,
     target: targetFilter ?? undefined,
     search: searchFromUrl || undefined,
@@ -156,7 +154,6 @@ function TimeView({
     ...(selectedUserId == null ? {} : { user: selectedUserId }),
     start_date: periodRange.startDate,
     end_date: periodRange.endDate,
-    include_paid: includePaid,
     payment_status: paymentStatusFilter,
     target: targetFilter ?? undefined,
   };
@@ -167,8 +164,7 @@ function TimeView({
           userId: selectedUserId ?? "all",
           startDate: periodRange.startDate,
           endDate: periodRange.endDate,
-          includePaid,
-          paymentStatus: paymentStatusFilter,
+                paymentStatus: paymentStatusFilter,
           target: targetFilter ?? undefined,
         })
       : queryKeys.disabled(),
@@ -329,20 +325,21 @@ function TimeView({
           // Sans liste d'entrees, la recherche n'a plus de cible (elle ne filtre pas la
           // synthese, qui ignore `search`) : la periode prend alors le filtre principal.
           primary={showEntryList ? <FilterSearch value={searchQuery} onChange={handleSearchChange} /> : periodFilter}
-          activeCount={[showEntryList && Boolean(dateFrom), canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includePaid].filter(Boolean).length}
+          activeCount={[showEntryList && Boolean(dateFrom), canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "not_paid"].filter(Boolean).length}
           clearPath="/time"
-          clearKeys={["search", "date_from", "date_to", "user", "payment", "target", "include_paid", "page"]}
+          clearKeys={["search", "date_from", "date_to", "user", "payment", "target", "page"]}
         >
           {showEntryList ? periodFilter : null}
           <FilterSelect
             value={paymentStatusFilter}
-            onValueChange={(v) => updateUrlFilter({ payment: v, ...(v === "paid" ? { include_paid: true } : {}) })}
+            // `not_paid` etant le defaut, il sort de l'URL au lieu d'y etre ecrit.
+            onValueChange={(v) => updateUrlFilter({ payment: v === "not_paid" ? null : v })}
           >
-            <SelectItem value="all">Tous statuts</SelectItem>
             <SelectItem value="not_paid">Non réglé</SelectItem>
-            <SelectItem value="unpaid">À payer</SelectItem>
+            <SelectItem value="unpaid">Pas payé</SelectItem>
             <SelectItem value="partial">Partiel</SelectItem>
             <SelectItem value="paid">Payé</SelectItem>
+            <SelectItem value="all">Tous statuts</SelectItem>
           </FilterSelect>
           {canViewAllTime ? (
             <MemberFilterSelect
@@ -362,9 +359,6 @@ function TimeView({
             onSelect={(folderId) => updateUrlFilter({ target: folderId == null ? null : `folder-${folderId}` })}
             onCreateFolderAction={canRecordTime ? handleCreateFolder : undefined}
           />
-          <FilterToggle pressed={includePaid} onPressedChange={(v) => updateUrlFilter({ include_paid: v })}>
-            Inclure payés
-          </FilterToggle>
         </CollapsibleFilterBar>
       ) : null}
 

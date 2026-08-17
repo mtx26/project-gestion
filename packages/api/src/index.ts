@@ -460,7 +460,6 @@ export function createApiClient({
           user?: number | "none";
           start_date?: string;
           end_date?: string;
-          include_paid?: boolean;
           payment_status?: string;
           target?: string;
           search?: string;
@@ -472,7 +471,6 @@ export function createApiClient({
             user: query.user ? String(query.user) : undefined,
             start_date: query.start_date,
             end_date: query.end_date,
-            include_paid: query.include_paid ? "true" : undefined,
             payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
             target: query.target && query.target !== "project" ? query.target : undefined,
             search: query.search || undefined,
@@ -894,7 +892,6 @@ export interface TimeEntryListFilters {
   userId?: number | "all" | "none";
   startDate?: string;
   endDate?: string;
-  includePaid?: boolean;
   paymentStatus?: string;
   target?: string;
   search?: string;
@@ -911,7 +908,6 @@ export function buildTimeEntriesListQuery(
       userId: filters.userId,
       startDate: filters.startDate,
       endDate: filters.endDate,
-      includePaid: filters.includePaid,
       paymentStatus: filters.paymentStatus,
       target: filters.target,
       search: filters.search,
@@ -922,7 +918,6 @@ export function buildTimeEntriesListQuery(
         ...(filters.userId == null || filters.userId === "all" ? {} : { user: filters.userId }),
         start_date: filters.startDate,
         end_date: filters.endDate,
-        include_paid: filters.includePaid,
         payment_status: filters.paymentStatus,
         target: filters.target,
         search: filters.search || undefined,
@@ -1044,7 +1039,6 @@ export interface TimeEntryScopeQuery {
   user?: number | "none";
   start_date?: string;
   end_date?: string;
-  include_paid?: boolean;
   payment_status?: string;
   target?: string;
 }
@@ -1054,7 +1048,6 @@ function buildTimeEntryScopeQueryString(query: TimeEntryScopeQuery) {
     user: query.user ? String(query.user) : undefined,
     start_date: query.start_date,
     end_date: query.end_date,
-    include_paid: query.include_paid ? "true" : undefined,
     payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
     target: query.target && query.target !== "project" ? query.target : undefined,
   });

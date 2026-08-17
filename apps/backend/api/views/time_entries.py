@@ -43,7 +43,6 @@ PAYMENT_STATUS_CHOICES = [
 class TimeEntryFilter(FolderScopedFilterSet):
     # Ordre des champs imposé par le Filtering Style Guide §5 : (a) folder — hérité
     # de FolderScopedFilterSet —, (b) booléens, (c) dates, (d) enum/mini-langage.
-    include_paid = django_filters.BooleanFilter(method="noop")
     start_date = django_filters.DateFilter(field_name="start_date__date", lookup_expr="gte")
     end_date = django_filters.DateFilter(field_name="start_date__date", lookup_expr="lte")
     user = django_filters.CharFilter(method="filter_user")
@@ -53,9 +52,6 @@ class TimeEntryFilter(FolderScopedFilterSet):
     class Meta:
         model = TimeEntry
         fields = ["task"]
-
-    def noop(self, queryset, name, value):
-        return queryset
 
     def filter_user(self, queryset, name, value):
         """`user=<id>` ou `user=none` pour les entrees orphelines — celles dont le titulaire
@@ -109,29 +105,6 @@ class TimeEntryFilter(FolderScopedFilterSet):
         return queryset
 
 
-class TimeEntryListFilter(TimeEntryFilter):
-    """Same filters as `TimeEntryFilter`, but hides fully-paid entries by default.
-
-    Only the active list/stats endpoints have this default masking (a UX choice to
-    keep already-settled entries out of the way); the trash endpoint shows every
-    deleted entry regardless of payment status, as it always has.
-    """
-
-    @property
-    def qs(self):
-        queryset = super().qs
-
-        # Par defaut (payment_status absent/"all"), les entrees deja entierement
-        # payees sont masquees ; `include_paid=true` les reintegre. Un payment_status
-        # explicite (paid/unpaid/partial/not_paid) prend le dessus sur ce masquage.
-        payment_status = self.form.cleaned_data.get("payment_status")
-        if payment_status in (None, "", "all"):
-            include_paid = self.form.cleaned_data.get("include_paid") or False
-            if not include_paid:
-                queryset = queryset.filter(filter_paid_amount__lt=F("filter_cost_amount"))
-        return queryset
-
-
 @extend_schema(tags=["time entries"])
 @extend_schema_view(
     get=extend_schema(
@@ -140,7 +113,7 @@ class TimeEntryListFilter(TimeEntryFilter):
             "Retourne les entrées de temps actives d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user` ({id} ou `none` pour les entrées\n"
             "  orphelines), `target` (project/folder-{id}/task-{id}), `payment_status` (all/paid/unpaid/partial/not_paid),\n"
-            "  `start_date`, `end_date`, `include_paid`.\n\n"
+            "  `start_date`, `end_date`.\n\n"
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.view`.\n\n"
@@ -156,7 +129,7 @@ class TimeEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAP
     serializer_class = TimeEntrySerializer
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_codes_by_method = {"GET": "time_entry.view", "POST": "time_entry.edit"}
-    filterset_class = TimeEntryListFilter
+    filterset_class = TimeEntryFilter
     search_fields = ["description"]
 
     def get_queryset(self):
@@ -214,7 +187,7 @@ class TimeEntryStatsView(generics.GenericAPIView):
             })
 
         queryset = get_project_time_entries(request.user, project_id, "time_entry.view_all")
-        filterset = TimeEntryListFilter(request.query_params, queryset=queryset, request=request)
+        filterset = TimeEntryFilter(request.query_params, queryset=queryset, request=request)
 
         return Response(compute_time_entry_stats(filterset.qs))
 
@@ -367,7 +340,7 @@ class TimeEntryBulkPaymentView(generics.GenericAPIView):
         # depend deja) : un payeur paie exactement le total qu'il voit dans la synthese,
         # sans avoir besoin de `time_entry.view_others_detail`.
         queryset = get_project_time_entries(self.request.user, self.kwargs["project_id"], "time_entry.view_all")
-        return TimeEntryListFilter(self.request.query_params, queryset=queryset, request=self.request).qs
+        return TimeEntryFilter(self.request.query_params, queryset=queryset, request=self.request).qs
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -390,7 +363,7 @@ class TimeEntryBulkPaymentView(generics.GenericAPIView):
         description=(
             "Retourne les entrées de temps supprimées d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}),\n"
-            "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`, `include_paid`.\n\n"
+            "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`.\n\n"
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.restore`."

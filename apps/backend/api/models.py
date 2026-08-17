@@ -465,7 +465,7 @@ class TimeEntryQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_financial_totals(self):
         """Annotates `filter_cost_amount`/`filter_paid_amount` (duration × hourly rate;
         net of linked, non-deleted FinancialEntry expenses/refunds), used by
-        `TimeEntryFilter` (`payment_status`/`include_paid`) and by the stats endpoint's
+        `TimeEntryFilter` (`payment_status`) and by the stats endpoint's
         project-wide and per-user totals.
 
         `filter_paid_amount` is a correlated `Subquery` (via `OuterRef`) rather than a
