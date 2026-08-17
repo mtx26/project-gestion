@@ -79,7 +79,6 @@ export const queryKeys = {
         priority?: string;
         createdBy?: number;
         assignedTo?: number;
-        excludeDone?: boolean;
         page?: number;
         ordering?: string;
         search?: string;
@@ -93,7 +92,6 @@ export const queryKeys = {
         priority: query.priority ?? "all",
         createdBy: query.createdBy ?? "all",
         assignedTo: query.assignedTo ?? "all",
-        excludeDone: query.excludeDone ?? false,
         page: query.page ?? 1,
         ordering: query.ordering ?? "",
         search: query.search ?? "",

@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormErrorAlert } from "@/components/forms/form-error-alert";
 import { CollapsibleFilterBar } from "@/components/filters/collapsible-filter-bar";
-import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/components/filters/filter-bar";
+import { FilterFolderPicker, FilterSearch, FilterSelect } from "@/components/filters/filter-bar";
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
@@ -32,7 +32,7 @@ import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { parseBooleanParam, parseIdParam, parsePageParam } from "@/lib/url-params";
+import { parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useDocumentPreview } from "@/lib/use-document-preview";
@@ -80,7 +80,6 @@ function TasksView({
   const createdByFilter = parseIdParam(searchParams.get("member"));
   const folderFilter = parseFolderFilter(searchParams.get("folder"));
   const folderId = getFolderId(folderFilter);
-  const includeCompleted = parseBooleanParam(searchParams.get("include_completed"));
   const page = parsePageParam(searchParams.get("page"));
   const sortField = searchParams.get("sort") ?? "";
   const sortDir = (searchParams.get("order") === "desc" ? "desc" : "asc") as "asc" | "desc";
@@ -107,7 +106,6 @@ function TasksView({
     folderId: folderId ?? undefined,
     dateFrom,
     dateTo,
-    includeCompleted,
     ordering,
   };
 
@@ -189,20 +187,25 @@ function TasksView({
 
       <CollapsibleFilterBar
         primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
-        activeCount={[Boolean(dateFrom), statusFilter !== "all", priorityFilter !== "all", createdByFilter !== null, folderId !== null, includeCompleted].filter(Boolean).length}
+        activeCount={[Boolean(dateFrom), statusFilter !== "not_done", priorityFilter !== "all", createdByFilter !== null, folderId !== null].filter(Boolean).length}
         clearPath="/tasks"
-        clearKeys={["search", "date_from", "date_to", "status", "priority", "member", "folder", "include_completed", "sort", "order", "page"]}
+        clearKeys={["search", "date_from", "date_to", "status", "priority", "member", "folder", "sort", "order", "page"]}
       >
         <FilterPeriodPicker
           dateFrom={dateFrom}
           dateTo={dateTo}
           onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
         />
-        <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v as StatusFilter })}>
-          <SelectItem value="all">Tous statuts</SelectItem>
+        <FilterSelect
+          value={statusFilter}
+          // `not_done` etant le defaut, il sort de l'URL au lieu d'y etre ecrit.
+          onValueChange={(v) => updateUrlFilter({ status: v === "not_done" ? null : (v as StatusFilter) })}
+        >
+          <SelectItem value="not_done">Non terminées</SelectItem>
           <SelectItem value="todo">À faire</SelectItem>
           <SelectItem value="in_progress">En cours</SelectItem>
           <SelectItem value="done">Terminé</SelectItem>
+          <SelectItem value="all">Tous statuts</SelectItem>
         </FilterSelect>
         <FilterSelect value={priorityFilter} onValueChange={(v) => updateUrlFilter({ priority: v as PriorityFilter })}>
           <SelectItem value="all">Toutes priorités</SelectItem>
@@ -228,12 +231,6 @@ function TasksView({
             onCreateFolderAction={canEditTasks ? handleCreateFolder : undefined}
           />
         ) : null}
-        <FilterToggle
-          pressed={includeCompleted || statusFilter === "done"}
-          onPressedChange={(pressed) => updateUrlFilter({ include_completed: pressed })}
-        >
-          Inclure terminées
-        </FilterToggle>
       </CollapsibleFilterBar>
 
       {myTasks.length > 0 ? (

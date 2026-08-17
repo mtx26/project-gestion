@@ -98,12 +98,13 @@ export function DashboardView({
     }),
     enabled: Boolean(project && canViewTime),
   });
-  // exclude_done defaults to true server-side whenever status isn't set, so
-  // this is already "high priority, not done" — count comes straight from
-  // the backend's pagination total, not the size of whatever page loaded.
+  // `status: "not_done"` explicite : le compteur porte sur ce qui reste a faire, pas sur
+  // les urgences deja traitees. Le total vient de la pagination du backend, pas de la
+  // taille de la page chargee.
+  const urgentTasksFilters = { priority: "high", status: "not_done" } as const;
   const urgentTasksQuery = useQuery({
-    queryKey: project ? buildTasksListQuery(api, project.id, { priority: "high" }).queryKey : queryKeys.disabled(),
-    queryFn: () => buildTasksListQuery(api, project!.id, { priority: "high" }).queryFn(),
+    queryKey: project ? buildTasksListQuery(api, project.id, urgentTasksFilters).queryKey : queryKeys.disabled(),
+    queryFn: () => buildTasksListQuery(api, project!.id, urgentTasksFilters).queryFn(),
     enabled: Boolean(project && canViewTasks),
   });
   const urgentTasksCount = getApiCount(urgentTasksQuery.data);

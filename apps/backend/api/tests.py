@@ -2741,6 +2741,27 @@ class TaskRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_task_titles(response, ["Root task"])
 
+    def test_list_status_not_done_excludes_completed_tasks(self):
+        # `not_done` remplace l'ancien booleen `exclude_done` : c'est un statut de plus sur
+        # le meme axe, donc "tous statuts" (aucun filtre) retourne bien tout.
+        self.given_authenticated(self.owner)
+        open_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Open task",
+            status="in_progress",
+        )
+
+        not_done = self.when_list_tasks("?status=not_done")
+        everything = self.when_list_tasks()
+
+        self.assert_ok(not_done)
+        not_done_titles = {task["title"] for task in self.response_results(not_done)}
+        every_title = {task["title"] for task in self.response_results(everything)}
+        self.assertIn(open_task.title, not_done_titles)
+        self.assertNotIn("Root task", not_done_titles)
+        self.assertIn("Root task", every_title)
+
     def test_list_can_filter_by_priority(self):
         Task.objects.create(
             project=self.project,

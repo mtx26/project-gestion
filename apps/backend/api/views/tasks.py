@@ -19,24 +19,38 @@ from ..utils import FolderScopedFilterSet, StableOrderingFilter
 from core.views import RestoreModelMixin, SoftDeleteDestroyMixin
 
 
+TASK_STATUS_CHOICES = [
+    ("all", "all"),
+    ("todo", "todo"),
+    ("in_progress", "in_progress"),
+    ("done", "done"),
+    ("not_done", "not_done"),
+]
+
+
 class TaskFilter(FolderScopedFilterSet):
-    exclude_done = django_filters.BooleanFilter(method="filter_exclude_done")
     # Both bounds only validate/parse the input here; the actual OR-across-columns
     # filtering happens once in `qs`, since it needs both values together.
     date_from = django_filters.DateFilter(method="noop")
     date_to = django_filters.DateFilter(method="noop")
+    status = django_filters.ChoiceFilter(choices=TASK_STATUS_CHOICES, method="filter_status")
 
     class Meta:
         model = Task
-        fields = ["status", "priority", "created_by", "assigned_to"]
-
-    def filter_exclude_done(self, queryset, _name, value):
-        if value:
-            return queryset.exclude(status="done")
-        return queryset
+        fields = ["priority", "created_by", "assigned_to"]
 
     def noop(self, queryset, _name, _value):
         return queryset
+
+    def filter_status(self, queryset, _name, value):
+        """`not_done` (a faire + en cours) est un statut a part entiere plutot qu'un
+        booleen `exclude_done` separe : deux axes pour la meme chose finissaient toujours
+        par se contredire ("tous statuts" masquait quand meme les taches terminees)."""
+        if value in (None, "", "all"):
+            return queryset
+        if value == "not_done":
+            return queryset.exclude(status="done")
+        return queryset.filter(status=value)
 
     @property
     def qs(self):
@@ -63,7 +77,8 @@ class TaskFilter(FolderScopedFilterSet):
         summary="Lister les tâches d'un projet",
         description=(
             "Retourne toutes les tâches actives d'un projet.\n\n"
-            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `priority`, `created_by`, `assigned_to`, `exclude_done`.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status` (all/todo/in_progress/done/not_done),\n"
+            "  `priority`, `created_by`, `assigned_to`.\n\n"
             "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `end_date` tombe dans la plage.\n\n"
             "- Recherche disponible : `search` sur `title` et `description`.\n\n"
             "- Tri disponible : `ordering` sur `title`, `folder__name`, `status_order`, `priority_order`, `end_date`, `created_at`. "
@@ -156,7 +171,8 @@ class TaskDetailView(SoftDeleteDestroyMixin, PermissionCodeByMethodMixin, generi
         summary="Lister les tâches supprimées",
         description=(
             "Retourne les tâches supprimées d'un projet.\n\n"
-            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status`, `priority`, `created_by`, `assigned_to`, `exclude_done`.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `status` (all/todo/in_progress/done/not_done),\n"
+            "  `priority`, `created_by`, `assigned_to`.\n\n"
             "- Filtre calendrier : `date_from`, `date_to` — retourne les tâches dont `start_date` OU `end_date` tombe dans la plage.\n\n"
             "- Recherche disponible : `search` sur `title` et `description`.\n\n"
             "- Tri disponible : `ordering` sur `title`, `folder__name`, `status_order`, `priority_order`, `end_date`, `created_at`. "

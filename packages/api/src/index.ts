@@ -553,11 +553,10 @@ export function createApiClient({
         projectId: number,
         query: {
           folder?: number;
-          status?: Task["status"];
+          status?: TaskStatusFilter;
           priority?: Task["priority"];
           created_by?: number;
           assigned_to?: number;
-          exclude_done?: boolean;
           date_from?: string;
           date_to?: string;
           page?: number;
@@ -572,7 +571,6 @@ export function createApiClient({
             priority: query.priority,
             created_by: query.created_by != null ? String(query.created_by) : undefined,
             assigned_to: query.assigned_to != null ? String(query.assigned_to) : undefined,
-            exclude_done: query.exclude_done ? "true" : undefined,
             date_from: query.date_from,
             date_to: query.date_to,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
@@ -783,16 +781,19 @@ export function buildProjectFoldersQuery(api: ApiClient, projectId: number) {
   };
 }
 
+/** `not_done` (a faire + en cours) est un statut de filtrage a part entiere cote API :
+ * c'est le defaut des listes de taches, sans booleen `exclude_done` en parallele. */
+export type TaskStatusFilter = Task["status"] | "not_done";
+
 export interface TaskListFilters {
   search?: string;
-  status?: Task["status"];
+  status?: TaskStatusFilter;
   priority?: Task["priority"];
   assignedTo?: number;
   createdBy?: number;
   folderId?: number;
   dateFrom?: string;
   dateTo?: string;
-  includeCompleted?: boolean;
   ordering?: string;
 }
 
@@ -807,10 +808,6 @@ export function buildTasksListQuery(
   filters: TaskListFilters = {},
   page?: number,
 ) {
-  // Same default as web: exclude done tasks unless the caller explicitly
-  // asked to include them, or is already filtering to a specific status.
-  const excludeDone = filters.includeCompleted || filters.status ? undefined : true;
-
   return {
     queryKey: queryKeys.tasks.list(projectId, {
       search: filters.search || undefined,
@@ -821,7 +818,6 @@ export function buildTasksListQuery(
       folderId: filters.folderId,
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
-      excludeDone,
       ordering: filters.ordering,
       page,
     }),
@@ -835,7 +831,6 @@ export function buildTasksListQuery(
         folder: filters.folderId,
         date_from: filters.dateFrom,
         date_to: filters.dateTo,
-        exclude_done: excludeDone,
         ordering: filters.ordering,
         page,
       }),

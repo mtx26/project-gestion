@@ -113,9 +113,9 @@ function FilesView({
 
   const previewTasksQuery = useQuery({
     queryKey: selectedProject
-      ? queryKeys.tasks.list(selectedProject.id, { folderId: selectedFolderId ?? undefined, excludeDone: true })
+      ? queryKeys.tasks.list(selectedProject.id, { folderId: selectedFolderId ?? undefined, status: "not_done" })
       : queryKeys.disabled(),
-    queryFn: () => api.tasks.list(selectedProject!.id, { folder: selectedFolderId ?? undefined, exclude_done: true }),
+    queryFn: () => api.tasks.list(selectedProject!.id, { folder: selectedFolderId ?? undefined, status: "not_done" }),
     enabled: Boolean(selectedProject && canViewTasks),
   });
 
