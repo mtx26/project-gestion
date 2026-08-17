@@ -778,6 +778,7 @@ class TimeEntrySerializer(serializers.ModelSerializer):
             "task_name",
             "user",
             "user_display_name",
+            "title",
             "start_date",
             "duration_minutes",
             "hourly_rate",
@@ -838,6 +839,11 @@ class TimeEntrySerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         documents = validated_data.pop("documents", [])
         time_entry = TimeEntry(**validated_data)
+
+        # Meme regle que le backfill des entrees existantes (migration 0059) : une entree
+        # rattachee a une tache herite de son titre tant qu'on ne lui en donne pas un.
+        if not time_entry.title and time_entry.task_id:
+            time_entry.title = time_entry.task.title
 
         if "hourly_rate" not in validated_data and time_entry.user_id:
             member = ProjectMember.objects.filter(

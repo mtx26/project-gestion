@@ -304,6 +304,9 @@ export type TimeEntry = {
   user: ID | null;
   /** `null` pour une entree orpheline (titulaire supprime), reattribuable via un PATCH `user`. */
   user_display_name: string | null;
+  /** Vide tant qu'aucun titre n'a ete saisi et qu'aucune tache n'est liee (le titre de la
+   * tache est repris par defaut, cote serveur). */
+  title: string;
   start_date: string;
   duration_minutes: number;
   hourly_rate: string;
@@ -322,6 +325,7 @@ export type TimeEntryPayload = {
   folder?: ID | null;
   task?: ID | null;
   user: ID;
+  title?: string;
   start_date: string;
   duration_minutes: number;
   hourly_rate?: string;

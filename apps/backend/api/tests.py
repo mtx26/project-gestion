@@ -3562,6 +3562,51 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Root work"])
 
+    def test_create_inherits_the_linked_task_title_when_none_is_given(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "user": self.owner.id,
+            "task": self.task.id,
+            "start_date": timezone.now().isoformat(),
+            "duration_minutes": 60,
+            "description": "Inherited title work",
+        })
+
+        self.assert_created(response)
+        self.assertEqual(self.response_data(response)["title"], self.task.title)
+
+    def test_create_keeps_the_given_title_over_the_linked_task_one(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "user": self.owner.id,
+            "task": self.task.id,
+            "title": "Titre propre",
+            "start_date": timezone.now().isoformat(),
+            "duration_minutes": 60,
+        })
+
+        self.assert_created(response)
+        self.assertEqual(self.response_data(response)["title"], "Titre propre")
+
+    def test_list_can_search_by_title(self):
+        self.given_authenticated(self.owner)
+        TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="20.00",
+            title="Chantier Nord",
+            description="Titled work",
+            start_date=timezone.now(),
+        )
+
+        response = self.when_list_time_entries("?search=Chantier")
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Titled work"])
+
     def test_list_includes_payment_status_fields(self):
         FinancialEntry.objects.create(
             project=self.project,
@@ -4301,6 +4346,95 @@ class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
         )
 
         self.assert_formulas_match()
+
+
+class ProjectCalendarRoutePermissionTests(ProjectApiTestCase):
+    """La section "temps" du calendrier passe par le meme service que la liste
+    (`get_project_time_entries`) : ces tests verrouillent l'appel et son scoping, qui
+    n'etaient couverts par aucun test (l'endpoint renvoyait un 500)."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.worker = User.objects.create_user(
+            username="calendar-worker",
+            email="calendar-worker@example.com",
+        )
+        self.given_member_with_permissions([], user=self.worker)
+        self.day = timezone.now()
+        self.owner_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Owner calendar work",
+            start_date=self.day,
+        )
+        self.worker_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.worker,
+            duration_minutes=90,
+            hourly_rate="40.00",
+            description="Worker calendar work",
+            start_date=self.day,
+        )
+        day = self.day.date().isoformat()
+        self.url = f"/api/projects/{self.project.id}/calendar/?start_date={day}&end_date={day}"
+
+    # WHEN
+    def when_get_calendar(self):
+        return self.api_get(self.url)
+
+    # ASSERT
+    def assert_time_event_ids(self, response, expected_entries):
+        events = self.response_data(response)["events"]
+        time_event_ids = {event["entity_id"] for event in events if event["kind"] == "time"}
+        self.assertEqual(time_event_ids, {entry.id for entry in expected_entries})
+
+    # TESTS
+    def test_anonymous_cannot_get_calendar(self):
+        response = self.when_get_calendar()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_gets_every_time_entry_of_the_range(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_calendar()
+
+        self.assert_ok(response)
+        self.assert_time_event_ids(response, [self.owner_entry, self.worker_entry])
+
+    def test_member_without_time_entry_view_others_detail_only_gets_own_entries(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+        member_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.member,
+            duration_minutes=30,
+            hourly_rate="40.00",
+            description="Member calendar work",
+            start_date=self.day,
+        )
+
+        response = self.when_get_calendar()
+
+        self.assert_ok(response)
+        self.assert_time_event_ids(response, [member_entry])
+
+    def test_member_without_time_entry_view_gets_no_time_event(self):
+        self.given_member_authenticated(["task.view"])
+
+        response = self.when_get_calendar()
+
+        self.assert_ok(response)
+        self.assert_time_event_ids(response, [])
+
+    def test_non_member_cannot_get_calendar(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_get_calendar()
+
+        self.assert_forbidden(response)
 
 
 class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):

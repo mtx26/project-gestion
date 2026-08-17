@@ -38,7 +38,10 @@ def _time_entry_event(entry) -> dict:
     per-user timezone — `TIME_ZONE = 'UTC'` and nothing ever activates another one —
     so the entry's stored UTC date *is* its canonical calendar day)."""
     duration_label = _format_duration_label(entry.duration_minutes)
-    title = " · ".join(filter(None, [duration_label, entry.description or get_user_display_name(entry.user)]))
+    title = " · ".join(filter(None, [
+        duration_label,
+        entry.title or entry.description or get_user_display_name(entry.user),
+    ]))
 
     remaining = entry.get_remaining_amount()
     paid = entry.get_paid_amount()
@@ -118,9 +121,8 @@ def _task_event(task) -> dict:
         "d'une tache span, `null` sinon.\n"
         "- `status`/`priority` (taches) et `pay_status`/`duration_label` (temps) sont `null` "
         "quand non pertinents pour le type d'evenement.\n\n"
-        "Les entrees de temps sont toujours incluses, y compris payees (contrairement a "
-        "`/time-entries/`, qui les masque par defaut) — le calendrier n'a pas de notion de "
-        "filtre de paiement.\n\n"
+        "Les entrees de temps sont toujours incluses, y compris payees : le calendrier n'a "
+        "pas de notion de filtre de paiement (`pay_status` est renvoye pour la coloration).\n\n"
         "`include_tasks`/`include_time` (bool, defaut `true`) permettent de n'en demander qu'une "
         "des deux categories. Chaque categorie n'est de toute facon renvoyee que si l'utilisateur "
         "a la permission correspondante (`task.view` / `time_entry.view`) ; sinon elle est vide "
@@ -149,7 +151,12 @@ class ProjectCalendarView(generics.GenericAPIView):
         events = []
 
         if include_time and auth.has("time_entry.view"):
-            time_entries = get_project_time_entries(request.user, project_id).filter(
+            # `time_entry.view_others_detail` comme la liste : le calendrier affiche des
+            # entrees individuelles (duree, description, titulaire), pas un agrege — sans
+            # cette permission, seules celles de l'utilisateur connecte sont visibles.
+            time_entries = get_project_time_entries(
+                request.user, project_id, "time_entry.view_others_detail",
+            ).filter(
                 start_date__date__gte=start_date, start_date__date__lte=end_date,
             ).order_by("-start_date", "-id")
             events.extend(_time_entry_event(entry) for entry in time_entries)

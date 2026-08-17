@@ -2,6 +2,8 @@ import { z } from "zod";
 import { amountSchema, descriptionSchema, withDateRangeRefine } from "./shared";
 
 const timeEntryBaseSchema = z.object({
+  /** Facultatif : sans titre saisi, le serveur reprend celui de la tache liee s'il y en a une. */
+  title: z.string().trim().max(255, "Le titre ne peut pas depasser 255 caracteres"),
   startDate: z.string(),
   endDate: z.string(),
   hourlyRate: z.string(),

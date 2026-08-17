@@ -114,7 +114,7 @@ class TimeEntryFilter(FolderScopedFilterSet):
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user` ({id} ou `none` pour les entrées\n"
             "  orphelines), `target` (project/folder-{id}/task-{id}), `payment_status` (all/paid/unpaid/partial/not_paid),\n"
             "  `start_date`, `end_date`.\n\n"
-            "- Recherche disponible : `search` sur `description`.\n\n"
+            "- Recherche disponible : `search` sur `title` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.view`.\n\n"
             "- Restriction : sans `time_entry.view_others_detail`, seules les entrées de l'utilisateur connecté sont retournées."
@@ -130,7 +130,7 @@ class TimeEntryListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAP
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_codes_by_method = {"GET": "time_entry.view", "POST": "time_entry.edit"}
     filterset_class = TimeEntryFilter
-    search_fields = ["description"]
+    search_fields = ["title", "description"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -364,7 +364,7 @@ class TimeEntryBulkPaymentView(generics.GenericAPIView):
             "Retourne les entrées de temps supprimées d'un projet.\n\n"
             "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}),\n"
             "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`.\n\n"
-            "- Recherche disponible : `search` sur `description`.\n\n"
+            "- Recherche disponible : `search` sur `title` et `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.restore`."
         ),
@@ -375,7 +375,7 @@ class TimeEntryTrashListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, HasProjectPermission]
     permission_code = "time_entry.restore"
     filterset_class = TimeEntryFilter
-    search_fields = ["description"]
+    search_fields = ["title", "description"]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):

@@ -25,6 +25,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { FormDialog } from "@/components/dialogs/form-dialog";
 import { FormSection } from "@/components/dialogs/form-section";
 import { FormSubmitButton } from "@/components/forms/form-submit-button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MoneyInput } from "@/components/forms/money-input";
 import { MultiDocumentAttachmentField } from "@/components/documents/multi-document-attachment-field";
@@ -46,6 +47,7 @@ import { getEntryTargetLabel } from "../lib/time-filters";
 
 export type TimeEntrySubmitData = {
   documentIds: number[];
+  title: string;
   durationMinutes: number;
   startDate: string;
   hourlyRate: string | undefined;
@@ -101,6 +103,7 @@ export function TimeEntryFormDialog({
   const form = useForm<TimeEntryFormInput, unknown, TimeEntryFormValues>({
     resolver: zodResolver(timeEntrySchema),
     defaultValues: {
+      title: entry?.title ?? "",
       startDate: referenceStart || format(new Date(), "yyyy-MM-dd'T'HH:mm"),
       endDate: referenceStart && entry
         ? format(addMinutes(parseISO(referenceStart), entry.duration_minutes), "yyyy-MM-dd'T'HH:mm")
@@ -145,6 +148,7 @@ export function TimeEntryFormDialog({
     if (documentIds === null) return;
     onSubmit({
       documentIds,
+      title: values.title,
       durationMinutes: duration,
       startDate: fromDateTimeLocalInput(values.startDate),
       hourlyRate: values.hourlyRate,
@@ -210,6 +214,12 @@ export function TimeEntryFormDialog({
         </Alert>
       ) : (
         <form id="time-entry-form" className="space-y-4" onSubmit={form.handleSubmit(submitForm)}>
+          <Field>
+            <FieldLabel htmlFor="time-entry-title">Titre</FieldLabel>
+            <Input id="time-entry-title" placeholder="Titre de la tache liee si vide" {...form.register("title")} />
+            <FieldError errors={[form.formState.errors.title]} />
+          </Field>
+
           <DateRangeField
             startValue={startDate}
             endValue={endDate}
@@ -359,6 +369,7 @@ export function TimeEntryDetailModal({
     >
       <ModalHero>
         <PaymentStatusBadge status={paymentStatus} />
+        {entry.title ? <p className="mt-3 text-lg font-semibold">{entry.title}</p> : null}
         <p className="mt-3 text-4xl font-bold tabular-nums tracking-tight">{formatMoney(entry.cost_amount)}</p>
         <div className="mt-2 flex items-center gap-3 text-sm text-muted-foreground">
           <span className="flex items-center gap-1.5">

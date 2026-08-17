@@ -277,7 +277,7 @@ function TrashView({ user, selectedProject, openCreateProject }: ProjectWorkspac
                 isLoading={timeEntriesTrash.isLoading}
                 canRestore={canRestoreTime}
                 items={timeEntriesTrash.items}
-                getName={(e) => e.description || formatDuration(e.duration_minutes)}
+                getName={(e) => e.title || e.description || formatDuration(e.duration_minutes)}
                 getSubtitle={(e) => formatDeletedAt(e.deleted_at)}
                 onRestore={(e) => timeEntriesTrash.restore.mutate(e.id)}
                 isRestoring={timeEntriesTrash.restore.isPending}

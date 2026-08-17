@@ -202,6 +202,7 @@ function TimeView({
     mutationFn: (data: TimeEntrySubmitData) =>
       api.timeEntries.create(selectedProject!.id, {
         user: user!.id,
+        title: data.title,
         start_date: data.startDate,
         duration_minutes: data.durationMinutes,
         hourly_rate: data.hourlyRate,
@@ -255,6 +256,7 @@ function TimeView({
   const updateTimeEntry = useCrudMutation({
     mutationFn: (data: TimeEntrySubmitData) =>
       api.timeEntries.update(selectedProject!.id, editingEntry!.id, {
+        title: data.title,
         duration_minutes: data.durationMinutes,
         start_date: data.startDate,
         hourly_rate: data.hourlyRate,
