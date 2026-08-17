@@ -805,6 +805,14 @@ class TimeEntrySerializer(serializers.ModelSerializer):
 
     def validate_user(self, user):
         from .services.members import get_project_assignable_users
+
+        # Une entree deja attribuee ne change pas de titulaire : ses heures sont
+        # potentiellement deja payees a quelqu'un. Seules les entrees orphelines
+        # (`user` a NULL, laissees par un compte supprime) peuvent etre attribuees.
+        if self.instance is not None and self.instance.user_id is not None:
+            if getattr(user, "pk", None) != self.instance.user_id:
+                raise serializers.ValidationError("errors.time_entry.user_already_assigned")
+
         project = self.context.get("project")
         if project is None or user is None:
             return user
@@ -1057,6 +1065,66 @@ class TimeEntryPaymentCorrectionSerializer(serializers.Serializer):
     @extend_schema_field(OpenApiTypes.OBJECT)
     def get_financial_entry(self, payment):
         return FinancialEntrySerializer(payment["financial_entry"]).data
+
+
+class TimeEntryBulkPaymentSerializer(serializers.Serializer):
+    """Paie un montant global sur plusieurs entrees de temps a la fois (bouton "Payer"
+    de la page Temps), reparti de la plus ancienne a la plus recente.
+
+    Le scope paye est celui du queryset filtre passe en contexte — les memes filtres
+    que la synthese affichee. C'est ce qui rend l'action utilisable par un payeur sans
+    `time_entry.view_others_detail` : il ne peut pas lister les entrees des autres, donc
+    la repartition ne peut pas etre calculee cote client (voir
+    `services.time_entries.pay_time_entries_oldest_first`).
+
+    Le filtre `user` est obligatoire : on paie une personne, pas un total agrege sur
+    plusieurs membres — sans ca, un meme montant se repartirait en travers de plusieurs
+    beneficiaires selon le seul ordre chronologique.
+    """
+
+    amount = serializers.DecimalField(max_digits=10, decimal_places=2, write_only=True)
+    paid_amount = serializers.CharField(read_only=True)
+    paid_entry_count = serializers.IntegerField(read_only=True)
+    partial_entry_count = serializers.IntegerField(read_only=True)
+
+    def validate(self, attrs):
+        from .services.time_entries import compute_time_entries_remaining_amount
+
+        # `user=none` (entrees orphelines) filtre bien un scope, mais n'a pas de
+        # beneficiaire a payer : seul un identifiant de membre est accepte ici.
+        scope_user = self.context.get("scope_user")
+        if not scope_user or not str(scope_user).isdigit():
+            raise serializers.ValidationError({
+                "user": "errors.time_entry_payment.user_required"
+            })
+
+        remaining_amount = compute_time_entries_remaining_amount(self.context["queryset"])
+
+        if remaining_amount <= Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.nothing_to_pay"
+            })
+
+        if attrs["amount"] <= Decimal("0.00"):
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_must_be_positive"
+            })
+
+        if attrs["amount"] > remaining_amount:
+            raise serializers.ValidationError({
+                "amount": "errors.time_entry_payment.amount_exceeds_remaining"
+            })
+
+        return attrs
+
+    def create(self, validated_data):
+        from .services.time_entries import pay_time_entries_oldest_first
+
+        return pay_time_entries_oldest_first(
+            self.context["queryset"],
+            validated_data["amount"],
+            self.context["request"].user,
+        )
 
 
 class FinancialEntrySerializer(serializers.ModelSerializer):

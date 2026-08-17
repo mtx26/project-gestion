@@ -24,6 +24,8 @@ import type {
   Task,
   TaskPayload,
   TimeEntry,
+  TimeEntryBulkPayment,
+  TimeEntryBulkPaymentPayload,
   TimeEntryPayment,
   TimeEntryPaymentCorrectionPayload,
   TimeEntryPaymentPayload,
@@ -164,12 +166,15 @@ export function translateError(code: string) {
     "errors.time_entry.folder_project_mismatch": "Ce dossier n'appartient pas a ce projet.",
     "errors.time_entry.task_project_mismatch": "Cette tache n'appartient pas a ce projet.",
     "errors.time_entry.user_not_project_member": "Cet utilisateur ne fait pas partie du projet.",
+    "errors.time_entry.user_already_assigned": "Cette entree est deja attribuee a un membre.",
 
     "errors.time_entry_payment.already_paid": "Cette entree est deja entierement payee.",
     "errors.time_entry_payment.amount_required": "Le montant est requis.",
     "errors.time_entry_payment.amount_must_be_positive": "Le montant doit etre superieur a 0.",
     "errors.time_entry_payment.amount_exceeds_remaining": "Le montant ne peut pas depasser le reste a payer.",
     "errors.time_entry_payment.amount_unchanged": "Le montant est identique au montant deja paye.",
+    "errors.time_entry_payment.nothing_to_pay": "Aucune entree a payer dans cette selection.",
+    "errors.time_entry_payment.user_required": "Selectionne le membre a payer.",
 
     "errors.financial_entry.folder_project_mismatch": "Ce dossier n'appartient pas a ce projet.",
     "errors.financial_entry.time_entry_project_mismatch": "Cette entree de temps n'appartient pas a ce projet.",
@@ -452,7 +457,7 @@ export function createApiClient({
       list: (
         projectId: number,
         query: {
-          user?: number;
+          user?: number | "none";
           start_date?: string;
           end_date?: string;
           include_paid?: boolean;
@@ -474,26 +479,9 @@ export function createApiClient({
             page: query.page && query.page > 1 ? String(query.page) : undefined,
           })}`,
         ),
-      stats: (
-        projectId: number,
-        query: {
-          user?: number;
-          start_date?: string;
-          end_date?: string;
-          include_paid?: boolean;
-          payment_status?: string;
-          target?: string;
-        } = {},
-      ) =>
+      stats: (projectId: number, query: TimeEntryScopeQuery = {}) =>
         request<TimeEntryStats>(
-          `/api/projects/${projectId}/time-entries/stats/${buildQueryString({
-            user: query.user ? String(query.user) : undefined,
-            start_date: query.start_date,
-            end_date: query.end_date,
-            include_paid: query.include_paid ? "true" : undefined,
-            payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
-            target: query.target && query.target !== "project" ? query.target : undefined,
-          })}`,
+          `/api/projects/${projectId}/time-entries/stats/${buildTimeEntryScopeQueryString(query)}`,
         ),
       create: (projectId: number, payload: TimeEntryPayload) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/`, {
@@ -519,6 +507,13 @@ export function createApiClient({
           method: "PATCH",
           body: payload,
         }),
+      /** Paiement groupe : le montant est reparti cote serveur sur les entrees du scope
+       * (memes filtres que `stats`), de la plus ancienne a la plus recente. */
+      bulkPay: (projectId: number, query: TimeEntryScopeQuery, payload: TimeEntryBulkPaymentPayload) =>
+        request<TimeEntryBulkPayment>(
+          `/api/projects/${projectId}/time-entries/bulk-pay/${buildTimeEntryScopeQueryString(query)}`,
+          { method: "POST", body: payload },
+        ),
       get: (projectId: number, timeEntryId: number) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/`),
       trash: (projectId: number, query: { page?: number } = {}) =>
@@ -896,7 +891,7 @@ export function buildFinanceEntriesListQuery(
 }
 
 export interface TimeEntryListFilters {
-  userId?: number | "all";
+  userId?: number | "all" | "none";
   startDate?: string;
   endDate?: string;
   includePaid?: boolean;
@@ -1039,6 +1034,30 @@ function appendFormDataValue(formData: FormData, key: string, value: string | nu
 
 function buildUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+}
+
+/** Filtres qui definissent un ensemble d'entrees de temps cote serveur : partages par
+ * `stats` et `bulkPay`, pour que le montant payable corresponde exactement au total
+ * affiche pour ces memes filtres. */
+export interface TimeEntryScopeQuery {
+  /** `"none"` cible les entrees sans titulaire (compte supprime). */
+  user?: number | "none";
+  start_date?: string;
+  end_date?: string;
+  include_paid?: boolean;
+  payment_status?: string;
+  target?: string;
+}
+
+function buildTimeEntryScopeQueryString(query: TimeEntryScopeQuery) {
+  return buildQueryString({
+    user: query.user ? String(query.user) : undefined,
+    start_date: query.start_date,
+    end_date: query.end_date,
+    include_paid: query.include_paid ? "true" : undefined,
+    payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
+    target: query.target && query.target !== "project" ? query.target : undefined,
+  });
 }
 
 function buildQueryString(query: Record<string, string | undefined>) {

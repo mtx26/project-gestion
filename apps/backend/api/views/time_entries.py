@@ -13,7 +13,12 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 
 from ..models import TimeEntry
 from ..authorization import HasProjectPermission, PermissionCodeByMethodMixin
-from ..serializers import TimeEntryPaymentCorrectionSerializer, TimeEntryPaymentSerializer, TimeEntrySerializer
+from ..serializers import (
+    TimeEntryBulkPaymentSerializer,
+    TimeEntryPaymentCorrectionSerializer,
+    TimeEntryPaymentSerializer,
+    TimeEntrySerializer,
+)
 from ..services.folders import get_descendant_folder_ids
 from ..services.projects import get_accessible_projects
 from ..services.time_entries import (
@@ -41,15 +46,29 @@ class TimeEntryFilter(FolderScopedFilterSet):
     include_paid = django_filters.BooleanFilter(method="noop")
     start_date = django_filters.DateFilter(field_name="start_date__date", lookup_expr="gte")
     end_date = django_filters.DateFilter(field_name="start_date__date", lookup_expr="lte")
+    user = django_filters.CharFilter(method="filter_user")
     target = django_filters.CharFilter(method="filter_target")
     payment_status = django_filters.ChoiceFilter(choices=PAYMENT_STATUS_CHOICES, method="filter_payment_status")
 
     class Meta:
         model = TimeEntry
-        fields = ["user", "task"]
+        fields = ["task"]
 
     def noop(self, queryset, name, value):
         return queryset
+
+    def filter_user(self, queryset, name, value):
+        """`user=<id>` ou `user=none` pour les entrees orphelines — celles dont le titulaire
+        a ete supprime (`TimeEntry.user` est en `SET_NULL`). Sans ce mini-langage, ces heures
+        ne sont atteignables par aucun filtre alors qu'elles pesent dans les totaux."""
+        if value in (None, "", "all"):
+            return queryset
+        if value == "none":
+            return queryset.filter(user__isnull=True)
+        try:
+            return queryset.filter(user_id=int(value))
+        except (TypeError, ValueError):
+            return queryset
 
     def filter_target(self, queryset, name, value):
         project_id = self.request.parser_context["kwargs"].get("project_id")
@@ -119,8 +138,9 @@ class TimeEntryListFilter(TimeEntryFilter):
         summary="Lister les entrées de temps d'un projet",
         description=(
             "Retourne les entrées de temps actives d'un projet.\n\n"
-            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user`, `target` (project/folder-{id}/task-{id}),\n"
-            "  `payment_status` (all/paid/unpaid/partial/not_paid), `start_date`, `end_date`, `include_paid`.\n\n"
+            "- Filtres disponibles : `folder` (dossier et sous-dossiers), `task`, `user` ({id} ou `none` pour les entrées\n"
+            "  orphelines), `target` (project/folder-{id}/task-{id}), `payment_status` (all/paid/unpaid/partial/not_paid),\n"
+            "  `start_date`, `end_date`, `include_paid`.\n\n"
             "- Recherche disponible : `search` sur `description`.\n\n"
             "- Pagination disponible : `page`.\n\n"
             "- Permission requise : `time_entry.view`.\n\n"
@@ -315,6 +335,52 @@ class TimeEntryPaymentView(generics.GenericAPIView):
         serializer.is_valid(raise_exception=True)
         correction = serializer.save()
         return Response(self.get_serializer(correction).data)
+
+
+@extend_schema(tags=["time entries"])
+@extend_schema_view(
+    post=extend_schema(
+        summary="Payer un montant global réparti sur plusieurs entrées de temps",
+        description=(
+            "Répartit le montant envoyé sur les entrées de temps correspondant aux filtres,\n"
+            "de la plus ancienne à la plus récente : chaque entrée est soldée entièrement tant\n"
+            "que le montant restant le permet, seule la dernière servie pouvant l'être partiellement.\n\n"
+            "Accepte les mêmes filtres (en query string) que le endpoint de stats, pour que le montant\n"
+            "payable corresponde exactement au `remaining_amount` affiché. Le filtre `user` est\n"
+            "obligatoire : un paiement cible un membre précis.\n\n"
+            "Permission requise : `time_entry.pay`."
+        ),
+        request=TimeEntryBulkPaymentSerializer,
+        responses=TimeEntryBulkPaymentSerializer,
+    )
+)
+class TimeEntryBulkPaymentView(generics.GenericAPIView):
+    serializer_class = TimeEntryBulkPaymentSerializer
+    permission_classes = [IsAuthenticated, HasProjectPermission]
+    permission_code = "time_entry.pay"
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            return TimeEntry.objects.none()
+
+        # Meme scope que `TimeEntryStatsView` (`time_entry.view_all`, dont `time_entry.pay`
+        # depend deja) : un payeur paie exactement le total qu'il voit dans la synthese,
+        # sans avoir besoin de `time_entry.view_others_detail`.
+        queryset = get_project_time_entries(self.request.user, self.kwargs["project_id"], "time_entry.view_all")
+        return TimeEntryListFilter(self.request.query_params, queryset=queryset, request=self.request).qs
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if not getattr(self, "swagger_fake_view", False):
+            context["queryset"] = self.get_queryset()
+            context["scope_user"] = self.request.query_params.get("user")
+        return context
+
+    def post(self, request, project_id):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        result = serializer.save()
+        return Response(self.get_serializer(result).data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema(tags=["time entries"])

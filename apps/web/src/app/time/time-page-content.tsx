@@ -8,9 +8,10 @@ import {
   getApiPageSize,
   normalizeApiList,
   type TimeEntryListFilters,
+  type TimeEntryScopeQuery,
 } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Clock3, Lock, Plus } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -26,6 +27,7 @@ import { ProjectAccessGate } from "@/components/states/project-access-gate";
 import { PageHeader } from "@/components/page-title";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
+import { invalidateProjectResource } from "@/lib/invalidate-project-resource";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import {
@@ -46,7 +48,7 @@ import { FilterFolderPicker, FilterSearch, FilterSelect, FilterToggle } from "@/
 import { FilterPeriodPicker } from "@/components/filters/filter-period-picker";
 import { MemberFilterSelect } from "@/components/filters/member-filter-select";
 import { SelectItem } from "@/components/ui/select";
-import { type TimeEntrySubmitData, CorrectPaymentDialog, PaymentDialog, TimeEntryDetailModal, TimeEntryFormDialog } from "./components/time-dialogs";
+import { type TimeEntrySubmitData, BulkPaymentDialog, CorrectPaymentDialog, PaymentDialog, TimeEntryDetailModal, TimeEntryFormDialog } from "./components/time-dialogs";
 import {
   type UserFilter,
   getSelectedUserId,
@@ -73,6 +75,7 @@ function TimeView({
 }: ProjectWorkspaceState) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const projectId = selectedProject?.id ?? null;
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
   const canViewTime = can(permissionCodes.timeEntryView);
@@ -83,6 +86,11 @@ function TimeView({
   const canDeleteTime = can(permissionCodes.timeEntryDelete);
   const canViewTasks = can(permissionCodes.taskView);
   const canViewFiles = can(permissionCodes.fileView);
+  // Un payeur sans `time_entry.view_others_detail` ne voit que ses propres entrees dans la
+  // liste, ce qui n'a rien a voir avec ce qu'il paie : la page se reduit alors a la synthese
+  // (totaux + repartition par membre) et au bouton de paiement groupe.
+  const showEntryList = canViewTime && (canViewOthersDetail || !canPayTime);
+  const showTotalsPanel = canViewTime && (canRecordTime || canPayTime);
   const defaultUserFilter: UserFilter = canViewAllTime ? "all" : "mine";
   const userFilter = parseUserFilter(searchParams.get("user"), defaultUserFilter, canViewAllTime);
   const paymentStatusFilter = parsePaymentStatusFilter(searchParams.get("payment"));
@@ -92,8 +100,9 @@ function TimeView({
   const targetFilter = parseTargetFilter(searchParams.get("target"));
   const includePaid = parseBooleanParam(searchParams.get("include_paid"));
   const selectedUserId = getSelectedUserId(userFilter, user?.id ?? null);
-  const userFilterId: number | null =
+  const userFilterId: number | "none" | null =
     userFilter === "all" ? null :
+    userFilter === "none" ? "none" :
     userFilter === "mine" ? (user?.id ?? null) :
     Number(userFilter.replace("member-", ""));
   const periodRange = useMemo(
@@ -103,6 +112,7 @@ function TimeView({
 
   const [timeFormOpen, setTimeFormOpen] = useState(searchParams.get("new") === "1");
   const defaultHourlyRate = user?.profile?.default_hourly_rate ?? "0";
+  const [bulkPaymentOpen, setBulkPaymentOpen] = useState(false);
   const [paymentTarget, setPaymentTarget] = useState<TimeEntry | null>(null);
   const [correctionTarget, setCorrectionTarget] = useState<TimeEntry | null>(null);
   const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
@@ -136,9 +146,20 @@ function TimeView({
       ? buildTimeEntriesListQuery(api, selectedProject.id, timeFilters, page).queryKey
       : queryKeys.disabled(),
     queryFn: () => buildTimeEntriesListQuery(api, selectedProject!.id, timeFilters, page).queryFn(),
-    enabled: Boolean(projectId && canViewTime),
+    enabled: Boolean(projectId && showEntryList),
     placeholderData: keepPreviousData,
   });
+
+  // Scope serveur partage par la synthese et le paiement groupe : le montant payable est
+  // exactement le "reste a payer" affiche pour ces memes filtres.
+  const scopeQuery: TimeEntryScopeQuery = {
+    ...(selectedUserId == null ? {} : { user: selectedUserId }),
+    start_date: periodRange.startDate,
+    end_date: periodRange.endDate,
+    include_paid: includePaid,
+    payment_status: paymentStatusFilter,
+    target: targetFilter ?? undefined,
+  };
 
   const statsQuery = useQuery({
     queryKey: selectedProject
@@ -151,15 +172,7 @@ function TimeView({
           target: targetFilter ?? undefined,
         })
       : queryKeys.disabled(),
-    queryFn: () =>
-      api.timeEntries.stats(selectedProject!.id, {
-        ...(selectedUserId == null ? {} : { user: selectedUserId }),
-        start_date: periodRange.startDate,
-        end_date: periodRange.endDate,
-        include_paid: includePaid,
-        payment_status: paymentStatusFilter,
-        target: targetFilter ?? undefined,
-      }),
+    queryFn: () => api.timeEntries.stats(selectedProject!.id, scopeQuery),
     enabled: Boolean(projectId && canViewTime),
   });
 
@@ -175,6 +188,19 @@ function TimeView({
   const selectedFolderFilterId = targetFilter ? getTargetPayload(targetFilter).folder : null;
   const filterFolderLabel = selectedFolderFilterId != null ? (folderNameById.get(selectedFolderFilterId) ?? "Dossier") : null;
   const totalsLabel = getTotalsLabel(userFilter, paymentStatusFilter, dateFrom, dateTo, members, user?.id ?? null, targetFilterLabel);
+  // Un paiement cible une personne : les beneficiaires viennent du `by_user` des stats,
+  // visible des `time_entry.view_all` — donc disponible meme sans acces au detail des entrees.
+  // La ligne `user: null` (entrees orphelines d'un compte supprime) n'est payable par
+  // personne et sort donc de la liste, meme si elle pese dans le total affiche.
+  const payees = (statsQuery.data?.by_user ?? [])
+    .filter((row): row is typeof row & { user: number } => row.user != null)
+    .map((row) => ({
+      userId: row.user,
+      name: row.user === user?.id ? "Toi" : (userNameById.get(row.user) ?? `Utilisateur ${row.user}`),
+      remainingAmount: Number(row.remaining_amount),
+    }))
+    .filter((payee) => payee.remainingAmount > 0)
+    .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
   const createTimeEntry = useCrudMutation({
     mutationFn: (data: TimeEntrySubmitData) =>
@@ -197,6 +223,21 @@ function TimeView({
     invalidateKey: queryKeys.timeEntries.all(projectId ?? 0),
     successMessage: "Entree supprimee",
     onSuccess: () => setDeletingEntry(null),
+  });
+  const bulkPayTimeEntries = useCrudMutation({
+    mutationFn: (values: { userId: number; amount: string }) =>
+      api.timeEntries.bulkPay(
+        selectedProject!.id,
+        { ...scopeQuery, user: values.userId },
+        { amount: values.amount },
+      ),
+    invalidateKey: [queryKeys.timeEntries.all(projectId ?? 0), queryKeys.financialEntries.all(projectId ?? 0)],
+    successMessage: "Paiement enregistre",
+    onSuccess: () => setBulkPaymentOpen(false),
+    // Un refus vient le plus souvent d'un reste a payer perime (paiement concurrent, filtres
+    // deplaces) : on recharge le scope pour que le dialog reaffiche les bons montants avant
+    // que l'utilisateur ne retente.
+    onError: () => { void invalidateProjectResource(queryClient, queryKeys.timeEntries.all(projectId ?? 0)); },
   });
   const payTimeEntry = useCrudMutation({
     mutationFn: (values: { mode: "full" | "partial"; amount: string }) =>
@@ -225,6 +266,7 @@ function TimeView({
         folder: data.folder,
         task: data.task,
         documents: data.documentIds,
+        ...(data.user == null ? {} : { user: data.user }),
       }),
     invalidateKey: queryKeys.timeEntries.all(projectId ?? 0),
     successMessage: "Temps mis a jour",
@@ -246,6 +288,14 @@ function TimeView({
       router.push(buildProjectHref("/files", projectId));
     }
   }
+
+  const periodFilter = (
+    <FilterPeriodPicker
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
+    />
+  );
 
   if (projectsQuery.isLoading || !selectedProject || (!canViewTime && !canRecordTime)) {
     return (
@@ -272,20 +322,18 @@ function TimeView({
         ) : null}
       </PageHeader>
 
-      <FormErrorAlert error={canViewTime ? getErrorMessage(timeEntriesQuery.error) : null} />
+      <FormErrorAlert error={showEntryList ? getErrorMessage(timeEntriesQuery.error) : null} />
 
       {canViewTime ? (
         <CollapsibleFilterBar
-          primary={<FilterSearch value={searchQuery} onChange={handleSearchChange} />}
-          activeCount={[Boolean(dateFrom), canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includePaid].filter(Boolean).length}
+          // Sans liste d'entrees, la recherche n'a plus de cible (elle ne filtre pas la
+          // synthese, qui ignore `search`) : la periode prend alors le filtre principal.
+          primary={showEntryList ? <FilterSearch value={searchQuery} onChange={handleSearchChange} /> : periodFilter}
+          activeCount={[showEntryList && Boolean(dateFrom), canViewAllTime && userFilterId !== null, targetFilter != null, paymentStatusFilter !== "all", includePaid].filter(Boolean).length}
           clearPath="/time"
           clearKeys={["search", "date_from", "date_to", "user", "payment", "target", "include_paid", "page"]}
         >
-          <FilterPeriodPicker
-            dateFrom={dateFrom}
-            dateTo={dateTo}
-            onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
-          />
+          {showEntryList ? periodFilter : null}
           <FilterSelect
             value={paymentStatusFilter}
             onValueChange={(v) => updateUrlFilter({ payment: v, ...(v === "paid" ? { include_paid: true } : {}) })}
@@ -302,7 +350,8 @@ function TimeView({
               value={userFilterId}
               currentUserId={user?.id ?? null}
               selfLabel="Mes heures"
-              onChange={(id) => updateUrlFilter({ user: id === null ? null : `member-${id}` })}
+              unassignedLabel="Non attribue"
+              onChange={(id) => updateUrlFilter({ user: id === null ? null : id === "none" ? "none" : `member-${id}` })}
             />
           ) : null}
           <FilterFolderPicker
@@ -319,18 +368,19 @@ function TimeView({
         </CollapsibleFilterBar>
       ) : null}
 
-      <div className={canRecordTime && canViewTime ? "grid gap-4 lg:grid-cols-[320px_1fr] lg:items-start" : "grid gap-4"}>
-        {canRecordTime && canViewTime ? (
+      <div className={showTotalsPanel && showEntryList ? "grid gap-4 lg:grid-cols-[320px_1fr] lg:items-start" : "grid gap-4"}>
+        {showTotalsPanel ? (
           <TimeTotalsPanel
             label={totalsLabel}
             totals={totals}
             byUser={statsQuery.data?.by_user ?? []}
             userNameById={userNameById}
             currentUserId={user?.id ?? null}
+            onPay={canPayTime ? () => setBulkPaymentOpen(true) : undefined}
           />
         ) : null}
 
-        {!canRecordTime && canViewTime ? (
+        {canViewTime && !showTotalsPanel ? (
           <div>
             <p className="mb-2 text-xs font-medium uppercase text-muted-foreground">{totalsLabel}</p>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -349,13 +399,13 @@ function TimeView({
           </Alert>
         ) : null}
 
-        {canViewTime ? (
+        {showEntryList ? (
           <Card className="rounded-lg">
             <CardHeader>
               <CardTitle>Entrees de temps</CardTitle>
             </CardHeader>
             <CardContent>
-              {!canViewOthersDetail && canViewTime ? (
+              {!canViewOthersDetail ? (
                 <p className="mb-3 text-sm text-muted-foreground">Vue limitee a tes propres entrees.</p>
               ) : null}
               <TimeEntryList
@@ -395,6 +445,17 @@ function TimeView({
         onSubmit={(data) => { if (selectedProject && user && canRecordTime) createTimeEntry.mutate(data); }}
       />
 
+      <BulkPaymentDialog
+        key={bulkPaymentOpen ? "bulk-payment-open" : "bulk-payment-closed"}
+        open={bulkPaymentOpen}
+        scopeLabel={totalsLabel}
+        payees={payees}
+        defaultPayeeId={typeof userFilterId === "number" ? userFilterId : null}
+        isPending={bulkPayTimeEntries.isPending}
+        error={bulkPayTimeEntries.error}
+        onOpenChange={(open) => { setBulkPaymentOpen(open); if (!open) bulkPayTimeEntries.reset(); }}
+        onSubmit={(values) => bulkPayTimeEntries.mutate(values)}
+      />
       <PaymentDialog
         key={paymentTarget?.id ?? "payment-none"}
         entry={paymentTarget}
@@ -418,6 +479,7 @@ function TimeView({
         projectId={selectedProject?.id ?? 0}
         canPay={canPayTime}
         targetFolders={targetFolders}
+        members={members}
         isPending={updateTimeEntry.isPending}
         error={updateTimeEntry.error}
         onCreateFolderAction={canRecordTime ? handleCreateFolder : undefined}

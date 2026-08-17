@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -3472,6 +3472,23 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
 
+    def test_list_can_filter_by_user_and_by_orphan_entries(self):
+        self.given_authenticated(self.owner)
+        TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=45,
+            hourly_rate="30.00",
+            description="Orphan work",
+            start_date=timezone.now(),
+        )
+
+        by_member = self.when_list_time_entries(f"?user={self.worker.id}")
+        orphans = self.when_list_time_entries("?user=none")
+
+        self.assert_visible_time_descriptions(by_member, ["Folder work"])
+        self.assert_visible_time_descriptions(orphans, ["Orphan work"])
+
     def test_list_can_filter_by_date_range(self):
         TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
             start_date=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
@@ -3838,6 +3855,60 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
         self.assert_time_description("Target time")
 
+    # TESTS PATCH — attribution d'une entree orpheline
+    def test_owner_can_assign_an_orphan_time_entry_to_a_member(self):
+        self.given_member_with_permissions([])
+        self.given_authenticated(self.owner)
+        orphan = TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Orphan time",
+            start_date=timezone.now(),
+        )
+
+        response = self.api_patch(
+            f"/api/projects/{self.project.id}/time-entries/{orphan.id}/",
+            {"user": self.member.id},
+        )
+
+        self.assert_ok(response)
+        orphan.refresh_from_db()
+        self.assertEqual(orphan.user_id, self.member.id)
+
+    def test_assigning_an_already_assigned_time_entry_to_another_user_is_rejected(self):
+        # Les heures d'une entree attribuee peuvent deja avoir ete payees a son titulaire :
+        # seules les entrees orphelines sont attribuables.
+        self.given_member_with_permissions([])
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_time_entry({"user": self.member.id})
+
+        self.assert_bad_request(response)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.user_id, self.owner.id)
+
+    def test_assigning_an_orphan_time_entry_to_a_non_member_is_rejected(self):
+        self.given_authenticated(self.owner)
+        orphan = TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Orphan time",
+            start_date=timezone.now(),
+        )
+
+        response = self.api_patch(
+            f"/api/projects/{self.project.id}/time-entries/{orphan.id}/",
+            {"user": self.other_user.id},
+        )
+
+        self.assert_bad_request(response)
+        orphan.refresh_from_db()
+        self.assertIsNone(orphan.user_id)
+
     # TESTS DELETE
     def test_owner_can_soft_delete_time_entry(self):
         self.given_authenticated(self.owner)
@@ -3931,6 +4002,27 @@ class TimeEntryStatsRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_by_user_ids(response, [self.worker.id, self.owner.id])
 
+    def test_orphan_entries_are_reported_as_an_unattributed_breakdown_row(self):
+        # Sans ligne `user: null`, la somme de `by_user` ne retombe pas sur le total global
+        # et le "reste a payer" affiche depasse ce qui est attribuable a quelqu'un.
+        self.given_authenticated(self.owner)
+        TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Orphan work",
+            start_date=timezone.now(),
+        )
+
+        response = self.when_get_stats()
+
+        self.assert_ok(response)
+        self.assert_by_user_ids(response, [self.worker.id, self.owner.id, None])
+        by_user = self.response_data(response)["by_user"]
+        orphan_row = next(row for row in by_user if row["user"] is None)
+        self.assertEqual(orphan_row["cost_amount"], "50.00")
+
     def test_member_with_time_entry_view_all_only_still_has_own_detail_list_only(self):
         # `view_all` donne acces a la synthese complete mais pas a la liste
         # detaillee des autres membres : les deux permissions sont independantes.
@@ -4000,6 +4092,117 @@ class TimeEntryPaymentRoutePermissionTests(ProjectApiTestCase):
         response = self.when_pay_time_entry({"amount": "40.01"})
 
         self.assert_bad_request(response)
+
+
+class TimeEntryBulkPaymentRoutePermissionTests(ProjectApiTestCase):
+    """Paiement groupe : un montant global reparti de l'entree la plus ancienne a la plus
+    recente, la derniere servie pouvant ne l'etre que partiellement. Le scope paye suit les
+    memes filtres (query string) que le endpoint de stats, `user` etant obligatoire."""
+
+    def setUp(self):
+        super().setUp()
+
+        now = timezone.now()
+        self.oldest = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Oldest payable time",
+            start_date=now - timedelta(days=2),
+        )
+        self.middle = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="40.00",
+            description="Middle payable time",
+            start_date=now - timedelta(days=1),
+        )
+        self.newest = TimeEntry.objects.create(
+            project=self.project,
+            user=self.member,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Newest payable time",
+            start_date=now,
+        )
+        self.url = f"/api/projects/{self.project.id}/time-entries/bulk-pay/"
+
+    # WHEN
+    def when_bulk_pay(self, payload, user=None):
+        query = "" if user is None else f"?user={user.id}"
+        return self.api_post(f"{self.url}{query}", payload)
+
+    # ASSERT
+    def assert_paid_amount(self, time_entry, expected_amount):
+        self.assertEqual(time_entry.get_paid_amount(), Decimal(expected_amount))
+
+    # TESTS
+    def test_owner_bulk_payment_settles_entries_from_oldest_to_newest(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_bulk_pay({"amount": "50.00"}, user=self.owner)
+
+        self.assert_created(response)
+        self.assertEqual(self.response_data(response)["paid_entry_count"], 1)
+        self.assertEqual(self.response_data(response)["partial_entry_count"], 1)
+        self.assert_paid_amount(self.oldest, "40.00")
+        self.assert_paid_amount(self.middle, "10.00")
+        self.assert_paid_amount(self.newest, "0.00")
+
+    def test_member_with_time_entry_pay_can_bulk_pay_other_members_entries(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all", "time_entry.pay"])
+
+        response = self.when_bulk_pay({"amount": "40.00"}, user=self.owner)
+
+        self.assert_created(response)
+        self.assert_paid_amount(self.oldest, "40.00")
+
+    def test_member_without_time_entry_pay_cannot_bulk_pay(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+
+        response = self.when_bulk_pay({"amount": "40.00"}, user=self.owner)
+
+        self.assert_forbidden(response)
+
+    def test_bulk_payment_requires_a_selected_user(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_bulk_pay({"amount": "40.00"})
+
+        self.assert_bad_request(response)
+        self.assertIn("user", self.response_data(response))
+        self.assert_paid_amount(self.oldest, "0.00")
+
+    def test_bulk_payment_rejects_the_orphan_scope(self):
+        # `user=none` filtre les entrees sans titulaire : un scope valide pour la liste,
+        # mais sans beneficiaire a payer.
+        self.given_authenticated(self.owner)
+
+        response = self.api_post(f"{self.url}?user=none", {"amount": "10.00"})
+
+        self.assert_bad_request(response)
+        self.assertIn("user", self.response_data(response))
+
+    def test_bulk_payment_rejects_amount_above_the_selected_user_remaining_total(self):
+        self.given_authenticated(self.owner)
+
+        # 40.00 (oldest) + 20.00 (middle) pour l'owner : l'entree du membre n'entre pas
+        # dans le scope et n'augmente donc pas le montant payable.
+        response = self.when_bulk_pay({"amount": "60.01"}, user=self.owner)
+
+        self.assert_bad_request(response)
+        self.assert_paid_amount(self.oldest, "0.00")
+
+    def test_bulk_payment_only_covers_entries_of_the_selected_user(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_bulk_pay({"amount": "40.00"}, user=self.member)
+
+        self.assert_created(response)
+        self.assert_paid_amount(self.newest, "40.00")
+        self.assert_paid_amount(self.oldest, "0.00")
 
 
 class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):

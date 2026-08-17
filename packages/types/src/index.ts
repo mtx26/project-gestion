@@ -302,7 +302,8 @@ export type TimeEntry = {
   task: ID | null;
   task_name: string | null;
   user: ID | null;
-  user_display_name: string;
+  /** `null` pour une entree orpheline (titulaire supprime), reattribuable via un PATCH `user`. */
+  user_display_name: string | null;
   start_date: string;
   duration_minutes: number;
   hourly_rate: string;
@@ -343,8 +344,22 @@ export type TimeEntryPayment = {
   time_entry: TimeEntry;
 };
 
+export type TimeEntryBulkPaymentPayload = {
+  amount: string;
+};
+
+/** Resultat du paiement groupe : le backend repartit le montant de l'entree la plus
+ * ancienne a la plus recente, `partial_entry_count` couvrant la derniere entree servie
+ * quand le montant ne suffit pas a la solder. */
+export type TimeEntryBulkPayment = {
+  paid_amount: string;
+  paid_entry_count: number;
+  partial_entry_count: number;
+};
+
 export type TimeEntryUserStats = {
-  user: number;
+  /** `null` pour les entrees orphelines (compte supprime) : non attribuables, donc non payables. */
+  user: number | null;
   duration_minutes: number;
   cost_amount: string;
   paid_amount: string;

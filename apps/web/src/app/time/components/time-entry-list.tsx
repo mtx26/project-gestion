@@ -63,7 +63,7 @@ export function TimeEntryList({
         <TimeEntryRow
           key={entry.id}
           entry={entry}
-          displayName={entry.user_display_name}
+          displayName={entry.user_display_name ?? "Non attribue"}
           targetLabel={getEntryTargetLabel(entry)}
           canPay={canPay}
           canEdit={canEdit}

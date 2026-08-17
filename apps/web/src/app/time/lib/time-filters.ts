@@ -1,11 +1,14 @@
 import type { TimeEntry } from "@project-gestion/types";
 import { detectPreset, getPeriodLabel } from "@/lib/period-utils";
 
-export type UserFilter = "mine" | "all" | `member-${number}`;
+/** `"none"` cible les entrees orphelines (titulaire supprime), visibles seulement avec
+ * `time_entry.view_all` comme les entrees des autres membres. */
+export type UserFilter = "mine" | "all" | "none" | `member-${number}`;
 export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid" | "not_paid";
 
 export function parseUserFilter(value: string | null, fallback: UserFilter, canViewAllTime: boolean): UserFilter {
   if (value === "all" && canViewAllTime) return "all";
+  if (value === "none" && canViewAllTime) return "none";
   if (value?.startsWith("member-") && canViewAllTime) {
     const userId = Number(value.replace("member-", ""));
     return Number.isFinite(userId) && userId > 0 ? `member-${userId}` : fallback;
@@ -33,8 +36,9 @@ export function parseTargetFilter(value: string | null): string | null {
 }
 
 
-export function getSelectedUserId(filter: UserFilter, currentUserId: number | null): number | null {
+export function getSelectedUserId(filter: UserFilter, currentUserId: number | null): number | "none" | null {
   if (filter === "all") return null;
+  if (filter === "none") return "none";
   if (filter === "mine") return currentUserId;
   return Number(filter.replace("member-", ""));
 }
@@ -71,9 +75,11 @@ export function getTotalsLabel(
   const userLabel =
     userFilter === "all"
       ? "tous les membres"
-      : userFilter === "mine"
-        ? "mes heures"
-        : (members.find((m) => m.user === getSelectedUserId(userFilter, currentUserId))?.user_display_name ?? "membre");
+      : userFilter === "none"
+        ? "non attribue"
+        : userFilter === "mine"
+          ? "mes heures"
+          : (members.find((m) => m.user === getSelectedUserId(userFilter, currentUserId))?.user_display_name ?? "membre");
   const statusLabel = paymentStatusFilter === "all" ? "tous statuts" : getPaymentStatusLabel(paymentStatusFilter).toLowerCase();
   const detected = detectPreset(dateFrom, dateTo);
   const periodLabel = detected === "custom"

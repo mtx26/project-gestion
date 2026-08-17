@@ -2,9 +2,11 @@
 
 import type { FolderTreeNode, TimeEntry } from "@project-gestion/types";
 import {
+  makeBulkPaymentSchema,
   makeCorrectionSchema,
   makePaymentSchema,
   timeEntrySchema,
+  type BulkPaymentFormValues,
   type CorrectionFormValues,
   type PaymentFormValues,
   type TimeEntryFormInput,
@@ -50,6 +52,8 @@ export type TimeEntrySubmitData = {
   description: string | null;
   folder: number | null;
   task: number | null;
+  /** Seulement renseigne quand on attribue une entree orpheline (voir `TimeEntryFormDialog`). */
+  user?: number;
 };
 
 /** Single create/edit dialog for time entries, matching the `mode="create"|"edit"`
@@ -66,6 +70,7 @@ export function TimeEntryFormDialog({
   canPay = false,
   defaultHourlyRate,
   targetFolders,
+  members = [],
   isPending,
   error,
   onCreateFolderAction,
@@ -81,6 +86,8 @@ export function TimeEntryFormDialog({
   canPay?: boolean;
   defaultHourlyRate?: string;
   targetFolders: FolderTreeNode[];
+  /** Sert uniquement a attribuer une entree orpheline — sinon le champ n'apparait pas. */
+  members?: Array<{ user: number; user_display_name: string }>;
   isPending: boolean;
   error: unknown;
   onCreateFolderAction?: (name: string, parentId: number | null) => Promise<void>;
@@ -103,6 +110,11 @@ export function TimeEntryFormDialog({
     },
   });
   const [targetValue, setTargetValue] = useState(entry ? getTargetValueFromEntry(entry) : "project");
+  // Une entree orpheline (compte supprime) n'a plus de titulaire : on peut lui en donner un.
+  // Une entree deja attribuee n'est pas reattribuable — ses heures ont pu etre payees a
+  // quelqu'un (refuse aussi cote serveur, `errors.time_entry.user_already_assigned`).
+  const isOrphanEntry = mode === "edit" && entry != null && entry.user == null;
+  const [assignedUserId, setAssignedUserId] = useState("");
   const docs = useDocumentAttachment(
     entry?.documents_info ?? [],
   );
@@ -139,6 +151,7 @@ export function TimeEntryFormDialog({
       description: values.description,
       folder,
       task,
+      ...(isOrphanEntry && assignedUserId ? { user: Number(assignedUserId) } : {}),
     });
   }
 
@@ -204,6 +217,29 @@ export function TimeEntryFormDialog({
             onEndChange={(v) => form.setValue("endDate", v, { shouldValidate: true })}
           />
           <FieldError errors={[form.formState.errors.startDate]} />
+
+          {isOrphanEntry ? (
+            <Field>
+              <FieldLabel htmlFor="time-entry-user">Attribuer a</FieldLabel>
+              <Select value={assignedUserId} onValueChange={setAssignedUserId}>
+                <SelectTrigger id="time-entry-user" className="bg-background">
+                  <SelectValue placeholder="Choisir un membre" />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.map((member) => (
+                    <SelectItem key={member.user} value={String(member.user)}>
+                      {member.user_display_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Cette entree n&apos;a plus de titulaire (compte supprime) : ses heures ne sont
+                comptees pour personne et ne peuvent etre payees a personne. Les paiements deja
+                enregistres suivent l&apos;entree.
+              </p>
+            </Field>
+          ) : null}
 
           <div className="flex items-end gap-3">
             <Field className="flex-1">
@@ -284,7 +320,7 @@ export function TimeEntryDetailModal({
   const targetLabel = getEntryTargetLabel(entry);
   const targetClickable =
     target != null && onTargetClick != null && (target.type === "task" ? canViewTaskTarget : canViewFolderTarget);
-  const displayName = entry.user_display_name;
+  const displayName = entry.user_display_name ?? "Non attribue";
   const paidRatio =
     Number(entry.cost_amount) > 0
       ? Math.min(100, (Number(entry.paid_amount) / Number(entry.cost_amount)) * 100)
@@ -472,6 +508,136 @@ export function PaymentDialog({
           </Field>
         ) : null}
       </form>
+    </FormDialog>
+  );
+}
+
+export interface BulkPaymentPayee {
+  userId: number;
+  name: string;
+  remainingAmount: number;
+}
+
+/** Paiement groupe : on choisit un membre, puis un montant que le serveur repartit sur
+ * ses entrees du scope courant (memes filtres que la synthese), de la plus ancienne a la
+ * plus recente. Monte via `key` a chaque ouverture pour repartir des restes a payer
+ * courants. */
+export function BulkPaymentDialog({
+  open,
+  scopeLabel,
+  payees,
+  defaultPayeeId,
+  isPending,
+  error,
+  onOpenChange,
+  onSubmit,
+}: {
+  open: boolean;
+  scopeLabel: string;
+  /** Membres ayant un reste a payer dans le scope courant (`by_user` des stats). */
+  payees: BulkPaymentPayee[];
+  defaultPayeeId: number | null;
+  isPending: boolean;
+  error: unknown;
+  onOpenChange: (open: boolean) => void;
+  onSubmit: (values: { userId: number; amount: string }) => void;
+}) {
+  const initialPayee = payees.find((payee) => payee.userId === defaultPayeeId) ?? (payees.length === 1 ? payees[0] : null);
+  const remainingByUserId = Object.fromEntries(payees.map((payee) => [String(payee.userId), payee.remainingAmount]));
+
+  const form = useForm<BulkPaymentFormValues>({
+    resolver: zodResolver(makeBulkPaymentSchema(remainingByUserId)),
+    defaultValues: {
+      userId: initialPayee ? String(initialPayee.userId) : "",
+      amount: initialPayee ? initialPayee.remainingAmount.toFixed(2) : "",
+    },
+  });
+
+  const selectedUserId = useWatch({ control: form.control, name: "userId" });
+  const selectedPayee = payees.find((payee) => String(payee.userId) === selectedUserId) ?? null;
+  const remainingAmount = selectedPayee?.remainingAmount ?? 0;
+
+  useServerFieldErrors(form, error, ["amount", { name: "userId", serverField: "user" }]);
+
+  return (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Payer un membre"
+      description={
+        selectedPayee
+          ? `${scopeLabel} — reste a payer a ${selectedPayee.name} : ${formatMoney(remainingAmount)}.`
+          : `${scopeLabel} — choisis le membre a payer.`
+      }
+      maxWidth="md"
+      error={getErrorMessage(error)}
+      footer={
+        <>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">Annuler</Button>
+          </DialogClose>
+          <FormSubmitButton
+            form="bulk-payment-form"
+            pending={isPending}
+            disabled={payees.length === 0}
+            label="Payer"
+            pendingLabel="Paiement..."
+          />
+        </>
+      }
+    >
+      {payees.length === 0 ? (
+        <Alert>
+          <AlertDescription>Aucun membre n&apos;a de reste a payer dans cette selection.</AlertDescription>
+        </Alert>
+      ) : (
+        <form
+          id="bulk-payment-form"
+          className="space-y-4"
+          onSubmit={form.handleSubmit((values) => onSubmit({ userId: Number(values.userId), amount: values.amount }))}
+        >
+          <Field>
+            <Label htmlFor="bulk-payment-user">Membre a payer</Label>
+            <Controller
+              control={form.control}
+              name="userId"
+              render={({ field }) => (
+                <Select
+                  value={field.value}
+                  onValueChange={(value) => {
+                    field.onChange(value);
+                    const payee = payees.find((row) => String(row.userId) === value);
+                    form.setValue("amount", payee ? payee.remainingAmount.toFixed(2) : "");
+                  }}
+                >
+                  <SelectTrigger id="bulk-payment-user" className="bg-background">
+                    <SelectValue placeholder="Choisir un membre" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {payees.map((payee) => (
+                      <SelectItem key={payee.userId} value={String(payee.userId)}>
+                        {payee.name} — {formatMoney(payee.remainingAmount)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+            <FieldError errors={[form.formState.errors.userId]} />
+          </Field>
+
+          <Field>
+            <Label htmlFor="bulk-payment-amount">Montant a payer</Label>
+            <MoneyInput id="bulk-payment-amount" {...form.register("amount")} />
+            <FieldError errors={[form.formState.errors.amount]} />
+            <p className="text-xs text-muted-foreground">
+              Le montant est reparti de l&apos;entree la plus ancienne a la plus recente : chacune est
+              soldee entierement tant que le montant le permet, seule la derniere servie pouvant l&apos;etre
+              partiellement.
+            </p>
+          </Field>
+        </form>
+      )}
     </FormDialog>
   );
 }

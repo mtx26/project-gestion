@@ -114,7 +114,7 @@ export const queryKeys = {
     list: (
       projectId: number,
       query: {
-        userId?: number | "all";
+        userId?: number | "all" | "none";
         startDate?: string;
         endDate?: string;
         includePaid?: boolean;
@@ -137,7 +137,7 @@ export const queryKeys = {
     stats: (
       projectId: number,
       query: {
-        userId?: number | "all";
+        userId?: number | "all" | "none";
         startDate?: string;
         endDate?: string;
         includePaid?: boolean;

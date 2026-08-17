@@ -6,5 +6,5 @@ import type { QueryClient, QueryKey } from "@tanstack/react-query";
  * that a single, precise invalidation per resource beats tracking which
  * mutation might affect which aggregate. */
 export function invalidateProjectResource(queryClient: QueryClient, key: QueryKey): Promise<void> {
-  return queryClient.invalidateQueries({ queryKey: key });
+  return queryClient.invalidateQueries({ queryKey: key, refetchType: "all" });
 }
