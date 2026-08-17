@@ -465,7 +465,7 @@ class TimeEntryQuerySet(ProjectScopedQuerySetMixin, models.QuerySet):
     def with_financial_totals(self):
         """Annotates `filter_cost_amount`/`filter_paid_amount` (duration × hourly rate;
         net of linked, non-deleted FinancialEntry expenses/refunds), used by
-        `TimeEntryFilter` (`payment_status`/`include_paid`) and by the stats endpoint's
+        `TimeEntryFilter` (`payment_status`) and by the stats endpoint's
         project-wide and per-user totals.
 
         `filter_paid_amount` is a correlated `Subquery` (via `OuterRef`) rather than a
@@ -530,6 +530,10 @@ class TimeEntry(BaseModel):
     folder = models.ForeignKey(Folder, on_delete=models.SET_NULL, null=True, blank=True)
     task = models.ForeignKey(Task, on_delete=models.SET_NULL, null=True, blank=True)
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    # Repris du titre de la tache liee quand l'entree en a une et qu'aucun titre n'est
+    # fourni (voir `TimeEntrySerializer.create`) : une entree rattachee a une tache porte
+    # le meme intitule qu'elle, sans avoir a le ressaisir.
+    title = models.CharField(max_length=255, blank=True, default="")
     start_date = models.DateTimeField()
     duration_minutes = models.PositiveIntegerField()
     hourly_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)

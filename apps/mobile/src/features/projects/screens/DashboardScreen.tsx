@@ -25,10 +25,9 @@ export function DashboardScreen() {
   const canViewMembers = can(permissionCodes.memberView);
 
   const projectId = selectedProject?.id ?? null;
-  // exclude_done defaults to true server-side whenever status isn't set, so
-  // this is already "high priority, not done" — count comes straight from
-  // the backend's pagination total, not the size of whatever page loaded.
-  const urgentTasksQuery = useTasks(canViewTasks ? projectId : null, { priority: "high" });
+  // `status: "not_done"` explicite : le compteur porte sur ce qui reste a faire. Le total
+  // vient de la pagination du backend, pas de la taille de la page chargee.
+  const urgentTasksQuery = useTasks(canViewTasks ? projectId : null, { priority: "high", status: "not_done" });
   const urgentTasksCount = urgentTasksQuery.count;
   const membersQuery = useProjectMembers(canViewMembers ? projectId : null);
 

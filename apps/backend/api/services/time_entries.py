@@ -1,10 +1,11 @@
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
+from django.db import transaction
 from django.db.models import Count, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 
-from ..models import Project, TimeEntry
+from ..models import FinancialEntry, Project, TimeEntry
 
 
 def get_project_time_entries_base(user, project_id):
@@ -23,8 +24,8 @@ def get_project_deleted_time_entries_base(user, project_id):
 def get_project_time_entries(user, project_id, permission_code):
     """Base queryset for the active `/time-entries/` endpoints: scoped to
     `project_id`, restricted to the user's own entries unless they hold
-    `permission_code`, and annotated for `TimeEntryFilter` (payment_status,
-    include_paid). Callers pass the permission that matches what they expose:
+    `permission_code`, and annotated for `TimeEntryFilter` (payment_status).
+    Callers pass the permission that matches what they expose:
     `time_entry.view_others_detail` for the list/detail endpoints, `time_entry.view_all`
     for the `/stats/` endpoint — two independent axes (see `TimeEntryQuerySet.own_unless_has_permission`)."""
     project = get_object_or_404(Project.objects.accessible_to(user), pk=project_id)
@@ -70,10 +71,15 @@ def compute_time_entry_stats(queryset) -> dict:
     """Project-wide totals plus a per-user breakdown (`by_user`, for the Synthese
     panel — shows each member's aggregate without exposing their individual entries,
     which requires `time_entry.view_others_detail` separately, enforced at the
-    list/detail queryset level, not here)."""
+    list/detail queryset level, not here).
+
+    Les entrees orphelines (`user` a NULL, laissees par un compte supprime — le champ est
+    en `SET_NULL`) forment leur propre ligne `user: null` : les exclure ferait un
+    `by_user` dont la somme ne retombe pas sur le total global, donc un "reste a payer"
+    superieur a ce qui est reellement attribuable a quelqu'un."""
     grand_total = queryset.aggregate(**_sum_totals_kwargs())
     by_user = (
-        queryset.exclude(user__isnull=True)
+        queryset
         .values("user")
         .annotate(**_sum_totals_kwargs())
         .order_by("user")
@@ -81,4 +87,56 @@ def compute_time_entry_stats(queryset) -> dict:
     return {
         **_format_totals(**grand_total),
         "by_user": [{"user": row.pop("user"), **_format_totals(**row)} for row in by_user],
+    }
+
+
+def compute_time_entries_remaining_amount(queryset) -> Decimal:
+    """Reste a payer agrege sur `queryset` — meme calcul (et meme clamp a zero) que le
+    `remaining_amount` renvoye par le endpoint de stats, pour que le montant maximum
+    accepte par le paiement groupe corresponde exactement au total affiche."""
+    return Decimal(_format_totals(**queryset.aggregate(**_sum_totals_kwargs()))["remaining_amount"])
+
+
+def pay_time_entries_oldest_first(queryset, amount, actor) -> dict:
+    """Repartit `amount` sur les entrees de `queryset`, de la plus ancienne a la plus
+    recente : chaque entree est soldee entierement tant que le montant restant le
+    permet, seule la derniere servie pouvant l'etre partiellement.
+
+    Cree une `FinancialEntry` de type EXPENSE par entree servie — la meme ecriture que
+    le paiement unitaire (`TimeEntryPaymentSerializer.create`), pour que les deux
+    chemins produisent un historique financier identique. L'appelant garantit en amont
+    que `amount` ne depasse pas le reste a payer du scope (voir
+    `TimeEntryBulkPaymentSerializer.validate`)."""
+    unallocated = amount
+    paid_entry_count = 0
+    partial_entry_count = 0
+
+    with transaction.atomic():
+        for time_entry in queryset.order_by("start_date", "id"):
+            if unallocated <= Decimal("0.00"):
+                break
+
+            entry_remaining = time_entry.get_remaining_amount()
+            allocated = min(entry_remaining, unallocated).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            if allocated <= Decimal("0.00"):
+                continue
+
+            FinancialEntry.objects.create(
+                project=time_entry.project,
+                time_entry=time_entry,
+                created_by=actor,
+                amount=allocated,
+                type=FinancialEntry.FinancialType.EXPENSE,
+            )
+
+            unallocated -= allocated
+            if allocated >= entry_remaining:
+                paid_entry_count += 1
+            else:
+                partial_entry_count += 1
+
+    return {
+        "paid_amount": str((amount - unallocated).quantize(Decimal("0.01"))),
+        "paid_entry_count": paid_entry_count,
+        "partial_entry_count": partial_entry_count,
     }

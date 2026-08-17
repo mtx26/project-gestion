@@ -9,7 +9,6 @@ from drf_spectacular.utils import extend_schema, extend_schema_view
 from ..models import Document, Folder, Task
 from ..serializers import (
     FolderSerializer,
-    FolderTargetTreeSerializer,
     FolderTreeNodeSerializer,
     FolderTreeQuerySerializer,
     FolderTreeSerializer,
@@ -66,20 +65,31 @@ class FolderListCreateView(PermissionCodeByMethodMixin, generics.ListCreateAPIVi
     get=extend_schema(
         summary="Arbre des dossiers d'un projet",
         description=(
-            "Retourne les dossiers et documents d'un projet sous forme d'arbre.\n\n"
-            "- Paramètre disponible : `include_tasks=true` — inclut les tâches non terminées si l'utilisateur a la permission `task.view`.\n\n"
+            "Retourne l'arborescence d'un projet, utilisée aussi bien comme explorateur de fichiers "
+            "que comme filtre dossier ou sélecteur de cible (projet / dossier / tâche) par toutes les "
+            "sections : fichiers, tâches, temps, finance, remboursements.\n\n"
             "- Paramètre disponible : `include_files=false` — exclut les documents de la réponse.\n\n"
-            "- Permission requise : `file.view`."
+            "- Paramètre disponible : `include_tasks=true` — inclut les tâches si l'utilisateur a la permission `task.view`.\n\n"
+            "- Paramètre disponible : `task_scope=open|all` (défaut `open`) — `open` ne garde que les tâches "
+            "à faire ou en cours, triées par échéance (vue de travail) ; `all` retourne toutes les tâches, "
+            "triées par titre (sélecteur de cible : on peut rattacher une écriture à une tâche terminée).\n\n"
+            "- Permission requise : appartenir au projet. Les documents ne sont inclus qu'avec `file.view` "
+            "et les tâches qu'avec `task.view` : chaque section est filtrée selon les droits, la structure "
+            "de dossiers elle-même étant visible par tout membre."
         ),
         responses=FolderTreeNodeSerializer(many=True),
         parameters=[FolderTreeQuerySerializer],
     )
 )
 class FolderTreeView(generics.GenericAPIView):
+    """Pas de `permission_code` unique : l'arbre sert de filtre commun a toutes les
+    sections, donc le gater sur `file.view` priverait de filtre dossier un membre qui a
+    `finance.view` ou `time_entry.view` sans acces aux fichiers. Le contenu sensible est
+    filtre section par section ci-dessous — meme approche que `ProjectCalendarView`."""
+
     serializer_class = FolderTreeSerializer
     queryset = Folder.objects.none()
     permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "file.view"
 
     def get(self, request, project_id):
         query_serializer = FolderTreeQuerySerializer(data=request.query_params)
@@ -88,17 +98,20 @@ class FolderTreeView(generics.GenericAPIView):
 
         folders = get_project_folders(request.user, project_id).order_by("name", "id")
 
-        if params["include_files"]:
+        project = get_object_or_404(get_accessible_projects(request.user), pk=project_id)
+        auth = ProjectAuthorization(request.user, project)
+
+        if params["include_files"] and auth.has("file.view"):
             documents = get_project_documents(request.user, project_id).order_by("name", "id")
         else:
             documents = Document.objects.none()
 
-        project = get_object_or_404(get_accessible_projects(request.user), pk=project_id)
-        if params["include_tasks"] and ProjectAuthorization(request.user, project).has("task.view"):
-            tasks = Task.objects.filter(
-                project_id=project_id,
-                status__in=["todo", "in_progress"],
-            ).order_by("end_date", "title", "id")
+        if params["include_tasks"] and auth.has("task.view"):
+            tasks = Task.objects.filter(project_id=project_id)
+            if params["task_scope"] == "open":
+                tasks = tasks.filter(status__in=["todo", "in_progress"]).order_by("end_date", "title", "id")
+            else:
+                tasks = tasks.order_by("title", "id")
         else:
             tasks = Task.objects.none()
 
@@ -110,48 +123,6 @@ class FolderTreeView(generics.GenericAPIView):
         }))
 
 
-@extend_schema(tags=["folders"])
-@extend_schema_view(
-    get=extend_schema(
-        summary="Arbre des cibles de temps d'un projet",
-        description=(
-            "Retourne les dossiers et tâches d'un projet sous forme d'arbre, "
-            "utilisé pour sélectionner la cible d'une entrée de temps.\n"
-            "Les tâches sont incluses si l'utilisateur a la permission `task.view`.\n"
-            "Permission requise : `time_entry.edit`."
-        ),
-        responses=FolderTreeNodeSerializer(many=True),
-    )
-)
-class FolderTargetTreeView(generics.GenericAPIView):
-    serializer_class = FolderTargetTreeSerializer
-    queryset = Folder.objects.none()
-    permission_classes = [IsAuthenticated, HasProjectPermission]
-    permission_code = "time_entry.edit"
-
-    def get(self, request, project_id):
-        project = get_object_or_404(
-            get_accessible_projects(request.user),
-            pk=project_id,
-        )
-
-        folders = Folder.objects.filter(
-            project=project,
-        ).select_related("created_by").order_by("name", "id")
-
-        if ProjectAuthorization(request.user, project).has("task.view"):
-            tasks = Task.objects.filter(
-                project=project,
-            ).order_by("title", "id")
-        else:
-            tasks = Task.objects.none()
-
-        serializer = self.get_serializer()
-        return Response(serializer.to_representation({
-            "folders": folders,
-            "tasks": tasks,
-        }))
-        
 @extend_schema(tags=["folders"])
 @extend_schema_view(
     get=extend_schema(

@@ -24,6 +24,8 @@ import type {
   Task,
   TaskPayload,
   TimeEntry,
+  TimeEntryBulkPayment,
+  TimeEntryBulkPaymentPayload,
   TimeEntryPayment,
   TimeEntryPaymentCorrectionPayload,
   TimeEntryPaymentPayload,
@@ -164,12 +166,15 @@ export function translateError(code: string) {
     "errors.time_entry.folder_project_mismatch": "Ce dossier n'appartient pas a ce projet.",
     "errors.time_entry.task_project_mismatch": "Cette tache n'appartient pas a ce projet.",
     "errors.time_entry.user_not_project_member": "Cet utilisateur ne fait pas partie du projet.",
+    "errors.time_entry.user_already_assigned": "Cette entree est deja attribuee a un membre.",
 
     "errors.time_entry_payment.already_paid": "Cette entree est deja entierement payee.",
     "errors.time_entry_payment.amount_required": "Le montant est requis.",
     "errors.time_entry_payment.amount_must_be_positive": "Le montant doit etre superieur a 0.",
     "errors.time_entry_payment.amount_exceeds_remaining": "Le montant ne peut pas depasser le reste a payer.",
     "errors.time_entry_payment.amount_unchanged": "Le montant est identique au montant deja paye.",
+    "errors.time_entry_payment.nothing_to_pay": "Aucune entree a payer dans cette selection.",
+    "errors.time_entry_payment.user_required": "Selectionne le membre a payer.",
 
     "errors.financial_entry.folder_project_mismatch": "Ce dossier n'appartient pas a ce projet.",
     "errors.financial_entry.time_entry_project_mismatch": "Cette entree de temps n'appartient pas a ce projet.",
@@ -452,10 +457,9 @@ export function createApiClient({
       list: (
         projectId: number,
         query: {
-          user?: number;
+          user?: number | "none";
           start_date?: string;
           end_date?: string;
-          include_paid?: boolean;
           payment_status?: string;
           target?: string;
           search?: string;
@@ -467,33 +471,15 @@ export function createApiClient({
             user: query.user ? String(query.user) : undefined,
             start_date: query.start_date,
             end_date: query.end_date,
-            include_paid: query.include_paid ? "true" : undefined,
             payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
             target: query.target && query.target !== "project" ? query.target : undefined,
             search: query.search || undefined,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
           })}`,
         ),
-      stats: (
-        projectId: number,
-        query: {
-          user?: number;
-          start_date?: string;
-          end_date?: string;
-          include_paid?: boolean;
-          payment_status?: string;
-          target?: string;
-        } = {},
-      ) =>
+      stats: (projectId: number, query: TimeEntryScopeQuery = {}) =>
         request<TimeEntryStats>(
-          `/api/projects/${projectId}/time-entries/stats/${buildQueryString({
-            user: query.user ? String(query.user) : undefined,
-            start_date: query.start_date,
-            end_date: query.end_date,
-            include_paid: query.include_paid ? "true" : undefined,
-            payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
-            target: query.target && query.target !== "project" ? query.target : undefined,
-          })}`,
+          `/api/projects/${projectId}/time-entries/stats/${buildTimeEntryScopeQueryString(query)}`,
         ),
       create: (projectId: number, payload: TimeEntryPayload) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/`, {
@@ -519,6 +505,13 @@ export function createApiClient({
           method: "PATCH",
           body: payload,
         }),
+      /** Paiement groupe : le montant est reparti cote serveur sur les entrees du scope
+       * (memes filtres que `stats`), de la plus ancienne a la plus recente. */
+      bulkPay: (projectId: number, query: TimeEntryScopeQuery, payload: TimeEntryBulkPaymentPayload) =>
+        request<TimeEntryBulkPayment>(
+          `/api/projects/${projectId}/time-entries/bulk-pay/${buildTimeEntryScopeQueryString(query)}`,
+          { method: "POST", body: payload },
+        ),
       get: (projectId: number, timeEntryId: number) =>
         request<TimeEntry>(`/api/projects/${projectId}/time-entries/${timeEntryId}/`),
       trash: (projectId: number, query: { page?: number } = {}) =>
@@ -560,11 +553,10 @@ export function createApiClient({
         projectId: number,
         query: {
           folder?: number;
-          status?: Task["status"];
+          status?: TaskStatusFilter;
           priority?: Task["priority"];
           created_by?: number;
           assigned_to?: number;
-          exclude_done?: boolean;
           date_from?: string;
           date_to?: string;
           page?: number;
@@ -579,7 +571,6 @@ export function createApiClient({
             priority: query.priority,
             created_by: query.created_by != null ? String(query.created_by) : undefined,
             assigned_to: query.assigned_to != null ? String(query.assigned_to) : undefined,
-            exclude_done: query.exclude_done ? "true" : undefined,
             date_from: query.date_from,
             date_to: query.date_to,
             page: query.page && query.page > 1 ? String(query.page) : undefined,
@@ -618,13 +609,18 @@ export function createApiClient({
         }),
     },
     folders: {
-      tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>
+      /** Arbre du projet : explorateur de fichiers, filtre dossier, ou selecteur de cible
+       * selon les parametres. `taskScope: "all"` remonte aussi les taches terminees — on
+       * peut rattacher une ecriture a une tache close, pas la lister comme du travail restant. */
+      tree: (
+        projectId: number,
+        query: { includeTasks?: boolean; includeFiles?: boolean; taskScope?: "open" | "all" } = {},
+      ) =>
         request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/tree/${buildQueryString({
           include_tasks: query.includeTasks ? "true" : undefined,
           include_files: query.includeFiles === false ? "false" : undefined,
+          task_scope: query.taskScope === "all" ? "all" : undefined,
         })}`),
-      targetTree: (projectId: number) =>
-        request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/target-tree/`),
       create: (projectId: number, payload: FolderPayload) =>
         request<Folder>(`/api/projects/${projectId}/folders/`, {
           method: "POST",
@@ -785,16 +781,19 @@ export function buildProjectFoldersQuery(api: ApiClient, projectId: number) {
   };
 }
 
+/** `not_done` (a faire + en cours) est un statut de filtrage a part entiere cote API :
+ * c'est le defaut des listes de taches, sans booleen `exclude_done` en parallele. */
+export type TaskStatusFilter = Task["status"] | "not_done";
+
 export interface TaskListFilters {
   search?: string;
-  status?: Task["status"];
+  status?: TaskStatusFilter;
   priority?: Task["priority"];
   assignedTo?: number;
   createdBy?: number;
   folderId?: number;
   dateFrom?: string;
   dateTo?: string;
-  includeCompleted?: boolean;
   ordering?: string;
 }
 
@@ -809,10 +808,6 @@ export function buildTasksListQuery(
   filters: TaskListFilters = {},
   page?: number,
 ) {
-  // Same default as web: exclude done tasks unless the caller explicitly
-  // asked to include them, or is already filtering to a specific status.
-  const excludeDone = filters.includeCompleted || filters.status ? undefined : true;
-
   return {
     queryKey: queryKeys.tasks.list(projectId, {
       search: filters.search || undefined,
@@ -823,7 +818,6 @@ export function buildTasksListQuery(
       folderId: filters.folderId,
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
-      excludeDone,
       ordering: filters.ordering,
       page,
     }),
@@ -837,7 +831,6 @@ export function buildTasksListQuery(
         folder: filters.folderId,
         date_from: filters.dateFrom,
         date_to: filters.dateTo,
-        exclude_done: excludeDone,
         ordering: filters.ordering,
         page,
       }),
@@ -896,10 +889,9 @@ export function buildFinanceEntriesListQuery(
 }
 
 export interface TimeEntryListFilters {
-  userId?: number | "all";
+  userId?: number | "all" | "none";
   startDate?: string;
   endDate?: string;
-  includePaid?: boolean;
   paymentStatus?: string;
   target?: string;
   search?: string;
@@ -916,7 +908,6 @@ export function buildTimeEntriesListQuery(
       userId: filters.userId,
       startDate: filters.startDate,
       endDate: filters.endDate,
-      includePaid: filters.includePaid,
       paymentStatus: filters.paymentStatus,
       target: filters.target,
       search: filters.search,
@@ -927,7 +918,6 @@ export function buildTimeEntriesListQuery(
         ...(filters.userId == null || filters.userId === "all" ? {} : { user: filters.userId }),
         start_date: filters.startDate,
         end_date: filters.endDate,
-        include_paid: filters.includePaid,
         payment_status: filters.paymentStatus,
         target: filters.target,
         search: filters.search || undefined,
@@ -1039,6 +1029,28 @@ function appendFormDataValue(formData: FormData, key: string, value: string | nu
 
 function buildUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
+}
+
+/** Filtres qui definissent un ensemble d'entrees de temps cote serveur : partages par
+ * `stats` et `bulkPay`, pour que le montant payable corresponde exactement au total
+ * affiche pour ces memes filtres. */
+export interface TimeEntryScopeQuery {
+  /** `"none"` cible les entrees sans titulaire (compte supprime). */
+  user?: number | "none";
+  start_date?: string;
+  end_date?: string;
+  payment_status?: string;
+  target?: string;
+}
+
+function buildTimeEntryScopeQueryString(query: TimeEntryScopeQuery) {
+  return buildQueryString({
+    user: query.user ? String(query.user) : undefined,
+    start_date: query.start_date,
+    end_date: query.end_date,
+    payment_status: query.payment_status && query.payment_status !== "all" ? query.payment_status : undefined,
+    target: query.target && query.target !== "project" ? query.target : undefined,
+  });
 }
 
 function buildQueryString(query: Record<string, string | undefined>) {

@@ -26,15 +26,18 @@ import { useProjectPermissions } from "../../projects/hooks/use-project-permissi
 import { TaskFilterSheet } from "../components/TaskFilterSheet";
 import { useTasks, useTasksInfinite } from "../hooks/use-tasks";
 
-type StatusFilter = "all" | Task["status"];
+/** `not_done` (a faire + en cours) est le defaut : une liste de taches sert d'abord a
+ * voir ce qu'il reste. `all` est le seul statut qui reintegre les terminees. */
+type StatusFilter = "all" | "not_done" | Task["status"];
 type PriorityFilter = "all" | Task["priority"];
 type SortField = "" | "title" | "priority_order" | "end_date";
 
 const STATUS_OPTIONS: { label: string; value: StatusFilter }[] = [
-  { label: "Tous statuts", value: "all" },
+  { label: "Non terminees", value: "not_done" },
   { label: "A faire", value: "todo" },
   { label: "En cours", value: "in_progress" },
   { label: "Termine", value: "done" },
+  { label: "Tous statuts", value: "all" },
 ];
 const PRIORITY_OPTIONS: { label: string; value: PriorityFilter }[] = [
   { label: "Toutes priorites", value: "all" },
@@ -71,7 +74,7 @@ function TasksListView({ project }: { project: Project }) {
   // whatever it was last set to across visits — no separate local copy to
   // keep in sync or clear.
   const params = useLocalSearchParams<{ priority?: string; status?: string }>();
-  const statusFilter: StatusFilter = (params.status as StatusFilter) ?? "all";
+  const statusFilter: StatusFilter = (params.status as StatusFilter) ?? "not_done";
   const priorityFilter: PriorityFilter = (params.priority as PriorityFilter) ?? "all";
 
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
@@ -82,26 +85,18 @@ function TasksListView({ project }: { project: Project }) {
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState<string | undefined>(undefined);
   const [dateTo, setDateTo] = useState<string | undefined>(undefined);
-  const [includeCompleted, setIncludeCompleted] = useState(false);
   const [sortField, setSortField] = useState<SortField>("");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
-  // Same idea as web's FilterToggle: the "include completed" chip reads as
-  // checked whenever status is pinned to "done", even though that's not
-  // stored as its own flag — only the raw toggle drives the actual query
-  // when status isn't "done" (see includeCompleted usage below).
-  const includeCompletedDisplay = includeCompleted || statusFilter === "done";
-
   const activeFilters = [
     Boolean(search),
-    statusFilter !== "all",
+    statusFilter !== "not_done",
     priorityFilter !== "all",
     assignedTo != null,
     createdBy != null,
     folderId != null,
     Boolean(dateFrom),
     Boolean(dateTo),
-    includeCompleted,
   ].filter(Boolean).length;
 
   function resetFilters() {
@@ -111,7 +106,6 @@ function TasksListView({ project }: { project: Project }) {
     setFolderId(null);
     setDateFrom(undefined);
     setDateTo(undefined);
-    setIncludeCompleted(false);
     setSortField("");
     setSortDir("asc");
     router.setParams({ priority: undefined, status: undefined });
@@ -127,7 +121,6 @@ function TasksListView({ project }: { project: Project }) {
     folderId: folderId ?? undefined,
     dateFrom,
     dateTo,
-    includeCompleted,
   });
   const {
     tasks,
@@ -149,7 +142,6 @@ function TasksListView({ project }: { project: Project }) {
     folderId: folderId ?? undefined,
     dateFrom,
     dateTo,
-    includeCompleted,
     ordering,
   });
 
@@ -337,8 +329,6 @@ function TasksListView({ project }: { project: Project }) {
         onDateFromChange={setDateFrom}
         dateTo={dateTo}
         onDateToChange={setDateTo}
-        includeCompletedDisplay={includeCompletedDisplay}
-        onToggleIncludeCompleted={() => setIncludeCompleted((value) => !value)}
         onReset={resetFilters}
       />
     </View>

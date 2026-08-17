@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -1288,12 +1288,17 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_tree_contains_folders_and_documents(response)
         self.assert_tree_excludes_deleted_and_other_project_nodes(response)
 
-    def test_member_without_folder_view_cannot_get_tree(self):
-        self.given_member_authenticated(["file.edit"])
+    def test_member_without_folder_view_gets_the_structure_without_documents(self):
+        # L'arbre sert de filtre a toutes les sections : un membre qui suit la finance sans
+        # acces aux fichiers garde ses dossiers, mais aucun document ne fuit.
+        self.given_member_authenticated(["finance.view"])
 
         response = self.when_get_folder_tree()
 
-        self.assert_forbidden(response)
+        self.assert_ok(response)
+        node_names = {node["name"] for node in self.response_data(response)}
+        self.assertIn("Root folder", node_names)
+        self.assertNotIn("Root document", node_names)
 
     def test_non_member_cannot_get_tree(self):
         self.given_authenticated(self.other_user)
@@ -1303,11 +1308,18 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
 
-class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
+class FolderTreeTargetScopeTests(ProjectApiTestCase):
+    """`task_scope=all` : le mode "selecteur de cible" de l'arbre (ex-`/folders/target-tree/`,
+    fusionne dans `/folders/tree/`). Il retourne toutes les taches, terminees comprises,
+    contrairement au mode `open` d'une vue de travail."""
+
     def setUp(self):
         super().setUp()
 
-        self.url = f"/api/projects/{self.project.id}/folders/target-tree/"
+        self.url = (
+            f"/api/projects/{self.project.id}/folders/tree/"
+            "?include_files=false&include_tasks=true&task_scope=all"
+        )
         self.root_folder = Folder.objects.create(
             project=self.project,
             name="Root folder",
@@ -1331,6 +1343,12 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
             status="in_progress",
             priority="high",
         )
+        self.done_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Done task",
+            status="done",
+        )
         self.deleted_task = Task.objects.create(
             project=self.project,
             created_by=self.owner,
@@ -1348,6 +1366,12 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
     # WHEN
     def when_get_target_tree(self):
         return self.api_get(self.url)
+
+    def when_get_open_tree(self):
+        return self.api_get(
+            f"/api/projects/{self.project.id}/folders/tree/"
+            "?include_files=false&include_tasks=true"
+        )
 
     # ASSERT
     def flatten_tree(self, nodes):
@@ -1399,6 +1423,36 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_target_tree_contains_tasks(response)
 
+    def test_task_scope_all_keeps_done_tasks_that_the_open_scope_hides(self):
+        # La seule difference de fond entre les deux anciens endpoints : on rattache une
+        # ecriture a une tache terminee, alors qu'une vue de travail ne les montre pas.
+        self.given_authenticated(self.owner)
+
+        target_names = {node["name"] for node in self.flatten_tree(self.response_data(self.when_get_target_tree()))}
+        open_names = {node["name"] for node in self.flatten_tree(self.response_data(self.when_get_open_tree()))}
+
+        self.assertIn("Done task", target_names)
+        self.assertNotIn("Done task", open_names)
+        self.assertIn("Root task", open_names)
+
+    def test_target_tree_never_returns_documents(self):
+        self.given_authenticated(self.owner)
+        Document.objects.create(
+            project=self.project,
+            folder=self.root_folder,
+            name="Target tree document",
+            file_id="projects/1/documents/target-tree.pdf",
+            file_name="target-tree.pdf",
+            file_size=120,
+            mime_type="application/pdf",
+        )
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        node_types = {node["type"] for node in self.flatten_tree(self.response_data(response))}
+        self.assertNotIn("document", node_types)
+
     def test_member_with_time_edit_and_task_view_can_get_target_tree_with_tasks(self):
         self.given_member_authenticated(["time_entry.edit", "task.view"])
 
@@ -1415,12 +1469,16 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_target_tree_excludes_tasks(response)
 
-    def test_member_without_time_edit_cannot_get_target_tree(self):
-        self.given_member_authenticated(["task.view"])
+    def test_member_with_finance_edit_only_can_get_target_tree(self):
+        # Le selecteur de cible sert aussi aux ecritures financieres et aux demandes de
+        # remboursement : le reserver a `time_entry.edit` empechait de rattacher une
+        # ecriture a un dossier.
+        self.given_member_authenticated(["finance.edit"])
 
         response = self.when_get_target_tree()
 
-        self.assert_forbidden(response)
+        self.assert_ok(response)
+        self.assert_target_tree_excludes_tasks(response)
 
     def test_non_member_cannot_get_target_tree(self):
         self.given_authenticated(self.other_user)
@@ -2683,6 +2741,27 @@ class TaskRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_task_titles(response, ["Root task"])
 
+    def test_list_status_not_done_excludes_completed_tasks(self):
+        # `not_done` remplace l'ancien booleen `exclude_done` : c'est un statut de plus sur
+        # le meme axe, donc "tous statuts" (aucun filtre) retourne bien tout.
+        self.given_authenticated(self.owner)
+        open_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Open task",
+            status="in_progress",
+        )
+
+        not_done = self.when_list_tasks("?status=not_done")
+        everything = self.when_list_tasks()
+
+        self.assert_ok(not_done)
+        not_done_titles = {task["title"] for task in self.response_results(not_done)}
+        every_title = {task["title"] for task in self.response_results(everything)}
+        self.assertIn(open_task.title, not_done_titles)
+        self.assertNotIn("Root task", not_done_titles)
+        self.assertIn("Root task", every_title)
+
     def test_list_can_filter_by_priority(self):
         Task.objects.create(
             project=self.project,
@@ -3395,9 +3474,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        # "Root work" a un cout nul (taux horaire 0) : elle est consideree deja
-        # couverte et masquee par defaut, comme n'importe quelle entree payee.
-        self.assert_visible_time_descriptions(response, ["Folder work"])
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
     def test_member_with_time_entry_view_can_list_own_time_entries_only(self):
         self.given_member_authenticated(["time_entry.view"])
@@ -3432,8 +3509,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        # "Root work" a un cout nul : masquee par defaut (voir plus haut).
-        self.assert_visible_time_descriptions(response, ["Folder work"])
+        self.assert_visible_time_descriptions(response, ["Folder work", "Root work"])
 
     def test_member_with_time_entry_pay_only_cannot_list_time_entries(self):
         self.given_member_authenticated(["time_entry.pay"])
@@ -3472,6 +3548,23 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
 
+    def test_list_can_filter_by_user_and_by_orphan_entries(self):
+        self.given_authenticated(self.owner)
+        TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=45,
+            hourly_rate="30.00",
+            description="Orphan work",
+            start_date=timezone.now(),
+        )
+
+        by_member = self.when_list_time_entries(f"?user={self.worker.id}")
+        orphans = self.when_list_time_entries("?user=none")
+
+        self.assert_visible_time_descriptions(by_member, ["Folder work"])
+        self.assert_visible_time_descriptions(orphans, ["Orphan work"])
+
     def test_list_can_filter_by_date_range(self):
         TimeEntry.objects.filter(pk=self.folder_entry.pk).update(
             start_date=timezone.make_aware(datetime(2025, 6, 12, 12, 0)),
@@ -3486,7 +3579,9 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Folder work"])
 
-    def test_list_hides_fully_paid_entries_by_default(self):
+    def test_list_returns_every_entry_without_payment_status_filter(self):
+        # Aucun masquage implicite : `payment_status` est le seul axe de filtrage sur le
+        # paiement (le front envoie `not_paid` par defaut).
         paid_entry = TimeEntry.objects.create(
             project=self.project,
             user=self.owner,
@@ -3508,10 +3603,11 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         response = self.when_list_time_entries()
 
         self.assert_ok(response)
-        # "Fully paid work" est masquee (payee) et "Root work" aussi (cout nul).
-        self.assert_visible_time_descriptions(response, ["Folder work"])
+        self.assert_visible_time_descriptions(
+            response, ["Folder work", "Root work", "Fully paid work"],
+        )
 
-    def test_list_can_include_paid_entries(self):
+    def test_list_can_filter_out_settled_entries(self):
         paid_entry = TimeEntry.objects.create(
             project=self.project,
             user=self.owner,
@@ -3530,22 +3626,65 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         )
         self.given_authenticated(self.owner)
 
-        response = self.when_list_time_entries("?include_paid=true")
+        response = self.when_list_time_entries("?payment_status=not_paid")
 
         self.assert_ok(response)
-        self.assert_visible_time_descriptions(
-            response, ["Folder work", "Root work", "Fully paid work"],
-        )
+        # "Fully paid work" est soldee et "Root work" a un cout nul : ni l'une ni l'autre
+        # ne reste a payer.
+        self.assert_visible_time_descriptions(response, ["Folder work"])
 
     def test_list_can_search_by_description(self):
         self.given_authenticated(self.owner)
 
-        # "Root work" a un cout nul et serait masquee par le filtre par defaut ;
-        # include_paid=true isole ce test sur le comportement de la recherche.
-        response = self.when_list_time_entries("?search=Root&include_paid=true")
+        response = self.when_list_time_entries("?search=Root")
 
         self.assert_ok(response)
         self.assert_visible_time_descriptions(response, ["Root work"])
+
+    def test_create_inherits_the_linked_task_title_when_none_is_given(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "user": self.owner.id,
+            "task": self.task.id,
+            "start_date": timezone.now().isoformat(),
+            "duration_minutes": 60,
+            "description": "Inherited title work",
+        })
+
+        self.assert_created(response)
+        self.assertEqual(self.response_data(response)["title"], self.task.title)
+
+    def test_create_keeps_the_given_title_over_the_linked_task_one(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_create_time_entry({
+            "user": self.owner.id,
+            "task": self.task.id,
+            "title": "Titre propre",
+            "start_date": timezone.now().isoformat(),
+            "duration_minutes": 60,
+        })
+
+        self.assert_created(response)
+        self.assertEqual(self.response_data(response)["title"], "Titre propre")
+
+    def test_list_can_search_by_title(self):
+        self.given_authenticated(self.owner)
+        TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="20.00",
+            title="Chantier Nord",
+            description="Titled work",
+            start_date=timezone.now(),
+        )
+
+        response = self.when_list_time_entries("?search=Chantier")
+
+        self.assert_ok(response)
+        self.assert_visible_time_descriptions(response, ["Titled work"])
 
     def test_list_includes_payment_status_fields(self):
         FinancialEntry.objects.create(
@@ -3577,7 +3716,7 @@ class TimeEntryRoutePermissionTests(ProjectApiTestCase):
         )
         self.given_authenticated(self.owner)
 
-        response = self.when_list_time_entries(f"?folder={self.folder.id}&include_paid=true")
+        response = self.when_list_time_entries(f"?folder={self.folder.id}")
 
         self.assert_ok(response)
         entry = self.response_results(response)[0]
@@ -3838,6 +3977,60 @@ class TimeEntryDetailRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
         self.assert_time_description("Target time")
 
+    # TESTS PATCH — attribution d'une entree orpheline
+    def test_owner_can_assign_an_orphan_time_entry_to_a_member(self):
+        self.given_member_with_permissions([])
+        self.given_authenticated(self.owner)
+        orphan = TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Orphan time",
+            start_date=timezone.now(),
+        )
+
+        response = self.api_patch(
+            f"/api/projects/{self.project.id}/time-entries/{orphan.id}/",
+            {"user": self.member.id},
+        )
+
+        self.assert_ok(response)
+        orphan.refresh_from_db()
+        self.assertEqual(orphan.user_id, self.member.id)
+
+    def test_assigning_an_already_assigned_time_entry_to_another_user_is_rejected(self):
+        # Les heures d'une entree attribuee peuvent deja avoir ete payees a son titulaire :
+        # seules les entrees orphelines sont attribuables.
+        self.given_member_with_permissions([])
+        self.given_authenticated(self.owner)
+
+        response = self.when_patch_time_entry({"user": self.member.id})
+
+        self.assert_bad_request(response)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.user_id, self.owner.id)
+
+    def test_assigning_an_orphan_time_entry_to_a_non_member_is_rejected(self):
+        self.given_authenticated(self.owner)
+        orphan = TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Orphan time",
+            start_date=timezone.now(),
+        )
+
+        response = self.api_patch(
+            f"/api/projects/{self.project.id}/time-entries/{orphan.id}/",
+            {"user": self.other_user.id},
+        )
+
+        self.assert_bad_request(response)
+        orphan.refresh_from_db()
+        self.assertIsNone(orphan.user_id)
+
     # TESTS DELETE
     def test_owner_can_soft_delete_time_entry(self):
         self.given_authenticated(self.owner)
@@ -3931,6 +4124,27 @@ class TimeEntryStatsRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_by_user_ids(response, [self.worker.id, self.owner.id])
 
+    def test_orphan_entries_are_reported_as_an_unattributed_breakdown_row(self):
+        # Sans ligne `user: null`, la somme de `by_user` ne retombe pas sur le total global
+        # et le "reste a payer" affiche depasse ce qui est attribuable a quelqu'un.
+        self.given_authenticated(self.owner)
+        TimeEntry.objects.create(
+            project=self.project,
+            user=None,
+            duration_minutes=60,
+            hourly_rate="50.00",
+            description="Orphan work",
+            start_date=timezone.now(),
+        )
+
+        response = self.when_get_stats()
+
+        self.assert_ok(response)
+        self.assert_by_user_ids(response, [self.worker.id, self.owner.id, None])
+        by_user = self.response_data(response)["by_user"]
+        orphan_row = next(row for row in by_user if row["user"] is None)
+        self.assertEqual(orphan_row["cost_amount"], "50.00")
+
     def test_member_with_time_entry_view_all_only_still_has_own_detail_list_only(self):
         # `view_all` donne acces a la synthese complete mais pas a la liste
         # detaillee des autres membres : les deux permissions sont independantes.
@@ -4000,6 +4214,117 @@ class TimeEntryPaymentRoutePermissionTests(ProjectApiTestCase):
         response = self.when_pay_time_entry({"amount": "40.01"})
 
         self.assert_bad_request(response)
+
+
+class TimeEntryBulkPaymentRoutePermissionTests(ProjectApiTestCase):
+    """Paiement groupe : un montant global reparti de l'entree la plus ancienne a la plus
+    recente, la derniere servie pouvant ne l'etre que partiellement. Le scope paye suit les
+    memes filtres (query string) que le endpoint de stats, `user` etant obligatoire."""
+
+    def setUp(self):
+        super().setUp()
+
+        now = timezone.now()
+        self.oldest = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Oldest payable time",
+            start_date=now - timedelta(days=2),
+        )
+        self.middle = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=30,
+            hourly_rate="40.00",
+            description="Middle payable time",
+            start_date=now - timedelta(days=1),
+        )
+        self.newest = TimeEntry.objects.create(
+            project=self.project,
+            user=self.member,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Newest payable time",
+            start_date=now,
+        )
+        self.url = f"/api/projects/{self.project.id}/time-entries/bulk-pay/"
+
+    # WHEN
+    def when_bulk_pay(self, payload, user=None):
+        query = "" if user is None else f"?user={user.id}"
+        return self.api_post(f"{self.url}{query}", payload)
+
+    # ASSERT
+    def assert_paid_amount(self, time_entry, expected_amount):
+        self.assertEqual(time_entry.get_paid_amount(), Decimal(expected_amount))
+
+    # TESTS
+    def test_owner_bulk_payment_settles_entries_from_oldest_to_newest(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_bulk_pay({"amount": "50.00"}, user=self.owner)
+
+        self.assert_created(response)
+        self.assertEqual(self.response_data(response)["paid_entry_count"], 1)
+        self.assertEqual(self.response_data(response)["partial_entry_count"], 1)
+        self.assert_paid_amount(self.oldest, "40.00")
+        self.assert_paid_amount(self.middle, "10.00")
+        self.assert_paid_amount(self.newest, "0.00")
+
+    def test_member_with_time_entry_pay_can_bulk_pay_other_members_entries(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all", "time_entry.pay"])
+
+        response = self.when_bulk_pay({"amount": "40.00"}, user=self.owner)
+
+        self.assert_created(response)
+        self.assert_paid_amount(self.oldest, "40.00")
+
+    def test_member_without_time_entry_pay_cannot_bulk_pay(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+
+        response = self.when_bulk_pay({"amount": "40.00"}, user=self.owner)
+
+        self.assert_forbidden(response)
+
+    def test_bulk_payment_requires_a_selected_user(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_bulk_pay({"amount": "40.00"})
+
+        self.assert_bad_request(response)
+        self.assertIn("user", self.response_data(response))
+        self.assert_paid_amount(self.oldest, "0.00")
+
+    def test_bulk_payment_rejects_the_orphan_scope(self):
+        # `user=none` filtre les entrees sans titulaire : un scope valide pour la liste,
+        # mais sans beneficiaire a payer.
+        self.given_authenticated(self.owner)
+
+        response = self.api_post(f"{self.url}?user=none", {"amount": "10.00"})
+
+        self.assert_bad_request(response)
+        self.assertIn("user", self.response_data(response))
+
+    def test_bulk_payment_rejects_amount_above_the_selected_user_remaining_total(self):
+        self.given_authenticated(self.owner)
+
+        # 40.00 (oldest) + 20.00 (middle) pour l'owner : l'entree du membre n'entre pas
+        # dans le scope et n'augmente donc pas le montant payable.
+        response = self.when_bulk_pay({"amount": "60.01"}, user=self.owner)
+
+        self.assert_bad_request(response)
+        self.assert_paid_amount(self.oldest, "0.00")
+
+    def test_bulk_payment_only_covers_entries_of_the_selected_user(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_bulk_pay({"amount": "40.00"}, user=self.member)
+
+        self.assert_created(response)
+        self.assert_paid_amount(self.newest, "40.00")
+        self.assert_paid_amount(self.oldest, "0.00")
 
 
 class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
@@ -4100,6 +4425,95 @@ class TimeEntryFinancialFormulaConsistencyTests(ProjectApiTestCase):
         )
 
         self.assert_formulas_match()
+
+
+class ProjectCalendarRoutePermissionTests(ProjectApiTestCase):
+    """La section "temps" du calendrier passe par le meme service que la liste
+    (`get_project_time_entries`) : ces tests verrouillent l'appel et son scoping, qui
+    n'etaient couverts par aucun test (l'endpoint renvoyait un 500)."""
+
+    def setUp(self):
+        super().setUp()
+
+        self.worker = User.objects.create_user(
+            username="calendar-worker",
+            email="calendar-worker@example.com",
+        )
+        self.given_member_with_permissions([], user=self.worker)
+        self.day = timezone.now()
+        self.owner_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.owner,
+            duration_minutes=60,
+            hourly_rate="40.00",
+            description="Owner calendar work",
+            start_date=self.day,
+        )
+        self.worker_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.worker,
+            duration_minutes=90,
+            hourly_rate="40.00",
+            description="Worker calendar work",
+            start_date=self.day,
+        )
+        day = self.day.date().isoformat()
+        self.url = f"/api/projects/{self.project.id}/calendar/?start_date={day}&end_date={day}"
+
+    # WHEN
+    def when_get_calendar(self):
+        return self.api_get(self.url)
+
+    # ASSERT
+    def assert_time_event_ids(self, response, expected_entries):
+        events = self.response_data(response)["events"]
+        time_event_ids = {event["entity_id"] for event in events if event["kind"] == "time"}
+        self.assertEqual(time_event_ids, {entry.id for entry in expected_entries})
+
+    # TESTS
+    def test_anonymous_cannot_get_calendar(self):
+        response = self.when_get_calendar()
+
+        self.assert_unauthorized(response)
+
+    def test_owner_gets_every_time_entry_of_the_range(self):
+        self.given_authenticated(self.owner)
+
+        response = self.when_get_calendar()
+
+        self.assert_ok(response)
+        self.assert_time_event_ids(response, [self.owner_entry, self.worker_entry])
+
+    def test_member_without_time_entry_view_others_detail_only_gets_own_entries(self):
+        self.given_member_authenticated(["time_entry.view", "time_entry.view_all"])
+        member_entry = TimeEntry.objects.create(
+            project=self.project,
+            user=self.member,
+            duration_minutes=30,
+            hourly_rate="40.00",
+            description="Member calendar work",
+            start_date=self.day,
+        )
+
+        response = self.when_get_calendar()
+
+        self.assert_ok(response)
+        self.assert_time_event_ids(response, [member_entry])
+
+    def test_member_without_time_entry_view_gets_no_time_event(self):
+        self.given_member_authenticated(["task.view"])
+
+        response = self.when_get_calendar()
+
+        self.assert_ok(response)
+        self.assert_time_event_ids(response, [])
+
+    def test_non_member_cannot_get_calendar(self):
+        self.given_authenticated(self.other_user)
+
+        response = self.when_get_calendar()
+
+        self.assert_forbidden(response)
 
 
 class TimeEntryTrashRoutePermissionTests(ProjectApiTestCase):

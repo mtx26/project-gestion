@@ -63,7 +63,7 @@ export function TimeEntryList({
         <TimeEntryRow
           key={entry.id}
           entry={entry}
-          displayName={entry.user_display_name}
+          displayName={entry.user_display_name ?? "Non attribue"}
           targetLabel={getEntryTargetLabel(entry)}
           canPay={canPay}
           canEdit={canEdit}
@@ -113,7 +113,7 @@ function TimeEntryRow({
         <div className="min-w-0 flex-1 cursor-pointer space-y-1" onClick={onDetail}>
           <div className="flex flex-wrap items-center gap-2">
             <PaymentStatusBadge status={paymentStatus} />
-            <p className="min-w-0 font-medium">{entry.description || "Temps enregistre"}</p>
+            <p className="min-w-0 font-medium">{entry.title || entry.description || "Temps enregistre"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
             <span>{displayName}</span>

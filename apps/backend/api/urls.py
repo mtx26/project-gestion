@@ -34,7 +34,6 @@ from .views.folders import (
     FolderDetailView,
     FolderTrashListView,
     FolderRestoreView,
-    FolderTargetTreeView,
     FolderTreeView,
 )
 from .views.documents import (
@@ -54,6 +53,7 @@ from .views.tasks import (
 )
 from .views.calendar import ProjectCalendarView, ProjectCalendarFeedView, ProjectCalendarSubscriptionView
 from .views.time_entries import (
+    TimeEntryBulkPaymentView,
     TimeEntryListCreateView,
     TimeEntryDetailView,
     TimeEntryPaymentView,
@@ -105,7 +105,6 @@ urlpatterns = [
     # Folders
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/tree/", FolderTreeView.as_view(), name="project-folder-tree"),
-    path("projects/<int:project_id>/folders/target-tree/", FolderTargetTreeView.as_view(), name="project-folder-target-tree"),
     path("projects/<int:project_id>/folders/<int:pk>/", FolderDetailView.as_view(), name="project-folder-detail"),
     path("projects/<int:project_id>/folders/trash/", FolderTrashListView.as_view(), name="project-folders-trash"),
     path("projects/<int:project_id>/folders/<int:pk>/restore/", FolderRestoreView.as_view(), name="project-folder-restore"),
@@ -126,6 +125,7 @@ urlpatterns = [
     path("projects/<int:project_id>/time-entries/", TimeEntryListCreateView.as_view(), name="project-time-entries"),
     path("projects/<int:project_id>/time-entries/stats/", TimeEntryStatsView.as_view(), name="project-time-entries-stats"),
     path("projects/<int:project_id>/time-entries/trash/", TimeEntryTrashListView.as_view(), name="project-time-entries-trash"),
+    path("projects/<int:project_id>/time-entries/bulk-pay/", TimeEntryBulkPaymentView.as_view(), name="project-time-entries-bulk-payment"),
     path("projects/<int:project_id>/time-entries/<int:pk>/pay/", TimeEntryPaymentView.as_view(), name="project-time-entry-payment"),
     path("projects/<int:project_id>/time-entries/<int:pk>/", TimeEntryDetailView.as_view(), name="project-time-entry-detail"),
     path("projects/<int:project_id>/time-entries/<int:pk>/restore/", TimeEntryRestoreView.as_view(), name="project-time-entry-restore"),

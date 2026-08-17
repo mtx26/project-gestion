@@ -79,7 +79,6 @@ export const queryKeys = {
         priority?: string;
         createdBy?: number;
         assignedTo?: number;
-        excludeDone?: boolean;
         page?: number;
         ordering?: string;
         search?: string;
@@ -93,7 +92,6 @@ export const queryKeys = {
         priority: query.priority ?? "all",
         createdBy: query.createdBy ?? "all",
         assignedTo: query.assignedTo ?? "all",
-        excludeDone: query.excludeDone ?? false,
         page: query.page ?? 1,
         ordering: query.ordering ?? "",
         search: query.search ?? "",
@@ -103,10 +101,18 @@ export const queryKeys = {
     trash: (projectId: number, page = 1) => ["projects", projectId, "tasks", "trash", page] as const,
   },
   folders: {
+    /** Prefixe de toutes les variantes de l'arbre (explorateur, filtre, selecteur de
+     * cible) : une seule invalidation les couvre depuis leur fusion en un endpoint. */
     allTree: (projectId: number) => ["projects", projectId, "folders", "tree"] as const,
-    tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>
-      ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false, includeFiles: query.includeFiles ?? true }] as const,
-    targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
+    tree: (
+      projectId: number,
+      query: { includeTasks?: boolean; includeFiles?: boolean; taskScope?: "open" | "all" } = {},
+    ) =>
+      ["projects", projectId, "folders", "tree", {
+        includeTasks: query.includeTasks ?? false,
+        includeFiles: query.includeFiles ?? true,
+        taskScope: query.taskScope ?? "open",
+      }] as const,
     trash: (projectId: number, page = 1) => ["projects", projectId, "folders", "trash", page] as const,
   },
   timeEntries: {
@@ -114,10 +120,9 @@ export const queryKeys = {
     list: (
       projectId: number,
       query: {
-        userId?: number | "all";
+        userId?: number | "all" | "none";
         startDate?: string;
         endDate?: string;
-        includePaid?: boolean;
         paymentStatus?: string;
         target?: string;
         search?: string;
@@ -128,7 +133,6 @@ export const queryKeys = {
         user: query.userId ?? "mine",
         startDate: query.startDate ?? "",
         endDate: query.endDate ?? "",
-        includePaid: query.includePaid ?? false,
         paymentStatus: query.paymentStatus ?? "all",
         target: query.target ?? "",
         search: query.search ?? "",
@@ -137,10 +141,9 @@ export const queryKeys = {
     stats: (
       projectId: number,
       query: {
-        userId?: number | "all";
+        userId?: number | "all" | "none";
         startDate?: string;
         endDate?: string;
-        includePaid?: boolean;
         paymentStatus?: string;
         target?: string;
       } = {},
@@ -149,7 +152,6 @@ export const queryKeys = {
         user: query.userId ?? "all",
         startDate: query.startDate ?? "",
         endDate: query.endDate ?? "",
-        includePaid: query.includePaid ?? false,
         paymentStatus: query.paymentStatus ?? "all",
         target: query.target ?? "",
       }] as const,

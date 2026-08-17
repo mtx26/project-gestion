@@ -3,7 +3,6 @@ import { Pressable, Text, View } from "react-native";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
 import { FilterPill } from "../../../components/filters/FilterPill";
-import { TogglePill } from "../../../components/filters/TogglePill";
 import { theme } from "../../../theme";
 
 interface TaskFilterSheetProps {
@@ -23,14 +22,12 @@ interface TaskFilterSheetProps {
   onDateFromChange: (value: string | undefined) => void;
   dateTo: string | undefined;
   onDateToChange: (value: string | undefined) => void;
-  includeCompletedDisplay: boolean;
-  onToggleIncludeCompleted: () => void;
   onReset: () => void;
 }
 
 /** Secondary task filters, presented as a bottom sheet — the mobile
  * equivalent of web's CollapsibleFilterBar contents (status, priority,
- * assignee, creator, folder, date range, include-completed). Search and
+ * assignee, creator, folder, date range). Search and
  * sort stay outside, in the screen's always-visible header, matching web
  * where the primary search box also stays out of the Sheet. */
 export function TaskFilterSheet({
@@ -50,8 +47,6 @@ export function TaskFilterSheet({
   onDateFromChange,
   dateTo,
   onDateToChange,
-  includeCompletedDisplay,
-  onToggleIncludeCompleted,
   onReset,
 }: TaskFilterSheetProps) {
   return (
@@ -67,7 +62,6 @@ export function TaskFilterSheet({
       <View className="flex-row flex-wrap items-center gap-2">
         <DateFilterPill label="Du" value={dateFrom} onChange={onDateFromChange} />
         <DateFilterPill label="Au" value={dateTo} onChange={onDateToChange} />
-        <TogglePill label="Inclure terminees" active={includeCompletedDisplay} onPress={onToggleIncludeCompleted} />
       </View>
 
       <Pressable

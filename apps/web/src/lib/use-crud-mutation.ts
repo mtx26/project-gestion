@@ -24,12 +24,16 @@ export function useCrudMutation<TVariables, TData = unknown>({
   successMessage,
   errorMessage,
   onSuccess,
+  onError,
 }: {
   mutationFn: (variables: TVariables) => Promise<TData>;
   invalidateKey?: QueryKey | QueryKey[];
   successMessage?: string;
   errorMessage?: string;
   onSuccess?: (data: TData, variables: TVariables) => void;
+  /** Pendant du `onSuccess`, apres le toast d'erreur : pour l'etat local ou le
+   * rechargement des donnees dont l'echec revele qu'elles etaient perimees. */
+  onError?: (error: unknown, variables: TVariables) => void;
 }) {
   const queryClient = useQueryClient();
   const invalidateKeys = !invalidateKey
@@ -45,13 +49,14 @@ export function useCrudMutation<TVariables, TData = unknown>({
       await Promise.all(invalidateKeys.map((key) => invalidateProjectResource(queryClient, key)));
       onSuccess?.(data, variables);
     },
-    onError: (error: unknown) => {
+    onError: (error: unknown, variables) => {
       if (!errorMessage) {
         toastError(error);
-        return;
+      } else {
+        const apiMessage = error instanceof ApiError ? getErrorMessage(error) : null;
+        toast.error(apiMessage ?? errorMessage);
       }
-      const apiMessage = error instanceof ApiError ? getErrorMessage(error) : null;
-      toast.error(apiMessage ?? errorMessage);
+      onError?.(error, variables);
     },
   });
 }

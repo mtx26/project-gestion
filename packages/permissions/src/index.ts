@@ -59,6 +59,7 @@ const permissionActionLabels: Record<string, string> = {
   edit_rates: "Modifier les taux horaires",
   delete: "Supprimer",
   restore: "Restaurer",
+  approve: "Approuver / refuser",
   pay: "Voir equipe et payer",
 };
 

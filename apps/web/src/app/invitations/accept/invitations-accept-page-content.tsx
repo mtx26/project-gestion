@@ -26,7 +26,7 @@ function InvitationsAcceptView() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const queryClient = useQueryClient();
-  const hasStartedAccept = useRef(false);
+  const acceptedToken = useRef<string | null>(null);
   const acceptInvitation = useMutation({
     mutationFn: api.invitations.accept,
     onSuccess: async () => {
@@ -41,13 +41,14 @@ function InvitationsAcceptView() {
   });
   const { mutate } = acceptInvitation;
 
+  // Le garde retient le token deja envoye plutot qu'un simple booleen remis a zero au
+  // cleanup : sinon le double montage de StrictMode (dev) relance l'acceptation, et les
+  // deux POST concurrents se marchent dessus cote serveur. Un nouveau token relance bien
+  // la mutation.
   useEffect(() => {
-    if (!token || hasStartedAccept.current) return;
-    hasStartedAccept.current = true;
+    if (!token || acceptedToken.current === token) return;
+    acceptedToken.current = token;
     mutate(token);
-    return () => {
-      hasStartedAccept.current = false;
-    };
   }, [token, mutate]);
 
   return (

@@ -113,9 +113,9 @@ function FilesView({
 
   const previewTasksQuery = useQuery({
     queryKey: selectedProject
-      ? queryKeys.tasks.list(selectedProject.id, { folderId: selectedFolderId ?? undefined, excludeDone: true })
+      ? queryKeys.tasks.list(selectedProject.id, { folderId: selectedFolderId ?? undefined, status: "not_done" })
       : queryKeys.disabled(),
-    queryFn: () => api.tasks.list(selectedProject!.id, { folder: selectedFolderId ?? undefined, exclude_done: true }),
+    queryFn: () => api.tasks.list(selectedProject!.id, { folder: selectedFolderId ?? undefined, status: "not_done" }),
     enabled: Boolean(selectedProject && canViewTasks),
   });
 
@@ -139,7 +139,7 @@ function FilesView({
   const createFolder = useCrudMutation({
     mutationFn: ({ name, parentFolder }: { name: string; parentFolder: number | null }) =>
       api.folders.create(selectedProject!.id, { name, parent_folder: parentFolder }),
-    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
+    invalidateKey: queryKeys.folders.allTree(selectedProjectId ?? 0),
     successMessage: "Dossier cree",
   });
 
@@ -157,7 +157,7 @@ function FilesView({
 
   const deleteFolder = useCrudMutation({
     mutationFn: (folderId: number) => api.folders.remove(selectedProject!.id, folderId),
-    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
+    invalidateKey: queryKeys.folders.allTree(selectedProjectId ?? 0),
     successMessage: "Dossier supprime",
     onSuccess: (_data, folderId) => {
       setItemToDelete(null);
@@ -181,7 +181,7 @@ function FilesView({
       target.type === "folder"
         ? api.folders.update(selectedProject!.id, target.id, { name })
         : api.documents.update(selectedProject!.id, target.id, { name }),
-    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
+    invalidateKey: queryKeys.folders.allTree(selectedProjectId ?? 0),
     successMessage: "Element renomme",
     onSuccess: () => {
       setItemToRename(null);
@@ -192,7 +192,7 @@ function FilesView({
   const moveFolder = useCrudMutation({
     mutationFn: ({ folderId, newParentId }: { folderId: number; newParentId: number | null }) =>
       api.folders.update(selectedProject!.id, folderId, { parent_folder: newParentId }),
-    invalidateKey: [queryKeys.folders.allTree(selectedProjectId ?? 0), queryKeys.folders.targetTree(selectedProjectId ?? 0)],
+    invalidateKey: queryKeys.folders.allTree(selectedProjectId ?? 0),
     successMessage: "Dossier deplace",
   });
 
