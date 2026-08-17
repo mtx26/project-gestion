@@ -10,14 +10,12 @@ import { buildFolderNameMap } from "@/lib/folder-utils";
 import { invalidateProjectResource } from "@/lib/invalidate-project-resource";
 
 /** Any mutation that changes the folder structure (create/rename/move/delete) must
- * invalidate both trees — `allTree` (file browser) and `targetTree` (folder pickers
- * used to link tasks/finance/time entries to a folder) — so a stale target tree
- * can't outlive the structural change that just happened. */
+ * invalidate every variant of the tree — explorateur de fichiers, filtre dossier et
+ * selecteur de cible partagent un seul endpoint, donc une seule cle prefixe
+ * (`allTree`) les couvre toutes : aucune variante ne peut survivre perimee au
+ * changement de structure. */
 export function invalidateFolderTrees(queryClient: QueryClient, projectId: number) {
-  return Promise.all([
-    invalidateProjectResource(queryClient, queryKeys.folders.allTree(projectId)),
-    invalidateProjectResource(queryClient, queryKeys.folders.targetTree(projectId)),
-  ]);
+  return invalidateProjectResource(queryClient, queryKeys.folders.allTree(projectId));
 }
 
 export function useProjectResources(
@@ -40,9 +38,14 @@ export function useProjectResources(
     enabled: Boolean(projectId && canView),
   });
 
+  // Meme endpoint que `foldersQuery`, en mode selecteur de cible : dossiers + toutes les
+  // taches. Requete distincte plutot que le sur-ensemble unique, pour ne pas charger les
+  // taches sur une page qui n'en a pas besoin (et qui n'a pas forcement le droit d'ecrire).
   const targetTreeQuery = useQuery({
-    queryKey: projectId ? queryKeys.folders.targetTree(projectId) : queryKeys.disabled(),
-    queryFn: () => api.folders.targetTree(projectId!),
+    queryKey: projectId
+      ? queryKeys.folders.tree(projectId, { includeFiles: false, includeTasks: true, taskScope: "all" })
+      : queryKeys.disabled(),
+    queryFn: () => api.folders.tree(projectId!, { includeFiles: false, includeTasks: true, taskScope: "all" }),
     enabled: Boolean(projectId && canEdit),
   });
 

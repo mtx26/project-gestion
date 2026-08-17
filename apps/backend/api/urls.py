@@ -34,7 +34,6 @@ from .views.folders import (
     FolderDetailView,
     FolderTrashListView,
     FolderRestoreView,
-    FolderTargetTreeView,
     FolderTreeView,
 )
 from .views.documents import (
@@ -106,7 +105,6 @@ urlpatterns = [
     # Folders
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/tree/", FolderTreeView.as_view(), name="project-folder-tree"),
-    path("projects/<int:project_id>/folders/target-tree/", FolderTargetTreeView.as_view(), name="project-folder-target-tree"),
     path("projects/<int:project_id>/folders/<int:pk>/", FolderDetailView.as_view(), name="project-folder-detail"),
     path("projects/<int:project_id>/folders/trash/", FolderTrashListView.as_view(), name="project-folders-trash"),
     path("projects/<int:project_id>/folders/<int:pk>/restore/", FolderRestoreView.as_view(), name="project-folder-restore"),

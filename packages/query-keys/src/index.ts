@@ -103,10 +103,18 @@ export const queryKeys = {
     trash: (projectId: number, page = 1) => ["projects", projectId, "tasks", "trash", page] as const,
   },
   folders: {
+    /** Prefixe de toutes les variantes de l'arbre (explorateur, filtre, selecteur de
+     * cible) : une seule invalidation les couvre depuis leur fusion en un endpoint. */
     allTree: (projectId: number) => ["projects", projectId, "folders", "tree"] as const,
-    tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>
-      ["projects", projectId, "folders", "tree", { includeTasks: query.includeTasks ?? false, includeFiles: query.includeFiles ?? true }] as const,
-    targetTree: (projectId: number) => ["projects", projectId, "folders", "target-tree"] as const,
+    tree: (
+      projectId: number,
+      query: { includeTasks?: boolean; includeFiles?: boolean; taskScope?: "open" | "all" } = {},
+    ) =>
+      ["projects", projectId, "folders", "tree", {
+        includeTasks: query.includeTasks ?? false,
+        includeFiles: query.includeFiles ?? true,
+        taskScope: query.taskScope ?? "open",
+      }] as const,
     trash: (projectId: number, page = 1) => ["projects", projectId, "folders", "trash", page] as const,
   },
   timeEntries: {

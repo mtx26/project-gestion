@@ -408,23 +408,18 @@ class FolderTreeNodeSerializer(serializers.Serializer):
 class FolderTreeQuerySerializer(serializers.Serializer):
     include_files = serializers.BooleanField(required=False, default=True)
     include_tasks = serializers.BooleanField(required=False, default=False)
+    # `open` pour une vue de travail (ce qu'il reste a faire), `all` pour un selecteur de
+    # cible : on rattache une ecriture a une tache terminee — les "entrees de journee"
+    # creent justement des taches deja `done`.
+    task_scope = serializers.ChoiceField(choices=["open", "all"], required=False, default="open")
 
 
 class FolderTreeSerializer(serializers.Serializer):
     def to_representation(self, instance):
         roots = build_folder_tree(
             instance["folders"],
-            instance["documents"],
+            instance.get("documents"),
             instance.get("tasks"),
-        )
-        return FolderTreeNodeSerializer(roots, many=True).data
-
-
-class FolderTargetTreeSerializer(serializers.Serializer):
-    def to_representation(self, instance):
-        roots = build_folder_tree(
-            instance["folders"],
-            tasks=instance.get("tasks"),
         )
         return FolderTreeNodeSerializer(roots, many=True).data
 

@@ -1288,12 +1288,17 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_tree_contains_folders_and_documents(response)
         self.assert_tree_excludes_deleted_and_other_project_nodes(response)
 
-    def test_member_without_folder_view_cannot_get_tree(self):
-        self.given_member_authenticated(["file.edit"])
+    def test_member_without_folder_view_gets_the_structure_without_documents(self):
+        # L'arbre sert de filtre a toutes les sections : un membre qui suit la finance sans
+        # acces aux fichiers garde ses dossiers, mais aucun document ne fuit.
+        self.given_member_authenticated(["finance.view"])
 
         response = self.when_get_folder_tree()
 
-        self.assert_forbidden(response)
+        self.assert_ok(response)
+        node_names = {node["name"] for node in self.response_data(response)}
+        self.assertIn("Root folder", node_names)
+        self.assertNotIn("Root document", node_names)
 
     def test_non_member_cannot_get_tree(self):
         self.given_authenticated(self.other_user)
@@ -1303,11 +1308,18 @@ class FolderTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_forbidden(response)
 
 
-class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
+class FolderTreeTargetScopeTests(ProjectApiTestCase):
+    """`task_scope=all` : le mode "selecteur de cible" de l'arbre (ex-`/folders/target-tree/`,
+    fusionne dans `/folders/tree/`). Il retourne toutes les taches, terminees comprises,
+    contrairement au mode `open` d'une vue de travail."""
+
     def setUp(self):
         super().setUp()
 
-        self.url = f"/api/projects/{self.project.id}/folders/target-tree/"
+        self.url = (
+            f"/api/projects/{self.project.id}/folders/tree/"
+            "?include_files=false&include_tasks=true&task_scope=all"
+        )
         self.root_folder = Folder.objects.create(
             project=self.project,
             name="Root folder",
@@ -1331,6 +1343,12 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
             status="in_progress",
             priority="high",
         )
+        self.done_task = Task.objects.create(
+            project=self.project,
+            created_by=self.owner,
+            title="Done task",
+            status="done",
+        )
         self.deleted_task = Task.objects.create(
             project=self.project,
             created_by=self.owner,
@@ -1348,6 +1366,12 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
     # WHEN
     def when_get_target_tree(self):
         return self.api_get(self.url)
+
+    def when_get_open_tree(self):
+        return self.api_get(
+            f"/api/projects/{self.project.id}/folders/tree/"
+            "?include_files=false&include_tasks=true"
+        )
 
     # ASSERT
     def flatten_tree(self, nodes):
@@ -1399,6 +1423,36 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_target_tree_contains_tasks(response)
 
+    def test_task_scope_all_keeps_done_tasks_that_the_open_scope_hides(self):
+        # La seule difference de fond entre les deux anciens endpoints : on rattache une
+        # ecriture a une tache terminee, alors qu'une vue de travail ne les montre pas.
+        self.given_authenticated(self.owner)
+
+        target_names = {node["name"] for node in self.flatten_tree(self.response_data(self.when_get_target_tree()))}
+        open_names = {node["name"] for node in self.flatten_tree(self.response_data(self.when_get_open_tree()))}
+
+        self.assertIn("Done task", target_names)
+        self.assertNotIn("Done task", open_names)
+        self.assertIn("Root task", open_names)
+
+    def test_target_tree_never_returns_documents(self):
+        self.given_authenticated(self.owner)
+        Document.objects.create(
+            project=self.project,
+            folder=self.root_folder,
+            name="Target tree document",
+            file_id="projects/1/documents/target-tree.pdf",
+            file_name="target-tree.pdf",
+            file_size=120,
+            mime_type="application/pdf",
+        )
+
+        response = self.when_get_target_tree()
+
+        self.assert_ok(response)
+        node_types = {node["type"] for node in self.flatten_tree(self.response_data(response))}
+        self.assertNotIn("document", node_types)
+
     def test_member_with_time_edit_and_task_view_can_get_target_tree_with_tasks(self):
         self.given_member_authenticated(["time_entry.edit", "task.view"])
 
@@ -1415,12 +1469,16 @@ class FolderTargetTreeRoutePermissionTests(ProjectApiTestCase):
         self.assert_ok(response)
         self.assert_target_tree_excludes_tasks(response)
 
-    def test_member_without_time_edit_cannot_get_target_tree(self):
-        self.given_member_authenticated(["task.view"])
+    def test_member_with_finance_edit_only_can_get_target_tree(self):
+        # Le selecteur de cible sert aussi aux ecritures financieres et aux demandes de
+        # remboursement : le reserver a `time_entry.edit` empechait de rattacher une
+        # ecriture a un dossier.
+        self.given_member_authenticated(["finance.edit"])
 
         response = self.when_get_target_tree()
 
-        self.assert_forbidden(response)
+        self.assert_ok(response)
+        self.assert_target_tree_excludes_tasks(response)
 
     def test_non_member_cannot_get_target_tree(self):
         self.given_authenticated(self.other_user)

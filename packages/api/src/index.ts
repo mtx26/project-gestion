@@ -611,13 +611,18 @@ export function createApiClient({
         }),
     },
     folders: {
-      tree: (projectId: number, query: { includeTasks?: boolean; includeFiles?: boolean } = {}) =>
+      /** Arbre du projet : explorateur de fichiers, filtre dossier, ou selecteur de cible
+       * selon les parametres. `taskScope: "all"` remonte aussi les taches terminees — on
+       * peut rattacher une ecriture a une tache close, pas la lister comme du travail restant. */
+      tree: (
+        projectId: number,
+        query: { includeTasks?: boolean; includeFiles?: boolean; taskScope?: "open" | "all" } = {},
+      ) =>
         request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/tree/${buildQueryString({
           include_tasks: query.includeTasks ? "true" : undefined,
           include_files: query.includeFiles === false ? "false" : undefined,
+          task_scope: query.taskScope === "all" ? "all" : undefined,
         })}`),
-      targetTree: (projectId: number) =>
-        request<FolderTreeNode[]>(`/api/projects/${projectId}/folders/target-tree/`),
       create: (projectId: number, payload: FolderPayload) =>
         request<Folder>(`/api/projects/${projectId}/folders/`, {
           method: "POST",
