@@ -38,7 +38,7 @@ import { api } from "@/lib/api";
 import { FINANCIAL_SOURCE_LABELS } from "@/lib/finance-chart-utils";
 import { formatMoney } from "@/lib/task-utils";
 import type { EntryTarget } from "@/lib/target-utils";
-import { buildProjectHref, parseEnumParam, parseIdParam, parsePageParam } from "@/lib/url-params";
+import { buildProjectHref, omitDefault, parseEnumParam, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
@@ -235,12 +235,12 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
           dateTo={dateTo}
           onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
         />
-        <FilterSelect value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: v })}>
+        <FilterSelect value={typeFilter} onValueChange={(v) => updateUrlFilter({ type: omitDefault(v, "all") })}>
           <SelectItem value="all">Tous types</SelectItem>
           <SelectItem value="expense">Dépenses</SelectItem>
           <SelectItem value="refund">Remboursements</SelectItem>
         </FilterSelect>
-        <FilterSelect value={sourceFilter} onValueChange={(v) => updateUrlFilter({ source: v })}>
+        <FilterSelect value={sourceFilter} onValueChange={(v) => updateUrlFilter({ source: omitDefault(v, "all") })}>
           <SelectItem value="all">Toutes origines</SelectItem>
           <SelectItem value="manual">Manuel</SelectItem>
           <SelectItem value="labor">Main d&apos;œuvre</SelectItem>
@@ -261,7 +261,7 @@ function FinanceView({ user, selectedProject, projectsQuery, openCreateProject }
           onSelect={(id) => updateUrlFilter({ folder: id })}
           onCreateFolderAction={canEditFinance ? handleCreateFolder : undefined}
         />
-        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
+        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: omitDefault(v, "all") })}>
           <SelectItem value="all">Date récente</SelectItem>
           <SelectItem value="created_at">Date ancienne</SelectItem>
           <SelectItem value="-amount">Montant ↓</SelectItem>

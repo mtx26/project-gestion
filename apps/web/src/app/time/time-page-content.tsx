@@ -35,7 +35,7 @@ import {
   getTargetPayload,
   type EntryTarget,
 } from "@/lib/target-utils";
-import { buildProjectHref, parsePageParam } from "@/lib/url-params";
+import { buildProjectHref, omitDefault, parsePageParam } from "@/lib/url-params";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
 import { useSearchParam } from "@/lib/use-search-param";
@@ -337,8 +337,7 @@ function TimeView({
           {showEntryList ? periodFilter : null}
           <FilterSelect
             value={paymentStatusFilter}
-            // `not_paid` etant le defaut, il sort de l'URL au lieu d'y etre ecrit.
-            onValueChange={(v) => updateUrlFilter({ payment: v === "not_paid" ? null : v })}
+            onValueChange={(v) => updateUrlFilter({ payment: omitDefault(v, "not_paid") })}
           >
             <SelectItem value="not_paid">Non réglé</SelectItem>
             <SelectItem value="unpaid">Pas payé</SelectItem>

@@ -36,7 +36,7 @@ import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/task-utils";
 import type { EntryTarget } from "@/lib/target-utils";
-import { buildProjectHref, parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
+import { buildProjectHref, omitDefault, parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
@@ -203,7 +203,7 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
           dateTo={dateTo}
           onChange={(v) => updateUrlFilter({ date_from: v.date_from, date_to: v.date_to })}
         />
-        <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: v })}>
+        <FilterSelect value={statusFilter} onValueChange={(v) => updateUrlFilter({ status: omitDefault(v, "all") })}>
           <SelectItem value="all">Tous statuts</SelectItem>
           <SelectItem value="pending">En attente</SelectItem>
           <SelectItem value="approved">Approuvé</SelectItem>
@@ -230,7 +230,7 @@ function RequestsView({ user, selectedProject, projectsQuery, openCreateProject 
             Inclure refusés
           </FilterToggle>
         ) : null}
-        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: v })}>
+        <FilterSelect value={ordering} onValueChange={(v) => updateUrlFilter({ ordering: omitDefault(v, "all") })}>
           <SelectItem value="all">Date récente</SelectItem>
           <SelectItem value="created_at">Date ancienne</SelectItem>
           <SelectItem value="-amount">Montant ↓</SelectItem>
