@@ -32,7 +32,7 @@ import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { DocumentPreviewDialog } from "@/components/dialogs/document-preview-dialog";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { parseIdParam, parsePageParam } from "@/lib/url-params";
+import { omitDefault, parseIdParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useDocumentPreview } from "@/lib/use-document-preview";
@@ -198,8 +198,7 @@ function TasksView({
         />
         <FilterSelect
           value={statusFilter}
-          // `not_done` etant le defaut, il sort de l'URL au lieu d'y etre ecrit.
-          onValueChange={(v) => updateUrlFilter({ status: v === "not_done" ? null : (v as StatusFilter) })}
+          onValueChange={(v) => updateUrlFilter({ status: omitDefault(v as StatusFilter, "not_done") })}
         >
           <SelectItem value="not_done">Non terminées</SelectItem>
           <SelectItem value="todo">À faire</SelectItem>
@@ -207,7 +206,7 @@ function TasksView({
           <SelectItem value="done">Terminé</SelectItem>
           <SelectItem value="all">Tous statuts</SelectItem>
         </FilterSelect>
-        <FilterSelect value={priorityFilter} onValueChange={(v) => updateUrlFilter({ priority: v as PriorityFilter })}>
+        <FilterSelect value={priorityFilter} onValueChange={(v) => updateUrlFilter({ priority: omitDefault(v as PriorityFilter, "all") })}>
           <SelectItem value="all">Toutes priorités</SelectItem>
           <SelectItem value="low">Basse</SelectItem>
           <SelectItem value="normal">Normale</SelectItem>
@@ -227,7 +226,7 @@ function TasksView({
             selectedFolderId={folderId}
             buttonLabel={folderId == null ? "Tous les dossiers" : (folderNameById.get(folderId) ?? "Dossier")}
             description="Filtrer les tâches par dossier."
-            onSelect={(id) => updateUrlFilter({ folder: id == null ? "all" : `folder-${id}` })}
+            onSelect={(id) => updateUrlFilter({ folder: id == null ? null : `folder-${id}` })}
             onCreateFolderAction={canEditTasks ? handleCreateFolder : undefined}
           />
         ) : null}
