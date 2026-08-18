@@ -231,20 +231,24 @@ PROFILE_PICTURE_ALLOWED_MIME_TYPES = set(env.list(
     default={"image/jpeg", "image/png", "image/webp", "image/gif"},
 ))
 
-DEFAULT_FROM_EMAIL = env(
-    "DEFAULT_FROM_EMAIL",
-    default="Project Gestion <no-reply@project-gestion.local>",
+# `env("X", default=Y)` renvoie "" quand la variable est definie mais vide
+# (docker-compose passe toujours la cle) : le `or` restaure le defaut.
+DEFAULT_FROM_EMAIL = (
+    env("DEFAULT_FROM_EMAIL", default="")
+    or "Project Gestion <no-reply@project-gestion.local>"
 )
-SERVER_EMAIL = env("SERVER_EMAIL", default=DEFAULT_FROM_EMAIL)
+# Toujours identique a DEFAULT_FROM_EMAIL dans tous les deploiements : pas de
+# variable d'environnement dediee.
+SERVER_EMAIL = DEFAULT_FROM_EMAIL
 DEFAULT_REPLY_TO_EMAIL = env("DEFAULT_REPLY_TO_EMAIL", default=None) or None
 
 RESEND_API_KEY = env("RESEND_API_KEY", default="")
-RESEND_INVITATION_TEMPLATE_ID = env("RESEND_INVITATION_TEMPLATE_ID", default="")
-RESEND_PASSWORD_RESET_TEMPLATE_ID = env("RESEND_PASSWORD_RESET_TEMPLATE_ID", default="")
-RESEND_EMAIL_VERIFICATION_TEMPLATE_ID = env(
-    "RESEND_EMAIL_VERIFICATION_TEMPLATE_ID",
-    default="",
-)
+# Alias des templates Resend : ils appartiennent au repo (resend_templates/) et
+# sont crees/publies par scripts/sync_resend_templates.py qui les code en dur.
+# Ce sont donc des constantes, pas de la configuration de deploiement.
+RESEND_INVITATION_TEMPLATE_ID = "project-invitation"
+RESEND_PASSWORD_RESET_TEMPLATE_ID = "password-reset"
+RESEND_EMAIL_VERIFICATION_TEMPLATE_ID = "email-verification"
 RESEND_SIGNING_SECRET = env("RESEND_SIGNING_SECRET", default=None)
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="") or (
@@ -265,8 +269,7 @@ if RESEND_SIGNING_SECRET:
     ANYMAIL["RESEND_SIGNING_SECRET"] = RESEND_SIGNING_SECRET
 
 FRONTEND_APP_URL = (
-    env("FRONTEND_APP_URL", default="")
-    or env("NEXT_PUBLIC_APP_URL", default="http://localhost:3000")
+    env("FRONTEND_APP_URL", default="") or "http://localhost:3000"
 ).rstrip("/")
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
@@ -277,14 +280,19 @@ CORS_ALLOWED_ORIGINS = env.list(
     ],
 )
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = env.list("CSRF_TRUSTED_ORIGINS", default=[FRONTEND_APP_URL])
+# `env.list("X")` renvoie [""] quand la variable est definie mais vide (cas de
+# docker-compose, qui passe toujours la cle) : on filtre pour retomber sur le defaut.
+CSRF_TRUSTED_ORIGINS = [
+    origin for origin in env.list("CSRF_TRUSTED_ORIGINS", default=[]) if origin
+] or [FRONTEND_APP_URL]
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
 # Requis uniquement quand front et back vivent sur des sous-domaines distincts
 # d'un meme domaine (ex. app.example.com / api.example.com) : sans Domain
-# explicite, le cookie de session est host-only et n'est jamais renvoye au
-# sous-domaine du front. Laisser vide en local (meme host, ports differents).
-SESSION_COOKIE_DOMAIN = env("SESSION_COOKIE_DOMAIN", default=None) or None
+# explicite, le cookie CSRF est host-only sur le back, donc illisible par le JS
+# du front qui doit le renvoyer en X-CSRFToken. Le cookie de session, lui, n'a
+# pas besoin d'etre elargi : le navigateur l'envoie deja au back avec
+# `credentials: "include"`. Laisser vide en local (meme host, ports differents).
 CSRF_COOKIE_DOMAIN = env("CSRF_COOKIE_DOMAIN", default=None) or None
 INVITATION_EXPIRES_DAYS = env.int("INVITATION_EXPIRES_DAYS", default=7)
 

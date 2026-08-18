@@ -4,17 +4,17 @@ Fichiers HTML a copier dans Resend.
 
 - `email_verification.html`
   - Variables HTML: `{{{USER_NAME}}}`, `{{{VERIFY_URL}}}`
-  - Env: `RESEND_EMAIL_VERIFICATION_TEMPLATE_ID`
+  - Alias: `email-verification` (`RESEND_EMAIL_VERIFICATION_TEMPLATE_ID` dans `config/settings.py`)
   - From: `Project Gestion <no-reply@your-domain.com>`
   - Subject: `Verification de votre adresse email`
 - `password_reset.html`
   - Variables HTML: `{{{USER_NAME}}}`, `{{{RESET_URL}}}`
-  - Env: `RESEND_PASSWORD_RESET_TEMPLATE_ID`
+  - Alias: `password-reset` (`RESEND_PASSWORD_RESET_TEMPLATE_ID` dans `config/settings.py`)
   - From: `Project Gestion <no-reply@your-domain.com>`
   - Subject: `Reinitialisation de votre mot de passe`
 - `project_invitation.html`
   - Variables HTML: `{{{PROJECT_NAME}}}`, `{{{INVITER_NAME}}}`, `{{{INVITATION_URL}}}`, `{{{EXPIRES_AT}}}`
-  - Env: `RESEND_INVITATION_TEMPLATE_ID`
+  - Alias: `project-invitation` (`RESEND_INVITATION_TEMPLATE_ID` dans `config/settings.py`)
   - From: `Project Gestion <no-reply@your-domain.com>`
   - Subject: `Invitation au projet`
 
