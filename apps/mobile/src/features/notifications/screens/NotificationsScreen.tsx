@@ -2,7 +2,7 @@ import type { Notification } from "@project-gestion/types";
 import { useRouter } from "expo-router";
 import { MailOpen } from "lucide-react-native";
 import { useState } from "react";
-import { Alert, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
@@ -13,6 +13,7 @@ import { formatDateTime } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { theme } from "../../../theme";
 import { useAcceptInvitation } from "../../invitations/hooks/use-accept-invitation";
+import { ThemedRefreshControl } from "../../../components/ui/ThemedRefreshControl";
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
@@ -88,7 +89,7 @@ export function NotificationsScreen() {
             : { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 24 }
         }
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={() => refetch()} />
+          <ThemedRefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={() => refetch()} />
         }
         onEndReachedThreshold={0.4}
         onEndReached={() => {
@@ -185,6 +186,7 @@ function NotificationRow({
             onPress={() => onAccept(invitationToken)}
             disabled={isAccepting}
             accessibilityRole="button"
+            hitSlop={8}
             className="h-9 justify-center"
           >
             <Text className="text-sm font-semibold text-primary">

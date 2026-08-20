@@ -10,7 +10,8 @@ import { LoadingState } from "../../../components/feedback/LoadingState";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { getErrorMessage } from "../../../lib/errors";
 import { longPressFeedback } from "../../../lib/haptics";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
+import { SelectMenu, type SelectMenuOption } from "../../../components/menus/SelectMenu";
+import { GlassFab, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
@@ -22,7 +23,6 @@ const VISIBLE_PERMISSIONS = 6;
 export function RolesScreen() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const showActionSheet = useActionSheet();
   const { selectedProject, isLoading } = useSelectedProject();
   const projectId = selectedProject?.id ?? null;
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
@@ -33,30 +33,26 @@ export function RolesScreen() {
   const { permissions } = usePermissions(canManageRoles);
   const deleteRole = useDeleteRole(projectId);
 
-  function openRoleActions(role: Role) {
-    const options = [
+  function roleActions(role: Role): SelectMenuOption[] {
+    return [
       ...(canManageRoles ? [{ label: "Modifier", value: "edit" }] : []),
       ...(canDeleteRoles ? [{ label: "Supprimer", value: "delete", destructive: true }] : []),
     ];
-    if (options.length === 0) {
-      return;
-    }
+  }
 
-    longPressFeedback();
-    showActionSheet(role.name, options, (value) => {
-      if (value === "edit") {
-        router.push({ pathname: "/settings/roles/[id]/edit", params: { id: String(role.id) } });
-      } else {
-        Alert.alert(
-          `Supprimer le role "${role.name}" ?`,
-          "Les membres ayant ce role perdront immediatement les permissions associees.",
-          [
-            { text: "Annuler", style: "cancel" },
-            { text: "Supprimer", style: "destructive", onPress: () => deleteRole.mutate(role.id) },
-          ],
-        );
-      }
-    });
+  function runRoleAction(role: Role, value: string) {
+    if (value === "edit") {
+      router.push({ pathname: "/settings/roles/[id]/edit", params: { id: String(role.id) } });
+    } else {
+      Alert.alert(
+        `Supprimer le role "${role.name}" ?`,
+        "Les membres ayant ce role perdront immediatement les permissions associees.",
+        [
+          { text: "Annuler", style: "cancel" },
+          { text: "Supprimer", style: "destructive", onPress: () => deleteRole.mutate(role.id) },
+        ],
+      );
+    }
   }
 
   return (
@@ -67,24 +63,20 @@ export function RolesScreen() {
       {isLoading || isLoadingRoles ? (
         <LoadingState />
       ) : (
-        <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, gap: 12 }}>
+        <ScrollView
+          className="flex-1"
+          // Place reservee au bouton flottant, comme sur les autres ecrans de liste.
+          contentContainerStyle={{
+            padding: 20,
+            gap: 12,
+            paddingBottom: canManageRoles && permissions.length > 0 ? GLASS_FAB_CLEARANCE : 20,
+          }}
+        >
           {canManageRoles && permissions.length === 0 ? (
             <InlineMessage>
               Aucune permission disponible : lance les migrations backend pour les initialiser avant de
               creer des roles.
             </InlineMessage>
-          ) : null}
-
-          {canManageRoles && permissions.length > 0 ? (
-            <Pressable
-              onPress={() => router.push("/settings/roles/create")}
-              accessibilityRole="button"
-              android_ripple={{ color: `${theme.colors.primaryForeground}33` }}
-              className="h-11 flex-row items-center justify-center gap-2 rounded-md bg-primary"
-            >
-              <Plus size={theme.iconSize.sm} color={theme.colors.primaryForeground} />
-              <Text className="text-sm font-semibold text-primaryForeground">Nouveau role</Text>
-            </Pressable>
           ) : null}
 
           {deleteRole.error ? <ErrorState message={getErrorMessage(deleteRole.error)} /> : null}
@@ -95,25 +87,48 @@ export function RolesScreen() {
               description="Cree un role pour donner des permissions aux membres du projet."
             />
           ) : (
-            roles.map((role) => (
-              <RoleCard key={role.id} role={role} onLongPress={() => openRoleActions(role)} />
-            ))
+            roles.map((role) => {
+              const actions = roleActions(role);
+              return actions.length === 0 ? (
+                <View key={role.id}>
+                  <RoleCard role={role} hasActions={false} />
+                </View>
+              ) : (
+                <SelectMenu
+                  key={role.id}
+                  title={role.name}
+                  options={actions}
+                  onSelect={(value) => runRoleAction(role, value)}
+                  shouldOpenOnLongPress
+                  onOpenMenu={longPressFeedback}
+                >
+                  <RoleCard role={role} hasActions />
+                </SelectMenu>
+              );
+            })
           )}
         </ScrollView>
       )}
+
+      {canManageRoles && permissions.length > 0 ? (
+        <GlassFab
+          icon={Plus}
+          label="Nouveau role"
+          onPress={() => router.push("/settings/roles/create")}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
 
-function RoleCard({ role, onLongPress }: { role: Role; onLongPress: () => void }) {
+function RoleCard({ role, hasActions }: { role: Role; hasActions: boolean }) {
   const hasPermissions = role.permissions.length > 0;
 
   return (
     <Pressable
-      onLongPress={onLongPress}
-      accessibilityRole="button"
-      accessibilityHint="Appui long pour les actions"
-      android_ripple={{ color: `${theme.colors.foreground}1f` }}
+      accessibilityRole={hasActions ? "button" : undefined}
+      accessibilityHint={hasActions ? "Appui long pour les actions" : undefined}
+      android_ripple={hasActions ? { color: `${theme.colors.foreground}1f` } : undefined}
       className="gap-2 rounded-md border border-border bg-surface p-4"
     >
       <View className="flex-row items-center justify-between gap-2">

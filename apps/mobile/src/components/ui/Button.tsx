@@ -23,7 +23,7 @@ const textClasses: Record<ButtonVariant, string> = {
   primary: "text-primaryForeground",
   secondary: "text-foreground",
   ghost: "text-foreground",
-  danger: "text-primaryForeground",
+  danger: "text-dangerForeground",
 };
 
 export function Button({

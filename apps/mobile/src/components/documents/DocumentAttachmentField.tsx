@@ -2,7 +2,7 @@ import type { DocumentInfo } from "@project-gestion/types";
 import { Paperclip, X } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import type { PendingUpload } from "../../lib/document-picker";
-import { useUploadPicker } from "../../lib/use-upload-picker";
+import { UploadMenu } from "./UploadMenu";
 import { theme } from "../../theme";
 import { DocumentRow } from "./DocumentRow";
 
@@ -26,7 +26,6 @@ export function DocumentAttachmentField({
   onAddFiles,
   onRemoveFile,
 }: DocumentAttachmentFieldProps) {
-  const pickUpload = useUploadPicker();
 
   return (
     <View className="gap-2">
@@ -75,14 +74,15 @@ export function DocumentAttachmentField({
         />
       ))}
 
-      <Pressable
-        onPress={() => pickUpload(onAddFiles)}
-        accessibilityRole="button"
-        className="h-11 flex-row items-center justify-center gap-2 rounded-md border border-border bg-surface"
-      >
-        <Paperclip size={theme.iconSize.sm} color={theme.colors.foreground} />
-        <Text className="text-sm font-medium text-foreground">Ajouter un fichier</Text>
-      </Pressable>
+      <UploadMenu onPicked={onAddFiles}>
+        <View
+          accessibilityRole="button"
+          className="h-11 flex-row items-center justify-center gap-2 rounded-md border border-border bg-surface"
+        >
+          <Paperclip size={theme.iconSize.sm} color={theme.colors.foreground} />
+          <Text className="text-sm font-medium text-foreground">Ajouter un fichier</Text>
+        </View>
+      </UploadMenu>
     </View>
   );
 }

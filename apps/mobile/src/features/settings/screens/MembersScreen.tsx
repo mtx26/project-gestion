@@ -6,11 +6,12 @@ import { Stack } from "expo-router";
 import { MailPlus } from "lucide-react-native";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { FilterPill } from "../../../components/filters/FilterPill";
+import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
+import { SelectMenu, type SelectMenuOption } from "../../../components/menus/SelectMenu";
 import { NameSheet } from "../../../components/layout/NameSheet";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
@@ -18,7 +19,6 @@ import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { getErrorMessage } from "../../../lib/errors";
 import { longPressFeedback } from "../../../lib/haptics";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
@@ -39,7 +39,6 @@ import { useProjectRoles } from "../hooks/use-project-roles";
 
 export function MembersScreen() {
   const user = useAuthStore((state) => state.user);
-  const showActionSheet = useActionSheet();
   const { selectedProject, isLoading } = useSelectedProject();
   const projectId = selectedProject?.id ?? null;
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
@@ -63,13 +62,15 @@ export function MembersScreen() {
 
   const [rateTarget, setRateTarget] = useState<ProjectMember | null>(null);
 
-  function pickRole(title: string, onSelect: (roleId: number) => void, currentRoleId?: number) {
-    showActionSheet(
-      title,
-      roles.map((role: Role) => ({ label: role.name, value: String(role.id) })),
-      (value) => onSelect(Number(value)),
-      currentRoleId == null ? undefined : String(currentRoleId),
-    );
+  /** Le choix du role, en sous-menu natif : `role:<id>` pour le distinguer des
+   * actions de premier niveau. */
+  function roleSubmenu(currentRoleId: number | null | undefined): SelectMenuOption {
+    return {
+      label: "Changer de role",
+      value: "role",
+      options: roles.map((role: Role) => ({ label: role.name, value: `role:${role.id}` })),
+      selected: currentRoleId == null ? undefined : `role:${currentRoleId}`,
+    };
   }
 
   function canEditRateOf(member: ProjectMember) {
@@ -77,73 +78,63 @@ export function MembersScreen() {
     return member.id === OWNER_MEMBER_ID ? isOwnRow : canEditRates || (canEditOwnRate && isOwnRow);
   }
 
-  function openMemberActions(member: ProjectMember) {
+  function memberActions(member: ProjectMember): SelectMenuOption[] {
     const isOwnerEntry = member.id === OWNER_MEMBER_ID;
-    const options = [
-      ...(canManageMembers && !isOwnerEntry ? [{ label: "Changer de role", value: "role" }] : []),
+    return [
+      ...(canManageMembers && !isOwnerEntry
+        ? [roleSubmenu(member.role_deleted ? undefined : member.role)]
+        : []),
       ...(canEditRateOf(member) ? [{ label: "Modifier le taux horaire", value: "rate" }] : []),
       ...(canManageMembers && !isOwnerEntry
         ? [{ label: "Retirer du projet", value: "remove", destructive: true }]
         : []),
     ];
-    if (options.length === 0) {
-      return;
-    }
-
-    longPressFeedback();
-    showActionSheet(member.user_display_name, options, (value) => {
-      if (value === "role") {
-        pickRole(
-          `Role de ${member.user_display_name}`,
-          (roleId) => updateMemberRole.mutate({ memberId: member.id, roleId }),
-          member.role_deleted ? undefined : member.role,
-        );
-      } else if (value === "rate") {
-        setRateTarget(member);
-      } else if (value === "remove") {
-        Alert.alert(
-          `Retirer ${member.user_display_name} ?`,
-          "Ce membre perdra immediatement l'acces au projet.",
-          [
-            { text: "Annuler", style: "cancel" },
-            { text: "Retirer", style: "destructive", onPress: () => removeMember.mutate(member.id) },
-          ],
-        );
-      }
-    });
   }
 
-  function openInvitationActions(invitation: Invitation) {
-    longPressFeedback();
-    showActionSheet(
-      invitation.email,
-      [
-        { label: "Changer de role", value: "role" },
-        { label: "Annuler l'invitation", value: "cancel", destructive: true },
-      ],
-      (value) => {
-        if (value === "role") {
-          pickRole(
-            `Role de ${invitation.email}`,
-            (roleId) => updateInvitationRole.mutate({ invitationId: invitation.id, roleId }),
-            invitation.role,
-          );
-        } else {
-          Alert.alert(
-            `Annuler l'invitation de ${invitation.email} ?`,
-            "Cette personne ne pourra plus rejoindre le projet avec ce lien.",
-            [
-              { text: "Annuler", style: "cancel" },
-              {
-                text: "Confirmer",
-                style: "destructive",
-                onPress: () => cancelInvitation.mutate(invitation.id),
-              },
-            ],
-          );
-        }
-      },
-    );
+  function runMemberAction(member: ProjectMember, value: string) {
+    if (value.startsWith("role:")) {
+      updateMemberRole.mutate({ memberId: member.id, roleId: Number(value.slice("role:".length)) });
+    } else if (value === "rate") {
+      setRateTarget(member);
+    } else if (value === "remove") {
+      Alert.alert(
+        `Retirer ${member.user_display_name} ?`,
+        "Ce membre perdra immediatement l'acces au projet.",
+        [
+          { text: "Annuler", style: "cancel" },
+          { text: "Retirer", style: "destructive", onPress: () => removeMember.mutate(member.id) },
+        ],
+      );
+    }
+  }
+
+  function invitationActions(invitation: Invitation): SelectMenuOption[] {
+    return [
+      roleSubmenu(invitation.role),
+      { label: "Annuler l'invitation", value: "cancel", destructive: true },
+    ];
+  }
+
+  function runInvitationAction(invitation: Invitation, value: string) {
+    if (value.startsWith("role:")) {
+      updateInvitationRole.mutate({
+        invitationId: invitation.id,
+        roleId: Number(value.slice("role:".length)),
+      });
+    } else {
+      Alert.alert(
+        `Annuler l'invitation de ${invitation.email} ?`,
+        "Cette personne ne pourra plus rejoindre le projet avec ce lien.",
+        [
+          { text: "Annuler", style: "cancel" },
+          {
+            text: "Confirmer",
+            style: "destructive",
+            onPress: () => cancelInvitation.mutate(invitation.id),
+          },
+        ],
+      );
+    }
   }
 
   const actionError =
@@ -167,8 +158,7 @@ export function MembersScreen() {
               roles={roles}
               isPending={inviteMember.isPending}
               error={inviteMember.error}
-              onPickRole={(onSelect, currentRoleId) => pickRole("Role de l'invite", onSelect, currentRoleId)}
-              onSubmit={(values) =>
+                          onSubmit={(values) =>
                 inviteMember.mutate({ email: values.email, roleId: Number(values.roleId) })
               }
             />
@@ -180,14 +170,24 @@ export function MembersScreen() {
             <Text className="text-[11px] font-medium uppercase text-muted">
               Membres ({members.length})
             </Text>
-            {members.map((member) => (
-              <MemberCard
-                key={member.id}
-                member={member}
-                hasActions={canManageMembers || canEditRateOf(member)}
-                onLongPress={() => openMemberActions(member)}
-              />
-            ))}
+            {members.map((member) => {
+              const actions = memberActions(member);
+              const card = <MemberCard member={member} hasActions={actions.length > 0} />;
+              return actions.length === 0 ? (
+                <View key={member.id}>{card}</View>
+              ) : (
+                <SelectMenu
+                  key={member.id}
+                  title={member.user_display_name}
+                  options={actions}
+                  onSelect={(value) => runMemberAction(member, value)}
+                  shouldOpenOnLongPress
+                  onOpenMenu={longPressFeedback}
+                >
+                  {card}
+                </SelectMenu>
+              );
+            })}
           </View>
 
           {canManageMembers && invitations.length > 0 ? (
@@ -196,20 +196,27 @@ export function MembersScreen() {
                 Invitations ({invitations.length})
               </Text>
               {invitations.map((invitation) => (
-                <Pressable
+                <SelectMenu
                   key={invitation.id}
-                  onLongPress={() => openInvitationActions(invitation)}
-                  accessibilityRole="button"
-                  accessibilityHint="Appui long pour les actions"
-                  className="gap-1 rounded-md border border-border bg-background p-4"
+                  title={invitation.email}
+                  options={invitationActions(invitation)}
+                  onSelect={(value) => runInvitationAction(invitation, value)}
+                  shouldOpenOnLongPress
+                  onOpenMenu={longPressFeedback}
                 >
-                  <Text className="text-base font-medium text-foreground" numberOfLines={1}>
-                    {invitation.email}
-                  </Text>
-                  <Text className="text-xs text-muted">
-                    {invitation.role_name} · {invitation.status}
-                  </Text>
-                </Pressable>
+                  <View
+                    accessibilityRole="button"
+                    accessibilityHint="Appui long pour les actions"
+                    className="gap-1 rounded-md border border-border bg-background p-4"
+                  >
+                    <Text className="text-base font-medium text-foreground" numberOfLines={1}>
+                      {invitation.email}
+                    </Text>
+                    <Text className="text-xs text-muted">
+                      {invitation.role_name} · {invitation.status}
+                    </Text>
+                  </View>
+                </SelectMenu>
               ))}
             </View>
           ) : null}
@@ -244,13 +251,11 @@ function InviteForm({
   roles,
   isPending,
   error,
-  onPickRole,
   onSubmit,
 }: {
   roles: Role[];
   isPending: boolean;
   error: unknown;
-  onPickRole: (onSelect: (roleId: number) => void, currentRoleId?: number) => void;
   onSubmit: (values: InviteMemberFormValues) => void;
 }) {
   const form = useForm<InviteMemberFormValues>({
@@ -291,13 +296,12 @@ function InviteForm({
 
       <View className="gap-2">
         <Text className="text-sm font-medium text-foreground">Role</Text>
-        <FilterPill
+        <SelectFilterPill
           label={roleLabel}
-          onPress={() =>
-            onPickRole((selectedRoleId) =>
-              form.setValue("roleId", String(selectedRoleId), { shouldValidate: true }),
-            )
-          }
+          title="Role de l'invite"
+          options={roles.map((role) => ({ label: role.name, value: String(role.id) }))}
+          value={roleId}
+          onSelect={(value) => form.setValue("roleId", value, { shouldValidate: true })}
         />
         {form.formState.errors.roleId ? (
           <Text className="text-sm text-danger">{form.formState.errors.roleId.message}</Text>

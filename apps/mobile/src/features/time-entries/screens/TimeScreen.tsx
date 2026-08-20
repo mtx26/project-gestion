@@ -10,16 +10,18 @@ import type { Project } from "@project-gestion/types";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Clock3, Plus, Search } from "lucide-react-native";
 import { useState } from "react";
-import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { FilterTrigger } from "../../../components/filters/FilterTrigger";
+import { GlassBar, GLASS_BAR_HEIGHT } from "../../../components/ui/GlassBar";
+import { GlassCapsule } from "../../../components/ui/GlassCapsule";
+import { GlassFab, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionScreen";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
 import { Input } from "../../../components/ui/Input";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { getErrorMessage } from "../../../lib/errors";
 import { buildMemberFilterOptions } from "../../../lib/member-options";
 import { theme } from "../../../theme";
@@ -31,6 +33,7 @@ import { TimeEntryCard } from "../components/TimeEntryCard";
 import { TimeFilterSheet } from "../components/TimeFilterSheet";
 import { TimeTotalsCard } from "../components/TimeTotalsCard";
 import { useBulkPayTimeEntries, useTimeEntriesInfinite, useTimeEntryStats } from "../hooks/use-time-entries";
+import { ThemedRefreshControl } from "../../../components/ui/ThemedRefreshControl";
 import {
   buildTotalsLabel,
   getPaymentStatusFilterLabel,
@@ -172,30 +175,6 @@ function TimeListView({ project }: { project: Project }) {
     .filter((payee) => payee.remainingAmount > 0)
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
-  const showActionSheet = useActionSheet();
-
-  function pickPaymentStatus() {
-    showActionSheet(
-      "Statut de paiement",
-      PAYMENT_STATUS_OPTIONS,
-      (value) => setPaymentStatusFilter(value as PaymentStatusFilter),
-      paymentStatusFilter,
-    );
-  }
-
-  function pickUser() {
-    showActionSheet(
-      "Titulaire",
-      buildMemberFilterOptions(members, user?.id ?? null, {
-        allLabel: "Tous les membres",
-        selfLabel: "Mes heures",
-        unassignedLabel: "Non attribue",
-      }),
-      (value) => setUserFilter(value === "all" ? null : value === "none" ? "none" : Number(value)),
-      userFilter == null ? "all" : String(userFilter),
-    );
-  }
-
   function handleRefresh() {
     resetFilters();
     refetch();
@@ -207,13 +186,23 @@ function TimeListView({ project }: { project: Project }) {
       <FlatList
         data={showEntryList ? entries : []}
         keyExtractor={(item) => String(item.id)}
+        // Place reservee a la barre et au bouton flottants. La barre n'existe que
+        // pour qui peut consulter le temps : sans ce droit, pas de marge a reserver.
         contentContainerStyle={
           entries.length === 0
-            ? { flexGrow: 1, paddingHorizontal: 20 }
-            : { paddingHorizontal: 20, paddingBottom: 24 }
+            ? {
+                flexGrow: 1,
+                paddingHorizontal: 20,
+                paddingTop: canViewTime ? GLASS_BAR_HEIGHT + 16 : 0,
+              }
+            : {
+                paddingHorizontal: 20,
+                paddingTop: canViewTime ? GLASS_BAR_HEIGHT + 16 : 0,
+                paddingBottom: canRecordTime ? GLASS_FAB_CLEARANCE : 24,
+              }
         }
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={handleRefresh} />
+          <ThemedRefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={handleRefresh} />
         }
         onEndReachedThreshold={0.4}
         onEndReached={() => {
@@ -224,40 +213,6 @@ function TimeListView({ project }: { project: Project }) {
         ItemSeparatorComponent={() => <View className="h-3" />}
         ListHeaderComponent={
           <View className="gap-3 pb-3">
-            {canViewTime ? (
-              <View className="flex-row items-center gap-2">
-                {showEntryList ? (
-                  <View className="h-11 flex-1 flex-row items-center gap-2 rounded-md border border-border bg-surface px-3">
-                    <Search size={theme.iconSize.sm} color={theme.colors.muted} />
-                    <Input
-                      value={search}
-                      onChangeText={setSearch}
-                      placeholder="Rechercher une entree"
-                      returnKeyType="search"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      className="h-11 flex-1 border-0 bg-transparent px-0"
-                    />
-                  </View>
-                ) : (
-                  <View className="flex-1" />
-                )}
-                <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
-              </View>
-            ) : null}
-
-            {canRecordTime ? (
-              <Pressable
-                onPress={() => router.push("/time/create")}
-                accessibilityRole="button"
-                android_ripple={{ color: `${theme.colors.primaryForeground}33` }}
-                className="h-11 flex-row items-center justify-center gap-2 rounded-md bg-primary"
-              >
-                <Plus size={theme.iconSize.sm} color={theme.colors.primaryForeground} />
-                <Text className="text-sm font-semibold text-primaryForeground">Ajouter du temps</Text>
-              </Pressable>
-            ) : null}
-
             {showTotalsPanel ? (
               <TimeTotalsCard
                 label={totalsLabel}
@@ -305,13 +260,60 @@ function TimeListView({ project }: { project: Project }) {
         )}
       />
 
+      {canViewTime ? (
+        <GlassBar>
+          {showEntryList ? (
+            <GlassCapsule style={{ flex: 1 }}>
+              <View className="h-11 flex-row items-center gap-2 px-4">
+                <Search size={theme.iconSize.sm} color={theme.colors.muted} />
+                <Input
+                  value={search}
+                  onChangeText={setSearch}
+                  placeholder="Rechercher une entree"
+                  returnKeyType="search"
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  className="h-11 flex-1 border-0 bg-transparent px-0"
+                />
+              </View>
+            </GlassCapsule>
+          ) : (
+            <View className="flex-1" />
+          )}
+          <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
+        </GlassBar>
+      ) : null}
+
+      {canRecordTime ? (
+        <GlassFab icon={Plus} label="Ajouter du temps" onPress={() => router.push("/time/create")} />
+      ) : null}
+
       <TimeFilterSheet
         visible={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
-        paymentStatusLabel={getPaymentStatusFilterLabel(paymentStatusFilter)}
-        onPickPaymentStatus={pickPaymentStatus}
-        userLabel={canViewAllTime ? getUserFilterLabel(userFilter, members, user?.id ?? null) : undefined}
-        onPickUser={canViewAllTime ? pickUser : undefined}
+        paymentStatus={{
+          label: getPaymentStatusFilterLabel(paymentStatusFilter),
+          title: "Statut de paiement",
+          options: PAYMENT_STATUS_OPTIONS,
+          value: paymentStatusFilter,
+          onSelect: (value) => setPaymentStatusFilter(value as PaymentStatusFilter),
+        }}
+        user={
+          canViewAllTime
+            ? {
+                label: getUserFilterLabel(userFilter, members, user?.id ?? null),
+                title: "Titulaire",
+                options: buildMemberFilterOptions(members, user?.id ?? null, {
+                  allLabel: "Tous les membres",
+                  selfLabel: "Mes heures",
+                  unassignedLabel: "Non attribue",
+                }),
+                value: userFilter == null ? "all" : String(userFilter),
+                onSelect: (value) =>
+                  setUserFilter(value === "all" ? null : value === "none" ? "none" : Number(value)),
+              }
+            : undefined
+        }
         targetLabel={folderFilterLabel}
         onPickTarget={() => setFolderPickerOpen(true)}
         dateFrom={dateFrom}

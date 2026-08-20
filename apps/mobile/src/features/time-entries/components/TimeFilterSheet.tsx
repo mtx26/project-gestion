@@ -2,17 +2,19 @@ import { RotateCcw } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
 import { FilterPill } from "../../../components/filters/FilterPill";
+import {
+  SelectFilterPill,
+  type SelectFilterPillProps,
+} from "../../../components/filters/SelectFilterPill";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { theme } from "../../../theme";
 
 interface TimeFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  paymentStatusLabel: string;
-  onPickPaymentStatus: () => void;
+  paymentStatus: SelectFilterPillProps;
   /** Absent sans `time_entry.view_all` : on ne voit alors que ses propres heures. */
-  userLabel?: string;
-  onPickUser?: () => void;
+  user?: SelectFilterPillProps;
   targetLabel: string;
   onPickTarget: () => void;
   dateFrom: string | undefined;
@@ -28,10 +30,8 @@ interface TimeFilterSheetProps {
 export function TimeFilterSheet({
   visible,
   onClose,
-  paymentStatusLabel,
-  onPickPaymentStatus,
-  userLabel,
-  onPickUser,
+  paymentStatus,
+  user,
   targetLabel,
   onPickTarget,
   dateFrom,
@@ -43,8 +43,9 @@ export function TimeFilterSheet({
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
       <View className="flex-row flex-wrap items-center gap-2">
-        <FilterPill label={paymentStatusLabel} onPress={onPickPaymentStatus} />
-        {onPickUser && userLabel ? <FilterPill label={userLabel} onPress={onPickUser} /> : null}
+        <SelectFilterPill {...paymentStatus} />
+        {user ? <SelectFilterPill {...user} /> : null}
+        {/* La cible reste un modal : c'est un arbre, pas une liste plate. */}
         <FilterPill label={`Cible : ${targetLabel}`} onPress={onPickTarget} />
       </View>
 

@@ -1,18 +1,20 @@
 import { RotateCcw } from "lucide-react-native";
 import { useState } from "react";
-import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { FlatList, Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { FilterPill } from "../../../components/filters/FilterPill";
+import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
+import { GlassBar, GLASS_BAR_HEIGHT } from "../../../components/ui/GlassBar";
+import { GlassCapsule } from "../../../components/ui/GlassCapsule";
 import { getErrorMessage } from "../../../lib/errors";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
 import { useSelectedProject } from "../../projects/hooks/use-selected-project";
 import { useRestoreTrashItem, useTrashList } from "../hooks/use-trash";
+import { ThemedRefreshControl } from "../../../components/ui/ThemedRefreshControl";
 import {
   getAvailableTrashResources,
   getTrashItemLabels,
@@ -27,7 +29,6 @@ import {
  * disparaissent du selecteur tant qu'aucun projet n'est ouvert. */
 export function TrashScreen() {
   const user = useAuthStore((state) => state.user);
-  const showActionSheet = useActionSheet();
   const { selectedProject } = useSelectedProject();
   const project = selectedProject;
   const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
@@ -47,15 +48,6 @@ export function TrashScreen() {
     useTrashList(project?.id ?? null, resource);
   const restore = useRestoreTrashItem(project?.id ?? null, resource);
 
-  function pickResource() {
-    showActionSheet(
-      "Corbeille",
-      resourceOptions,
-      (value) => setSelectedResource(value as TrashResource),
-      resource,
-    );
-  }
-
   return (
     // No "top" edge: this screen sits below the Drawer's native header.
     <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
@@ -63,13 +55,14 @@ export function TrashScreen() {
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
+        // Place reservee au selecteur de ressource flottant.
         contentContainerStyle={
           items.length === 0
-            ? { flexGrow: 1, paddingHorizontal: 20 }
-            : { paddingHorizontal: 20, paddingBottom: 24 }
+            ? { flexGrow: 1, paddingHorizontal: 20, paddingTop: GLASS_BAR_HEIGHT + 16 }
+            : { paddingHorizontal: 20, paddingTop: GLASS_BAR_HEIGHT + 16, paddingBottom: 24 }
         }
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={() => refetch()} />
+          <ThemedRefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={() => refetch()} />
         }
         onEndReachedThreshold={0.4}
         onEndReached={() => {
@@ -80,13 +73,6 @@ export function TrashScreen() {
         ItemSeparatorComponent={() => <View className="h-2" />}
         ListHeaderComponent={
           <View className="gap-3 pb-3">
-            <View className="flex-row items-center gap-2">
-              <FilterPill label={TRASH_RESOURCES[resource].label} onPress={pickResource} />
-              <Text className="text-sm text-muted">
-                {count} element{count > 1 ? "s" : ""}
-              </Text>
-            </View>
-
             {isError ? <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} /> : null}
             {restore.error ? <ErrorState message={getErrorMessage(restore.error)} /> : null}
           </View>
@@ -111,6 +97,23 @@ export function TrashScreen() {
           />
         )}
       />
+
+      <GlassBar>
+        <SelectFilterPill
+          label={TRASH_RESOURCES[resource].label}
+          title="Corbeille"
+          options={resourceOptions}
+          value={resource}
+          onSelect={(value) => setSelectedResource(value as TrashResource)}
+        />
+        <GlassCapsule>
+          <View className="h-11 justify-center px-4">
+            <Text className="text-sm text-muted">
+              {count} element{count > 1 ? "s" : ""}
+            </Text>
+          </View>
+        </GlassCapsule>
+      </GlassBar>
       </View>
     </SafeAreaView>
   );

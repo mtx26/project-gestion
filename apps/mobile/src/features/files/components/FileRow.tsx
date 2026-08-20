@@ -9,12 +9,11 @@ interface FileRowProps {
   /** Un document en cours d'ouverture (recuperation de l'URL signee). */
   isOpening?: boolean;
   onPress: () => void;
-  onLongPress: () => void;
 }
 
 /** Une ligne de l'explorateur : un tap ouvre (on entre dans le dossier, on affiche le
- * document), un appui long ouvre le menu d'actions. */
-export function FileRow({ node, isOpening, onPress, onLongPress }: FileRowProps) {
+ * document). L'appui long est gere par le `SelectMenu` qui l'enveloppe. */
+export function FileRow({ node, isOpening, onPress }: FileRowProps) {
   const isFolder = node.type === "folder";
   const Icon = isFolder ? Folder : node.mime_type?.startsWith("image/") ? ImageIcon : FileText;
   const childCount = isFolder ? (node.children?.length ?? 0) : 0;
@@ -23,7 +22,6 @@ export function FileRow({ node, isOpening, onPress, onLongPress }: FileRowProps)
   return (
     <Pressable
       onPress={onPress}
-      onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityHint="Appui long pour les actions"
       android_ripple={{ color: `${theme.colors.foreground}1f` }}

@@ -4,7 +4,7 @@ import type { FolderTreeNode, Project, Task } from "@project-gestion/types";
 import { useRouter } from "expo-router";
 import { FolderPlus, Upload } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, Alert, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, Alert, FlatList, Pressable, Text, View } from "react-native";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
@@ -15,8 +15,11 @@ import type { PendingUpload } from "../../../lib/document-picker";
 import { getErrorMessage } from "../../../lib/errors";
 import { longPressFeedback } from "../../../lib/haptics";
 import { useOpenDocument, useShareDocument } from "../../../lib/use-document-actions";
-import { useUploadPicker } from "../../../lib/use-upload-picker";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
+import { UploadMenu } from "../../../components/documents/UploadMenu";
+import { SelectMenu } from "../../../components/menus/SelectMenu";
+import { GlassBar, GLASS_BAR_HEIGHT } from "../../../components/ui/GlassBar";
+import { GlassCapsule } from "../../../components/ui/GlassCapsule";
+import { GlassFabSlot, GlassFabSurface, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
@@ -37,6 +40,7 @@ import {
   useUploadDocument,
 } from "../hooks/use-project-tree";
 import { getFolderChildren, getFolderPath } from "../lib/tree-navigation";
+import { ThemedRefreshControl } from "../../../components/ui/ThemedRefreshControl";
 
 export function FilesScreen() {
   return (
@@ -52,8 +56,6 @@ type ActionTarget = { type: "folder" | "document"; id: number; name: string };
 function FilesExplorer({ project }: { project: Project }) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
-  const showActionSheet = useActionSheet();
-  const pickUpload = useUploadPicker();
   const { can } = useProjectPermissions(project, user?.id ?? null);
   const canEditFiles = can(permissionCodes.fileEdit);
   const canDeleteFiles = can(permissionCodes.fileDelete);
@@ -133,17 +135,21 @@ function FilesExplorer({ project }: { project: Project }) {
     ]);
   }
 
-  function openActions(node: FolderTreeNode) {
-    const target: ActionTarget = {
+  function actionTarget(node: FolderTreeNode): ActionTarget {
+    return {
       type: node.type === "folder" ? "folder" : "document",
       id: node.id,
       name: node.name,
     };
-    const options = [
-      target.type === "folder"
+  }
+
+  function nodeActions(node: FolderTreeNode) {
+    const isFolder = node.type === "folder";
+    return [
+      isFolder
         ? { label: "Ouvrir le dossier", value: "open" }
         : { label: "Ouvrir le document", value: "open" },
-      ...(target.type === "document" ? [{ label: "Partager le fichier", value: "share" }] : []),
+      ...(isFolder ? [] : [{ label: "Partager le fichier", value: "share" }]),
       ...(canEditFiles
         ? [
             { label: "Renommer", value: "rename" },
@@ -152,21 +158,21 @@ function FilesExplorer({ project }: { project: Project }) {
         : []),
       ...(canDeleteFiles ? [{ label: "Supprimer", value: "delete", destructive: true }] : []),
     ];
+  }
 
-    longPressFeedback();
-    showActionSheet(target.name, options, (value) => {
-      if (value === "open") {
-        openNode(node);
-      } else if (value === "share") {
-        shareDocument.mutate(target.id);
-      } else if (value === "rename") {
-        setRenameTarget(target);
-      } else if (value === "move") {
-        setMoveTarget(target);
-      } else if (value === "delete") {
-        confirmDelete(target);
-      }
-    });
+  function runNodeAction(node: FolderTreeNode, value: string) {
+    const target = actionTarget(node);
+    if (value === "open") {
+      openNode(node);
+    } else if (value === "share") {
+      shareDocument.mutate(target.id);
+    } else if (value === "rename") {
+      setRenameTarget(target);
+    } else if (value === "move") {
+      setMoveTarget(target);
+    } else if (value === "delete") {
+      confirmDelete(target);
+    }
   }
 
   function openNode(node: FolderTreeNode) {
@@ -216,43 +222,29 @@ function FilesExplorer({ project }: { project: Project }) {
       <FlatList
         data={children}
         keyExtractor={(item) => `${item.type}-${item.id}`}
+        // Place reservee au fil d'Ariane et au bouton d'import flottants.
         contentContainerStyle={
           children.length === 0
-            ? { flexGrow: 1, paddingHorizontal: 20 }
-            : { paddingHorizontal: 20, paddingBottom: 24 }
+            ? { flexGrow: 1, paddingHorizontal: 20, paddingTop: GLASS_BAR_HEIGHT + 16 }
+            : {
+                paddingHorizontal: 20,
+                paddingTop: GLASS_BAR_HEIGHT + 16,
+                paddingBottom: canEditFiles ? GLASS_FAB_CLEARANCE : 24,
+              }
         }
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
+        refreshControl={<ThemedRefreshControl refreshing={isFetching} onRefresh={() => refetch()} />}
         ItemSeparatorComponent={() => <View className="h-2" />}
         ListHeaderComponent={
           <View className="gap-3 pb-3">
-            <BreadcrumbBar path={path} onNavigate={setCurrentFolderId} />
-
             {canEditFiles ? (
-              <View className="flex-row gap-2">
-                <Pressable
-                  onPress={() => setCreateFolderOpen(true)}
-                  accessibilityRole="button"
-                  className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-md border border-border bg-surface"
-                >
-                  <FolderPlus size={theme.iconSize.sm} color={theme.colors.foreground} />
-                  <Text className="text-sm font-medium text-foreground">Nouveau dossier</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => pickUpload(handleUpload)}
-                  disabled={uploadDocument.isPending}
-                  accessibilityRole="button"
-                  android_ripple={{ color: `${theme.colors.primaryForeground}33` }}
-                  className="h-11 flex-1 flex-row items-center justify-center gap-2 rounded-md bg-primary"
-                  style={{ opacity: uploadDocument.isPending ? 0.6 : 1 }}
-                >
-                  {uploadDocument.isPending ? (
-                    <ActivityIndicator size="small" color={theme.colors.primaryForeground} />
-                  ) : (
-                    <Upload size={theme.iconSize.sm} color={theme.colors.primaryForeground} />
-                  )}
-                  <Text className="text-sm font-semibold text-primaryForeground">Importer</Text>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={() => setCreateFolderOpen(true)}
+                accessibilityRole="button"
+                className="h-11 flex-row items-center justify-center gap-2 rounded-md border border-border bg-surface"
+              >
+                <FolderPlus size={theme.iconSize.sm} color={theme.colors.foreground} />
+                <Text className="text-sm font-medium text-foreground">Nouveau dossier</Text>
+              </Pressable>
             ) : null}
 
             <FolderInfoCard
@@ -298,14 +290,58 @@ function FilesExplorer({ project }: { project: Project }) {
           ) : null
         }
         renderItem={({ item }) => (
-          <FileRow
-            node={item}
-            isOpening={openDocument.isPending && openDocument.variables === item.id}
-            onPress={() => openNode(item)}
-            onLongPress={() => openActions(item)}
-          />
+          <SelectMenu
+            title={item.name}
+            options={nodeActions(item)}
+            onSelect={(value) => runNodeAction(item, value)}
+            shouldOpenOnLongPress
+            onOpenMenu={longPressFeedback}
+          >
+            <FileRow
+              node={item}
+              isOpening={openDocument.isPending && openDocument.variables === item.id}
+              onPress={() => openNode(item)}
+            />
+          </SelectMenu>
         )}
       />
+
+      {/* Le fil d'Ariane est de la navigation pure : sa place est dans la couche
+          flottante, et il reste atteignable en defilant. */}
+      <GlassBar>
+        <GlassCapsule style={{ flex: 1 }}>
+          <View className="h-11 justify-center px-3">
+            <BreadcrumbBar path={path} onNavigate={setCurrentFolderId} />
+          </View>
+        </GlassCapsule>
+      </GlassBar>
+
+      {canEditFiles ? (
+        <GlassFabSlot>
+          {/* Pendant l'import la capsule sort du menu : `MenuView` n'a pas d'etat
+              desactive. */}
+          {uploadDocument.isPending ? (
+            <GlassFabSurface>
+              <View className="h-14 flex-row items-center gap-2 px-5" style={{ opacity: 0.6 }}>
+                <ActivityIndicator size="small" color={theme.colors.primaryForeground} />
+                <Text className="text-sm font-semibold text-primaryForeground">Importer</Text>
+              </View>
+            </GlassFabSurface>
+          ) : (
+            <UploadMenu onPicked={handleUpload}>
+              <GlassFabSurface>
+                <View
+                  accessibilityRole="button"
+                  className="h-14 flex-row items-center gap-2 px-5"
+                >
+                  <Upload size={theme.iconSize.md} color={theme.colors.primaryForeground} />
+                  <Text className="text-sm font-semibold text-primaryForeground">Importer</Text>
+                </View>
+              </GlassFabSurface>
+            </UploadMenu>
+          )}
+        </GlassFabSlot>
+      ) : null}
 
       <NameSheet
         visible={createFolderOpen}

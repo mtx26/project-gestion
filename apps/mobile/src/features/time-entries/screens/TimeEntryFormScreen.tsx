@@ -26,7 +26,8 @@ import { TargetPickerModal } from "../../../components/pickers/TargetPickerModal
 import { DateTimeField } from "../../../components/ui/DateTimeField";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
+import { PickerFieldBody } from "../../../components/forms/PickerField";
+import { SelectMenu } from "../../../components/menus/SelectMenu";
 import { getErrorMessage } from "../../../lib/errors";
 import { formatMoney } from "../../../lib/money-format";
 import { useDocumentAttachment } from "../../../lib/use-document-attachment";
@@ -108,8 +109,6 @@ function TimeEntryFormBody({
 
   useServerFieldErrors(form, rawError, timeEntryFieldMap);
 
-  const showActionSheet = useActionSheet();
-
   const [startDate, endDate, hourlyRate] = form.watch(["startDate", "endDate", "hourlyRate"]);
   const durationMinutes = getDurationMinutes(startDate, endDate);
   const computedTotal = (durationMinutes / 60) * Number(hourlyRate || 0);
@@ -159,15 +158,6 @@ function TimeEntryFormBody({
     } catch (caught) {
       setRawError(caught);
     }
-  }
-
-  function pickAssignedUser() {
-    showActionSheet(
-      "Attribuer a",
-      members.map((member) => ({ label: member.user_display_name, value: String(member.user) })),
-      (value) => setAssignedUserId(Number(value)),
-      assignedUserId == null ? undefined : String(assignedUserId),
-    );
   }
 
   const isSubmitting = docs.uploading || createTimeEntry.isPending || updateTimeEntry.isPending;
@@ -232,16 +222,17 @@ function TimeEntryFormBody({
       {isOrphanEntry ? (
         <View className="gap-2">
           <Text className="text-sm font-medium text-foreground">Attribuer a</Text>
-          <Pressable
-            onPress={pickAssignedUser}
-            accessibilityRole="button"
-            className="h-11 min-h-[44px] flex-row items-center justify-between rounded-md border border-border bg-surface px-3"
+          <SelectMenu
+            title="Attribuer a"
+            options={members.map((member) => ({
+              label: member.user_display_name,
+              value: String(member.user),
+            }))}
+            value={assignedUserId == null ? undefined : String(assignedUserId)}
+            onSelect={(value) => setAssignedUserId(Number(value))}
           >
-            <Text className="flex-1 text-base text-foreground" numberOfLines={1}>
-              {assignedUserLabel}
-            </Text>
-            <ChevronDown size={theme.iconSize.sm} color={theme.colors.muted} />
-          </Pressable>
+            <PickerFieldBody value={assignedUserLabel} />
+          </SelectMenu>
           <Text className="text-xs text-muted">
             Cette entree n&apos;a plus de titulaire (compte supprime) : ses heures ne sont comptees pour
             personne et ne peuvent etre payees a personne. Les paiements deja enregistres suivent

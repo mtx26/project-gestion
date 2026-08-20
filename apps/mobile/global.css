@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Les couleurs vivent ici et non dans tailwind.config.js, pour que le passage
+   clair/sombre se fasse sans toucher une seule `className` de l'application :
+   `bg-surface`, `text-foreground`, `bg-primary/10`... changent de valeur toutes
+   seules. NativeWind lit `prefers-color-scheme`, donc l'apparence du systeme est
+   suivie par defaut.
+
+   Les valeurs sont des triplets RGB et non des hex : c'est ce qui permet a
+   Tailwind de garder `<alpha-value>` fonctionnel (`bg-primary/10`).
+
+   Miroir de `:root` / `.dark` de apps/web/src/app/globals.css. */
+@layer base {
+  :root {
+    --color-background: 248 250 252;
+    --color-surface: 255 255 255;
+    --color-foreground: 17 24 39;
+    --color-muted: 107 114 128;
+    --color-border: 229 231 235;
+    --color-primary: 15 118 110;
+    --color-primary-foreground: 255 255 255;
+    --color-danger: 220 38 38;
+    --color-danger-foreground: 255 255 255;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-background: 10 10 10;
+      --color-surface: 23 23 23;
+      --color-foreground: 250 250 250;
+      --color-muted: 161 161 161;
+      --color-border: 38 38 38;
+      /* teal-400 : le teal-700 du mode clair n'a pas assez de contraste sur un
+         fond quasi noir. */
+      --color-primary: 45 212 191;
+      --color-primary-foreground: 10 10 10;
+      --color-danger: 239 68 68;
+      /* Le rouge porte du blanc dans les deux apparences : pas de bascule. */
+      --color-danger-foreground: 255 255 255;
+    }
+  }
+}

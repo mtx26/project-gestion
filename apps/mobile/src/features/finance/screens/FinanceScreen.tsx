@@ -5,15 +5,17 @@ import type { Project } from "@project-gestion/types";
 import { useRouter } from "expo-router";
 import { Banknote, Plus, Search } from "lucide-react-native";
 import { useState } from "react";
-import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { FlatList, Text, View } from "react-native";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { FilterTrigger } from "../../../components/filters/FilterTrigger";
+import { GlassBar, GLASS_BAR_HEIGHT } from "../../../components/ui/GlassBar";
+import { GlassCapsule } from "../../../components/ui/GlassCapsule";
+import { GlassFab, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionScreen";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
 import { Input } from "../../../components/ui/Input";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { getErrorMessage } from "../../../lib/errors";
 import { buildMemberFilterOptions } from "../../../lib/member-options";
 import { theme } from "../../../theme";
@@ -24,6 +26,7 @@ import { FinanceEntryCard } from "../components/FinanceEntryCard";
 import { FinanceFilterSheet } from "../components/FinanceFilterSheet";
 import { FinanceTotalsCard } from "../components/FinanceTotalsCard";
 import { useFinanceChart, useFinancialEntriesInfinite } from "../hooks/use-financial-entries";
+import { ThemedRefreshControl } from "../../../components/ui/ThemedRefreshControl";
 import {
   getChartRange,
   getOptionLabel,
@@ -45,7 +48,6 @@ export function FinanceScreen() {
 
 function FinanceListView({ project }: { project: Project }) {
   const router = useRouter();
-  const showActionSheet = useActionSheet();
   const user = useAuthStore((state) => state.user);
   const { can } = useProjectPermissions(project, user?.id ?? null);
   const canEditFinance = can(permissionCodes.financeEdit);
@@ -126,27 +128,6 @@ function FinanceListView({ project }: { project: Project }) {
     getOptionLabel(TYPE_OPTIONS, typeFilter).toLowerCase(),
   ].join(" - ");
 
-  function pickType() {
-    showActionSheet("Type", TYPE_OPTIONS, (value) => setTypeFilter(value as TypeFilter), typeFilter);
-  }
-
-  function pickSource() {
-    showActionSheet("Origine", SOURCE_OPTIONS, (value) => setSourceFilter(value as SourceFilter), sourceFilter);
-  }
-
-  function pickOrdering() {
-    showActionSheet("Trier par", ORDERING_OPTIONS, (value) => setOrdering(value as OrderingFilter), ordering);
-  }
-
-  function pickCreatedBy() {
-    showActionSheet(
-      "Cree par",
-      buildMemberFilterOptions(members, user?.id ?? null),
-      (value) => setCreatedBy(value === "all" ? null : Number(value)),
-      createdBy == null ? "all" : String(createdBy),
-    );
-  }
-
   function handleRefresh() {
     resetFilters();
     refetch();
@@ -158,13 +139,18 @@ function FinanceListView({ project }: { project: Project }) {
       <FlatList
         data={entries}
         keyExtractor={(item) => String(item.id)}
+        // Place reservee a la barre et au bouton flottants.
         contentContainerStyle={
           entries.length === 0
-            ? { flexGrow: 1, paddingHorizontal: 20 }
-            : { paddingHorizontal: 20, paddingBottom: 24 }
+            ? { flexGrow: 1, paddingHorizontal: 20, paddingTop: GLASS_BAR_HEIGHT + 16 }
+            : {
+                paddingHorizontal: 20,
+                paddingTop: GLASS_BAR_HEIGHT + 16,
+                paddingBottom: canEditFinance ? GLASS_FAB_CLEARANCE : 24,
+              }
         }
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={handleRefresh} />
+          <ThemedRefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={handleRefresh} />
         }
         onEndReachedThreshold={0.4}
         onEndReached={() => {
@@ -175,34 +161,6 @@ function FinanceListView({ project }: { project: Project }) {
         ItemSeparatorComponent={() => <View className="h-3" />}
         ListHeaderComponent={
           <View className="gap-3 pb-3">
-            <View className="flex-row items-center gap-2">
-              <View className="h-11 flex-1 flex-row items-center gap-2 rounded-md border border-border bg-surface px-3">
-                <Search size={theme.iconSize.sm} color={theme.colors.muted} />
-                <Input
-                  value={search}
-                  onChangeText={setSearch}
-                  placeholder="Rechercher une entree"
-                  returnKeyType="search"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  className="h-11 flex-1 border-0 bg-transparent px-0"
-                />
-              </View>
-              <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
-            </View>
-
-            {canEditFinance ? (
-              <Pressable
-                onPress={() => router.push("/finance/create")}
-                accessibilityRole="button"
-                android_ripple={{ color: `${theme.colors.primaryForeground}33` }}
-                className="h-11 flex-row items-center justify-center gap-2 rounded-md bg-primary"
-              >
-                <Plus size={theme.iconSize.sm} color={theme.colors.primaryForeground} />
-                <Text className="text-sm font-semibold text-primaryForeground">Nouvelle entree</Text>
-              </Pressable>
-            ) : null}
-
             <FinanceTotalsCard label={totalsLabel} chart={chartQuery.data} />
 
             {isError ? <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} /> : null}
@@ -234,19 +192,61 @@ function FinanceListView({ project }: { project: Project }) {
         )}
       />
 
+      <GlassBar>
+        <GlassCapsule style={{ flex: 1 }}>
+          <View className="h-11 flex-row items-center gap-2 px-4">
+            <Search size={theme.iconSize.sm} color={theme.colors.muted} />
+            <Input
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Rechercher une entree"
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              className="h-11 flex-1 border-0 bg-transparent px-0"
+            />
+          </View>
+        </GlassCapsule>
+        <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
+      </GlassBar>
+
+      {canEditFinance ? (
+        <GlassFab icon={Plus} label="Nouvelle entree" onPress={() => router.push("/finance/create")} />
+      ) : null}
+
       <FinanceFilterSheet
         visible={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
-        typeLabel={getOptionLabel(TYPE_OPTIONS, typeFilter)}
-        onPickType={pickType}
-        sourceLabel={getOptionLabel(SOURCE_OPTIONS, sourceFilter)}
-        onPickSource={pickSource}
-        createdByLabel={createdByLabel}
-        onPickCreatedBy={pickCreatedBy}
+        type={{
+          label: getOptionLabel(TYPE_OPTIONS, typeFilter),
+          title: "Type",
+          options: TYPE_OPTIONS,
+          value: typeFilter,
+          onSelect: (value) => setTypeFilter(value as TypeFilter),
+        }}
+        source={{
+          label: getOptionLabel(SOURCE_OPTIONS, sourceFilter),
+          title: "Origine",
+          options: SOURCE_OPTIONS,
+          value: sourceFilter,
+          onSelect: (value) => setSourceFilter(value as SourceFilter),
+        }}
+        createdBy={{
+          label: `Cree par : ${createdByLabel}`,
+          title: "Cree par",
+          options: buildMemberFilterOptions(members, user?.id ?? null),
+          value: createdBy == null ? "all" : String(createdBy),
+          onSelect: (value) => setCreatedBy(value === "all" ? null : Number(value)),
+        }}
         folderLabel={folderLabel}
         onPickFolder={() => setFolderPickerOpen(true)}
-        orderingLabel={getOptionLabel(ORDERING_OPTIONS, ordering)}
-        onPickOrdering={pickOrdering}
+        ordering={{
+          label: `Tri : ${getOptionLabel(ORDERING_OPTIONS, ordering)}`,
+          title: "Trier par",
+          options: ORDERING_OPTIONS,
+          value: ordering,
+          onSelect: (value) => setOrdering(value as OrderingFilter),
+        }}
         dateFrom={dateFrom}
         onDateFromChange={setDateFrom}
         dateTo={dateTo}

@@ -3,12 +3,11 @@ import { makeBulkPaymentSchema, type BulkPaymentFormValues } from "@project-gest
 import { Controller, useForm } from "react-hook-form";
 import { Text, View } from "react-native";
 import { EmptyState } from "../../../components/feedback/EmptyState";
-import { FilterPill } from "../../../components/filters/FilterPill";
+import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { getErrorMessage } from "../../../lib/errors";
 import { formatMoney } from "../../../lib/money-format";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
@@ -59,25 +58,8 @@ export function BulkPaymentSheet({
 
   useServerFieldErrors(form, error, ["amount", { name: "userId", serverField: "user" }]);
 
-  const showActionSheet = useActionSheet();
   const selectedUserId = form.watch("userId");
   const selectedPayee = payees.find((payee) => String(payee.userId) === selectedUserId) ?? null;
-
-  function pickPayee() {
-    showActionSheet(
-      "Membre a payer",
-      payees.map((payee) => ({
-        label: `${payee.name} — ${formatMoney(payee.remainingAmount)}`,
-        value: String(payee.userId),
-      })),
-      (value) => {
-        form.setValue("userId", value, { shouldValidate: true });
-        const payee = payees.find((row) => String(row.userId) === value);
-        form.setValue("amount", payee ? payee.remainingAmount.toFixed(2) : "");
-      },
-      selectedUserId,
-    );
-  }
 
   return (
     <BottomSheet visible={visible} title="Payer un membre" onClose={onClose}>
@@ -98,7 +80,20 @@ export function BulkPaymentSheet({
 
           <View className="gap-2">
             <Text className="text-sm font-medium text-foreground">Membre a payer</Text>
-            <FilterPill label={selectedPayee ? selectedPayee.name : "Choisir un membre"} onPress={pickPayee} />
+            <SelectFilterPill
+              label={selectedPayee ? selectedPayee.name : "Choisir un membre"}
+              title="Membre a payer"
+              options={payees.map((payee) => ({
+                label: `${payee.name} — ${formatMoney(payee.remainingAmount)}`,
+                value: String(payee.userId),
+              }))}
+              value={selectedUserId}
+              onSelect={(value) => {
+                form.setValue("userId", value, { shouldValidate: true });
+                const payee = payees.find((row) => String(row.userId) === value);
+                form.setValue("amount", payee ? payee.remainingAmount.toFixed(2) : "");
+              }}
+            />
             {form.formState.errors.userId ? (
               <Text className="text-sm text-danger" accessibilityRole="alert">
                 {form.formState.errors.userId.message}

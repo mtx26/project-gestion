@@ -28,6 +28,7 @@ export function BreadcrumbBar({ path, onNavigate }: BreadcrumbBarProps) {
               disabled={isLast}
               accessibilityRole="button"
               accessibilityLabel={`Aller a ${entry.name}`}
+              hitSlop={8}
               className="h-9 justify-center px-1"
             >
               <Text

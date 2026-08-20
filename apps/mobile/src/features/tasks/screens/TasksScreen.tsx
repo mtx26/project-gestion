@@ -4,18 +4,20 @@ import { findFolderName, getTargetPayload } from "@project-gestion/domain";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowDown, ArrowUp, ListChecks, Plus, Search, UserCheck } from "lucide-react-native";
 import { useState } from "react";
-import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { FlatList, Pressable, Text, View } from "react-native";
 import { TaskPriorityBadge } from "../../../components/badges/TaskPriorityBadge";
 import { TaskStatusBadge } from "../../../components/badges/TaskStatusBadge";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { FilterPill } from "../../../components/filters/FilterPill";
 import { FilterTrigger } from "../../../components/filters/FilterTrigger";
+import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
 import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionScreen";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
+import { GlassBar, GLASS_BAR_HEIGHT } from "../../../components/ui/GlassBar";
+import { GlassCapsule } from "../../../components/ui/GlassCapsule";
+import { GlassFab, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { Input } from "../../../components/ui/Input";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { buildMemberFilterOptions } from "../../../lib/member-options";
@@ -25,6 +27,7 @@ import { useProjectFolders, useProjectMembers } from "../../projects/hooks/use-p
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
 import { TaskFilterSheet } from "../components/TaskFilterSheet";
 import { useTasks, useTasksInfinite } from "../hooks/use-tasks";
+import { ThemedRefreshControl } from "../../../components/ui/ThemedRefreshControl";
 
 /** `not_done` (a faire + en cours) est le defaut : une liste de taches sert d'abord a
  * voir ce qu'il reste. `all` est le seul statut qui reintegre les terminees. */
@@ -148,52 +151,6 @@ function TasksListView({ project }: { project: Project }) {
     ordering,
   });
 
-  const showActionSheet = useActionSheet();
-
-  function pickStatus() {
-    showActionSheet(
-      "Statut",
-      STATUS_OPTIONS,
-      // Le statut s'ecrit toujours, y compris `all` : le defaut d'un parametre absent
-      // est `not_done`, donc effacer le parametre reviendrait a ignorer le choix
-      // "Tous statuts". (La priorite, elle, a bien `all` pour defaut : l'effacer
-      // donne le bon resultat.)
-      (value) => router.setParams({ status: value }),
-      statusFilter,
-    );
-  }
-
-  function pickPriority() {
-    showActionSheet(
-      "Priorite",
-      PRIORITY_OPTIONS,
-      (value) => router.setParams({ priority: value === "all" ? undefined : value }),
-      priorityFilter,
-    );
-  }
-
-  function pickAssignee() {
-    showActionSheet(
-      "Assigne a",
-      buildMemberFilterOptions(members, user?.id ?? null),
-      (value) => setAssignedTo(value === "all" ? null : Number(value)),
-      assignedTo == null ? "all" : String(assignedTo),
-    );
-  }
-
-  function pickCreatedBy() {
-    showActionSheet(
-      "Cree par",
-      buildMemberFilterOptions(members, user?.id ?? null),
-      (value) => setCreatedBy(value === "all" ? null : Number(value)),
-      createdBy == null ? "all" : String(createdBy),
-    );
-  }
-
-  function pickSort() {
-    showActionSheet("Trier par", SORT_OPTIONS, (value) => setSortField(value as SortField), sortField);
-  }
-
   function handleRefresh() {
     resetFilters();
     refetch();
@@ -216,18 +173,58 @@ function TasksListView({ project }: { project: Project }) {
   const priorityLabel = PRIORITY_OPTIONS.find((option) => option.value === priorityFilter)?.label ?? "";
   const sortLabel = SORT_OPTIONS.find((option) => option.value === sortField)?.label ?? "";
 
+  const memberOptions = buildMemberFilterOptions(members, user?.id ?? null);
+  const statusFilterPill = {
+    label: statusLabel,
+    title: "Statut",
+    options: STATUS_OPTIONS,
+    value: statusFilter,
+    // Le statut s'ecrit toujours, y compris `all` : le defaut d'un parametre absent
+    // est `not_done`, donc effacer le parametre reviendrait a ignorer le choix
+    // "Tous statuts". (La priorite, elle, a bien `all` pour defaut : l'effacer
+    // donne le bon resultat.)
+    onSelect: (value: string) => router.setParams({ status: value }),
+  };
+  const priorityFilterPill = {
+    label: priorityLabel,
+    title: "Priorite",
+    options: PRIORITY_OPTIONS,
+    value: priorityFilter,
+    onSelect: (value: string) => router.setParams({ priority: value === "all" ? undefined : value }),
+  };
+  const assigneeFilterPill = {
+    label: `Assigne : ${assigneeLabel}`,
+    title: "Assigne a",
+    options: memberOptions,
+    value: assignedTo == null ? "all" : String(assignedTo),
+    onSelect: (value: string) => setAssignedTo(value === "all" ? null : Number(value)),
+  };
+  const createdByFilterPill = {
+    label: `Cree par : ${createdByLabel}`,
+    title: "Cree par",
+    options: memberOptions,
+    value: createdBy == null ? "all" : String(createdBy),
+    onSelect: (value: string) => setCreatedBy(value === "all" ? null : Number(value)),
+  };
+
   return (
     <View className="flex-1">
       <FlatList
         data={tasks}
         keyExtractor={(item) => String(item.id)}
+        // La barre et le bouton flottent au-dessus de la liste : sans ces marges,
+        // la premiere et la derniere ligne passeraient dessous.
         contentContainerStyle={
           tasks.length === 0
-            ? { flexGrow: 1, paddingHorizontal: 20 }
-            : { paddingHorizontal: 20, paddingBottom: 24 }
+            ? { flexGrow: 1, paddingHorizontal: 20, paddingTop: GLASS_BAR_HEIGHT + 16 }
+            : {
+                paddingHorizontal: 20,
+                paddingTop: GLASS_BAR_HEIGHT + 16,
+                paddingBottom: canEdit ? GLASS_FAB_CLEARANCE : 24,
+              }
         }
         refreshControl={
-          <RefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={handleRefresh} />
+          <ThemedRefreshControl refreshing={isFetching && !isFetchingNextPage} onRefresh={handleRefresh} />
         }
         onEndReachedThreshold={0.4}
         onEndReached={() => {
@@ -238,52 +235,6 @@ function TasksListView({ project }: { project: Project }) {
         ItemSeparatorComponent={() => <View className="h-3" />}
         ListHeaderComponent={
           <View className="gap-3 pb-3">
-            <View className="flex-row items-center gap-2">
-              <View className="h-11 flex-1 flex-row items-center gap-2 rounded-md border border-border bg-surface px-3">
-                <Search size={theme.iconSize.sm} color={theme.colors.muted} />
-                <Input
-                  value={search}
-                  onChangeText={setSearch}
-                  placeholder="Rechercher une tache"
-                  returnKeyType="search"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  className="h-11 flex-1 border-0 bg-transparent px-0"
-                />
-              </View>
-              <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
-            </View>
-
-            <View className="flex-row items-center gap-2">
-              <FilterPill label={`Tri : ${sortLabel}`} onPress={pickSort} />
-              {sortField ? (
-                <Pressable
-                  onPress={() => setSortDir((dir) => (dir === "asc" ? "desc" : "asc"))}
-                  accessibilityRole="button"
-                  accessibilityLabel="Inverser l'ordre de tri"
-                  className="h-9 w-9 items-center justify-center rounded-full border border-border bg-surface"
-                >
-                  {sortDir === "asc" ? (
-                    <ArrowUp size={theme.iconSize.sm} color={theme.colors.foreground} />
-                  ) : (
-                    <ArrowDown size={theme.iconSize.sm} color={theme.colors.foreground} />
-                  )}
-                </Pressable>
-              ) : null}
-            </View>
-
-            {canEdit ? (
-              <Pressable
-                onPress={() => router.push("/tasks/create")}
-                accessibilityRole="button"
-                android_ripple={{ color: `${theme.colors.primaryForeground}33` }}
-                className="h-11 flex-row items-center justify-center gap-2 rounded-md bg-primary"
-              >
-                <Plus size={theme.iconSize.sm} color={theme.colors.primaryForeground} />
-                <Text className="text-sm font-semibold text-primaryForeground">Nouvelle tache</Text>
-              </Pressable>
-            ) : null}
-
             {myTasks.tasks.length > 0 ? (
               <View className="gap-3 rounded-md border border-primary/30 bg-primary/5 p-3">
                 <View className="flex-row items-center gap-2">
@@ -325,6 +276,52 @@ function TasksListView({ project }: { project: Project }) {
         )}
       />
 
+      <GlassBar>
+        <GlassCapsule style={{ flex: 1 }}>
+          <View className="h-11 flex-row items-center gap-2 px-4">
+            <Search size={theme.iconSize.sm} color={theme.colors.muted} />
+            <Input
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Rechercher une tache"
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              className="h-11 flex-1 border-0 bg-transparent px-0"
+            />
+          </View>
+        </GlassCapsule>
+        <SelectFilterPill
+          label={sortField ? sortLabel : "Tri"}
+          title="Trier par"
+          options={SORT_OPTIONS}
+          value={sortField}
+          onSelect={(value) => setSortField(value as SortField)}
+          active={Boolean(sortField)}
+        />
+        {sortField ? (
+          <GlassCapsule interactive>
+            <Pressable
+              onPress={() => setSortDir((dir) => (dir === "asc" ? "desc" : "asc"))}
+              accessibilityRole="button"
+              accessibilityLabel="Inverser l'ordre de tri"
+              className="h-11 w-11 items-center justify-center"
+            >
+              {sortDir === "asc" ? (
+                <ArrowUp size={theme.iconSize.md} color={theme.colors.foreground} />
+              ) : (
+                <ArrowDown size={theme.iconSize.md} color={theme.colors.foreground} />
+              )}
+            </Pressable>
+          </GlassCapsule>
+        ) : null}
+        <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
+      </GlassBar>
+
+      {canEdit ? (
+        <GlassFab icon={Plus} label="Nouvelle tache" onPress={() => router.push("/tasks/create")} />
+      ) : null}
+
       <FolderPickerModal
         visible={folderPickerOpen}
         folders={folders}
@@ -336,14 +333,10 @@ function TasksListView({ project }: { project: Project }) {
       <TaskFilterSheet
         visible={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
-        statusLabel={statusLabel}
-        onPickStatus={pickStatus}
-        priorityLabel={priorityLabel}
-        onPickPriority={pickPriority}
-        assigneeLabel={assigneeLabel}
-        onPickAssignee={pickAssignee}
-        createdByLabel={createdByLabel}
-        onPickCreatedBy={pickCreatedBy}
+        status={statusFilterPill}
+        priority={priorityFilterPill}
+        assignee={assigneeFilterPill}
+        createdBy={createdByFilterPill}
         folderLabel={folderLabel}
         onPickFolder={() => setFolderPickerOpen(true)}
         dateFrom={dateFrom}

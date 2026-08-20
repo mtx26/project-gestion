@@ -83,6 +83,7 @@ export function TreePickerModal({
                     onPress={() => (item.type === "project" ? setRootExpanded((value) => !value) : toggleExpanded(item.key))}
                     accessibilityRole="button"
                     accessibilityLabel={item.isExpanded ? "Replier" : "Deplier"}
+                    hitSlop={8}
                     className="h-11 w-9 items-center justify-center"
                   >
                     {item.isExpanded ? (

@@ -7,19 +7,18 @@ import { OWNER_MEMBER_ID } from "../hooks/use-project-members";
 
 interface MemberCardProps {
   member: ProjectMember;
-  /** Aucune action disponible : la carte n'est alors pas pressable. */
+  /** Aucune action disponible : la carte n'est alors pas pressable. Le long press
+   * lui-meme est gere par le `SelectMenu` qui l'enveloppe. */
   hasActions: boolean;
-  onLongPress: () => void;
 }
 
 /** Un membre du projet : role, taux horaire, et le signalement d'un role supprime
  * (le membre garde sa place mais n'a plus aucune permission). */
-export function MemberCard({ member, hasActions, onLongPress }: MemberCardProps) {
+export function MemberCard({ member, hasActions }: MemberCardProps) {
   const isOwner = member.id === OWNER_MEMBER_ID;
 
   return (
     <Pressable
-      onLongPress={hasActions ? onLongPress : undefined}
       accessibilityRole={hasActions ? "button" : undefined}
       accessibilityHint={hasActions ? "Appui long pour les actions" : undefined}
       android_ripple={hasActions ? { color: `${theme.colors.foreground}1f` } : undefined}

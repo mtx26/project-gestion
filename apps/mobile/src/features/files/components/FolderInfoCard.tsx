@@ -79,7 +79,12 @@ export function FolderInfoCard({
                   <ListTodo size={theme.iconSize.sm} color={theme.colors.muted} />
                   <Text className="text-sm font-medium text-foreground">Taches</Text>
                 </View>
-                <Pressable onPress={onOpenTasks} accessibilityRole="button" className="h-9 justify-center">
+                <Pressable
+                  onPress={onOpenTasks}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  className="h-9 justify-center"
+                >
                   <Text className="text-sm font-semibold text-primary">Ouvrir</Text>
                 </Pressable>
               </View>
@@ -117,7 +122,12 @@ export function FolderInfoCard({
                   <Clock3 size={theme.iconSize.sm} color={theme.colors.muted} />
                   <Text className="text-sm font-medium text-foreground">Temps</Text>
                 </View>
-                <Pressable onPress={onOpenTime} accessibilityRole="button" className="h-9 justify-center">
+                <Pressable
+                  onPress={onOpenTime}
+                  accessibilityRole="button"
+                  hitSlop={8}
+                  className="h-9 justify-center"
+                >
                   <Text className="text-sm font-semibold text-primary">Ouvrir</Text>
                 </Pressable>
               </View>

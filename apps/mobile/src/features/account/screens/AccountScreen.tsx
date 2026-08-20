@@ -14,18 +14,15 @@ import { Controller, useForm } from "react-hook-form";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ErrorState } from "../../../components/feedback/ErrorState";
-import { FilterPill } from "../../../components/filters/FilterPill";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { MemberAvatar } from "../../../components/ui/MemberAvatar";
 import { getErrorMessage } from "../../../lib/errors";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
-import { useUploadPicker } from "../../../lib/use-upload-picker";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
+import { UploadMenu } from "../../../components/documents/UploadMenu";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
-import { useProjects } from "../../projects/hooks/use-projects";
 import { useChangePassword, useUpdateAccount, useUploadProfilePicture } from "../hooks/use-account";
 
 export function AccountScreen() {
@@ -63,9 +60,6 @@ function getProfileValues(user: User | null): AccountProfileFormValues {
 }
 
 function ProfileSection({ user }: { user: User | null }) {
-  const showActionSheet = useActionSheet();
-  const pickUpload = useUploadPicker();
-  const { projects } = useProjects();
   const updateAccount = useUpdateAccount();
   const uploadPicture = useUploadProfilePicture();
 
@@ -80,41 +74,11 @@ function ProfileSection({ user }: { user: User | null }) {
 
   const [firstName, lastName, username] = form.watch(["first_name", "last_name", "username"]);
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || username || "Compte";
-  const defaultProjectId = user?.profile?.default_project ?? null;
-  const defaultProjectLabel =
-    projects.find((project) => project.id === defaultProjectId)?.name ?? "Aucun";
 
   // Le recadrage passe par l'outil du systeme (`allowsEditing`), plutot que par un
   // editeur maison comme sur le web : c'est celui que l'utilisateur connait deja.
   // Pas d'explorateur de fichiers ici : une photo de profil vient de l'appareil
   // photo ou de la phototheque.
-  function pickPicture() {
-    pickUpload(
-      ([file]) => {
-        setPictureError(null);
-        uploadPicture.mutate(file, {
-          onError: (error) => setPictureError(getErrorMessage(error)),
-        });
-      },
-      { allowsEditing: true, includeFiles: false },
-    );
-  }
-
-  function pickDefaultProject() {
-    showActionSheet(
-      "Projet par defaut",
-      [
-        { label: "Aucun", value: "none" },
-        ...projects.map((project) => ({ label: project.name, value: String(project.id) })),
-      ],
-      (value) =>
-        updateAccount.mutate({
-          profile: { default_project: value === "none" ? null : Number(value) },
-        }),
-      defaultProjectId == null ? "none" : String(defaultProjectId),
-    );
-  }
-
   function onSubmit(values: AccountProfileFormValues) {
     updateAccount.mutate({
       username: values.username,
@@ -130,21 +94,34 @@ function ProfileSection({ user }: { user: User | null }) {
 
       <View className="flex-row items-center gap-4">
         <MemberAvatar name={displayName} pictureUrl={user?.profile?.picture_url} size={64} />
-        <Pressable
-          onPress={pickPicture}
-          disabled={uploadPicture.isPending}
-          accessibilityRole="button"
-          className="h-11 flex-row items-center gap-2 rounded-md border border-border bg-surface px-3"
-        >
-          {uploadPicture.isPending ? (
+        {/* Pendant l'envoi le declencheur sort du menu : `MenuView` n'a pas d'etat
+            desactive, et un menu ouvert sur une photo deja en cours d'upload
+            ecraserait la mutation en vol. */}
+        {uploadPicture.isPending ? (
+          <View className="h-11 flex-row items-center gap-2 rounded-md border border-border bg-surface px-3">
             <ActivityIndicator size="small" color={theme.colors.primary} />
-          ) : (
-            <Camera size={theme.iconSize.sm} color={theme.colors.foreground} />
-          )}
-          <Text className="text-sm font-medium text-foreground">
-            {uploadPicture.isPending ? "Envoi..." : "Modifier la photo"}
-          </Text>
-        </Pressable>
+            <Text className="text-sm font-medium text-foreground">Envoi...</Text>
+          </View>
+        ) : (
+          <UploadMenu
+            onPicked={([file]) => {
+              setPictureError(null);
+              uploadPicture.mutate(file, {
+                onError: (error) => setPictureError(getErrorMessage(error)),
+              });
+            }}
+            allowsEditing
+            includeFiles={false}
+          >
+            <View
+              accessibilityRole="button"
+              className="h-11 flex-row items-center gap-2 rounded-md border border-border bg-surface px-3"
+            >
+              <Camera size={theme.iconSize.sm} color={theme.colors.foreground} />
+              <Text className="text-sm font-medium text-foreground">Modifier la photo</Text>
+            </View>
+          </UploadMenu>
+        )}
       </View>
 
       {pictureError ? <ErrorState message={pictureError} /> : null}
@@ -216,14 +193,6 @@ function ProfileSection({ user }: { user: User | null }) {
           />
         )}
       />
-
-      <View className="gap-2">
-        <Text className="text-sm font-medium text-foreground">Projet par defaut</Text>
-        <FilterPill label={defaultProjectLabel} onPress={pickDefaultProject} />
-        <Text className="text-xs text-muted">
-          Le projet ouvert au demarrage, tant qu&apos;aucun autre n&apos;est choisi dans le menu.
-        </Text>
-      </View>
 
       <Button onPress={form.handleSubmit(onSubmit)} disabled={updateAccount.isPending}>
         {updateAccount.isPending ? "Enregistrement..." : "Enregistrer"}

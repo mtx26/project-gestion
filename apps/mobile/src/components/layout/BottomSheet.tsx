@@ -1,6 +1,6 @@
+import { BottomSheet as NativeBottomSheet } from "@expo/ui";
 import type { ReactNode } from "react";
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Pressable, ScrollView, Text, View } from "react-native";
 
 interface BottomSheetProps {
   visible: boolean;
@@ -12,35 +12,45 @@ interface BottomSheetProps {
 /** Generic bottom sheet shell: a card sliding up over a dimmed backdrop,
  * closable by tapping outside or "Fermer" — the native stand-in for web's
  * Sheet-based panels (filters, secondary option lists, etc). Reusable across
- * any page that needs this pattern, not just tasks. */
+ * any page that needs this pattern, not just tasks.
+ *
+ * Adosse au sheet natif d'`@expo/ui` (`UISheetPresentationController` sur iOS,
+ * `ModalBottomSheet` Compose sur Android) plutot qu'a un `Modal` transparent : on
+ * recupere la poignee, le glisser-pour-fermer et le rebond du systeme, que le
+ * fond assombri fait maison ne donnait pas. Le clavier est gere par le sheet
+ * natif, d'ou la disparition du `KeyboardAvoidingView`. */
 export function BottomSheet({ visible, title, onClose, children }: BottomSheetProps) {
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      {/* Le clavier ne doit pas recouvrir la feuille : certaines contiennent un
-          formulaire (montant a payer, correction), pas seulement des filtres. */}
-      <KeyboardAvoidingView className="flex-1" behavior={Platform.OS === "ios" ? "padding" : undefined}>
-        <Pressable
-          className="flex-1 bg-black/30"
-          onPress={onClose}
-          accessibilityRole="button"
-          accessibilityLabel="Fermer"
-        />
-        <SafeAreaView edges={["bottom"]} className="rounded-t-xl border-t border-border bg-surface">
-          <View className="flex-row items-center justify-between border-b border-border px-5 py-3">
-            <Text className="text-base font-semibold text-foreground">{title}</Text>
-            <Pressable onPress={onClose} accessibilityRole="button" accessibilityLabel="Fermer" className="h-9 justify-center">
-              <Text className="text-sm font-semibold text-primary">Fermer</Text>
-            </Pressable>
-          </View>
-          <ScrollView
-            style={{ maxHeight: "80%" }}
-            contentContainerStyle={{ padding: 20, gap: 12 }}
-            keyboardShouldPersistTaps="handled"
+    <NativeBottomSheet
+      isPresented={visible}
+      onDismiss={onClose}
+      // `half` en repos et `full` atteignable : certaines feuilles portent un
+      // formulaire (montant a payer, correction) qui deborde a mi-hauteur.
+      snapPoints={["half", "full"]}
+      // Le padding est porte par le contenu ci-dessous, pour garder l'en-tete
+      // colle aux bords comme dans la version precedente.
+      contentPadding={0}
+    >
+      <View className="border-b border-border">
+        <View className="flex-row items-center justify-between px-5 py-3">
+          <Text className="text-base font-semibold text-foreground">{title}</Text>
+          <Pressable
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            hitSlop={8}
+            className="h-9 justify-center"
           >
-            {children}
-          </ScrollView>
-        </SafeAreaView>
-      </KeyboardAvoidingView>
-    </Modal>
+            <Text className="text-sm font-semibold text-primary">Fermer</Text>
+          </Pressable>
+        </View>
+      </View>
+      <ScrollView
+        contentContainerStyle={{ padding: 20, gap: 12 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        {children}
+      </ScrollView>
+    </NativeBottomSheet>
   );
 }

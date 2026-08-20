@@ -1,18 +1,26 @@
 import "react-native-gesture-handler";
 import "../global.css";
 
-import { theme } from "@project-gestion/config";
-import { Stack, type ErrorBoundaryProps } from "expo-router";
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  type ErrorBoundaryProps,
+} from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import { useColorScheme } from "nativewind";
 import { useEffect, useMemo } from "react";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createQueryClient } from "../src/lib/query-client";
 import { AppProviders } from "../src/providers/AppProviders";
 import { useAuthStore } from "../src/stores/auth-store";
+import { useThemeColors } from "../src/theme";
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading, restoreSession } = useAuthStore();
+  const colors = useThemeColors();
 
   useEffect(() => {
     void restoreSession();
@@ -21,7 +29,7 @@ function RootLayoutNav() {
   if (isLoading) {
     return (
       <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator color={theme.colors.primary} />
+        <ActivityIndicator color={colors.primary} />
       </View>
     );
   }
@@ -41,16 +49,45 @@ function RootLayoutNav() {
   );
 }
 
+/** Le theme que react-navigation applique aux headers natifs, aux fonds d'ecran et
+ * aux transitions. Sans lui, tous les navigateurs restent sur son theme clair par
+ * defaut : header blanc et flash blanc entre deux ecrans, meme en mode sombre. */
+function useNavigationTheme() {
+  const { colorScheme } = useColorScheme();
+  const colors = useThemeColors();
+  const base = colorScheme === "dark" ? DarkTheme : DefaultTheme;
+
+  return {
+    ...base,
+    colors: {
+      ...base.colors,
+      primary: colors.primary,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.foreground,
+      border: colors.border,
+      notification: colors.danger,
+    },
+  };
+}
+
+function ThemedApp() {
+  return (
+    <ThemeProvider value={useNavigationTheme()}>
+      {/* `auto` : contenu sombre sur fond clair, clair sur fond sombre — l'app suit
+          l'apparence du systeme (`userInterfaceStyle: "automatic"`). */}
+      <StatusBar style="auto" />
+      <RootLayoutNav />
+    </ThemeProvider>
+  );
+}
+
 export default function RootLayout() {
   const queryClient = useMemo(() => createQueryClient(), []);
 
   return (
     <AppProviders queryClient={queryClient}>
-      {/* Le theme de l'app est clair (`userInterfaceStyle: "light"`) : on force des
-          icones sombres, sinon Android suit le theme du systeme et l'heure devient
-          illisible sur nos fonds clairs. */}
-      <StatusBar style="dark" />
-      <RootLayoutNav />
+      <ThemedApp />
     </AppProviders>
   );
 }

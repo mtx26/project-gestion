@@ -10,14 +10,16 @@ interface DocumentRowProps {
   size?: number | null;
   /** Rend la ligne pressable (ouverture du document) — sinon elle est inerte. */
   onPress?: () => void;
-  onLongPress?: () => void;
+  /** La ligne est enveloppee d'un menu d'actions au long press — sert l'indice
+   * d'accessibilite, le long press lui-meme est gere par le menu. */
+  hasActions?: boolean;
   pending?: boolean;
   trailing?: ReactNode;
 }
 
 /** Une piece jointe : icone selon le type, nom, taille — partagee par le champ de
  * saisie (avec un bouton retirer) et les listes en lecture seule (ouverture au tap). */
-export function DocumentRow({ name, mimeType, size, onPress, onLongPress, pending, trailing }: DocumentRowProps) {
+export function DocumentRow({ name, mimeType, size, onPress, hasActions, pending, trailing }: DocumentRowProps) {
   const Icon = mimeType?.startsWith("image/") ? ImageIcon : FileText;
   const sizeLabel = formatBytes(size);
 
@@ -49,10 +51,9 @@ export function DocumentRow({ name, mimeType, size, onPress, onLongPress, pendin
   return (
     <Pressable
       onPress={onPress}
-      onLongPress={onLongPress}
       accessibilityRole="button"
       accessibilityLabel={`Ouvrir ${name}`}
-      accessibilityHint={onLongPress ? "Appui long pour les actions" : undefined}
+      accessibilityHint={hasActions ? "Appui long pour les actions" : undefined}
       android_ripple={{ color: `${theme.colors.foreground}1f` }}
       className="min-h-[44px] flex-row items-center gap-3 rounded-md border border-border bg-surface px-3 py-2"
     >

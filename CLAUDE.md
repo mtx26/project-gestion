@@ -11,7 +11,7 @@ Toujours lire `AI_DIRECTIVES.md` en complément — les règles ci-dessous s'y a
 |---|---|
 | Backend | Django 6, DRF, SimpleJWT, django-guardian, Resend, S3 |
 | Web | Next.js 16 App Router, React 19, TypeScript |
-| Mobile | Expo 56, React Native 0.85, Nativewind |
+| Mobile | Expo 57, React Native 0.86, Nativewind |
 | UI web | **shadcn/ui** + Tailwind CSS 4 + Radix UI + Lucide |
 | Formulaires | React Hook Form + Zod + `@hookform/resolvers` |
 | Data | TanStack React Query v5 + `packages/api` + `packages/query-keys` |

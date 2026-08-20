@@ -2,22 +2,22 @@ import { RotateCcw } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
 import { FilterPill } from "../../../components/filters/FilterPill";
+import {
+  SelectFilterPill,
+  type SelectFilterPillProps,
+} from "../../../components/filters/SelectFilterPill";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { theme } from "../../../theme";
 
 interface FinanceFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  typeLabel: string;
-  onPickType: () => void;
-  sourceLabel: string;
-  onPickSource: () => void;
-  createdByLabel: string;
-  onPickCreatedBy: () => void;
+  type: SelectFilterPillProps;
+  source: SelectFilterPillProps;
+  createdBy: SelectFilterPillProps;
   folderLabel: string;
   onPickFolder: () => void;
-  orderingLabel: string;
-  onPickOrdering: () => void;
+  ordering: SelectFilterPillProps;
   dateFrom: string | undefined;
   onDateFromChange: (value: string | undefined) => void;
   dateTo: string | undefined;
@@ -31,16 +31,12 @@ interface FinanceFilterSheetProps {
 export function FinanceFilterSheet({
   visible,
   onClose,
-  typeLabel,
-  onPickType,
-  sourceLabel,
-  onPickSource,
-  createdByLabel,
-  onPickCreatedBy,
+  type,
+  source,
+  createdBy,
   folderLabel,
   onPickFolder,
-  orderingLabel,
-  onPickOrdering,
+  ordering,
   dateFrom,
   onDateFromChange,
   dateTo,
@@ -50,11 +46,12 @@ export function FinanceFilterSheet({
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
       <View className="flex-row flex-wrap items-center gap-2">
-        <FilterPill label={typeLabel} onPress={onPickType} />
-        <FilterPill label={sourceLabel} onPress={onPickSource} />
-        <FilterPill label={`Cree par : ${createdByLabel}`} onPress={onPickCreatedBy} />
+        <SelectFilterPill {...type} />
+        <SelectFilterPill {...source} />
+        <SelectFilterPill {...createdBy} />
+        {/* Le dossier reste un modal : c'est un arbre, pas une liste plate. */}
         <FilterPill label={`Dossier : ${folderLabel}`} onPress={onPickFolder} />
-        <FilterPill label={`Tri : ${orderingLabel}`} onPress={onPickOrdering} />
+        <SelectFilterPill {...ordering} />
       </View>
 
       <View className="flex-row flex-wrap items-center gap-2">

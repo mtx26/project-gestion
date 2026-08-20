@@ -19,7 +19,7 @@ import { TaskPriorityBadge } from "../../../components/badges/TaskPriorityBadge"
 import { TaskStatusBadge } from "../../../components/badges/TaskStatusBadge";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { useActionSheet } from "../../../providers/ActionSheetProvider";
+import { SelectMenu } from "../../../components/menus/SelectMenu";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { theme } from "../../../theme";
@@ -48,19 +48,6 @@ export function TaskDetailScreen() {
   const { data: task, isLoading, isError, error, refetch } = useTask(projectId, taskId);
   const updateTask = useUpdateTask(projectId);
   const deleteTask = useDeleteTask(projectId);
-  const showActionSheet = useActionSheet();
-
-  function changeStatus() {
-    if (!task) {
-      return;
-    }
-    showActionSheet(
-      "Changer le statut",
-      STATUS_CHOICES.filter((choice) => choice.value !== task.status),
-      (value) => updateTask.mutate({ taskId: task.id, payload: { status: value as Task["status"] } }),
-    );
-  }
-
   function confirmDelete() {
     if (!task) {
       return;
@@ -135,9 +122,19 @@ export function TaskDetailScreen() {
       ) : (
         <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, gap: 16 }}>
           <View className="flex-row flex-wrap items-center gap-2">
-            <Pressable onPress={canEdit ? changeStatus : undefined} disabled={!canEdit}>
+            {canEdit ? (
+              <SelectMenu
+                title="Changer le statut"
+                options={STATUS_CHOICES.filter((choice) => choice.value !== task.status)}
+                onSelect={(value) =>
+                  updateTask.mutate({ taskId: task.id, payload: { status: value as Task["status"] } })
+                }
+              >
+                <TaskStatusBadge status={task.status} />
+              </SelectMenu>
+            ) : (
               <TaskStatusBadge status={task.status} />
-            </Pressable>
+            )}
             <TaskPriorityBadge priority={task.priority} />
           </View>
 

@@ -3,16 +3,18 @@ import { Pressable, Text, View } from "react-native";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
 import { FilterPill } from "../../../components/filters/FilterPill";
+import {
+  SelectFilterPill,
+  type SelectFilterPillProps,
+} from "../../../components/filters/SelectFilterPill";
 import { TogglePill } from "../../../components/filters/TogglePill";
 import { theme } from "../../../theme";
 
 interface RequestFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  statusLabel: string;
-  onPickStatus: () => void;
-  requestedByLabel: string;
-  onPickRequestedBy: () => void;
+  status: SelectFilterPillProps;
+  requestedBy: SelectFilterPillProps;
   folderLabel: string;
   onPickFolder: () => void;
   dateFrom: string | undefined;
@@ -30,10 +32,8 @@ interface RequestFilterSheetProps {
 export function RequestFilterSheet({
   visible,
   onClose,
-  statusLabel,
-  onPickStatus,
-  requestedByLabel,
-  onPickRequestedBy,
+  status,
+  requestedBy,
   folderLabel,
   onPickFolder,
   dateFrom,
@@ -47,8 +47,9 @@ export function RequestFilterSheet({
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
       <View className="flex-row flex-wrap items-center gap-2">
-        <FilterPill label={statusLabel} onPress={onPickStatus} />
-        <FilterPill label={`Demande par : ${requestedByLabel}`} onPress={onPickRequestedBy} />
+        <SelectFilterPill {...status} />
+        <SelectFilterPill {...requestedBy} />
+        {/* Le dossier reste un modal : c'est un arbre, pas une liste plate. */}
         <FilterPill label={`Dossier : ${folderLabel}`} onPress={onPickFolder} />
       </View>
 

@@ -15,6 +15,7 @@ export function TogglePill({ label, active, onPress }: TogglePillProps) {
   return (
     <Pressable
       onPress={onPress}
+      hitSlop={8}
       accessibilityRole="button"
       accessibilityState={{ selected: active }}
       className={`h-9 flex-row items-center gap-1 self-start rounded-full border px-3 ${
