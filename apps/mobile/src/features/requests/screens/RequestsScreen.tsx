@@ -110,18 +110,23 @@ function RequestsListView({ project }: { project: Project }) {
     dateTo,
   });
 
+  const showActionSheet = useActionSheet();
+
   function pickStatus() {
-    showActionSheet("Statut", STATUS_OPTIONS, (value) => setStatusFilter(value as RequestStatusFilter));
+    showActionSheet("Statut", STATUS_OPTIONS, (value) => setStatusFilter(value as RequestStatusFilter), statusFilter);
   }
 
   function pickRequestedBy() {
-    showActionSheet("Demande par", buildMemberFilterOptions(members, user?.id ?? null), (value) =>
-      setRequestedBy(value === "all" ? null : Number(value)),
+    showActionSheet(
+      "Demande par",
+      buildMemberFilterOptions(members, user?.id ?? null),
+      (value) => setRequestedBy(value === "all" ? null : Number(value)),
+      requestedBy == null ? "all" : String(requestedBy),
     );
   }
 
   function pickSort() {
-    showActionSheet("Trier par", SORT_OPTIONS, (value) => setSortField(value as SortField));
+    showActionSheet("Trier par", SORT_OPTIONS, (value) => setSortField(value as SortField), sortField);
   }
 
   function handleRefresh() {

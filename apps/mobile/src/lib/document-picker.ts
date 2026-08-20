@@ -34,10 +34,17 @@ export async function pickDocuments(): Promise<PendingUpload[]> {
   }));
 }
 
-export async function pickImages(): Promise<PendingUpload[]> {
+/** `allowsEditing` ouvre l'outil de recadrage du systeme (et impose une seule image) :
+ * c'est ce qu'on veut pour une photo de profil, pas pour des justificatifs. */
+export interface ImagePickOptions {
+  allowsEditing?: boolean;
+}
+
+export async function pickImages({ allowsEditing = false }: ImagePickOptions = {}): Promise<PendingUpload[]> {
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ["images"],
-    allowsMultipleSelection: true,
+    allowsMultipleSelection: !allowsEditing,
+    allowsEditing,
   });
   if (result.canceled) {
     return [];
@@ -47,12 +54,14 @@ export async function pickImages(): Promise<PendingUpload[]> {
 
 /** `null` quand l'utilisateur refuse l'acces a l'appareil photo — l'appelant
  * affiche alors le message d'explication plutot qu'un ecran vide. */
-export async function captureImage(): Promise<PendingUpload[] | null> {
+export async function captureImage({ allowsEditing = false }: ImagePickOptions = {}): Promise<
+  PendingUpload[] | null
+> {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) {
     return null;
   }
-  const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"] });
+  const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], allowsEditing });
   if (result.canceled) {
     return [];
   }

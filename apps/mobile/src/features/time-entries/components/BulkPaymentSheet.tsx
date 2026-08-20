@@ -59,6 +59,7 @@ export function BulkPaymentSheet({
 
   useServerFieldErrors(form, error, ["amount", { name: "userId", serverField: "user" }]);
 
+  const showActionSheet = useActionSheet();
   const selectedUserId = form.watch("userId");
   const selectedPayee = payees.find((payee) => String(payee.userId) === selectedUserId) ?? null;
 
@@ -74,6 +75,7 @@ export function BulkPaymentSheet({
         const payee = payees.find((row) => String(row.userId) === value);
         form.setValue("amount", payee ? payee.remainingAmount.toFixed(2) : "");
       },
+      selectedUserId,
     );
   }
 

@@ -48,6 +48,7 @@ export function TaskDetailScreen() {
   const { data: task, isLoading, isError, error, refetch } = useTask(projectId, taskId);
   const updateTask = useUpdateTask(projectId);
   const deleteTask = useDeleteTask(projectId);
+  const showActionSheet = useActionSheet();
 
   function changeStatus() {
     if (!task) {

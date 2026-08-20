@@ -37,6 +37,7 @@ import type {
   FolderPayload,
   File,
   DocumentUploadPayload,
+  UploadFile,
 } from "@project-gestion/types";
 import { queryKeys } from "@project-gestion/query-keys";
 
@@ -267,9 +268,11 @@ export function createApiClient({
           method: "PATCH",
           body: payload,
         }),
-      uploadProfilePicture: (file: globalThis.File | Blob) => {
+      uploadProfilePicture: (file: UploadFile) => {
         const formData = new FormData();
-        formData.set("file", file);
+        // `append` et pas `set`, et cast du fichier : voir `documents.upload`, meme
+        // contrainte de FormData cote React Native.
+        formData.append("file", file as Blob);
 
         return request<User>("/api/accounts/me/picture/", {
           method: "POST",

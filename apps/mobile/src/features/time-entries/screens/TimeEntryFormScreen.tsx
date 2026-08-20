@@ -108,6 +108,8 @@ function TimeEntryFormBody({
 
   useServerFieldErrors(form, rawError, timeEntryFieldMap);
 
+  const showActionSheet = useActionSheet();
+
   const [startDate, endDate, hourlyRate] = form.watch(["startDate", "endDate", "hourlyRate"]);
   const durationMinutes = getDurationMinutes(startDate, endDate);
   const computedTotal = (durationMinutes / 60) * Number(hourlyRate || 0);
@@ -164,6 +166,7 @@ function TimeEntryFormBody({
       "Attribuer a",
       members.map((member) => ({ label: member.user_display_name, value: String(member.user) })),
       (value) => setAssignedUserId(Number(value)),
+      assignedUserId == null ? undefined : String(assignedUserId),
     );
   }
 

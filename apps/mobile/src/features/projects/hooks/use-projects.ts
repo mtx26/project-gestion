@@ -19,6 +19,16 @@ export function useCreateProject() {
   });
 }
 
+export function useUpdateProject() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Partial<ProjectPayload> }) =>
+      api.projects.update(id, payload),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.projects.all }),
+  });
+}
+
 export function useDeleteProject() {
   const queryClient = useQueryClient();
 

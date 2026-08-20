@@ -2,11 +2,12 @@ import type { TimeEntryScopeQuery } from "@project-gestion/api";
 import {
   defaultPaymentStatusFilter,
   findFolderName,
+  getTargetPayload,
   type PaymentStatusFilter,
 } from "@project-gestion/domain";
 import { permissionCodes } from "@project-gestion/permissions";
 import type { Project } from "@project-gestion/types";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { Clock3, Plus, Search } from "lucide-react-native";
 import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
@@ -67,6 +68,7 @@ function TimeListView({ project }: { project: Project }) {
   // propres heures. Un payeur, lui, ouvre la page pour suivre l'equipe.
   const defaultUserFilter: UserFilter = canViewAllTime && canPayTime ? null : (user?.id ?? null);
 
+  const params = useLocalSearchParams<{ target?: string }>();
   const { members } = useProjectMembers(canViewAllTime ? project.id : null);
   const { folders } = useProjectFolders(project.id);
 
@@ -76,7 +78,11 @@ function TimeListView({ project }: { project: Project }) {
   const [search, setSearch] = useState("");
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<PaymentStatusFilter>(defaultPaymentStatusFilter);
   const [userFilter, setUserFilter] = useState<UserFilter>(defaultUserFilter);
-  const [folderFilterId, setFolderFilterId] = useState<number | null>(null);
+  // `target` n'est lu qu'a l'arrivee : c'est le point d'entree depuis l'explorateur de
+  // fichiers ("voir le temps de ce dossier"), ensuite le filtre s'ajuste ici.
+  const [folderFilterId, setFolderFilterId] = useState<number | null>(
+    () => getTargetPayload(params.target ?? "").folder,
+  );
   const [dateFrom, setDateFrom] = useState<string | undefined>(undefined);
   const [dateTo, setDateTo] = useState<string | undefined>(undefined);
 
@@ -166,9 +172,14 @@ function TimeListView({ project }: { project: Project }) {
     .filter((payee) => payee.remainingAmount > 0)
     .sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
+  const showActionSheet = useActionSheet();
+
   function pickPaymentStatus() {
-    showActionSheet("Statut de paiement", PAYMENT_STATUS_OPTIONS, (value) =>
-      setPaymentStatusFilter(value as PaymentStatusFilter),
+    showActionSheet(
+      "Statut de paiement",
+      PAYMENT_STATUS_OPTIONS,
+      (value) => setPaymentStatusFilter(value as PaymentStatusFilter),
+      paymentStatusFilter,
     );
   }
 
@@ -181,6 +192,7 @@ function TimeListView({ project }: { project: Project }) {
         unassignedLabel: "Non attribue",
       }),
       (value) => setUserFilter(value === "all" ? null : value === "none" ? "none" : Number(value)),
+      userFilter == null ? "all" : String(userFilter),
     );
   }
 

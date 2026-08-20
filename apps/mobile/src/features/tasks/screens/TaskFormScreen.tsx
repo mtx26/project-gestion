@@ -92,13 +92,23 @@ function TaskFormBody({
 
   useServerFieldErrors(form, rawError, taskFieldMap);
 
+  const showActionSheet = useActionSheet();
+
   function pickStatus() {
-    showActionSheet("Statut", STATUS_OPTIONS, (value) => form.setValue("status", value as Task["status"]));
+    showActionSheet(
+      "Statut",
+      STATUS_OPTIONS,
+      (value) => form.setValue("status", value as Task["status"]),
+      form.getValues("status"),
+    );
   }
 
   function pickPriority() {
-    showActionSheet("Priorite", PRIORITY_OPTIONS, (value) =>
-      form.setValue("priority", value as Task["priority"]),
+    showActionSheet(
+      "Priorite",
+      PRIORITY_OPTIONS,
+      (value) => form.setValue("priority", value as Task["priority"]),
+      form.getValues("priority"),
     );
   }
 

@@ -2,6 +2,7 @@
 
 import { ApiError } from "@project-gestion/api";
 import { API_BASE_URL } from "@project-gestion/config";
+import { buildCalendarFeedUrl } from "@project-gestion/domain";
 import { queryKeys } from "@project-gestion/query-keys";
 import type { CalendarSubscription } from "@project-gestion/types";
 import { useQuery } from "@tanstack/react-query";
@@ -104,7 +105,7 @@ function CalendarSubscriptionForm({
     onSuccess: () => setConfirmRevokeOpen(false),
   });
 
-  const feedUrl = subscription ? `${API_BASE_URL}/api/calendar/${subscription.token}.ics` : null;
+  const feedUrl = subscription ? buildCalendarFeedUrl(API_BASE_URL, subscription.token) : null;
   const isDirty = subscription
     ? subscription.include_tasks !== includeTasks || subscription.include_time !== includeTime
     : true;

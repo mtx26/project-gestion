@@ -1,6 +1,6 @@
 import { permissionCodes } from "@project-gestion/permissions";
 import type { Project, Task } from "@project-gestion/types";
-import { findFolderName } from "@project-gestion/domain";
+import { findFolderName, getTargetPayload } from "@project-gestion/domain";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ArrowDown, ArrowUp, ListChecks, Plus, Search, UserCheck } from "lucide-react-native";
 import { useState } from "react";
@@ -73,7 +73,7 @@ function TasksListView({ project }: { project: Project }) {
   // "Taches urgentes" tile (?priority=high) just works, and the filter stays
   // whatever it was last set to across visits — no separate local copy to
   // keep in sync or clear.
-  const params = useLocalSearchParams<{ priority?: string; status?: string }>();
+  const params = useLocalSearchParams<{ priority?: string; status?: string; folder?: string }>();
   const statusFilter: StatusFilter = (params.status as StatusFilter) ?? "not_done";
   const priorityFilter: PriorityFilter = (params.priority as PriorityFilter) ?? "all";
 
@@ -81,7 +81,9 @@ function TasksListView({ project }: { project: Project }) {
   const [search, setSearch] = useState("");
   const [assignedTo, setAssignedTo] = useState<number | null>(null);
   const [createdBy, setCreatedBy] = useState<number | null>(null);
-  const [folderId, setFolderId] = useState<number | null>(null);
+  // `folder` n'est lu qu'a l'arrivee (contrairement au statut et a la priorite) : c'est
+  // le point d'entree depuis l'explorateur de fichiers, ensuite le filtre s'ajuste ici.
+  const [folderId, setFolderId] = useState<number | null>(() => getTargetPayload(params.folder ?? "").folder);
   const [folderPickerOpen, setFolderPickerOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState<string | undefined>(undefined);
   const [dateTo, setDateTo] = useState<string | undefined>(undefined);
@@ -145,32 +147,46 @@ function TasksListView({ project }: { project: Project }) {
     ordering,
   });
 
+  const showActionSheet = useActionSheet();
+
   function pickStatus() {
-    showActionSheet("Statut", STATUS_OPTIONS, (value) =>
-      router.setParams({ status: value === "all" ? undefined : value }),
+    showActionSheet(
+      "Statut",
+      STATUS_OPTIONS,
+      (value) => router.setParams({ status: value === "all" ? undefined : value }),
+      statusFilter,
     );
   }
 
   function pickPriority() {
-    showActionSheet("Priorite", PRIORITY_OPTIONS, (value) =>
-      router.setParams({ priority: value === "all" ? undefined : value }),
+    showActionSheet(
+      "Priorite",
+      PRIORITY_OPTIONS,
+      (value) => router.setParams({ priority: value === "all" ? undefined : value }),
+      priorityFilter,
     );
   }
 
   function pickAssignee() {
-    showActionSheet("Assigne a", buildMemberFilterOptions(members, user?.id ?? null), (value) =>
-      setAssignedTo(value === "all" ? null : Number(value)),
+    showActionSheet(
+      "Assigne a",
+      buildMemberFilterOptions(members, user?.id ?? null),
+      (value) => setAssignedTo(value === "all" ? null : Number(value)),
+      assignedTo == null ? "all" : String(assignedTo),
     );
   }
 
   function pickCreatedBy() {
-    showActionSheet("Cree par", buildMemberFilterOptions(members, user?.id ?? null), (value) =>
-      setCreatedBy(value === "all" ? null : Number(value)),
+    showActionSheet(
+      "Cree par",
+      buildMemberFilterOptions(members, user?.id ?? null),
+      (value) => setCreatedBy(value === "all" ? null : Number(value)),
+      createdBy == null ? "all" : String(createdBy),
     );
   }
 
   function pickSort() {
-    showActionSheet("Trier par", SORT_OPTIONS, (value) => setSortField(value as SortField));
+    showActionSheet("Trier par", SORT_OPTIONS, (value) => setSortField(value as SortField), sortField);
   }
 
   function handleRefresh() {
