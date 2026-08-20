@@ -33,6 +33,7 @@ from .models import (
     Task,
     Invitation,
     Notification,
+    DeviceToken,
     TimeEntry,
     FinancialEntry,
     ExpenseRequest,
@@ -724,6 +725,12 @@ class InvitationAcceptSerializer(serializers.Serializer):
             "invitation": invitation,
             "member": member,
         }
+
+
+class DeviceTokenSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeviceToken
+        fields = ["token", "platform"]
 
 
 class NotificationSerializer(serializers.ModelSerializer):

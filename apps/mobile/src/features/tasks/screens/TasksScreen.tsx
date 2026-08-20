@@ -154,7 +154,11 @@ function TasksListView({ project }: { project: Project }) {
     showActionSheet(
       "Statut",
       STATUS_OPTIONS,
-      (value) => router.setParams({ status: value === "all" ? undefined : value }),
+      // Le statut s'ecrit toujours, y compris `all` : le defaut d'un parametre absent
+      // est `not_done`, donc effacer le parametre reviendrait a ignorer le choix
+      // "Tous statuts". (La priorite, elle, a bien `all` pour defaut : l'effacer
+      // donne le bon resultat.)
+      (value) => router.setParams({ status: value }),
       statusFilter,
     );
   }

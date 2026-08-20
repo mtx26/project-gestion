@@ -28,7 +28,7 @@ import { LoadingState } from "../../../components/feedback/LoadingState";
 import { formatDateTime } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { formatMoney } from "../../../lib/money-format";
-import { useOpenDocument } from "../../../lib/use-open-document";
+import { useOpenDocument, useShareDocument } from "../../../lib/use-document-actions";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
@@ -61,6 +61,7 @@ export function TimeEntryDetailScreen() {
   const payTimeEntry = usePayTimeEntry(projectId);
   const correctPayment = useCorrectTimeEntryPayment(projectId);
   const openDocument = useOpenDocument(projectId);
+  const shareDocument = useShareDocument(projectId);
 
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [correctionOpen, setCorrectionOpen] = useState(false);
@@ -256,11 +257,14 @@ export function TimeEntryDetailScreen() {
 
           <DocumentList
             documents={entry.documents_info ?? []}
-            isOpening={openDocument.isPending}
+            isOpening={openDocument.isPending || shareDocument.isPending}
             onOpen={(documentId) => openDocument.mutate(documentId)}
+            onShare={(documentId) => shareDocument.mutate(documentId)}
           />
 
-          {openDocument.error ? <ErrorState message={getErrorMessage(openDocument.error)} /> : null}
+          {openDocument.error || shareDocument.error ? (
+            <ErrorState message={getErrorMessage(openDocument.error ?? shareDocument.error)} />
+          ) : null}
         </ScrollView>
       )}
 

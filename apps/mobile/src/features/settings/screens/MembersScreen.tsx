@@ -16,6 +16,7 @@ import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { getErrorMessage } from "../../../lib/errors";
+import { longPressFeedback } from "../../../lib/haptics";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
@@ -89,6 +90,7 @@ export function MembersScreen() {
       return;
     }
 
+    longPressFeedback();
     showActionSheet(member.user_display_name, options, (value) => {
       if (value === "role") {
         pickRole(
@@ -112,6 +114,7 @@ export function MembersScreen() {
   }
 
   function openInvitationActions(invitation: Invitation) {
+    longPressFeedback();
     showActionSheet(
       invitation.email,
       [

@@ -118,6 +118,14 @@ export type Notification = {
   deleted_by: ID | null;
 };
 
+/** Jeton push d'un appareil (jeton Expo). `platform` aide seulement au diagnostic
+ * cote serveur : l'envoi passe par Expo, qui sait deja a quelle plateforme le
+ * jeton appartient. */
+export type DeviceTokenPayload = {
+  token: string;
+  platform?: "ios" | "android";
+};
+
 export type Project = {
   id: ID;
   owner: ID;

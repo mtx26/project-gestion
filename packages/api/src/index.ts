@@ -36,6 +36,7 @@ import type {
   Folder,
   FolderPayload,
   File,
+  DeviceTokenPayload,
   DocumentUploadPayload,
   UploadFile,
 } from "@project-gestion/types";
@@ -403,6 +404,19 @@ export function createApiClient({
       markAllRead: () =>
         request<void>("/api/notifications/mark-all-read/", {
           method: "POST",
+        }),
+      /** Notifications push : l'app enregistre le jeton de l'appareil a la connexion
+       * et le retire a la deconnexion, pour qu'un telephone partage ne recoive pas
+       * les notifications du compte precedent. */
+      registerDevice: (payload: DeviceTokenPayload) =>
+        request<DeviceTokenPayload>("/api/notifications/devices/", {
+          method: "POST",
+          body: payload,
+        }),
+      unregisterDevice: (token: string) =>
+        request<void>("/api/notifications/devices/unregister/", {
+          method: "POST",
+          body: { token },
         }),
     },
     financialEntries: {

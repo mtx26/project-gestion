@@ -9,6 +9,7 @@ import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { getErrorMessage } from "../../../lib/errors";
+import { longPressFeedback } from "../../../lib/haptics";
 import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
@@ -41,6 +42,7 @@ export function RolesScreen() {
       return;
     }
 
+    longPressFeedback();
     showActionSheet(role.name, options, (value) => {
       if (value === "edit") {
         router.push({ pathname: "/settings/roles/[id]/edit", params: { id: String(role.id) } });

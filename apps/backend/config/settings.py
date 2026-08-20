@@ -242,6 +242,11 @@ DEFAULT_FROM_EMAIL = (
 SERVER_EMAIL = DEFAULT_FROM_EMAIL
 DEFAULT_REPLY_TO_EMAIL = env("DEFAULT_REPLY_TO_EMAIL", default=None) or None
 
+# Notifications push : les envois passent par le service Expo Push. Le jeton est
+# facultatif (les envois marchent sans), mais recommande en production : il
+# authentifie l'expediteur aupres d'Expo.
+EXPO_ACCESS_TOKEN = env("EXPO_ACCESS_TOKEN", default="")
+
 RESEND_API_KEY = env("RESEND_API_KEY", default="")
 # Alias des templates Resend : ils appartiennent au repo (resend_templates/) et
 # sont crees/publies par scripts/sync_resend_templates.py qui les code en dur.

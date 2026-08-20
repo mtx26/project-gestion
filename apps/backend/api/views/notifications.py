@@ -5,8 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ..models import Notification
-from ..serializers import NotificationSerializer
+from ..models import DeviceToken, Notification
+from ..serializers import DeviceTokenSerializer, NotificationSerializer
 
 
 class NotificationFilter(django_filters.FilterSet):
@@ -92,4 +92,52 @@ class NotificationMarkAllReadView(APIView):
             user=request.user,
             is_read=False,
         ).update(is_read=True)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+@extend_schema(tags=["notifications"])
+class DeviceTokenRegisterView(APIView):
+    """Enregistre le jeton push de l'appareil courant.
+
+    Idempotent, et reattribue le jeton : un meme telephone peut servir a plusieurs
+    comptes, c'est toujours le dernier connecte qui doit recevoir ses notifications.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Enregistrer un appareil pour les notifications push",
+        request=DeviceTokenSerializer,
+        responses={200: DeviceTokenSerializer},
+    )
+    def post(self, request):
+        serializer = DeviceTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        device, _ = DeviceToken.objects.update_or_create(
+            token=serializer.validated_data["token"],
+            defaults={
+                "user": request.user,
+                "platform": serializer.validated_data.get("platform", ""),
+            },
+        )
+        return Response(DeviceTokenSerializer(device).data)
+
+
+@extend_schema(tags=["notifications"])
+class DeviceTokenUnregisterView(APIView):
+    """Retire le jeton a la deconnexion, pour qu'un appareil rendu ou partage ne
+    recoive plus les notifications du compte precedent."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        summary="Retirer un appareil des notifications push",
+        request=DeviceTokenSerializer,
+        responses={204: None},
+    )
+    def post(self, request):
+        token = request.data.get("token")
+        if token:
+            DeviceToken.objects.filter(user=request.user, token=token).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

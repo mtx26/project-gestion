@@ -3,6 +3,7 @@ import { create } from "zustand";
 import { api, setSessionInvalidHandler } from "../lib/api";
 import * as allauthClient from "../lib/allauth-client";
 import { googleWebClientId, signOutFromGoogle } from "../lib/google-signin";
+import { unregisterCurrentDevice } from "../lib/push-notifications";
 
 type LoginCredentials = { identifier: string; password: string };
 
@@ -37,6 +38,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   logout: async () => {
     try {
+      // Avant la fermeture de session : l'appel a besoin du jeton de session, et
+      // un telephone partage ne doit plus recevoir les push du compte precedent.
+      await unregisterCurrentDevice();
       await allauthClient.logout();
       await signOutFromGoogle();
     } finally {

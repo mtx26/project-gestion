@@ -8,6 +8,11 @@ export const API_BASE_URL =
  * so a file Zod-side validation accepts can't be rejected by the backend on size or type.
  * These are the *default* values — if an environment overrides the backend env vars, this
  * constant needs to be updated to match (there is no endpoint that exposes the live limits). */
+/** Schema d'URL de l'application mobile (`expo.scheme` dans apps/mobile/app.json).
+ * Le web s'en sert pour proposer d'ouvrir un lien dans l'app quand elle est
+ * installee. */
+export const MOBILE_APP_SCHEME = "projectgestion";
+
 export const documentUploadLimits = {
   maxSizeBytes: 100 * 1024 * 1024,
   allowedExtensions: new Set([

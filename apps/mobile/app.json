@@ -29,6 +29,14 @@
       "expo-secure-store",
       "expo-router",
       "@react-native-community/datetimepicker",
+      "expo-web-browser",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-monochrome.png",
+          "color": "#0f766e"
+        }
+      ],
       [
         "expo-splash-screen",
         {

@@ -13,7 +13,8 @@ import { NameSheet } from "../../../components/layout/NameSheet";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
 import type { PendingUpload } from "../../../lib/document-picker";
 import { getErrorMessage } from "../../../lib/errors";
-import { useOpenDocument } from "../../../lib/use-open-document";
+import { longPressFeedback } from "../../../lib/haptics";
+import { useOpenDocument, useShareDocument } from "../../../lib/use-document-actions";
 import { useUploadPicker } from "../../../lib/use-upload-picker";
 import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
@@ -74,6 +75,7 @@ function FilesExplorer({ project }: { project: Project }) {
   const moveDocument = useMoveDocument(project.id);
   const deleteDocument = useDeleteDocument(project.id);
   const openDocument = useOpenDocument(project.id);
+  const shareDocument = useShareDocument(project.id);
 
   // Contenu du dossier courant et taches/temps qui lui sont rattaches : le dossier
   // ouvert sert de scope a tout l'ecran.
@@ -100,7 +102,8 @@ function FilesExplorer({ project }: { project: Project }) {
     renameDocument.error ??
     moveDocument.error ??
     deleteDocument.error ??
-    openDocument.error;
+    openDocument.error ??
+    shareDocument.error;
 
   function handleUpload(files: PendingUpload[]) {
     for (const file of files) {
@@ -140,6 +143,7 @@ function FilesExplorer({ project }: { project: Project }) {
       target.type === "folder"
         ? { label: "Ouvrir le dossier", value: "open" }
         : { label: "Ouvrir le document", value: "open" },
+      ...(target.type === "document" ? [{ label: "Partager le fichier", value: "share" }] : []),
       ...(canEditFiles
         ? [
             { label: "Renommer", value: "rename" },
@@ -149,9 +153,12 @@ function FilesExplorer({ project }: { project: Project }) {
       ...(canDeleteFiles ? [{ label: "Supprimer", value: "delete", destructive: true }] : []),
     ];
 
+    longPressFeedback();
     showActionSheet(target.name, options, (value) => {
       if (value === "open") {
         openNode(node);
+      } else if (value === "share") {
+        shareDocument.mutate(target.id);
       } else if (value === "rename") {
         setRenameTarget(target);
       } else if (value === "move") {

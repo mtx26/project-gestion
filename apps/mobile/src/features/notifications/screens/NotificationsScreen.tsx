@@ -12,8 +12,8 @@ import { Button } from "../../../components/ui/Button";
 import { formatDateTime } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { theme } from "../../../theme";
+import { useAcceptInvitation } from "../../invitations/hooks/use-accept-invitation";
 import {
-  useAcceptInvitation,
   useMarkAllNotificationsRead,
   useMarkNotificationRead,
   useNotificationsInfinite,

@@ -34,6 +34,9 @@ function RootLayoutNav() {
       <Stack.Protected guard={!isAuthenticated}>
         <Stack.Screen name="(auth)" />
       </Stack.Protected>
+      {/* Hors des deux groupes : un lien d'invitation peut arriver connecte ou non,
+          et c'est l'ecran lui-meme qui gere les deux cas. */}
+      <Stack.Screen name="invitations/accept" />
     </Stack>
   );
 }

@@ -12,7 +12,7 @@ import { LoadingState } from "../../../components/feedback/LoadingState";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { formatMoney } from "../../../lib/money-format";
-import { useOpenDocument } from "../../../lib/use-open-document";
+import { useOpenDocument, useShareDocument } from "../../../lib/use-document-actions";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
@@ -36,6 +36,7 @@ export function FinancialEntryDetailScreen() {
   const { data: entry, isLoading, isError, error, refetch } = useFinancialEntry(projectId, entryId);
   const deleteEntry = useDeleteFinancialEntry(projectId);
   const openDocument = useOpenDocument(projectId);
+  const shareDocument = useShareDocument(projectId);
 
   function confirmDelete() {
     if (!entry) {
@@ -182,11 +183,14 @@ export function FinancialEntryDetailScreen() {
 
           <DocumentList
             documents={entry.documents_info ?? []}
-            isOpening={openDocument.isPending}
+            isOpening={openDocument.isPending || shareDocument.isPending}
             onOpen={(documentId) => openDocument.mutate(documentId)}
+            onShare={(documentId) => shareDocument.mutate(documentId)}
           />
 
-          {openDocument.error ? <ErrorState message={getErrorMessage(openDocument.error)} /> : null}
+          {openDocument.error || shareDocument.error ? (
+            <ErrorState message={getErrorMessage(openDocument.error ?? shareDocument.error)} />
+          ) : null}
         </ScrollView>
       )}
     </SafeAreaView>

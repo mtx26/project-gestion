@@ -1,6 +1,24 @@
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
+import { useEffect } from "react";
+import { usePushNotifications } from "../../src/features/notifications/hooks/use-push-notifications";
+import { useInvitationStore } from "../../src/stores/invitation-store";
 
 export default function AppLayout() {
+  const router = useRouter();
+  const pendingInvitationToken = useInvitationStore((state) => state.pendingToken);
+
+  // Ce layout n'est monte que dans le groupe protege : y brancher le push evite de
+  // demander la permission a quelqu'un qui n'est pas connecte.
+  usePushNotifications();
+
+  // Un lien d'invitation ouvert avant la connexion attendait la fin du login : on
+  // le rejoue des que le groupe authentifie est monte.
+  useEffect(() => {
+    if (pendingInvitationToken) {
+      router.replace({ pathname: "/invitations/accept", params: { token: pendingInvitationToken } });
+    }
+  }, [pendingInvitationToken, router]);
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(drawer)" />

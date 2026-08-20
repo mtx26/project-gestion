@@ -59,18 +59,3 @@ export function useMarkAllNotificationsRead() {
     onSuccess: invalidate,
   });
 }
-
-/** Acceptation d'une invitation depuis sa notification : le serveur marque lui-meme
- * la notification comme traitee, et l'utilisateur gagne un projet — d'ou les deux
- * branches invalidees. */
-export function useAcceptInvitation() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (token: string) => api.invitations.accept(token),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
-      queryClient.invalidateQueries({ queryKey: queryKeys.projects.lists() });
-    },
-  });
-}
