@@ -1,8 +1,8 @@
 import type { DocumentInfo } from "@project-gestion/types";
 import { Paperclip, X } from "lucide-react-native";
-import { Alert, Pressable, Text, View } from "react-native";
-import { useActionSheet } from "../../providers/ActionSheetProvider";
-import { captureImage, pickDocuments, pickImages, type PendingUpload } from "../../lib/document-picker";
+import { Pressable, Text, View } from "react-native";
+import type { PendingUpload } from "../../lib/document-picker";
+import { useUploadPicker } from "../../lib/use-upload-picker";
 import { theme } from "../../theme";
 import { DocumentRow } from "./DocumentRow";
 
@@ -26,41 +26,7 @@ export function DocumentAttachmentField({
   onAddFiles,
   onRemoveFile,
 }: DocumentAttachmentFieldProps) {
-  const showActionSheet = useActionSheet();
-
-  async function runPicker(pick: () => Promise<PendingUpload[] | null>) {
-    const files = await pick();
-    if (files === null) {
-      Alert.alert(
-        "Acces refuse",
-        "Autorise l'appareil photo dans les reglages du telephone pour photographier un justificatif.",
-      );
-      return;
-    }
-    if (files.length > 0) {
-      onAddFiles(files);
-    }
-  }
-
-  function openPicker() {
-    showActionSheet(
-      "Ajouter un fichier",
-      [
-        { label: "Prendre une photo", value: "camera" },
-        { label: "Choisir dans les photos", value: "library" },
-        { label: "Choisir un fichier", value: "files" },
-      ],
-      (value) => {
-        if (value === "camera") {
-          void runPicker(captureImage);
-        } else if (value === "library") {
-          void runPicker(pickImages);
-        } else {
-          void runPicker(pickDocuments);
-        }
-      },
-    );
-  }
+  const pickUpload = useUploadPicker();
 
   return (
     <View className="gap-2">
@@ -110,7 +76,7 @@ export function DocumentAttachmentField({
       ))}
 
       <Pressable
-        onPress={openPicker}
+        onPress={() => pickUpload(onAddFiles)}
         accessibilityRole="button"
         className="h-11 flex-row items-center justify-center gap-2 rounded-md border border-border bg-surface"
       >

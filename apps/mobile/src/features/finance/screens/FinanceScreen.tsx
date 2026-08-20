@@ -49,8 +49,10 @@ function FinanceListView({ project }: { project: Project }) {
   const user = useAuthStore((state) => state.user);
   const { can } = useProjectPermissions(project, user?.id ?? null);
   const canEditFinance = can(permissionCodes.financeEdit);
+  // `members.list` exige `member.view` : le filtre "cree par" disparait sans ce droit.
+  const canViewMembers = can(permissionCodes.memberView);
 
-  const { members } = useProjectMembers(project.id);
+  const { members } = useProjectMembers(canViewMembers ? project.id : null);
   const { folders } = useProjectFolders(project.id);
 
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);

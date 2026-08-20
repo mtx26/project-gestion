@@ -2,7 +2,7 @@ import { needsProfileCompletion } from "@project-gestion/types";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Button } from "./ui/Button";
-import { isGoogleSignInConfigured, signInWithGoogle } from "../lib/google-signin";
+import { isGoogleSignInAvailable, signInWithGoogle } from "../lib/google-signin";
 import { useAuthStore } from "../stores/auth-store";
 
 interface GoogleSignInButtonProps {
@@ -16,7 +16,7 @@ export function GoogleSignInButton({ onError }: GoogleSignInButtonProps) {
   const loginWithGoogle = useAuthStore((state) => state.loginWithGoogle);
   const [isPending, setIsPending] = useState(false);
 
-  if (!isGoogleSignInConfigured) {
+  if (!isGoogleSignInAvailable) {
     return null;
   }
 

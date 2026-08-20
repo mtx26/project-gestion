@@ -65,7 +65,8 @@ function TasksListView({ project }: { project: Project }) {
   const user = useAuthStore((state) => state.user);
   const { can } = useProjectPermissions(project, user?.id ?? null);
   const canEdit = can(permissionCodes.taskEdit);
-  const { members } = useProjectMembers(project.id);
+  // `members.list` exige `member.view` cote backend.
+  const { members } = useProjectMembers(can(permissionCodes.memberView) ? project.id : null);
   const { folders } = useProjectFolders(project.id);
 
   // Status/priority live directly off the route params (same convention as

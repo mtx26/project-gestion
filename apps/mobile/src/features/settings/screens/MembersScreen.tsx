@@ -45,10 +45,13 @@ export function MembersScreen() {
   const canManageMembers = can(permissionCodes.memberEdit);
   const canEditRates = can(permissionCodes.memberEditRates);
   const canEditOwnRate = can(permissionCodes.memberEditOwnRate);
+  const canViewRoles = can(permissionCodes.roleView);
 
   const { members, isLoading: isLoadingMembers } = useProjectMembers(projectId);
   const { invitations } = useProjectInvitations(projectId, canManageMembers);
-  const { roles } = useProjectRoles(projectId);
+  // `roles.list` exige `role.view` : sans ce droit (et sans gestion des membres),
+  // inutile d'aller chercher une liste que le serveur refusera.
+  const { roles } = useProjectRoles(projectId, canManageMembers || canViewRoles);
 
   const inviteMember = useInviteMember(projectId);
   const updateMemberRole = useUpdateMemberRole(projectId);

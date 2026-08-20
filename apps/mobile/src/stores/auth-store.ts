@@ -1,6 +1,6 @@
 import type { User } from "@project-gestion/types";
 import { create } from "zustand";
-import { api } from "../lib/api";
+import { api, setSessionInvalidHandler } from "../lib/api";
 import * as allauthClient from "../lib/allauth-client";
 import { googleWebClientId, signOutFromGoogle } from "../lib/google-signin";
 
@@ -59,3 +59,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
   clearSession: () => set({ user: null, isAuthenticated: false, isLoading: false }),
 }));
+
+// Le client API ne connait pas le store (il ne l'importe pas) : c'est le store qui
+// se declare aupres de lui, une fois, au chargement de ce module.
+setSessionInvalidHandler(() => useAuthStore.getState().clearSession());

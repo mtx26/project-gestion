@@ -11,7 +11,7 @@ import { useRouter } from "expo-router";
 import { Camera } from "lucide-react-native";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { FilterPill } from "../../../components/filters/FilterPill";
@@ -19,9 +19,9 @@ import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { MemberAvatar } from "../../../components/ui/MemberAvatar";
-import { captureImage, pickImages, type PendingUpload } from "../../../lib/document-picker";
 import { getErrorMessage } from "../../../lib/errors";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
+import { useUploadPicker } from "../../../lib/use-upload-picker";
 import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
@@ -64,6 +64,7 @@ function getProfileValues(user: User | null): AccountProfileFormValues {
 
 function ProfileSection({ user }: { user: User | null }) {
   const showActionSheet = useActionSheet();
+  const pickUpload = useUploadPicker();
   const { projects } = useProjects();
   const updateAccount = useUpdateAccount();
   const uploadPicture = useUploadProfilePicture();
@@ -83,40 +84,19 @@ function ProfileSection({ user }: { user: User | null }) {
   const defaultProjectLabel =
     projects.find((project) => project.id === defaultProjectId)?.name ?? "Aucun";
 
-  async function runPicker(pick: () => Promise<PendingUpload[] | null>) {
-    const files = await pick();
-    if (files === null) {
-      Alert.alert(
-        "Acces refuse",
-        "Autorise l'appareil photo dans les reglages du telephone pour prendre une photo de profil.",
-      );
-      return;
-    }
-    const [file] = files;
-    if (!file) {
-      return;
-    }
-    setPictureError(null);
-    uploadPicture.mutate(file, {
-      onError: (error) => setPictureError(getErrorMessage(error)),
-    });
-  }
-
   // Le recadrage passe par l'outil du systeme (`allowsEditing`), plutot que par un
   // editeur maison comme sur le web : c'est celui que l'utilisateur connait deja.
+  // Pas d'explorateur de fichiers ici : une photo de profil vient de l'appareil
+  // photo ou de la phototheque.
   function pickPicture() {
-    showActionSheet(
-      "Photo de profil",
-      [
-        { label: "Prendre une photo", value: "camera" },
-        { label: "Choisir dans les photos", value: "library" },
-      ],
-      (value) =>
-        void runPicker(() =>
-          value === "camera"
-            ? captureImage({ allowsEditing: true })
-            : pickImages({ allowsEditing: true }),
-        ),
+    pickUpload(
+      ([file]) => {
+        setPictureError(null);
+        uploadPicture.mutate(file, {
+          onError: (error) => setPictureError(getErrorMessage(error)),
+        });
+      },
+      { allowsEditing: true, includeFiles: false },
     );
   }
 

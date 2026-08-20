@@ -51,7 +51,8 @@ function RequestsListView({ project }: { project: Project }) {
   const { can } = useProjectPermissions(project, user?.id ?? null);
   const canEdit = can(permissionCodes.expenseRequestEdit);
   const canApprove = can(permissionCodes.expenseRequestApprove);
-  const { members } = useProjectMembers(project.id);
+  // `members.list` exige `member.view` cote backend.
+  const { members } = useProjectMembers(can(permissionCodes.memberView) ? project.id : null);
   const { folders } = useProjectFolders(project.id);
   const approveRequest = useApproveRequest(project.id);
   const rejectRequest = useRejectRequest(project.id);

@@ -30,6 +30,15 @@
       "expo-router",
       "@react-native-community/datetimepicker",
       [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#f8fafc"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "photosPermission": "Autorise l'acces a tes photos pour joindre un justificatif a une entree.",

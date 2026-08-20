@@ -1,17 +1,17 @@
-import type { Project } from "@project-gestion/types";
 import { RotateCcw } from "lucide-react-native";
 import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { FilterPill } from "../../../components/filters/FilterPill";
-import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionScreen";
 import { getErrorMessage } from "../../../lib/errors";
 import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
+import { useSelectedProject } from "../../projects/hooks/use-selected-project";
 import { useRestoreTrashItem, useTrashList } from "../hooks/use-trash";
 import {
   getAvailableTrashResources,
@@ -21,35 +21,45 @@ import {
   type TrashResource,
 } from "../lib/trash-resources";
 
+/** Seul ecran de projet qui ne se gate pas sur un projet selectionne : la corbeille
+ * des *projets* est globale, et c'est justement la qu'on va quand on vient d'en
+ * supprimer un (il n'en reste peut-etre aucun). Les ressources du projet, elles,
+ * disparaissent du selecteur tant qu'aucun projet n'est ouvert. */
 export function TrashScreen() {
-  return (
-    <ProjectSectionScreen title="Corbeille">
-      {(project) => <TrashListView project={project} />}
-    </ProjectSectionScreen>
-  );
-}
-
-function TrashListView({ project }: { project: Project }) {
   const user = useAuthStore((state) => state.user);
   const showActionSheet = useActionSheet();
-  const { can } = useProjectPermissions(project, user?.id ?? null);
+  const { selectedProject } = useSelectedProject();
+  const project = selectedProject;
+  const { can } = useProjectPermissions(selectedProject, user?.id ?? null);
 
   // Un selecteur plutot que les onglets du web : sept onglets ne tiennent pas en
   // largeur sur un telephone, et les ressources interdites disparaissent du choix
   // au lieu d'apparaitre grisees.
   const resourceOptions = getAvailableTrashResources(can);
-  const [resource, setResource] = useState<TrashResource>("projects");
+  const [selectedResource, setSelectedResource] = useState<TrashResource>("projects");
+  // Changer de projet (ou n'en avoir aucun) peut retirer la ressource affichee : on
+  // retombe sur les projets plutot que de laisser une liste vide sans explication.
+  const resource = resourceOptions.some((option) => option.value === selectedResource)
+    ? selectedResource
+    : "projects";
 
   const { items, count, isLoading, isFetching, isError, error, refetch, hasNextPage, fetchNextPage, isFetchingNextPage } =
-    useTrashList(project.id, resource);
-  const restore = useRestoreTrashItem(project.id, resource);
+    useTrashList(project?.id ?? null, resource);
+  const restore = useRestoreTrashItem(project?.id ?? null, resource);
 
   function pickResource() {
-    showActionSheet("Corbeille", resourceOptions, (value) => setResource(value as TrashResource), resource);
+    showActionSheet(
+      "Corbeille",
+      resourceOptions,
+      (value) => setSelectedResource(value as TrashResource),
+      resource,
+    );
   }
 
   return (
-    <View className="flex-1">
+    // No "top" edge: this screen sits below the Drawer's native header.
+    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+      <View className="flex-1 pt-4">
       <FlatList
         data={items}
         keyExtractor={(item) => String(item.id)}
@@ -101,7 +111,8 @@ function TrashListView({ project }: { project: Project }) {
           />
         )}
       />
-    </View>
+      </View>
+    </SafeAreaView>
   );
 }
 

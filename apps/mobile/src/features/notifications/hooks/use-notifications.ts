@@ -1,8 +1,19 @@
 import { buildNotificationsListQuery, getApiCount, normalizeApiList } from "@project-gestion/api";
 import { queryKeys } from "@project-gestion/query-keys";
 import type { Notification, PaginatedResponse } from "@project-gestion/types";
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../../../lib/api";
+
+/** Compteur de la cloche du header. Sa cle est un enfant de `notifications.all` :
+ * marquer lu (ou tout marquer lu) l'invalide donc au passage. */
+export function useUnreadNotificationsCount(): number {
+  const query = useQuery({
+    queryKey: queryKeys.notifications.unreadCount,
+    queryFn: () => api.notifications.unreadCount(),
+  });
+
+  return query.data?.count ?? 0;
+}
 
 export function useNotificationsInfinite(unreadOnly: boolean) {
   const query = useInfiniteQuery({

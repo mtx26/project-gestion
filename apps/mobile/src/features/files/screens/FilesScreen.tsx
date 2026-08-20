@@ -11,9 +11,10 @@ import { LoadingState } from "../../../components/feedback/LoadingState";
 import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionScreen";
 import { NameSheet } from "../../../components/layout/NameSheet";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
-import { captureImage, pickDocuments, pickImages, type PendingUpload } from "../../../lib/document-picker";
+import type { PendingUpload } from "../../../lib/document-picker";
 import { getErrorMessage } from "../../../lib/errors";
 import { useOpenDocument } from "../../../lib/use-open-document";
+import { useUploadPicker } from "../../../lib/use-upload-picker";
 import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
@@ -51,6 +52,7 @@ function FilesExplorer({ project }: { project: Project }) {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const showActionSheet = useActionSheet();
+  const pickUpload = useUploadPicker();
   const { can } = useProjectPermissions(project, user?.id ?? null);
   const canEditFiles = can(permissionCodes.fileEdit);
   const canDeleteFiles = can(permissionCodes.fileDelete);
@@ -100,32 +102,10 @@ function FilesExplorer({ project }: { project: Project }) {
     deleteDocument.error ??
     openDocument.error;
 
-  function handleUpload(files: PendingUpload[] | null) {
-    if (files === null) {
-      Alert.alert(
-        "Acces refuse",
-        "Autorise l'appareil photo dans les reglages du telephone pour photographier un document.",
-      );
-      return;
-    }
+  function handleUpload(files: PendingUpload[]) {
     for (const file of files) {
       uploadDocument.mutate({ file, folder: currentFolderId });
     }
-  }
-
-  function pickUploadSource() {
-    showActionSheet(
-      "Importer un fichier",
-      [
-        { label: "Prendre une photo", value: "camera" },
-        { label: "Choisir dans les photos", value: "library" },
-        { label: "Choisir un fichier", value: "files" },
-      ],
-      (value) => {
-        const pick = value === "camera" ? captureImage : value === "library" ? pickImages : pickDocuments;
-        void pick().then(handleUpload);
-      },
-    );
   }
 
   function confirmDelete(target: ActionTarget) {
@@ -251,7 +231,7 @@ function FilesExplorer({ project }: { project: Project }) {
                   <Text className="text-sm font-medium text-foreground">Nouveau dossier</Text>
                 </Pressable>
                 <Pressable
-                  onPress={pickUploadSource}
+                  onPress={() => pickUpload(handleUpload)}
                   disabled={uploadDocument.isPending}
                   accessibilityRole="button"
                   android_ripple={{ color: `${theme.colors.primaryForeground}33` }}

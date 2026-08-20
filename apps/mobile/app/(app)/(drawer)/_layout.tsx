@@ -1,22 +1,33 @@
 import { useRouter } from "expo-router";
 import { Drawer } from "expo-router/drawer";
 import { Bell } from "lucide-react-native";
-import { Pressable } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { ProjectDrawerContent } from "../../../src/components/navigation/ProjectDrawerContent";
+import { useUnreadNotificationsCount } from "../../../src/features/notifications/hooks/use-notifications";
 import { theme } from "../../../src/theme";
 
 function NotificationsHeaderButton() {
   const router = useRouter();
+  const unreadCount = useUnreadNotificationsCount();
 
   return (
     <Pressable
       onPress={() => router.push("/notifications")}
       accessibilityRole="button"
-      accessibilityLabel="Notifications"
+      accessibilityLabel={
+        unreadCount > 0 ? `Notifications, ${unreadCount} non lues` : "Notifications"
+      }
       hitSlop={8}
       className="mr-1 h-11 w-11 items-center justify-center"
     >
       <Bell size={theme.iconSize.md} color={theme.colors.foreground} />
+      {unreadCount > 0 ? (
+        <View className="absolute right-1.5 top-1.5 h-4 min-w-[16px] items-center justify-center rounded-full bg-danger px-1">
+          <Text className="text-[10px] font-semibold text-primaryForeground">
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </Text>
+        </View>
+      ) : null}
     </Pressable>
   );
 }
