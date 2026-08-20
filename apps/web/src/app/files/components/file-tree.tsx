@@ -17,7 +17,7 @@ import { TaskStatusBadge } from "@/components/badges/task-status-badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { getDocumentIconConfig, isImageFile } from "@/lib/file-display";
-import { formatBytes as formatFileSize } from "@/lib/task-utils";
+import { formatBytes as formatFileSize } from "@project-gestion/domain";
 import { collectImageDocumentIds } from "@/lib/folder-utils";
 import { useDocumentDownloadUrls } from "@/lib/use-document-download-urls";
 import {

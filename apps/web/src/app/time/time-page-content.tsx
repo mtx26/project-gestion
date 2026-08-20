@@ -32,9 +32,11 @@ import { useCrudMutation } from "@/lib/use-crud-mutation";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import {
   findTargetLabel,
+  formatDuration,
   getTargetPayload,
+  parsePaymentStatusFilter,
   type EntryTarget,
-} from "@/lib/target-utils";
+} from "@project-gestion/domain";
 import { buildProjectHref, omitDefault, parsePageParam } from "@/lib/url-params";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { useProjectResources } from "@/lib/use-project-resources";
@@ -53,11 +55,10 @@ import {
   type UserFilter,
   getSelectedUserId,
   getTotalsLabel,
-  parsePaymentStatusFilter,
   parseTargetFilter,
   parseUserFilter,
 } from "./lib/time-filters";
-import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { formatMoney } from "@/lib/task-utils";
 
 export function TimePageContent() {
   return (

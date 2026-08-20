@@ -19,7 +19,7 @@ import { TaskPriorityBadge } from "../../../components/badges/TaskPriorityBadge"
 import { TaskStatusBadge } from "../../../components/badges/TaskStatusBadge";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { showActionSheet } from "../../../lib/action-sheet";
+import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { theme } from "../../../theme";

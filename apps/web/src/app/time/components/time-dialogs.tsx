@@ -33,17 +33,25 @@ import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
-import { getEntryTarget, getTargetPayload, getTargetValueFromEntry, type EntryTarget } from "@/lib/target-utils";
+import {
+  getDurationMinutes,
+  getEntryTarget,
+  getEntryTargetLabel,
+  getPaidRatio,
+  getPaymentStatus,
+  getTargetPayload,
+  getTargetValueFromEntry,
+  formatDuration,
+  type EntryTarget,
+} from "@project-gestion/domain";
 import { Textarea } from "@/components/ui/textarea";
 import { addMinutes, format, parseISO } from "date-fns";
 import { formatDateTime, fromDateTimeLocalInput, toDateTimeLocalInput } from "@/lib/date-utils";
 import { getErrorMessage } from "@/lib/errors";
-import { formatDuration, formatMoney } from "@/lib/task-utils";
-import { getPaymentStatus } from "@/lib/time-utils";
+import { formatMoney } from "@/lib/task-utils";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
-import { getEntryTargetLabel } from "../lib/time-filters";
 
 export type TimeEntrySubmitData = {
   documentIds: number[];
@@ -126,9 +134,7 @@ export function TimeEntryFormDialog({
     control: form.control,
     name: ["startDate", "endDate", "hourlyRate"],
   });
-  const durationMinutes = startDate && endDate
-    ? Math.max(0, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 60000))
-    : 0;
+  const durationMinutes = getDurationMinutes(startDate, endDate);
   const durationHours = durationMinutes / 60;
   const computedTotal = durationHours > 0 ? durationHours * Number(hourlyRate) : 0;
   const paymentStatus = mode === "edit" && entry ? getPaymentStatus(entry) : null;
@@ -140,9 +146,7 @@ export function TimeEntryFormDialog({
   ]);
 
   async function submitForm(values: TimeEntryFormValues) {
-    const duration = values.startDate && values.endDate
-      ? Math.max(0, Math.round((new Date(values.endDate).getTime() - new Date(values.startDate).getTime()) / 60000))
-      : 0;
+    const duration = getDurationMinutes(values.startDate, values.endDate);
     const { folder, task } = getTargetPayload(targetValue);
     const documentIds = await docs.resolveDocumentIds(projectId, folder);
     if (documentIds === null) return;
@@ -331,10 +335,7 @@ export function TimeEntryDetailModal({
   const targetClickable =
     target != null && onTargetClick != null && (target.type === "task" ? canViewTaskTarget : canViewFolderTarget);
   const displayName = entry.user_display_name ?? "Non attribue";
-  const paidRatio =
-    Number(entry.cost_amount) > 0
-      ? Math.min(100, (Number(entry.paid_amount) / Number(entry.cost_amount)) * 100)
-      : 100;
+  const paidRatio = getPaidRatio(entry);
 
   return (
     <DetailModal

@@ -28,7 +28,14 @@
     "plugins": [
       "expo-secure-store",
       "expo-router",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Autorise l'acces a tes photos pour joindre un justificatif a une entree.",
+          "cameraPermission": "Autorise l'acces a l'appareil photo pour prendre en photo un justificatif."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

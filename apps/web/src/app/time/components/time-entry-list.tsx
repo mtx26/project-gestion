@@ -8,12 +8,10 @@ import { PaymentStatusBadge } from "@/components/badges/payment-status-badge";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { TreeIcon } from "@/components/pickers/tree-picker";
 import { formatDateTime } from "@/lib/date-utils";
-import { formatDuration, formatMoney } from "@/lib/task-utils";
-import { getPaymentStatus } from "@/lib/time-utils";
-import {
-  getEntryTargetLabel,
-  getTimeEntryCardClassName,
-} from "../lib/time-filters";
+import { formatDuration } from "@project-gestion/domain";
+import { formatMoney } from "@/lib/task-utils";
+import { getEntryTargetLabel, getPaymentStatus } from "@project-gestion/domain";
+import { getTimeEntryCardClassName } from "../lib/time-filters";
 
 export function TimeEntryList({
   entries,

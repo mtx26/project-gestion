@@ -20,6 +20,7 @@ Toujours lire `AI_DIRECTIVES.md` en complément — les règles ci-dessous s'y a
 | Types | `packages/types` (types domaine partagés) |
 | Permissions | `packages/permissions` |
 | Config | `packages/config` (API_BASE_URL, theme tokens) |
+| Logique métier | `packages/domain` (dérivations et helpers purs partagés web/mobile) |
 
 **Règle packages :** apps → packages OK. packages → apps INTERDIT. apps → autres apps INTERDIT.
 
@@ -35,6 +36,8 @@ apps/
 packages/
   api/            Client API factory + types endpoints
   config/         Constantes partagées
+  domain/         Logique métier pure partagée (statut de paiement, cible d'une
+                  écriture, parcours d'arbre, formats non liés à la locale)
   permissions/    Logique permissions/rôles
   query-keys/     Clés React Query
   types/          Types TypeScript domaine

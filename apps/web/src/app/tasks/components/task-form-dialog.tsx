@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { TreePickerDialog } from "@/components/pickers/tree-picker";
 import { fromDateTimeLocalInput, toDateTimeLocalInput } from "@/lib/date-utils";
 import { getErrorMessage } from "@/lib/errors";
-import { findFolderName } from "@/lib/folder-utils";
+import { findFolderName } from "@project-gestion/domain";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import type { FolderFilter } from "../lib/task-filters";

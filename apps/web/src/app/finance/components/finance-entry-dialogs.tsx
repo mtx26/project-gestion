@@ -19,12 +19,17 @@ import { MultiDocumentAttachmentField } from "@/components/documents/multi-docum
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
-import { getEntryTarget, getTargetPayload, getTargetValueFromEntry, type EntryTarget } from "@/lib/target-utils";
+import {
+  FINANCIAL_SOURCE_LABELS,
+  getEntryTarget,
+  getTargetPayload,
+  getTargetValueFromEntry,
+  type EntryTarget,
+} from "@project-gestion/domain";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";
 import { DetailField, DetailLabel, DetailModal, ModalDocs, ModalFooter, ModalGrid, ModalHero } from "@/components/dialogs/detail-layout";
-import { FINANCIAL_SOURCE_LABELS } from "@/lib/finance-chart-utils";
 import { toIsoDateString } from "@/lib/period-utils";
 import { formatDate, formatMoney } from "@/lib/task-utils";
 

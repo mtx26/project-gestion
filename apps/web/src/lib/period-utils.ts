@@ -1,3 +1,9 @@
+import { toIsoDateString } from "@project-gestion/domain";
+
+/** Re-exporte le helper partage : les presets de periode ci-dessous en dependent,
+ * et les appelants web l'importent historiquement depuis ce module. */
+export { toIsoDateString };
+
 export type PeriodPreset = "this-month" | "last-month" | "this-week" | "last-30-days" | "this-year" | "all";
 
 export function getPeriodLabel(preset: PeriodPreset): string {
@@ -20,13 +26,6 @@ export function detectPreset(from?: string, to?: string): PeriodPreset | "custom
   return "custom";
 }
 
-export function toIsoDateString(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
-}
 
 export function getPeriodRange(period: PeriodPreset): { startDate?: string; endDate?: string } {
   const now = new Date();

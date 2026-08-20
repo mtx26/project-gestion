@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { ExpenseRequest } from "@project-gestion/types";
 import { requestFieldMap, requestSchema, type RequestFormInput, type RequestFormValues } from "@project-gestion/validation";
+import { findFolderName } from "@project-gestion/domain";
 import { useRouter } from "expo-router";
 import { ChevronDown } from "lucide-react-native";
 import { useState } from "react";
@@ -13,7 +14,6 @@ import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { FormField } from "../../../components/ui/FormField";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { getErrorMessage } from "../../../lib/errors";
-import { findFolderName } from "../../../lib/folder-tree";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 import { theme } from "../../../theme";
 import { useProjectFolders } from "../../projects/hooks/use-project-resources";

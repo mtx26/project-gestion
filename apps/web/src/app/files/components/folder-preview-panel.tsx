@@ -5,7 +5,8 @@ import { Clock3, Folder, FolderOpen, ListTodo } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TaskStatusBadge } from "@/components/badges/task-status-badge";
-import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { formatDuration } from "@project-gestion/domain";
+import { formatMoney } from "@/lib/task-utils";
 
 function TimeTotals({ timeEntries }: { timeEntries: TimeEntry[] }) {
   const totals = timeEntries.reduce(

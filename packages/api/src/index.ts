@@ -403,6 +403,8 @@ export function createApiClient({
         }),
     },
     financialEntries: {
+      get: (projectId: number, entryId: number) =>
+        request<FinancialEntry>(`/api/projects/${projectId}/financial-entries/${entryId}/`),
       list: (
         projectId: number,
         query: { type?: string; source?: "manual" | "labor"; folder?: number; created_by?: number; ordering?: string; page?: number; search?: string; date_from?: string; date_to?: string } = {},
@@ -669,7 +671,12 @@ export function createApiClient({
         }),
       upload: (projectId: number, payload: DocumentUploadPayload) => {
         const formData = new FormData();
-        formData.set("file", payload.file);
+        // `append` et pas `set` : le FormData de React Native n'implemente que `append`
+        // (`Libraries/Network/FormData.js`). Chaque cle n'etant ecrite qu'une fois sur un
+        // FormData neuf, les deux sont equivalents ici.
+        // Cast : sur React Native le fichier est un descripteur `{ uri, name, type }`
+        // que seul le `FormData` de la plateforme sait interpreter (voir `UploadFile`).
+        formData.append("file", payload.file as Blob);
         appendFormDataValue(formData, "folder", payload.folder);
         appendFormDataValue(formData, "name", payload.name);
         appendFormDataValue(formData, "description", payload.description);
@@ -1023,7 +1030,7 @@ function isFormData(value: unknown): value is FormData {
 
 function appendFormDataValue(formData: FormData, key: string, value: string | number | null | undefined) {
   if (value != null && value !== "") {
-    formData.set(key, String(value));
+    formData.append(key, String(value));
   }
 }
 

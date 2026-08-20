@@ -25,7 +25,7 @@ import {
   findTargetLabel,
   getTargetPayload,
   getTargetTypeFromValue,
-} from "@/lib/target-utils";
+} from "@project-gestion/domain";
 
 // ─── Row indentation ─────────────────────────────────────────────────────────
 

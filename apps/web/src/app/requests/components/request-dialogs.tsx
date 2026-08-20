@@ -23,7 +23,7 @@ import { MultiDocumentAttachmentField } from "@/components/documents/multi-docum
 import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { TargetField, TreeIcon } from "@/components/pickers/tree-picker";
-import { getEntryTarget, getTargetPayload, getTargetValueFromEntry, type EntryTarget } from "@/lib/target-utils";
+import { getEntryTarget, getTargetPayload, getTargetValueFromEntry, type EntryTarget } from "@project-gestion/domain";
 import { getErrorMessage } from "@/lib/errors";
 import { useDocumentAttachment } from "@/lib/use-document-attachment";
 import { useServerFieldErrors } from "@/lib/use-server-field-errors";

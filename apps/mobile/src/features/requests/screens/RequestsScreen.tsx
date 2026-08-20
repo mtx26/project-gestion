@@ -1,5 +1,6 @@
 import { permissionCodes } from "@project-gestion/permissions";
 import type { ExpenseRequest, Project } from "@project-gestion/types";
+import { findFolderName } from "@project-gestion/domain";
 import { useRouter } from "expo-router";
 import { CheckCircle2, ChevronRight, Plus, Search, XCircle } from "lucide-react-native";
 import { useState } from "react";
@@ -13,10 +14,9 @@ import { FilterTrigger } from "../../../components/filters/FilterTrigger";
 import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionScreen";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
 import { Input } from "../../../components/ui/Input";
-import { showActionSheet } from "../../../lib/action-sheet";
+import { useActionSheet } from "../../../providers/ActionSheetProvider";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
-import { findFolderName } from "../../../lib/folder-tree";
 import { buildMemberFilterOptions } from "../../../lib/member-options";
 import { formatMoney } from "../../../lib/money-format";
 import { useAuthStore } from "../../../stores/auth-store";

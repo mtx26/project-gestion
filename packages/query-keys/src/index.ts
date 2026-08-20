@@ -28,6 +28,8 @@ export const queryKeys = {
   },
   financialEntries: {
     all: (projectId: number) => ["projects", projectId, "financial-entries"] as const,
+    detail: (projectId: number, entryId: number) =>
+      ["projects", projectId, "financial-entries", entryId] as const,
     list: (projectId: number, query: { type?: string; source?: string; folder?: number; createdBy?: number; ordering?: string; page?: number; search?: string; dateFrom?: string; dateTo?: string } = {}) =>
       ["projects", projectId, "financial-entries", {
         type: query.type ?? "all",
@@ -117,6 +119,8 @@ export const queryKeys = {
   },
   timeEntries: {
     all: (projectId: number) => ["projects", projectId, "time-entries"] as const,
+    detail: (projectId: number, timeEntryId: number) =>
+      ["projects", projectId, "time-entries", timeEntryId] as const,
     list: (
       projectId: number,
       query: {

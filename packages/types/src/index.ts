@@ -183,8 +183,19 @@ export type File = {
   deleted_by: ID | null;
 };
 
+/** React Native n'expose ni `File` ni `Blob` pour un fichier local : son `FormData`
+ * attend a la place un descripteur `{ uri, name, type }`, qu'il transforme lui-meme
+ * en partie multipart. D'ou cette union — web envoie un `File`, mobile un descripteur. */
+export type UploadFileDescriptor = {
+  uri: string;
+  name: string;
+  type: string;
+};
+
+export type UploadFile = globalThis.File | Blob | UploadFileDescriptor;
+
 export type DocumentUploadPayload = {
-  file: globalThis.File | Blob;
+  file: UploadFile;
   folder?: ID | null;
   name?: string;
   description?: string | null;
