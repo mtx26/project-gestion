@@ -11,18 +11,26 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "17609516105-o1kir0fc8fk9kmsn49kvqm48ie1eds23.apps.googleusercontent.com",
-        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "17609516105-e7g73l67sb2cnokjtp4v9ea4o798k62s.apps.googleusercontent.com"
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "17609516105-o2au9fcn98lh4b112tk6kqf492ls9e08.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "17609516105-571u4gh678db68hjq8ae62e5m1ccqeuk.apps.googleusercontent.com"
       }
     },
     "preview": {
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "17609516105-o2au9fcn98lh4b112tk6kqf492ls9e08.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "17609516105-571u4gh678db68hjq8ae62e5m1ccqeuk.apps.googleusercontent.com"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "17609516105-o2au9fcn98lh4b112tk6kqf492ls9e08.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID": "17609516105-571u4gh678db68hjq8ae62e5m1ccqeuk.apps.googleusercontent.com"
+      }
     }
   },
   "submit": {

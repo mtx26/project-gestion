@@ -50,3 +50,5 @@ __pycache__/
 
 # Stockage local de secours (voir apps/backend/api/services/storage.py)
 apps/backend/media/
+
+secret/

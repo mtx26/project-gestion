@@ -9,10 +9,14 @@
     "userInterfaceStyle": "light",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mtx26.projectgestion"
+      "bundleIdentifier": "com.mtx26.projectgestion",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.mtx26.projectgestion",
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -26,7 +30,12 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-router",
       "@react-native-community/datetimepicker",
       "expo-web-browser",
@@ -50,7 +59,8 @@
         "expo-image-picker",
         {
           "photosPermission": "Autorise l'acces a tes photos pour joindre un justificatif a une entree.",
-          "cameraPermission": "Autorise l'acces a l'appareil photo pour prendre en photo un justificatif."
+          "cameraPermission": "Autorise l'acces a l'appareil photo pour prendre en photo un justificatif.",
+          "microphonePermission": false
         }
       ]
     ],
