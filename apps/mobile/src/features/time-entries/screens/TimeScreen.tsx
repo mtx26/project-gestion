@@ -292,23 +292,23 @@ function TimeListView({ project }: { project: Project }) {
         visible={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
         paymentStatus={{
-          label: getPaymentStatusFilterLabel(paymentStatusFilter),
-          title: "Statut de paiement",
+          label: "Statut de paiement",
+          value: getPaymentStatusFilterLabel(paymentStatusFilter),
           options: PAYMENT_STATUS_OPTIONS,
-          value: paymentStatusFilter,
+          selected: paymentStatusFilter,
           onSelect: (value) => setPaymentStatusFilter(value as PaymentStatusFilter),
         }}
         user={
           canViewAllTime
             ? {
-                label: getUserFilterLabel(userFilter, members, user?.id ?? null),
-                title: "Titulaire",
+                label: "Titulaire",
+                value: getUserFilterLabel(userFilter, members, user?.id ?? null),
                 options: buildMemberFilterOptions(members, user?.id ?? null, {
                   allLabel: "Tous les membres",
                   selfLabel: "Mes heures",
                   unassignedLabel: "Non attribue",
                 }),
-                value: userFilter == null ? "all" : String(userFilter),
+                selected: userFilter == null ? "all" : String(userFilter),
                 onSelect: (value) =>
                   setUserFilter(value === "all" ? null : value === "none" ? "none" : Number(value)),
               }

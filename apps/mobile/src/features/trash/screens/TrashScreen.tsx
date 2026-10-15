@@ -1,11 +1,11 @@
 import { RotateCcw } from "lucide-react-native";
 import { useState } from "react";
 import { FlatList, Pressable, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { GlassBar, GLASS_BAR_HEIGHT } from "../../../components/ui/GlassBar";
 import { GlassCapsule } from "../../../components/ui/GlassCapsule";
 import { getErrorMessage } from "../../../lib/errors";
@@ -49,8 +49,7 @@ export function TrashScreen() {
   const restore = useRestoreTrashItem(project?.id ?? null, resource);
 
   return (
-    // No "top" edge: this screen sits below the Drawer's native header.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+    <DetailScreen>
       <View className="flex-1 pt-4">
       <FlatList
         data={items}
@@ -115,7 +114,7 @@ export function TrashScreen() {
         </GlassCapsule>
       </GlassBar>
       </View>
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

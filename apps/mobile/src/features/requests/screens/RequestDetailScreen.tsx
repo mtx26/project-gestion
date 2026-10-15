@@ -3,8 +3,8 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { Calendar, CheckCircle2, Folder, Pencil, Trash2, UserRound, XCircle } from "lucide-react-native";
 import type { ComponentType } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { RequestStatusBadge } from "../../../components/badges/RequestStatusBadge";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { formatDate } from "../../../lib/date-format";
@@ -58,9 +58,7 @@ export function RequestDetailScreen() {
   const isActioning = approveRequest.isPending || rejectRequest.isPending;
 
   return (
-    // No "top" edge: the native header (back button + title + actions) already
-    // sits above this screen and accounts for the status bar.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+    <DetailScreen>
       <Stack.Screen
         options={{
           title: request?.title ?? "Demande",
@@ -177,7 +175,7 @@ export function RequestDetailScreen() {
           ) : null}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

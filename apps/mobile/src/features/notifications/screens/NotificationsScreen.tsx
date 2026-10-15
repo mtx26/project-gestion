@@ -3,8 +3,8 @@ import { useRouter } from "expo-router";
 import { MailOpen } from "lucide-react-native";
 import { useState } from "react";
 import { Alert, FlatList, Pressable, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../../components/feedback/EmptyState";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { TogglePill } from "../../../components/filters/TogglePill";
@@ -72,7 +72,7 @@ export function NotificationsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
+    <DetailScreen includeTopEdge>
       <View className="flex-row items-center justify-between gap-2 px-5 pt-4">
         <Text className="text-2xl font-semibold text-foreground">Notifications</Text>
         <Pressable onPress={() => router.back()} accessibilityRole="button" className="h-11 justify-center">
@@ -146,7 +146,7 @@ export function NotificationsScreen() {
           />
         )}
       />
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

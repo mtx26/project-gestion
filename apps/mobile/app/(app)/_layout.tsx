@@ -20,27 +20,35 @@ export default function AppLayout() {
   }, [pendingInvitationToken, router]);
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
+    <Stack
+      screenOptions={{
+        headerShown: false,
+        // Sans ca, iOS affiche le nom de la route precedente a cote de la fleche
+        // — ici litteralement « drawer ». `headerBackTitle: ""` ne suffit pas :
+        // la doc du paquet renvoie explicitement vers ce mode.
+        headerBackButtonDisplayMode: "minimal",
+      }}
+    >
       <Stack.Screen name="(drawer)" />
       <Stack.Screen name="notifications" options={{ presentation: "modal" }} />
       <Stack.Screen name="account" options={{ presentation: "modal" }} />
       <Stack.Screen name="projects/create" options={{ presentation: "modal", headerShown: true }} />
       <Stack.Screen name="tasks/create" options={{ presentation: "modal", headerShown: true }} />
-      <Stack.Screen name="tasks/[id]/index" options={{ headerShown: true, headerBackTitle: "" }} />
+      <Stack.Screen name="tasks/[id]/index" options={{ headerShown: true }} />
       <Stack.Screen name="tasks/[id]/edit" options={{ presentation: "modal", headerShown: true }} />
       <Stack.Screen name="time/create" options={{ presentation: "modal", headerShown: true }} />
-      <Stack.Screen name="time/[id]/index" options={{ headerShown: true, headerBackTitle: "" }} />
+      <Stack.Screen name="time/[id]/index" options={{ headerShown: true }} />
       <Stack.Screen name="time/[id]/edit" options={{ presentation: "modal", headerShown: true }} />
       <Stack.Screen name="finance/create" options={{ presentation: "modal", headerShown: true }} />
-      <Stack.Screen name="finance/[id]/index" options={{ headerShown: true, headerBackTitle: "" }} />
+      <Stack.Screen name="finance/[id]/index" options={{ headerShown: true }} />
       <Stack.Screen name="finance/[id]/edit" options={{ presentation: "modal", headerShown: true }} />
       <Stack.Screen name="settings/general" options={{ presentation: "modal", headerShown: true }} />
-      <Stack.Screen name="settings/members" options={{ headerShown: true, headerBackTitle: "" }} />
-      <Stack.Screen name="settings/roles/index" options={{ headerShown: true, headerBackTitle: "" }} />
+      <Stack.Screen name="settings/members" options={{ headerShown: true }} />
+      <Stack.Screen name="settings/roles/index" options={{ headerShown: true }} />
       <Stack.Screen name="settings/roles/create" options={{ presentation: "modal", headerShown: true }} />
       <Stack.Screen name="settings/roles/[id]/edit" options={{ presentation: "modal", headerShown: true }} />
       <Stack.Screen name="requests/create" options={{ presentation: "modal", headerShown: true }} />
-      <Stack.Screen name="requests/[id]/index" options={{ headerShown: true, headerBackTitle: "" }} />
+      <Stack.Screen name="requests/[id]/index" options={{ headerShown: true }} />
       <Stack.Screen name="requests/[id]/edit" options={{ presentation: "modal", headerShown: true }} />
     </Stack>
   );

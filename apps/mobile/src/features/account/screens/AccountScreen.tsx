@@ -12,7 +12,6 @@ import { Camera } from "lucide-react-native";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
@@ -22,6 +21,7 @@ import { getErrorMessage } from "../../../lib/errors";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
 import { UploadMenu } from "../../../components/documents/UploadMenu";
 import { theme } from "../../../theme";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useChangePassword, useUpdateAccount, useUploadProfilePicture } from "../hooks/use-account";
 
@@ -30,7 +30,7 @@ export function AccountScreen() {
   const user = useAuthStore((state) => state.user);
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
+    <DetailScreen includeTopEdge>
       <View className="flex-row items-center justify-between gap-2 px-5 pt-4">
         <Text className="text-2xl font-semibold text-foreground">Mon compte</Text>
         <Pressable onPress={() => router.back()} accessibilityRole="button" className="h-11 justify-center">
@@ -46,7 +46,7 @@ export function AccountScreen() {
         <ProfileSection user={user} />
         <PasswordSection />
       </ScrollView>
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

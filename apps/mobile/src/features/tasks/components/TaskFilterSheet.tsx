@@ -2,20 +2,20 @@ import { RotateCcw } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
-import { FilterPill } from "../../../components/filters/FilterPill";
 import {
-  SelectFilterPill,
-  type SelectFilterPillProps,
-} from "../../../components/filters/SelectFilterPill";
+  PressFilterRow,
+  SelectFilterRow,
+  type FilterRowConfig,
+} from "../../../components/filters/SelectFilterRow";
 import { theme } from "../../../theme";
 
 interface TaskFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  status: SelectFilterPillProps;
-  priority: SelectFilterPillProps;
-  assignee: SelectFilterPillProps;
-  createdBy: SelectFilterPillProps;
+  status: FilterRowConfig;
+  priority: FilterRowConfig;
+  assignee: FilterRowConfig;
+  createdBy: FilterRowConfig;
   folderLabel: string;
   onPickFolder: () => void;
   dateFrom: string | undefined;
@@ -47,13 +47,15 @@ export function TaskFilterSheet({
 }: TaskFilterSheetProps) {
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
-      <View className="flex-row flex-wrap items-center gap-2">
-        <SelectFilterPill {...status} />
-        <SelectFilterPill {...priority} />
-        <SelectFilterPill {...assignee} />
-        <SelectFilterPill {...createdBy} />
-        {/* Le dossier reste un modal : c'est un arbre, pas une liste plate. */}
-        <FilterPill label={`Dossier : ${folderLabel}`} onPress={onPickFolder} />
+      {/* Des lignes pleine largeur plutot que des puces : chaque filtre garde la
+          place d'afficher sa valeur en entier, et la cible tactile fait 48pt. */}
+      <View className="overflow-hidden rounded-md border border-border bg-background">
+        <SelectFilterRow {...status} />
+        <SelectFilterRow {...priority} />
+        <SelectFilterRow {...assignee} />
+        <SelectFilterRow {...createdBy} />
+        {/* Le dossier ouvre un modal : c'est un arbre, pas une liste plate. */}
+        <PressFilterRow label="Dossier" value={folderLabel} onPress={onPickFolder} isLast />
       </View>
 
       <View className="flex-row flex-wrap items-center gap-2">

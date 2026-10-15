@@ -222,17 +222,17 @@ function RequestsListView({ project }: { project: Project }) {
         visible={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
         status={{
-          label: statusLabel,
-          title: "Statut",
+          label: "Statut",
+          value: statusLabel,
           options: STATUS_OPTIONS,
-          value: statusFilter,
+          selected: statusFilter,
           onSelect: (value) => setStatusFilter(value as RequestStatusFilter),
         }}
         requestedBy={{
-          label: `Demande par : ${requestedByLabel}`,
-          title: "Demande par",
+          label: "Demande par",
+          value: requestedByLabel,
           options: buildMemberFilterOptions(members, user?.id ?? null),
-          value: requestedBy == null ? "all" : String(requestedBy),
+          selected: requestedBy == null ? "all" : String(requestedBy),
           onSelect: (value) => setRequestedBy(value === "all" ? null : Number(value)),
         }}
         folderLabel={folderLabel}

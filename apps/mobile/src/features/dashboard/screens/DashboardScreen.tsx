@@ -2,8 +2,8 @@ import { permissionCodes } from "@project-gestion/permissions";
 import { useRouter } from "expo-router";
 import { Banknote, CheckCircle2, Clock3, Users } from "lucide-react-native";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { MemberAvatar } from "../../../components/ui/MemberAvatar";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { NoProjectState } from "../../../components/feedback/NoProjectState";
@@ -11,9 +11,9 @@ import { getErrorMessage } from "../../../lib/errors";
 import { useAuthStore } from "../../../stores/auth-store";
 import { theme } from "../../../theme";
 import { useTasks } from "../../tasks/hooks/use-tasks";
-import { useProjectPermissions } from "../hooks/use-project-permissions";
-import { useProjectMembers } from "../hooks/use-project-resources";
-import { useSelectedProject } from "../hooks/use-selected-project";
+import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
+import { useProjectMembers } from "../../projects/hooks/use-project-resources";
+import { useSelectedProject } from "../../projects/hooks/use-selected-project";
 import { formatDuration } from "@project-gestion/domain";
 import { formatMoney } from "../../../lib/money-format";
 import { getChartRange } from "../../finance/lib/finance-filters";
@@ -48,26 +48,13 @@ export function DashboardScreen() {
   const timeRemaining = Number(timeStatsQuery.data?.remaining_amount ?? 0);
   const financeBalance = Number(financeChartQuery.data?.totals.balance ?? 0);
 
-  // No "top" edge: the Drawer's native header (title + notifications bell) already
-  // sits above this screen and accounts for the status bar.
-  if (isLoading) {
-    return (
-      <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
-        <LoadingState />
-      </SafeAreaView>
-    );
-  }
-
-  if (isError) {
-    return (
-      <SafeAreaView className="flex-1 bg-background px-5 py-6" edges={["bottom", "left", "right"]}>
-        <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} />
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+    <DetailScreen
+      isLoading={isLoading}
+      error={isError ? error : undefined}
+      errorMessage={getErrorMessage(error)}
+      onRetry={() => refetch()}
+    >
       <ScrollView
         className="flex-1"
         contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 16, paddingBottom: 24 }}
@@ -144,7 +131,7 @@ export function DashboardScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

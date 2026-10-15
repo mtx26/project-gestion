@@ -1,23 +1,23 @@
 import { RotateCcw } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
-import { FilterPill } from "../../../components/filters/FilterPill";
 import {
-  SelectFilterPill,
-  type SelectFilterPillProps,
-} from "../../../components/filters/SelectFilterPill";
+  PressFilterRow,
+  SelectFilterRow,
+  type FilterRowConfig,
+} from "../../../components/filters/SelectFilterRow";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { theme } from "../../../theme";
 
 interface FinanceFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  type: SelectFilterPillProps;
-  source: SelectFilterPillProps;
-  createdBy: SelectFilterPillProps;
+  type: FilterRowConfig;
+  source: FilterRowConfig;
+  createdBy: FilterRowConfig;
   folderLabel: string;
   onPickFolder: () => void;
-  ordering: SelectFilterPillProps;
+  ordering: FilterRowConfig;
   dateFrom: string | undefined;
   onDateFromChange: (value: string | undefined) => void;
   dateTo: string | undefined;
@@ -45,13 +45,13 @@ export function FinanceFilterSheet({
 }: FinanceFilterSheetProps) {
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
-      <View className="flex-row flex-wrap items-center gap-2">
-        <SelectFilterPill {...type} />
-        <SelectFilterPill {...source} />
-        <SelectFilterPill {...createdBy} />
-        {/* Le dossier reste un modal : c'est un arbre, pas une liste plate. */}
-        <FilterPill label={`Dossier : ${folderLabel}`} onPress={onPickFolder} />
-        <SelectFilterPill {...ordering} />
+      <View className="overflow-hidden rounded-md border border-border bg-background">
+        <SelectFilterRow {...type} />
+        <SelectFilterRow {...source} />
+        <SelectFilterRow {...createdBy} />
+        {/* Le dossier ouvre un modal : c'est un arbre, pas une liste plate. */}
+        <PressFilterRow label="Dossier" value={folderLabel} onPress={onPickFolder} />
+        <SelectFilterRow {...ordering} isLast />
       </View>
 
       <View className="flex-row flex-wrap items-center gap-2">

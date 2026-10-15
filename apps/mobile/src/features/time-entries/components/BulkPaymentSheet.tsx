@@ -3,7 +3,7 @@ import { makeBulkPaymentSchema, type BulkPaymentFormValues } from "@project-gest
 import { Controller, useForm } from "react-hook-form";
 import { Text, View } from "react-native";
 import { EmptyState } from "../../../components/feedback/EmptyState";
-import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
+import { SelectPickerField } from "../../../components/forms/PickerField";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
@@ -78,16 +78,15 @@ export function BulkPaymentSheet({
 
           <InlineMessage variant="danger">{getErrorMessage(error)}</InlineMessage>
 
-          <View className="gap-2">
-            <Text className="text-sm font-medium text-foreground">Membre a payer</Text>
-            <SelectFilterPill
-              label={selectedPayee ? selectedPayee.name : "Choisir un membre"}
-              title="Membre a payer"
+          <View className="gap-1">
+            <SelectPickerField
+              label="Membre a payer"
+              value={selectedPayee ? selectedPayee.name : "Choisir un membre"}
               options={payees.map((payee) => ({
                 label: `${payee.name} — ${formatMoney(payee.remainingAmount)}`,
                 value: String(payee.userId),
               }))}
-              value={selectedUserId}
+              selected={selectedUserId}
               onSelect={(value) => {
                 form.setValue("userId", value, { shouldValidate: true });
                 const payee = payees.find((row) => String(row.userId) === value);

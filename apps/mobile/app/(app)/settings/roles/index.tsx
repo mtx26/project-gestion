@@ -1,4 +1,4 @@
-import { RolesScreen } from "../../../../src/features/settings/screens/RolesScreen";
+import { RolesScreen } from "../../../../src/features/roles/screens/RolesScreen";
 
 export default function RolesRoute() {
   return <RolesScreen />;

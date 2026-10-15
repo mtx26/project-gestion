@@ -13,10 +13,11 @@ import { Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { FormScreen } from "../../../components/layout/FormScreen";
+import { SettingsGroup, SettingsRow } from "../../../components/ui/SettingsGroup";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { getErrorMessage } from "../../../lib/errors";
-import { theme } from "../../../theme";
+import { useThemeColors } from "../../../theme";
 import { useSelectedProject } from "../../projects/hooks/use-selected-project";
 import { useCreateRole, usePermissions, useProjectRoles, useUpdateRole } from "../hooks/use-project-roles";
 
@@ -154,22 +155,32 @@ function RoleFormBody({
         const groupFullySelected = groupIds.every((id) => permissionIds.includes(id));
 
         return (
-          <View key={group.scope} className="gap-1 rounded-md border border-border bg-surface p-4">
-            <PermissionSwitch
-              label={group.label}
-              value={groupFullySelected}
-              onChange={(enabled) => toggleGroup(groupIds, enabled)}
-              emphasized
+          <SettingsGroup key={group.scope} label={group.label}>
+            <SettingsRow
+              label="Tout activer"
+              trailing={
+                <PermissionSwitch
+                  label={`Tout activer : ${group.label}`}
+                  value={groupFullySelected}
+                  onChange={(enabled) => toggleGroup(groupIds, enabled)}
+                />
+              }
             />
-            {group.permissions.map((permission) => (
-              <PermissionSwitch
+            {group.permissions.map((permission, index) => (
+              <SettingsRow
                 key={permission.id}
                 label={getPermissionAction(permission.code)}
-                value={permissionIds.includes(permission.id)}
-                onChange={(enabled) => togglePermission(permission.id, enabled)}
+                isLast={index === group.permissions.length - 1}
+                trailing={
+                  <PermissionSwitch
+                    label={getPermissionAction(permission.code)}
+                    value={permissionIds.includes(permission.id)}
+                    onChange={(enabled) => togglePermission(permission.id, enabled)}
+                  />
+                }
               />
             ))}
-          </View>
+          </SettingsGroup>
         );
       })}
 
@@ -180,34 +191,25 @@ function RoleFormBody({
   );
 }
 
+/** L'interrupteur seul : la ligne, son libelle et ses separateurs viennent de
+ * `SettingsRow`, comme dans les reglages du projet. */
 function PermissionSwitch({
   label,
   value,
   onChange,
-  emphasized,
 }: {
   label: string;
   value: boolean;
   onChange: (value: boolean) => void;
-  emphasized?: boolean;
 }) {
+  const colors = useThemeColors();
+
   return (
-    <View
-      className={`min-h-[44px] flex-row items-center justify-between gap-3 ${
-        emphasized ? "border-b border-border pb-2" : ""
-      }`}
-    >
-      <Text
-        className={`flex-1 ${emphasized ? "text-sm font-semibold text-foreground" : "text-sm text-foreground"}`}
-      >
-        {label}
-      </Text>
-      <Switch
-        value={value}
-        onValueChange={onChange}
-        accessibilityLabel={label}
-        trackColor={{ true: theme.colors.primary }}
-      />
-    </View>
+    <Switch
+      value={value}
+      onValueChange={onChange}
+      accessibilityLabel={label}
+      trackColor={{ true: colors.primary }}
+    />
   );
 }

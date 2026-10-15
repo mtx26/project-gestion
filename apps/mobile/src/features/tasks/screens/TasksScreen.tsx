@@ -127,6 +127,9 @@ function TasksListView({ project }: { project: Project }) {
     folderId: folderId ?? undefined,
     dateFrom,
     dateTo,
+    // Le tri s'applique aux deux listes : sans ca, « Mes taches assignees »
+    // gardait l'ordre du serveur pendant que la liste principale se triait.
+    ordering,
   });
   const {
     tasks,
@@ -175,10 +178,10 @@ function TasksListView({ project }: { project: Project }) {
 
   const memberOptions = buildMemberFilterOptions(members, user?.id ?? null);
   const statusFilterPill = {
-    label: statusLabel,
-    title: "Statut",
+    label: "Statut",
+    value: statusLabel,
     options: STATUS_OPTIONS,
-    value: statusFilter,
+    selected: statusFilter,
     // Le statut s'ecrit toujours, y compris `all` : le defaut d'un parametre absent
     // est `not_done`, donc effacer le parametre reviendrait a ignorer le choix
     // "Tous statuts". (La priorite, elle, a bien `all` pour defaut : l'effacer
@@ -186,24 +189,24 @@ function TasksListView({ project }: { project: Project }) {
     onSelect: (value: string) => router.setParams({ status: value }),
   };
   const priorityFilterPill = {
-    label: priorityLabel,
-    title: "Priorite",
+    label: "Priorite",
+    value: priorityLabel,
     options: PRIORITY_OPTIONS,
-    value: priorityFilter,
+    selected: priorityFilter,
     onSelect: (value: string) => router.setParams({ priority: value === "all" ? undefined : value }),
   };
   const assigneeFilterPill = {
-    label: `Assigne : ${assigneeLabel}`,
-    title: "Assigne a",
+    label: "Assigne a",
+    value: assigneeLabel,
     options: memberOptions,
-    value: assignedTo == null ? "all" : String(assignedTo),
+    selected: assignedTo == null ? "all" : String(assignedTo),
     onSelect: (value: string) => setAssignedTo(value === "all" ? null : Number(value)),
   };
   const createdByFilterPill = {
-    label: `Cree par : ${createdByLabel}`,
-    title: "Cree par",
+    label: "Cree par",
+    value: createdByLabel,
     options: memberOptions,
-    value: createdBy == null ? "all" : String(createdBy),
+    selected: createdBy == null ? "all" : String(createdBy),
     onSelect: (value: string) => setCreatedBy(value === "all" ? null : Number(value)),
   };
 

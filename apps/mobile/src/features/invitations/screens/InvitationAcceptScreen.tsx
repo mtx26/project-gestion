@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { Button } from "../../../components/ui/Button";
@@ -49,7 +49,7 @@ export function InvitationAcceptScreen() {
   const member = acceptInvitation.data?.member ?? null;
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={["top", "bottom", "left", "right"]}>
+    <DetailScreen includeTopEdge>
       <View className="flex-1 justify-center gap-4 px-5">
         <Text className="text-2xl font-semibold text-foreground">Invitation</Text>
 
@@ -89,6 +89,6 @@ export function InvitationAcceptScreen() {
           <LoadingState />
         )}
       </View>
-    </SafeAreaView>
+    </DetailScreen>
   );
 }

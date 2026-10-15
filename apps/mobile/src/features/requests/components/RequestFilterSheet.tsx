@@ -2,19 +2,19 @@ import { RotateCcw } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
-import { FilterPill } from "../../../components/filters/FilterPill";
 import {
-  SelectFilterPill,
-  type SelectFilterPillProps,
-} from "../../../components/filters/SelectFilterPill";
+  PressFilterRow,
+  SelectFilterRow,
+  type FilterRowConfig,
+} from "../../../components/filters/SelectFilterRow";
 import { TogglePill } from "../../../components/filters/TogglePill";
 import { theme } from "../../../theme";
 
 interface RequestFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  status: SelectFilterPillProps;
-  requestedBy: SelectFilterPillProps;
+  status: FilterRowConfig;
+  requestedBy: FilterRowConfig;
   folderLabel: string;
   onPickFolder: () => void;
   dateFrom: string | undefined;
@@ -46,11 +46,11 @@ export function RequestFilterSheet({
 }: RequestFilterSheetProps) {
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
-      <View className="flex-row flex-wrap items-center gap-2">
-        <SelectFilterPill {...status} />
-        <SelectFilterPill {...requestedBy} />
-        {/* Le dossier reste un modal : c'est un arbre, pas une liste plate. */}
-        <FilterPill label={`Dossier : ${folderLabel}`} onPress={onPickFolder} />
+      <View className="overflow-hidden rounded-md border border-border bg-background">
+        <SelectFilterRow {...status} />
+        <SelectFilterRow {...requestedBy} />
+        {/* Le dossier ouvre un modal : c'est un arbre, pas une liste plate. */}
+        <PressFilterRow label="Dossier" value={folderLabel} onPress={onPickFolder} isLast />
       </View>
 
       <View className="flex-row flex-wrap items-center gap-2">

@@ -20,9 +20,9 @@ import {
 import type { ComponentType } from "react";
 import { useState } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { PaymentStatusBadge } from "../../../components/badges/PaymentStatusBadge";
 import { DocumentList } from "../../../components/documents/DocumentList";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { formatDateTime } from "../../../lib/date-format";
@@ -102,9 +102,7 @@ export function TimeEntryDetailScreen() {
   }
 
   return (
-    // No "top" edge: the native header (back button + title + actions) already
-    // sits above this screen and accounts for the status bar.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+    <DetailScreen>
       <Stack.Screen
         options={{
           title: entry?.title || "Detail du temps",
@@ -301,7 +299,7 @@ export function TimeEntryDetailScreen() {
           correctPayment.mutate({ id: entry.id, amount }, { onSuccess: () => setCorrectionOpen(false) })
         }
       />
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

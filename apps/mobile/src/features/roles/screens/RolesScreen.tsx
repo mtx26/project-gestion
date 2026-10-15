@@ -1,9 +1,8 @@
 import { getPermissionAction, permissionCodes } from "@project-gestion/permissions";
 import type { Role } from "@project-gestion/types";
-import { Stack, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { Plus } from "lucide-react-native";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
@@ -11,6 +10,7 @@ import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { getErrorMessage } from "../../../lib/errors";
 import { longPressFeedback } from "../../../lib/haptics";
 import { SelectMenu, type SelectMenuOption } from "../../../components/menus/SelectMenu";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { GlassFab, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
@@ -56,10 +56,7 @@ export function RolesScreen() {
   }
 
   return (
-    // No "top" edge: the native header already sits above this screen.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
-      <Stack.Screen options={{ title: "Roles" }} />
-
+    <DetailScreen title="Roles">
       {isLoading || isLoadingRoles ? (
         <LoadingState />
       ) : (
@@ -117,7 +114,7 @@ export function RolesScreen() {
           onPress={() => router.push("/settings/roles/create")}
         />
       ) : null}
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

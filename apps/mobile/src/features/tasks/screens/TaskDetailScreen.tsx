@@ -14,9 +14,9 @@ import {
 } from "lucide-react-native";
 import type { ComponentType } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { TaskPriorityBadge } from "../../../components/badges/TaskPriorityBadge";
 import { TaskStatusBadge } from "../../../components/badges/TaskStatusBadge";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { SelectMenu } from "../../../components/menus/SelectMenu";
@@ -69,9 +69,7 @@ export function TaskDetailScreen() {
   const assigneeNames = task?.assigned_to_display_names ?? [];
 
   return (
-    // No "top" edge: the native header (back button + title + "Modifier") already
-    // sits above this screen and accounts for the status bar.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+    <DetailScreen>
       <Stack.Screen
         options={{
           title: task?.title ?? "Tache",
@@ -164,7 +162,7 @@ export function TaskDetailScreen() {
           ) : null}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

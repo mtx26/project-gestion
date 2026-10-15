@@ -2,24 +2,24 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { permissionCodes } from "@project-gestion/permissions";
 import type { Invitation, ProjectMember, Role } from "@project-gestion/types";
 import { inviteMemberSchema, normalizeAmountInput, type InviteMemberFormValues } from "@project-gestion/validation";
-import { Stack } from "expo-router";
-import { MailPlus } from "lucide-react-native";
+import { UserPlus } from "lucide-react-native";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Alert, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
+import { SelectPickerField } from "../../../components/forms/PickerField";
 import { SelectMenu, type SelectMenuOption } from "../../../components/menus/SelectMenu";
+import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { NameSheet } from "../../../components/layout/NameSheet";
+import { GlassFab, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { Button } from "../../../components/ui/Button";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { getErrorMessage } from "../../../lib/errors";
 import { longPressFeedback } from "../../../lib/haptics";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
-import { theme } from "../../../theme";
 import { useAuthStore } from "../../../stores/auth-store";
 import { useProjectPermissions } from "../../projects/hooks/use-project-permissions";
 import { useProjectMembers } from "../../projects/hooks/use-project-resources";
@@ -35,7 +35,7 @@ import {
   useUpdateMemberRate,
   useUpdateMemberRole,
 } from "../hooks/use-project-members";
-import { useProjectRoles } from "../hooks/use-project-roles";
+import { useProjectRoles } from "../../roles/hooks/use-project-roles";
 
 export function MembersScreen() {
   const user = useAuthStore((state) => state.user);
@@ -61,6 +61,7 @@ export function MembersScreen() {
   const cancelInvitation = useCancelInvitation(projectId);
 
   const [rateTarget, setRateTarget] = useState<ProjectMember | null>(null);
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   /** Le choix du role, en sous-menu natif : `role:<id>` pour le distinguer des
    * actions de premier niveau. */
@@ -145,25 +146,20 @@ export function MembersScreen() {
     cancelInvitation.error;
 
   return (
-    // No "top" edge: the native header already sits above this screen.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
-      <Stack.Screen options={{ title: "Membres" }} />
-
+    <DetailScreen title="Membres">
       {isLoading || isLoadingMembers ? (
         <LoadingState />
       ) : (
-        <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, gap: 16 }}>
-          {canManageMembers ? (
-            <InviteForm
-              roles={roles}
-              isPending={inviteMember.isPending}
-              error={inviteMember.error}
-                          onSubmit={(values) =>
-                inviteMember.mutate({ email: values.email, roleId: Number(values.roleId) })
-              }
-            />
-          ) : null}
-
+        <ScrollView
+          className="flex-1"
+          // La liste des membres passe en premier : c'est ce qu'on vient voir.
+          // L'invitation, elle, est une action — elle vit dans le bouton flottant.
+          contentContainerStyle={{
+            padding: 20,
+            gap: 16,
+            paddingBottom: canManageMembers ? GLASS_FAB_CLEARANCE : 20,
+          }}
+        >
           {actionError ? <ErrorState message={getErrorMessage(actionError)} /> : null}
 
           <View className="gap-2">
@@ -223,6 +219,31 @@ export function MembersScreen() {
         </ScrollView>
       )}
 
+      {canManageMembers ? (
+        <GlassFab icon={UserPlus} label="Inviter" onPress={() => setInviteOpen(true)} />
+      ) : null}
+
+      <BottomSheet
+        visible={inviteOpen}
+        title="Inviter un membre"
+        onClose={() => {
+          setInviteOpen(false);
+          inviteMember.reset();
+        }}
+      >
+        <InviteForm
+          roles={roles}
+          isPending={inviteMember.isPending}
+          error={inviteMember.error}
+          onSubmit={(values) =>
+            inviteMember.mutate(
+              { email: values.email, roleId: Number(values.roleId) },
+              { onSuccess: () => setInviteOpen(false) },
+            )
+          }
+        />
+      </BottomSheet>
+
       <NameSheet
         visible={rateTarget != null}
         title="Taux horaire"
@@ -243,7 +264,7 @@ export function MembersScreen() {
           updateMemberRate.reset();
         }}
       />
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 
@@ -269,12 +290,8 @@ function InviteForm({
   const roleLabel = roles.find((role) => String(role.id) === roleId)?.name ?? "Choisir un role";
 
   return (
-    <View className="gap-3 rounded-md border border-border bg-surface p-4">
-      <View className="flex-row items-center gap-2">
-        <MailPlus size={theme.iconSize.sm} color={theme.colors.primary} />
-        <Text className="text-sm font-semibold text-foreground">Inviter un membre</Text>
-      </View>
-
+    // Ni cadre ni titre : la feuille qui l'accueille porte deja les deux.
+    <View className="gap-3">
       <InlineMessage variant="danger">{getErrorMessage(error)}</InlineMessage>
 
       <Controller
@@ -294,13 +311,13 @@ function InviteForm({
         )}
       />
 
-      <View className="gap-2">
-        <Text className="text-sm font-medium text-foreground">Role</Text>
-        <SelectFilterPill
-          label={roleLabel}
+      <View className="gap-1">
+        <SelectPickerField
+          label="Role"
+          value={roleLabel}
           title="Role de l'invite"
           options={roles.map((role) => ({ label: role.name, value: String(role.id) }))}
-          value={roleId}
+          selected={roleId}
           onSelect={(value) => form.setValue("roleId", value, { shouldValidate: true })}
         />
         {form.formState.errors.roleId ? (

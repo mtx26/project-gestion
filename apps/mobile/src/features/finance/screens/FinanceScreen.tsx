@@ -218,33 +218,33 @@ function FinanceListView({ project }: { project: Project }) {
         visible={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
         type={{
-          label: getOptionLabel(TYPE_OPTIONS, typeFilter),
-          title: "Type",
+          label: "Type",
+          value: getOptionLabel(TYPE_OPTIONS, typeFilter),
           options: TYPE_OPTIONS,
-          value: typeFilter,
+          selected: typeFilter,
           onSelect: (value) => setTypeFilter(value as TypeFilter),
         }}
         source={{
-          label: getOptionLabel(SOURCE_OPTIONS, sourceFilter),
-          title: "Origine",
+          label: "Origine",
+          value: getOptionLabel(SOURCE_OPTIONS, sourceFilter),
           options: SOURCE_OPTIONS,
-          value: sourceFilter,
+          selected: sourceFilter,
           onSelect: (value) => setSourceFilter(value as SourceFilter),
         }}
         createdBy={{
-          label: `Cree par : ${createdByLabel}`,
-          title: "Cree par",
+          label: "Cree par",
+          value: createdByLabel,
           options: buildMemberFilterOptions(members, user?.id ?? null),
-          value: createdBy == null ? "all" : String(createdBy),
+          selected: createdBy == null ? "all" : String(createdBy),
           onSelect: (value) => setCreatedBy(value === "all" ? null : Number(value)),
         }}
         folderLabel={folderLabel}
         onPickFolder={() => setFolderPickerOpen(true)}
         ordering={{
-          label: `Tri : ${getOptionLabel(ORDERING_OPTIONS, ordering)}`,
-          title: "Trier par",
+          label: "Trier par",
+          value: getOptionLabel(ORDERING_OPTIONS, ordering),
           options: ORDERING_OPTIONS,
-          value: ordering,
+          selected: ordering,
           onSelect: (value) => setOrdering(value as OrderingFilter),
         }}
         dateFrom={dateFrom}

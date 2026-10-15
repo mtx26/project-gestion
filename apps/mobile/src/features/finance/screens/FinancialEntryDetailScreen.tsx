@@ -4,9 +4,9 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { CalendarDays, Clock, Folder, ListChecks, Pencil, Tag, Trash2, UserRound } from "lucide-react-native";
 import type { ComponentType } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { EntryTypeBadge } from "../../../components/badges/EntryTypeBadge";
 import { DocumentList } from "../../../components/documents/DocumentList";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { formatDate } from "../../../lib/date-format";
@@ -71,9 +71,7 @@ export function FinancialEntryDetailScreen() {
   }
 
   return (
-    // No "top" edge: the native header (back button + title + actions) already
-    // sits above this screen and accounts for the status bar.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+    <DetailScreen>
       <Stack.Screen
         options={{
           title: "Detail de l'entree",
@@ -193,7 +191,7 @@ export function FinancialEntryDetailScreen() {
           ) : null}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

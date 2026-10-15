@@ -1,20 +1,20 @@
 import { RotateCcw } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
-import { FilterPill } from "../../../components/filters/FilterPill";
 import {
-  SelectFilterPill,
-  type SelectFilterPillProps,
-} from "../../../components/filters/SelectFilterPill";
+  PressFilterRow,
+  SelectFilterRow,
+  type FilterRowConfig,
+} from "../../../components/filters/SelectFilterRow";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { theme } from "../../../theme";
 
 interface TimeFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  paymentStatus: SelectFilterPillProps;
+  paymentStatus: FilterRowConfig;
   /** Absent sans `time_entry.view_all` : on ne voit alors que ses propres heures. */
-  user?: SelectFilterPillProps;
+  user?: FilterRowConfig;
   targetLabel: string;
   onPickTarget: () => void;
   dateFrom: string | undefined;
@@ -42,11 +42,11 @@ export function TimeFilterSheet({
 }: TimeFilterSheetProps) {
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
-      <View className="flex-row flex-wrap items-center gap-2">
-        <SelectFilterPill {...paymentStatus} />
-        {user ? <SelectFilterPill {...user} /> : null}
-        {/* La cible reste un modal : c'est un arbre, pas une liste plate. */}
-        <FilterPill label={`Cible : ${targetLabel}`} onPress={onPickTarget} />
+      <View className="overflow-hidden rounded-md border border-border bg-background">
+        <SelectFilterRow {...paymentStatus} />
+        {user ? <SelectFilterRow {...user} /> : null}
+        {/* La cible ouvre un modal : c'est un arbre, pas une liste plate. */}
+        <PressFilterRow label="Cible" value={targetLabel} onPress={onPickTarget} isLast />
       </View>
 
       <View className="flex-row flex-wrap items-center gap-2">
