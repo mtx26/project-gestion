@@ -5,7 +5,8 @@ import { CreditCard } from "lucide-react";
 import { useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { formatDuration, formatMoney } from "@/lib/task-utils";
+import { formatDuration } from "@project-gestion/domain";
+import { formatMoney } from "@/lib/task-utils";
 
 export function TimeSummary({ label, value }: { label: string; value: string }) {
   return (

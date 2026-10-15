@@ -1,0 +1,46 @@
+{
+  "project_info": {
+    "project_number": "17609516105",
+    "project_id": "project-gestion-mtx26",
+    "storage_bucket": "project-gestion-mtx26.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:17609516105:android:6bcc3af203d9c100bc0b98",
+        "android_client_info": {
+          "package_name": "com.mtx26.projectgestion"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "17609516105-o2au9fcn98lh4b112tk6kqf492ls9e08.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDTmjtjwwe8kSCe1cInEqX4Se32-ntBPqk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "17609516105-o2au9fcn98lh4b112tk6kqf492ls9e08.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "17609516105-571u4gh678db68hjq8ae62e5m1ccqeuk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mtx26.projectgestion"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,25 +1,22 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { Task } from "@project-gestion/types";
 import { taskFieldMap, taskSchema, type TaskFormInput, type TaskFormValues } from "@project-gestion/validation";
-import DateTimePicker from "@react-native-community/datetimepicker";
+import { findFolderName } from "@project-gestion/domain";
 import { useRouter } from "expo-router";
-import { Calendar, ChevronDown } from "lucide-react-native";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
 import { MemberMultiSelectModal } from "../../../components/pickers/MemberMultiSelectModal";
+import { DateTimeField } from "../../../components/ui/DateTimeField";
 import { FormField } from "../../../components/ui/FormField";
 import { InlineMessage } from "../../../components/ui/InlineMessage";
 import { LoadingState } from "../../../components/feedback/LoadingState";
 import { FormScreen } from "../../../components/layout/FormScreen";
-import { showActionSheet } from "../../../lib/action-sheet";
-import { formatDateTime } from "../../../lib/date-format";
-import { findFolderName } from "../../../lib/folder-tree";
+import { PickerField, SelectPickerField } from "../../../components/forms/PickerField";
 import { getErrorMessage } from "../../../lib/errors";
 import { useServerFieldErrors } from "../../../lib/use-server-field-errors";
-import { theme } from "../../../theme";
 import { useProjectFolders, useProjectMembers } from "../../projects/hooks/use-project-resources";
 import { useSelectedProject } from "../../projects/hooks/use-selected-project";
 import { encodeFolderValue, getFolderId } from "../lib/task-filters";
@@ -93,16 +90,6 @@ function TaskFormBody({
 
   useServerFieldErrors(form, rawError, taskFieldMap);
 
-  function pickStatus() {
-    showActionSheet("Statut", STATUS_OPTIONS, (value) => form.setValue("status", value as Task["status"]));
-  }
-
-  function pickPriority() {
-    showActionSheet("Priorite", PRIORITY_OPTIONS, (value) =>
-      form.setValue("priority", value as Task["priority"]),
-    );
-  }
-
   async function onSubmit(values: TaskFormValues) {
     setRawError(null);
     try {
@@ -166,17 +153,23 @@ function TaskFormBody({
       />
 
       {mode === "edit" ? (
-        <PickerField
+        <SelectPickerField
           label="Statut"
           value={STATUS_OPTIONS.find((option) => option.value === form.watch("status"))?.label ?? ""}
-          onPress={pickStatus}
+          title="Statut"
+          options={STATUS_OPTIONS}
+          selected={form.watch("status")}
+          onSelect={(value) => form.setValue("status", value as Task["status"])}
         />
       ) : null}
 
-      <PickerField
+      <SelectPickerField
         label="Priorite"
         value={PRIORITY_OPTIONS.find((option) => option.value === form.watch("priority"))?.label ?? ""}
-        onPress={pickPriority}
+        title="Priorite"
+        options={PRIORITY_OPTIONS}
+        selected={form.watch("priority")}
+        onSelect={(value) => form.setValue("priority", value as Task["priority"])}
       />
 
       <Controller
@@ -207,7 +200,7 @@ function TaskFormBody({
         control={form.control}
         name="startDate"
         render={({ field }) => (
-          <DateField label="Debut" value={field.value} onChange={field.onChange} />
+          <DateTimeField label="Debut" value={field.value} onChange={field.onChange} clearable />
         )}
       />
       <Controller
@@ -215,7 +208,7 @@ function TaskFormBody({
         name="endDate"
         render={({ field, fieldState }) => (
           <View className="gap-1">
-            <DateField label="Echeance" value={field.value} onChange={field.onChange} />
+            <DateTimeField label="Echeance" value={field.value} onChange={field.onChange} clearable />
             {fieldState.error ? (
               <Text className="text-sm text-danger">{fieldState.error.message}</Text>
             ) : null}
@@ -269,93 +262,3 @@ function TaskFormBody({
   );
 }
 
-function PickerField({ label, value, onPress }: { label: string; value: string; onPress: () => void }) {
-  return (
-    <View className="gap-2">
-      <Text className="text-sm font-medium text-foreground">{label}</Text>
-      <Pressable
-        onPress={onPress}
-        accessibilityRole="button"
-        className="h-11 min-h-[44px] flex-row items-center justify-between rounded-md border border-border bg-surface px-3"
-      >
-        <Text className="flex-1 text-base text-foreground" numberOfLines={1} ellipsizeMode="tail">
-          {value}
-        </Text>
-        <ChevronDown size={theme.iconSize.sm} color={theme.colors.muted} />
-      </Pressable>
-    </View>
-  );
-}
-
-function DateField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  onChange: (iso: string) => void;
-}) {
-  const [revealed, setRevealed] = useState(false);
-  const [showAndroidPicker, setShowAndroidPicker] = useState(false);
-  const hasValue = Boolean(value);
-  const dateValue = hasValue ? new Date(value) : new Date();
-
-  function handleChange(event: { type: string }, selectedDate?: Date) {
-    setShowAndroidPicker(false);
-    if (event.type === "set" && selectedDate) {
-      onChange(selectedDate.toISOString());
-    }
-  }
-
-  // iOS: once revealed (or a value already exists), show the library's own
-  // "compact" control directly — it's a real native component that opens the
-  // system's own popover on tap, so there's nothing of ours to build or
-  // dismiss. Before that, a plain button stands in so the field can look
-  // genuinely empty instead of always showing "now".
-  const showCompactPicker = Platform.OS === "ios" && (revealed || hasValue);
-
-  return (
-    <View className="gap-2">
-      <Text className="text-sm font-medium text-foreground">{label}</Text>
-
-      {showCompactPicker ? (
-        <DateTimePicker
-          value={dateValue}
-          mode="datetime"
-          display="compact"
-          themeVariant="light"
-          accentColor={theme.colors.primary}
-          onChange={handleChange}
-        />
-      ) : (
-        <Pressable
-          onPress={() => (Platform.OS === "ios" ? setRevealed(true) : setShowAndroidPicker(true))}
-          accessibilityRole="button"
-          className="h-11 min-h-[44px] flex-row items-center justify-between rounded-md border border-border bg-surface px-3"
-        >
-          <Text className={`text-base ${hasValue ? "text-foreground" : "text-muted"}`}>
-            {hasValue ? formatDateTime(value) : "Non definie"}
-          </Text>
-          <Calendar size={theme.iconSize.sm} color={theme.colors.muted} />
-        </Pressable>
-      )}
-
-      {hasValue ? (
-        <Pressable
-          onPress={() => {
-            onChange("");
-            setRevealed(false);
-          }}
-          accessibilityRole="button"
-        >
-          <Text className="text-xs text-danger">Effacer la date</Text>
-        </Pressable>
-      ) : null}
-
-      {showAndroidPicker && Platform.OS === "android" ? (
-        <DateTimePicker value={dateValue} mode="datetime" display="default" onChange={handleChange} />
-      ) : null}
-    </View>
-  );
-}

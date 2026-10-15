@@ -44,11 +44,11 @@ import { TaskDetailModal } from "@/components/dialogs/task-detail-modal";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { getErrorMessage } from "@/lib/errors";
-import { findFolderName, findFolderNode, isFolderDescendantOf } from "@/lib/folder-utils";
+import { findFolderName, findFolderNode, isFolderDescendantOf } from "@project-gestion/domain";
+import { validateUploadCandidate } from "@project-gestion/domain";
 import { buildProjectHref } from "@/lib/url-params";
 import { addToSet, toggleSetValue } from "@/lib/utils";
 import { useCrudMutation } from "@/lib/use-crud-mutation";
-import { validateDocumentFile } from "@/lib/use-document-attachment";
 import { useProjectPermissions } from "@/lib/use-project-permissions";
 import { FileTree } from "./components/file-tree";
 import { FileDraftDialogs } from "./components/file-draft-dialogs";
@@ -417,7 +417,7 @@ function FilesView({
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
-                      const rejection = validateDocumentFile(file);
+                      const rejection = validateUploadCandidate(file);
                       if (rejection) {
                         toast.error(rejection);
                       } else {

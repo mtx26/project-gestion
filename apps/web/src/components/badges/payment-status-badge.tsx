@@ -1,7 +1,8 @@
 import { AlertCircle, Check, Clock } from "lucide-react";
+import type { PaymentStatus } from "@project-gestion/domain";
 import { StatusBadge, type BadgeOption } from "./status-badge";
 
-export type PaymentStatus = "paid" | "partial" | "unpaid";
+export type { PaymentStatus };
 
 const OPTIONS: Record<PaymentStatus, BadgeOption> = {
   paid:    { label: "Payé",    icon: Check,       className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300" },

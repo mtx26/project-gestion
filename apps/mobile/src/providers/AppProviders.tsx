@@ -13,7 +13,9 @@ export function AppProviders({ queryClient, children }: AppProvidersProps) {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

@@ -1,19 +1,10 @@
+/** Formatages dependants de la locale (fr-BE) — cote mobile, les memes rendus sont
+ * produits a la main faute de donnees ICU garanties dans Hermes. Les formatages qui,
+ * eux, ne dependent pas de la locale (duree, taille de fichier) vivent dans
+ * `@project-gestion/domain` et sont partages tels quels.
+ */
 export function formatDate(value: string) {
   return new Intl.DateTimeFormat("fr-BE", { dateStyle: "medium" }).format(new Date(value));
-}
-
-export function formatDuration(totalMinutes: number) {
-  const roundedMinutes = Math.max(0, Math.round(totalMinutes));
-  const hours = Math.floor(roundedMinutes / 60);
-  const minutes = roundedMinutes % 60;
-  return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`;
-}
-
-export function formatBytes(bytes: number | null | undefined): string {
-  if (bytes == null || bytes <= 0) return "";
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
 }
 
 export function formatMoney(value: number | string) {

@@ -2,20 +2,20 @@ import { RotateCcw } from "lucide-react-native";
 import { Pressable, Text, View } from "react-native";
 import { BottomSheet } from "../../../components/layout/BottomSheet";
 import { DateFilterPill } from "../../../components/filters/DateFilterPill";
-import { FilterPill } from "../../../components/filters/FilterPill";
+import {
+  PressFilterRow,
+  SelectFilterRow,
+  type FilterRowConfig,
+} from "../../../components/filters/SelectFilterRow";
 import { theme } from "../../../theme";
 
 interface TaskFilterSheetProps {
   visible: boolean;
   onClose: () => void;
-  statusLabel: string;
-  onPickStatus: () => void;
-  priorityLabel: string;
-  onPickPriority: () => void;
-  assigneeLabel: string;
-  onPickAssignee: () => void;
-  createdByLabel: string;
-  onPickCreatedBy: () => void;
+  status: FilterRowConfig;
+  priority: FilterRowConfig;
+  assignee: FilterRowConfig;
+  createdBy: FilterRowConfig;
   folderLabel: string;
   onPickFolder: () => void;
   dateFrom: string | undefined;
@@ -33,14 +33,10 @@ interface TaskFilterSheetProps {
 export function TaskFilterSheet({
   visible,
   onClose,
-  statusLabel,
-  onPickStatus,
-  priorityLabel,
-  onPickPriority,
-  assigneeLabel,
-  onPickAssignee,
-  createdByLabel,
-  onPickCreatedBy,
+  status,
+  priority,
+  assignee,
+  createdBy,
   folderLabel,
   onPickFolder,
   dateFrom,
@@ -51,12 +47,15 @@ export function TaskFilterSheet({
 }: TaskFilterSheetProps) {
   return (
     <BottomSheet visible={visible} title="Filtres" onClose={onClose}>
-      <View className="flex-row flex-wrap items-center gap-2">
-        <FilterPill label={statusLabel} onPress={onPickStatus} />
-        <FilterPill label={priorityLabel} onPress={onPickPriority} />
-        <FilterPill label={`Assigne : ${assigneeLabel}`} onPress={onPickAssignee} />
-        <FilterPill label={`Cree par : ${createdByLabel}`} onPress={onPickCreatedBy} />
-        <FilterPill label={`Dossier : ${folderLabel}`} onPress={onPickFolder} />
+      {/* Des lignes pleine largeur plutot que des puces : chaque filtre garde la
+          place d'afficher sa valeur en entier, et la cible tactile fait 48pt. */}
+      <View className="overflow-hidden rounded-md border border-border bg-background">
+        <SelectFilterRow {...status} />
+        <SelectFilterRow {...priority} />
+        <SelectFilterRow {...assignee} />
+        <SelectFilterRow {...createdBy} />
+        {/* Le dossier ouvre un modal : c'est un arbre, pas une liste plate. */}
+        <PressFilterRow label="Dossier" value={folderLabel} onPress={onPickFolder} isLast />
       </View>
 
       <View className="flex-row flex-wrap items-center gap-2">

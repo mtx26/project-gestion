@@ -1,10 +1,9 @@
-import type { TimeEntry } from "@project-gestion/types";
+import type { PaymentStatusFilter } from "@project-gestion/domain";
 import { detectPreset, getPeriodLabel } from "@/lib/period-utils";
 
 /** `"none"` cible les entrees orphelines (titulaire supprime), visibles seulement avec
  * `time_entry.view_all` comme les entrees des autres membres. */
 export type UserFilter = "mine" | "all" | "none" | `member-${number}`;
-export type PaymentStatusFilter = "all" | "unpaid" | "partial" | "paid" | "not_paid";
 
 export function parseUserFilter(value: string | null, fallback: UserFilter, canViewAllTime: boolean): UserFilter {
   if (value === "all" && canViewAllTime) return "all";
@@ -15,13 +14,6 @@ export function parseUserFilter(value: string | null, fallback: UserFilter, canV
   }
   if (value === "mine") return "mine";
   return fallback;
-}
-
-/** Defaut `not_paid` : la page sert d'abord a suivre ce qui reste du (pas paye + partiel).
- * `all` est le seul statut qui reintegre les entrees soldees. */
-export function parsePaymentStatusFilter(value: string | null): PaymentStatusFilter {
-  if (value === "unpaid" || value === "partial" || value === "paid" || value === "all") return value;
-  return "not_paid";
 }
 
 export function parseTargetFilter(value: string | null): string | null {
@@ -57,12 +49,6 @@ export function getTimeEntryCardClassName(status: "paid" | "partial" | "unpaid")
   if (status === "paid") return `${base} border-l-4 border-l-emerald-500`;
   if (status === "partial") return `${base} border-l-4 border-l-amber-500`;
   return `${base} border-l-4 border-l-orange-500`;
-}
-
-export function getEntryTargetLabel(entry: TimeEntry): string {
-  if (entry.task != null) return entry.task_name ?? "Tache liee";
-  if (entry.folder != null) return entry.folder_name ?? "Dossier lie";
-  return "Projet";
 }
 
 export function getTotalsLabel(

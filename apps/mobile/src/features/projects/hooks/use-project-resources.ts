@@ -22,3 +22,19 @@ export function useProjectFolders(projectId: number | null) {
 
   return { ...query, folders: query.data ?? [] };
 }
+
+/** Meme endpoint que `useProjectFolders`, en mode selecteur de cible : dossiers +
+ * toutes les taches (terminees comprises — on peut rattacher du temps a une tache
+ * close). Requete distincte pour ne pas charger les taches sur les ecrans qui n'ont
+ * besoin que des dossiers. */
+export function useProjectTargetTree(projectId: number | null, enabled = true) {
+  const query = useQuery({
+    queryKey: projectId
+      ? queryKeys.folders.tree(projectId, { includeFiles: false, includeTasks: true, taskScope: "all" })
+      : queryKeys.disabled(),
+    queryFn: () => api.folders.tree(projectId!, { includeFiles: false, includeTasks: true, taskScope: "all" }),
+    enabled: Boolean(projectId) && enabled,
+  });
+
+  return { ...query, tree: query.data ?? [] };
+}

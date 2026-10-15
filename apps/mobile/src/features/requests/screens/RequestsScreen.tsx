@@ -1,22 +1,24 @@
 import { permissionCodes } from "@project-gestion/permissions";
 import type { ExpenseRequest, Project } from "@project-gestion/types";
+import { findFolderName } from "@project-gestion/domain";
 import { useRouter } from "expo-router";
 import { CheckCircle2, ChevronRight, Plus, Search, XCircle } from "lucide-react-native";
 import { useState } from "react";
-import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
 import { RequestStatusBadge } from "../../../components/badges/RequestStatusBadge";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { FilterPill } from "../../../components/filters/FilterPill";
+import { SelectFilterPill } from "../../../components/filters/SelectFilterPill";
 import { FilterTrigger } from "../../../components/filters/FilterTrigger";
+import { GlassBar, GLASS_BAR_HEIGHT } from "../../../components/ui/GlassBar";
+import { GlassCapsule } from "../../../components/ui/GlassCapsule";
+import { GlassFab, GLASS_FAB_CLEARANCE } from "../../../components/ui/GlassFab";
 import { ProjectSectionScreen } from "../../../components/layout/ProjectSectionScreen";
 import { FolderPickerModal } from "../../../components/pickers/FolderPickerModal";
 import { Input } from "../../../components/ui/Input";
-import { showActionSheet } from "../../../lib/action-sheet";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
-import { findFolderName } from "../../../lib/folder-tree";
 import { buildMemberFilterOptions } from "../../../lib/member-options";
 import { formatMoney } from "../../../lib/money-format";
 import { useAuthStore } from "../../../stores/auth-store";
@@ -26,6 +28,7 @@ import { useProjectPermissions } from "../../projects/hooks/use-project-permissi
 import { RequestFilterSheet } from "../components/RequestFilterSheet";
 import { useApproveRequest, useRejectRequest, useRequests } from "../hooks/use-requests";
 import { STATUS_OPTIONS, type RequestStatusFilter } from "../lib/request-filters";
+import { ThemedRefreshControl } from "../../../components/ui/ThemedRefreshControl";
 
 type SortField = "" | "created_at" | "-amount" | "amount" | "title";
 
@@ -51,7 +54,8 @@ function RequestsListView({ project }: { project: Project }) {
   const { can } = useProjectPermissions(project, user?.id ?? null);
   const canEdit = can(permissionCodes.expenseRequestEdit);
   const canApprove = can(permissionCodes.expenseRequestApprove);
-  const { members } = useProjectMembers(project.id);
+  // `members.list` exige `member.view` cote backend.
+  const { members } = useProjectMembers(can(permissionCodes.memberView) ? project.id : null);
   const { folders } = useProjectFolders(project.id);
   const approveRequest = useApproveRequest(project.id);
   const rejectRequest = useRejectRequest(project.id);
@@ -110,20 +114,6 @@ function RequestsListView({ project }: { project: Project }) {
     dateTo,
   });
 
-  function pickStatus() {
-    showActionSheet("Statut", STATUS_OPTIONS, (value) => setStatusFilter(value as RequestStatusFilter));
-  }
-
-  function pickRequestedBy() {
-    showActionSheet("Demande par", buildMemberFilterOptions(members, user?.id ?? null), (value) =>
-      setRequestedBy(value === "all" ? null : Number(value)),
-    );
-  }
-
-  function pickSort() {
-    showActionSheet("Trier par", SORT_OPTIONS, (value) => setSortField(value as SortField));
-  }
-
   function handleRefresh() {
     resetFilters();
     refetch();
@@ -144,45 +134,20 @@ function RequestsListView({ project }: { project: Project }) {
       <FlatList
         data={requests}
         keyExtractor={(item) => String(item.id)}
+        // Place reservee a la barre et au bouton flottants.
         contentContainerStyle={
-          requests.length === 0 ? { flexGrow: 1, paddingHorizontal: 20 } : { paddingHorizontal: 20, paddingBottom: 24 }
+          requests.length === 0
+            ? { flexGrow: 1, paddingHorizontal: 20, paddingTop: GLASS_BAR_HEIGHT + 16 }
+            : {
+                paddingHorizontal: 20,
+                paddingTop: GLASS_BAR_HEIGHT + 16,
+                paddingBottom: canEdit ? GLASS_FAB_CLEARANCE : 24,
+              }
         }
-        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={handleRefresh} />}
+        refreshControl={<ThemedRefreshControl refreshing={isFetching} onRefresh={handleRefresh} />}
         ItemSeparatorComponent={() => <View className="h-3" />}
         ListHeaderComponent={
           <View className="gap-3 pb-3">
-            <View className="flex-row items-center gap-2">
-              <View className="h-11 flex-1 flex-row items-center gap-2 rounded-md border border-border bg-surface px-3">
-                <Search size={theme.iconSize.sm} color={theme.colors.muted} />
-                <Input
-                  value={search}
-                  onChangeText={setSearch}
-                  placeholder="Rechercher une demande"
-                  returnKeyType="search"
-                  autoCapitalize="none"
-                  autoCorrect={false}
-                  className="h-11 flex-1 border-0 bg-transparent px-0"
-                />
-              </View>
-              <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
-            </View>
-
-            <View className="flex-row items-center gap-2">
-              <FilterPill label={`Tri : ${sortLabel}`} onPress={pickSort} />
-            </View>
-
-            {canEdit ? (
-              <Pressable
-                onPress={() => router.push("/requests/create")}
-                accessibilityRole="button"
-                android_ripple={{ color: `${theme.colors.primaryForeground}33` }}
-                className="h-11 flex-row items-center justify-center gap-2 rounded-md bg-primary"
-              >
-                <Plus size={theme.iconSize.sm} color={theme.colors.primaryForeground} />
-                <Text className="text-sm font-semibold text-primaryForeground">Nouvelle demande</Text>
-              </Pressable>
-            ) : null}
-
             {isError ? <ErrorState message={getErrorMessage(error)} onRetry={() => refetch()} /> : null}
 
             {!isError && requests.length > 0 ? (
@@ -219,13 +184,57 @@ function RequestsListView({ project }: { project: Project }) {
         onClose={() => setFolderPickerOpen(false)}
       />
 
+      <GlassBar>
+        <GlassCapsule style={{ flex: 1 }}>
+          <View className="h-11 flex-row items-center gap-2 px-4">
+            <Search size={theme.iconSize.sm} color={theme.colors.muted} />
+            <Input
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Rechercher une demande"
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+              className="h-11 flex-1 border-0 bg-transparent px-0"
+            />
+          </View>
+        </GlassCapsule>
+        <SelectFilterPill
+          label={sortField ? sortLabel : "Tri"}
+          title="Trier par"
+          options={SORT_OPTIONS}
+          value={sortField}
+          onSelect={(value) => setSortField(value as SortField)}
+          active={Boolean(sortField)}
+        />
+        <FilterTrigger activeCount={activeFilters} onPress={() => setFilterSheetOpen(true)} />
+      </GlassBar>
+
+      {canEdit ? (
+        <GlassFab
+          icon={Plus}
+          label="Nouvelle demande"
+          onPress={() => router.push("/requests/create")}
+        />
+      ) : null}
+
       <RequestFilterSheet
         visible={filterSheetOpen}
         onClose={() => setFilterSheetOpen(false)}
-        statusLabel={statusLabel}
-        onPickStatus={pickStatus}
-        requestedByLabel={requestedByLabel}
-        onPickRequestedBy={pickRequestedBy}
+        status={{
+          label: "Statut",
+          value: statusLabel,
+          options: STATUS_OPTIONS,
+          selected: statusFilter,
+          onSelect: (value) => setStatusFilter(value as RequestStatusFilter),
+        }}
+        requestedBy={{
+          label: "Demande par",
+          value: requestedByLabel,
+          options: buildMemberFilterOptions(members, user?.id ?? null),
+          selected: requestedBy == null ? "all" : String(requestedBy),
+          onSelect: (value) => setRequestedBy(value === "all" ? null : Number(value)),
+        }}
         folderLabel={folderLabel}
         onPickFolder={() => setFolderPickerOpen(true)}
         dateFrom={dateFrom}
@@ -300,7 +309,7 @@ function RequestCard({
             }}
             disabled={disableActions}
             accessibilityRole="button"
-            className="h-9 flex-1 flex-row items-center justify-center gap-1.5 rounded-md border border-border bg-background"
+            className="h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-md border border-border bg-background"
             style={{ opacity: disableActions ? 0.5 : 1 }}
           >
             {isApproving ? (
@@ -319,7 +328,7 @@ function RequestCard({
             }}
             disabled={disableActions}
             accessibilityRole="button"
-            className="h-9 flex-1 flex-row items-center justify-center gap-1.5 rounded-md border border-danger/30 bg-danger/10"
+            className="h-11 flex-1 flex-row items-center justify-center gap-1.5 rounded-md border border-danger/30 bg-danger/10"
             style={{ opacity: disableActions ? 0.5 : 1 }}
           >
             {isRejecting ? (

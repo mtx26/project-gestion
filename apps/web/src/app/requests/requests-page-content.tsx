@@ -35,7 +35,7 @@ import { RequestStatusBadge } from "@/components/badges/request-status-badge";
 import { SkeletonLoader } from "@/components/states/skeleton-loader";
 import { api } from "@/lib/api";
 import { formatMoney } from "@/lib/task-utils";
-import type { EntryTarget } from "@/lib/target-utils";
+import type { EntryTarget } from "@project-gestion/domain";
 import { buildProjectHref, omitDefault, parseEnumParam, parseIdParam, parseBooleanParam, parsePageParam } from "@/lib/url-params";
 import { PaginationBar } from "@/components/pagination-bar";
 import { useCrudMutation } from "@/lib/use-crud-mutation";

@@ -23,6 +23,8 @@ from .views.invitations import (
     InvitationListCreateView,
 )
 from .views.notifications import (
+    DeviceTokenRegisterView,
+    DeviceTokenUnregisterView,
     NotificationListView,
     NotificationMarkAllReadView,
     NotificationMarkReadView,
@@ -102,6 +104,8 @@ urlpatterns = [
     path("notifications/unread-count/", NotificationUnreadCountView.as_view(), name="notification-unread-count"),
     path("notifications/mark-all-read/", NotificationMarkAllReadView.as_view(), name="notification-mark-all-read"),
     path("notifications/<int:pk>/mark-read/", NotificationMarkReadView.as_view(), name="notification-mark-read"),
+    path("notifications/devices/", DeviceTokenRegisterView.as_view(), name="notification-device-register"),
+    path("notifications/devices/unregister/", DeviceTokenUnregisterView.as_view(), name="notification-device-unregister"),
     # Folders
     path("projects/<int:project_id>/folders/", FolderListCreateView.as_view(), name="project-folders"),
     path("projects/<int:project_id>/folders/tree/", FolderTreeView.as_view(), name="project-folder-tree"),

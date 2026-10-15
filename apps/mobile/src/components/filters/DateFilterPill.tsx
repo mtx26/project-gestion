@@ -63,6 +63,7 @@ export function DateFilterPill({ label, value, onChange }: DateFilterPillProps) 
       <Pressable
         onPress={() => (Platform.OS === "ios" ? setRevealed(true) : setShowAndroidPicker(true))}
         accessibilityRole="button"
+        hitSlop={8}
         className="h-9 flex-row items-center gap-1 self-start rounded-full border border-border bg-surface px-3"
       >
         <Text className="text-xs font-medium text-foreground">

@@ -23,7 +23,7 @@ import { api } from "@/lib/api";
 import { CalendarSubscriptionDialog } from "./components/calendar-subscription-dialog";
 import { getMonthCalendarDays } from "./lib/calendar-utils";
 import { toIsoDateString } from "@/lib/period-utils";
-import type { EntryTarget } from "@/lib/target-utils";
+import type { EntryTarget } from "@project-gestion/domain";
 import { buildProjectHref } from "@/lib/url-params";
 import { useDocumentPreview } from "@/lib/use-document-preview";
 import { useProjectPermissions } from "@/lib/use-project-permissions";

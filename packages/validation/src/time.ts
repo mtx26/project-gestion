@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { amountSchema, descriptionSchema, withDateRangeRefine } from "./shared";
+import type { FieldMapping } from "./server-fields";
 
 const timeEntryBaseSchema = z.object({
   /** Facultatif : sans titre saisi, le serveur reprend celui de la tache liee s'il y en a une. */
@@ -19,6 +20,13 @@ export const timeEntrySchema = withDateRangeRefine(timeEntryBaseSchema).transfor
 }));
 export type TimeEntryFormValues = z.output<typeof timeEntrySchema>;
 export type TimeEntryFormInput = z.input<typeof timeEntrySchema>;
+
+export const timeEntryFieldMap: FieldMapping<TimeEntryFormInput>[] = [
+  "title",
+  { name: "startDate", serverField: "start_date" },
+  { name: "hourlyRate", serverField: "hourly_rate" },
+  "description",
+];
 
 /** `remaining` bounds the partial-payment amount, so the schema is built per dialog instance. */
 export function makePaymentSchema(remaining: number) {

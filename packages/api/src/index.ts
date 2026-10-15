@@ -36,7 +36,9 @@ import type {
   Folder,
   FolderPayload,
   File,
+  DeviceTokenPayload,
   DocumentUploadPayload,
+  UploadFile,
 } from "@project-gestion/types";
 import { queryKeys } from "@project-gestion/query-keys";
 
@@ -267,9 +269,11 @@ export function createApiClient({
           method: "PATCH",
           body: payload,
         }),
-      uploadProfilePicture: (file: globalThis.File | Blob) => {
+      uploadProfilePicture: (file: UploadFile) => {
         const formData = new FormData();
-        formData.set("file", file);
+        // `append` et pas `set`, et cast du fichier : voir `documents.upload`, meme
+        // contrainte de FormData cote React Native.
+        formData.append("file", file as Blob);
 
         return request<User>("/api/accounts/me/picture/", {
           method: "POST",
@@ -401,8 +405,23 @@ export function createApiClient({
         request<void>("/api/notifications/mark-all-read/", {
           method: "POST",
         }),
+      /** Notifications push : l'app enregistre le jeton de l'appareil a la connexion
+       * et le retire a la deconnexion, pour qu'un telephone partage ne recoive pas
+       * les notifications du compte precedent. */
+      registerDevice: (payload: DeviceTokenPayload) =>
+        request<DeviceTokenPayload>("/api/notifications/devices/", {
+          method: "POST",
+          body: payload,
+        }),
+      unregisterDevice: (token: string) =>
+        request<void>("/api/notifications/devices/unregister/", {
+          method: "POST",
+          body: { token },
+        }),
     },
     financialEntries: {
+      get: (projectId: number, entryId: number) =>
+        request<FinancialEntry>(`/api/projects/${projectId}/financial-entries/${entryId}/`),
       list: (
         projectId: number,
         query: { type?: string; source?: "manual" | "labor"; folder?: number; created_by?: number; ordering?: string; page?: number; search?: string; date_from?: string; date_to?: string } = {},
@@ -669,7 +688,12 @@ export function createApiClient({
         }),
       upload: (projectId: number, payload: DocumentUploadPayload) => {
         const formData = new FormData();
-        formData.set("file", payload.file);
+        // `append` et pas `set` : le FormData de React Native n'implemente que `append`
+        // (`Libraries/Network/FormData.js`). Chaque cle n'etant ecrite qu'une fois sur un
+        // FormData neuf, les deux sont equivalents ici.
+        // Cast : sur React Native le fichier est un descripteur `{ uri, name, type }`
+        // que seul le `FormData` de la plateforme sait interpreter (voir `UploadFile`).
+        formData.append("file", payload.file as Blob);
         appendFormDataValue(formData, "folder", payload.folder);
         appendFormDataValue(formData, "name", payload.name);
         appendFormDataValue(formData, "description", payload.description);
@@ -1023,7 +1047,7 @@ function isFormData(value: unknown): value is FormData {
 
 function appendFormDataValue(formData: FormData, key: string, value: string | number | null | undefined) {
   if (value != null && value !== "") {
-    formData.set(key, String(value));
+    formData.append(key, String(value));
   }
 }
 

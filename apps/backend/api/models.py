@@ -408,6 +408,30 @@ class Notification(BaseModel):
     data = models.JSONField(default=dict, blank=True)
     is_read = models.BooleanField(default=False, db_index=True)
 
+class DeviceToken(models.Model):
+    """Jeton de notification push d'un appareil (jeton Expo).
+
+    Volontairement hors `BaseModel` : un jeton n'a ni corbeille ni historique. Il
+    est remplace quand l'appareil en emet un nouveau, et supprime des que l'app se
+    deconnecte ou qu'Expo le declare invalide (`DeviceNotRegistered`).
+    """
+
+    class Platform(models.TextChoices):
+        IOS = "ios", "device_token.platform.ios"
+        ANDROID = "android", "device_token.platform.android"
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="device_tokens")
+    # Le jeton identifie un appareil, pas un compte : se reconnecter avec un autre
+    # compte sur le meme telephone doit le reattribuer, d'ou l'unicite globale.
+    token = models.CharField(max_length=255, unique=True)
+    platform = models.CharField(max_length=20, choices=Platform.choices, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user_id}:{self.token[:16]}"
+
+
 class EmailDelivery(BaseModel):
     class Status(models.TextChoices):
         PENDING = "pending", "email_delivery.status.pending"

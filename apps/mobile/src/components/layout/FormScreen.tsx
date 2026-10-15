@@ -2,7 +2,6 @@ import { Stack } from "expo-router";
 import type { ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { theme } from "../../theme";
 
 interface FormScreenProps {
   title: string;
@@ -35,8 +34,6 @@ export function FormScreen({
       <Stack.Screen
         options={{
           title,
-          headerStyle: { backgroundColor: theme.colors.surface },
-          headerTintColor: theme.colors.foreground,
           headerLeft: () => (
             <Pressable
               onPress={onCancel}

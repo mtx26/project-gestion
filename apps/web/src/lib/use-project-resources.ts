@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tansta
 import { useMemo } from "react";
 import { api } from "@/lib/api";
 import { toastError } from "@/lib/errors";
-import { buildFolderNameMap } from "@/lib/folder-utils";
+import { buildFolderNameMap } from "@project-gestion/domain";
 import { invalidateProjectResource } from "@/lib/invalidate-project-resource";
 
 /** Any mutation that changes the folder structure (create/rename/move/delete) must

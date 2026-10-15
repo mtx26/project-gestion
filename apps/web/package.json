@@ -17,6 +17,7 @@
     "@hookform/resolvers": "^5.4.0",
     "@project-gestion/api": "workspace:*",
     "@project-gestion/config": "workspace:*",
+    "@project-gestion/domain": "workspace:*",
     "@project-gestion/permissions": "workspace:*",
     "@project-gestion/query-keys": "workspace:*",
     "@project-gestion/types": "workspace:*",

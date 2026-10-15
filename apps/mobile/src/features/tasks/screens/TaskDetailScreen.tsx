@@ -14,12 +14,12 @@ import {
 } from "lucide-react-native";
 import type { ComponentType } from "react";
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { TaskPriorityBadge } from "../../../components/badges/TaskPriorityBadge";
 import { TaskStatusBadge } from "../../../components/badges/TaskStatusBadge";
+import { DetailScreen } from "../../../components/layout/DetailScreen";
 import { ErrorState } from "../../../components/feedback/ErrorState";
 import { LoadingState } from "../../../components/feedback/LoadingState";
-import { showActionSheet } from "../../../lib/action-sheet";
+import { SelectMenu } from "../../../components/menus/SelectMenu";
 import { formatDate } from "../../../lib/date-format";
 import { getErrorMessage } from "../../../lib/errors";
 import { theme } from "../../../theme";
@@ -48,18 +48,6 @@ export function TaskDetailScreen() {
   const { data: task, isLoading, isError, error, refetch } = useTask(projectId, taskId);
   const updateTask = useUpdateTask(projectId);
   const deleteTask = useDeleteTask(projectId);
-
-  function changeStatus() {
-    if (!task) {
-      return;
-    }
-    showActionSheet(
-      "Changer le statut",
-      STATUS_CHOICES.filter((choice) => choice.value !== task.status),
-      (value) => updateTask.mutate({ taskId: task.id, payload: { status: value as Task["status"] } }),
-    );
-  }
-
   function confirmDelete() {
     if (!task) {
       return;
@@ -81,9 +69,7 @@ export function TaskDetailScreen() {
   const assigneeNames = task?.assigned_to_display_names ?? [];
 
   return (
-    // No "top" edge: the native header (back button + title + "Modifier") already
-    // sits above this screen and accounts for the status bar.
-    <SafeAreaView className="flex-1 bg-background" edges={["bottom", "left", "right"]}>
+    <DetailScreen>
       <Stack.Screen
         options={{
           title: task?.title ?? "Tache",
@@ -134,9 +120,19 @@ export function TaskDetailScreen() {
       ) : (
         <ScrollView className="flex-1" contentContainerStyle={{ padding: 20, gap: 16 }}>
           <View className="flex-row flex-wrap items-center gap-2">
-            <Pressable onPress={canEdit ? changeStatus : undefined} disabled={!canEdit}>
+            {canEdit ? (
+              <SelectMenu
+                title="Changer le statut"
+                options={STATUS_CHOICES.filter((choice) => choice.value !== task.status)}
+                onSelect={(value) =>
+                  updateTask.mutate({ taskId: task.id, payload: { status: value as Task["status"] } })
+                }
+              >
+                <TaskStatusBadge status={task.status} />
+              </SelectMenu>
+            ) : (
               <TaskStatusBadge status={task.status} />
-            </Pressable>
+            )}
             <TaskPriorityBadge priority={task.priority} />
           </View>
 
@@ -166,7 +162,7 @@ export function TaskDetailScreen() {
           ) : null}
         </ScrollView>
       )}
-    </SafeAreaView>
+    </DetailScreen>
   );
 }
 

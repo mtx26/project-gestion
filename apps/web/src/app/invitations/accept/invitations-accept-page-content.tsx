@@ -2,7 +2,8 @@
 
 import { queryKeys } from "@project-gestion/query-keys";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { buildAppInvitationUrl } from "@project-gestion/domain";
+import { CheckCircle2, Loader2, Smartphone } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -51,6 +52,16 @@ function InvitationsAcceptView() {
     mutate(token);
   }, [token, mutate]);
 
+  // L'email ne contient qu'un lien web (il doit marcher partout) : c'est ici, sur un
+  // telephone, qu'on tente de passer la main a l'application. Si elle n'est pas
+  // installee, rien ne se passe et l'acceptation web ci-dessus suit son cours —
+  // l'endpoint est idempotent, donc l'app peut la rejouer sans risque.
+  const appUrl = token ? buildAppInvitationUrl(token) : null;
+  useEffect(() => {
+    if (!appUrl || !isMobileBrowser()) return;
+    window.location.href = appUrl;
+  }, [appUrl]);
+
   return (
     <div className="max-w-2xl space-y-5">
       <div>
@@ -92,8 +103,23 @@ function InvitationsAcceptView() {
               Acceptation de l&apos;invitation...
             </div>
           )}
+
+          {appUrl ? (
+            <Button asChild variant="outline">
+              <a href={appUrl}>
+                <Smartphone className="size-4" />
+                Ouvrir dans l&apos;application
+              </a>
+            </Button>
+          ) : null}
         </CardContent>
       </Card>
     </div>
   );
+}
+
+/** Telephone ou tablette : la seule question qui compte ici est "l'application
+ * mobile peut-elle exister sur cet appareil", pas le navigateur exact. */
+function isMobileBrowser() {
+  return typeof navigator !== "undefined" && /android|iphone|ipad|ipod/i.test(navigator.userAgent);
 }
