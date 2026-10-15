@@ -9,7 +9,9 @@ services:
     environment:
       POSTGRES_DB: project_gestion
       POSTGRES_USER: project_gestion
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-changeme}
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
@@ -17,35 +19,46 @@ services:
 
   # ── MinIO (stockage S3) ─────────────────────────────────────────────────────
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/aistor/minio:latest
     deploy:
       restart_policy:
         condition: any
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        export MINIO_ROOT_USER="$$(cat /run/secrets/s3_access_key_id)"
+        export MINIO_ROOT_PASSWORD="$$(cat /run/secrets/s3_secret_access_key)"
+        exec minio server /data --console-address ":9001" --license /run/secrets/minio_license
     volumes:
       - minio_data:/data
+    secrets:
+      - s3_access_key_id
+      - s3_secret_access_key
+      - minio_license
     ports:
       - "9001:9000"
       - "9002:9001"
 
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/aistor/mc:latest
     deploy:
       restart_policy:
         condition: none
     depends_on:
       - minio
-    entrypoint: >
-      /bin/sh -c "
-        sleep 5;
-        mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin};
-        mc mb --ignore-existing local/${S3_BUCKET_NAME:-project-documents};
-        mc mb --ignore-existing local/${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures};
-        mc anonymous set download local/${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures};
-      "
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        sleep 5
+        mc alias set local http://minio:9000 "$$(cat /run/secrets/s3_access_key_id)" "$$(cat /run/secrets/s3_secret_access_key)"
+        mc mb --ignore-existing local/${S3_BUCKET_NAME:-project-documents}
+        mc mb --ignore-existing local/${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures}
+        mc anonymous set download local/${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures}
+    secrets:
+      - s3_access_key_id
+      - s3_secret_access_key
 
   # ── Sauvegarde DB → Google Drive ─────────────────────────────────────────────
   backup:
@@ -60,13 +73,14 @@ services:
       PGPORT: 5432
       PGDATABASE: project_gestion
       PGUSER: project_gestion
-      PGPASSWORD: ${DB_PASSWORD:-changeme}
       GDRIVE_REMOTE: ${GDRIVE_REMOTE:-gdrive:project-gestion-backups}
       BACKUP_INTERVAL_HOURS: ${BACKUP_INTERVAL_HOURS:-24}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
-      RCLONE_CONFIG_B64: ${RCLONE_CONFIG_B64:-}
     volumes:
       - backup_data:/backups
+    secrets:
+      - db_password
+      - rclone_config_b64
 
   # ── Django backend ──────────────────────────────────────────────────────────
   backend:
@@ -78,26 +92,38 @@ services:
       - db
       - minio-init
     environment:
-      DATABASE_URL: postgresql://project_gestion:${DB_PASSWORD:-changeme}@db:5432/project_gestion
+      DB_PASSWORD_FILE: /run/secrets/db_password
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: project_gestion
+      DB_USER: project_gestion
       DJANGO_DEBUG: ${DJANGO_DEBUG:-false}
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY}
+      DJANGO_SECRET_KEY_FILE: /run/secrets/django_secret_key
       DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
       FRONTEND_APP_URL: ${FRONTEND_APP_URL:-http://localhost:3000}
       GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
-      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_CLIENT_SECRET_FILE: /run/secrets/google_oauth_client_secret
       DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-}
-      RESEND_API_KEY: ${RESEND_API_KEY:-}
-      RESEND_SIGNING_SECRET: ${RESEND_SIGNING_SECRET:-}
+      RESEND_API_KEY_FILE: /run/secrets/resend_api_key
+      RESEND_SIGNING_SECRET_FILE: /run/secrets/resend_signing_secret
       S3_ENDPOINT_URL: http://minio:9000
       S3_PUBLIC_ENDPOINT_URL: ${S3_PUBLIC_ENDPOINT_URL:-}
-      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
-      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_ACCESS_KEY_ID_FILE: /run/secrets/s3_access_key_id
+      S3_SECRET_ACCESS_KEY_FILE: /run/secrets/s3_secret_access_key
       S3_BUCKET_NAME: ${S3_BUCKET_NAME:-project-documents}
       PROFILE_PICTURE_S3_BUCKET_NAME: ${PROFILE_PICTURE_S3_BUCKET_NAME:-profile-pictures}
       S3_REGION: ${S3_REGION:-us-east-1}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
       CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
       CSRF_COOKIE_DOMAIN: ${CSRF_COOKIE_DOMAIN:-}
+    secrets:
+      - db_password
+      - django_secret_key
+      - google_oauth_client_secret
+      - resend_api_key
+      - resend_signing_secret
+      - s3_access_key_id
+      - s3_secret_access_key
     ports:
       - "8000:8000"
 
@@ -116,3 +142,23 @@ volumes:
   postgres_data:
   minio_data:
   backup_data:
+
+secrets:
+  db_password:
+    external: true
+  django_secret_key:
+    external: true
+  google_oauth_client_secret:
+    external: true
+  resend_api_key:
+    external: true
+  resend_signing_secret:
+    external: true
+  s3_access_key_id:
+    external: true
+  s3_secret_access_key:
+    external: true
+  minio_license:
+    external: true
+  rclone_config_b64:
+    external: true

@@ -43,15 +43,19 @@ base64 -w0 ~/.config/rclone/rclone.conf
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:APPDATA\rclone\rclone.conf"))
 ```
 
-Colle le résultat dans la variable `RCLONE_CONFIG_B64` du stack Portainer
-(Environment variables de la stack, pas committé dans le repo).
+Dans Portainer, crée le secret Swarm `rclone_config_b64` et colle le résultat dans son
+champ **Secret**. La stack le monte dans le conteneur backup, qui le décode au démarrage.
+Ne colle pas cette configuration dans les variables d'environnement de la stack.
 
-## 3. Variables à définir dans Portainer
+## 3. Secrets et variables à définir dans Portainer
+
+Créer les secrets Swarm `db_password` (mot de passe PostgreSQL partagé avec `db` et
+`backend`) et `rclone_config_b64` (base64 de l'étape 2).
+
+Les variables ordinaires restent :
 
 | Variable | Exemple | Rôle |
 |---|---|---|
-| `DB_PASSWORD` | (déjà utilisé par `db`/`backend`) | mot de passe Postgres |
-| `RCLONE_CONFIG_B64` | (base64 de l'étape 2) | credentials Google Drive |
 | `GDRIVE_REMOTE` | `gdrive:project-gestion-backups` | remote:chemin cible sur Drive |
 | `BACKUP_INTERVAL_HOURS` | `24` | fréquence des sauvegardes |
 | `BACKUP_RETENTION_DAYS` | `14` | purge locale + distante |

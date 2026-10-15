@@ -297,8 +297,35 @@ dev, piège classique en prod.
 
 ## 6. Stockage S3 / MinIO — documents et photos de profil
 
-**En local**, `docker compose up` suffit : le service `minio-init` crée les deux buckets
-et ouvre le second en lecture anonyme. Ports publiés par `docker-compose.yml` :
+Le serveur et son client (`mc`) utilisent les images officielles MinIO AIStor sur Quay.io.
+AIStor requiert une licence ; le secret `minio_license` est monte en lecture seule et
+fourni au serveur avec `--license`.
+
+En production avec Docker Swarm/Portainer, creer les secrets ci-dessous avant de deployer
+la stack. Dans **Secrets → Add secret**, saisir le nom indique et coller la valeur
+correspondante ; les noms sont sensibles aux caracteres et doivent etre exacts :
+
+| Secret Swarm | Valeur à mettre |
+|---|---|
+| `db_password` | Mot de passe PostgreSQL (`DB_PASSWORD`) |
+| `django_secret_key` | Clé Django (`DJANGO_SECRET_KEY`) |
+| `google_oauth_client_secret` | Secret OAuth Google (`GOOGLE_OAUTH_CLIENT_SECRET`) |
+| `resend_api_key` | Clé API Resend (`RESEND_API_KEY`) |
+| `resend_signing_secret` | Secret de signature webhook Resend (`RESEND_SIGNING_SECRET`) |
+| `s3_access_key_id` | Identifiant du compte MinIO (`S3_ACCESS_KEY_ID`) |
+| `s3_secret_access_key` | Clé secrète MinIO (`S3_SECRET_ACCESS_KEY`) |
+| `minio_license` | Jeton de licence AIStor |
+| `rclone_config_b64` | Configuration rclone encodée en base64 (`RCLONE_CONFIG_B64`) |
+
+La stack monte chaque secret uniquement dans les services qui en ont besoin. Les
+parametres non sensibles (URLs, noms de buckets, domaines, identifiants publics OAuth)
+restent des variables d'environnement de stack. `EXPO_ACCESS_TOKEN`, s'il est configuré,
+est aussi un secret et doit etre gere de la meme facon avant d'activer cette integration.
+
+Une fois le serveur demarre, le service `minio-init` cree les deux buckets et ouvre
+le second en lecture anonyme. Cette stack utilise des secrets Docker Swarm externes ;
+les secrets doivent exister avant le deploiement depuis Portainer. Ports publies par
+`docker-compose.yml` :
 
 | Depuis | Endpoint API | Console web |
 |---|---|---|
@@ -309,9 +336,9 @@ et ouvre le second en lecture anonyme. Ports publiés par `docker-compose.yml` :
 > pas au mapping de `docker-compose.yml` (`9001:9000`). Pour un backend lancé sur
 > l'hôte, la bonne valeur est `http://localhost:9001`.
 
-Identifiants par défaut : `minioadmin` / `minioadmin`, surchargés par `S3_ACCESS_KEY_ID`
-et `S3_SECRET_ACCESS_KEY` s'ils sont définis — le conteneur MinIO et le backend lisent
-les mêmes variables, donc ils restent forcément d'accord.
+En production, MinIO, le backend et `minio-init` lisent le meme couple d'identifiants
+depuis `s3_access_key_id` et `s3_secret_access_key`. Ne pas utiliser les identifiants
+par defaut `minioadmin` en production.
 
 **En production** :
 
@@ -319,13 +346,14 @@ les mêmes variables, donc ils restent forcément d'accord.
 # .env
 S3_ENDPOINT_URL=http://minio:9000                 # acces backend -> MinIO sur le reseau Docker
 S3_PUBLIC_ENDPOINT_URL=https://<domaine-minio>   # acces navigateur -> MinIO via proxy HTTPS
-S3_ACCESS_KEY_ID=<cle>
-S3_SECRET_ACCESS_KEY=<secret>
 S3_BUCKET_NAME=project-documents
 PROFILE_PICTURE_S3_BUCKET_NAME=profile-pictures   # bucket en lecture publique
 # S3_REGION=us-east-1                             # defaut
 # S3_PRESIGNED_URL_EXPIRES_SECONDS=300            # defaut
 ```
+
+Les identifiants S3 sont les secrets Swarm `s3_access_key_id` et
+`s3_secret_access_key`, pas des variables d'environnement de stack.
 
 Les deux buckets n'ont pas la même politique, et ce n'est pas un détail :
 
