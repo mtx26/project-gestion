@@ -30,7 +30,11 @@ from .models import (
     ExpenseRequest,
 )
 from .services.mail import send_email
-from .services.storage import validate_document_file
+from .services.storage import (
+    build_s3_object_url,
+    get_document_download_url,
+    validate_document_file,
+)
 
 
 class ProjectApiTestCase(TestCase):
@@ -601,6 +605,49 @@ class DocumentFileValidationTests(TestCase):
         )
 
         validate_document_file(uploaded_file)
+
+
+@override_settings(
+    S3_ENDPOINT_URL="http://minio:9000",
+    S3_PUBLIC_ENDPOINT_URL="https://storage.example.com",
+    S3_ACCESS_KEY_ID="test-access-key",
+    S3_SECRET_ACCESS_KEY="test-secret-key",
+    S3_BUCKET_NAME="project-documents",
+    S3_REGION="us-east-1",
+    S3_PRESIGNED_URL_EXPIRES_SECONDS=300,
+)
+class StoragePublicEndpointTests(TestCase):
+    def test_document_download_url_is_signed_for_public_endpoint(self):
+        url = get_document_download_url("projects/1/documents/document.pdf")
+
+        self.assertTrue(
+            url.startswith(
+                "https://storage.example.com/project-documents/projects/1/documents/document.pdf?"
+            )
+        )
+        self.assertIn("test-access-key", url)
+        self.assertIn("Signature=", url)
+
+    @override_settings(S3_PUBLIC_ENDPOINT_URL=None)
+    def test_document_download_url_falls_back_to_internal_endpoint(self):
+        url = get_document_download_url("projects/1/documents/document.pdf")
+
+        self.assertTrue(
+            url.startswith(
+                "http://minio:9000/project-documents/projects/1/documents/document.pdf?"
+            )
+        )
+
+    def test_profile_picture_url_uses_public_endpoint(self):
+        url = build_s3_object_url(
+            "users/1/profile-pictures/avatar.jpg",
+            "profile-pictures",
+        )
+
+        self.assertEqual(
+            url,
+            "https://storage.example.com/profile-pictures/users/1/profile-pictures/avatar.jpg",
+        )
 
 
 class PermissionRouteTests(ProjectApiTestCase):

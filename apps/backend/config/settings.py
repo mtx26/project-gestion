@@ -156,6 +156,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 BACKEND_BASE_URL = env("BACKEND_BASE_URL", default="http://127.0.0.1:8000")
 
 S3_ENDPOINT_URL = env("S3_ENDPOINT_URL", default=None)
+S3_PUBLIC_ENDPOINT_URL = env("S3_PUBLIC_ENDPOINT_URL", default=None)
 S3_ACCESS_KEY_ID = env("S3_ACCESS_KEY_ID", default=None)
 S3_SECRET_ACCESS_KEY = env("S3_SECRET_ACCESS_KEY", default=None)
 S3_BUCKET_NAME = env("S3_BUCKET_NAME", default=None)
