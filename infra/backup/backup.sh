@@ -6,16 +6,25 @@ RCLONE_CONF=/config/rclone/rclone.conf
 INTERVAL_SECONDS=$(( ${BACKUP_INTERVAL_HOURS:-24} * 3600 ))
 RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-14}
 
+umask 077
 mkdir -p "$BACKUP_DIR" "$(dirname "$RCLONE_CONF")"
 
-if [ -n "${RCLONE_CONFIG_B64:-}" ]; then
+if [ -s /run/secrets/db_password ]; then
+  export PGPASSWORD
+  PGPASSWORD=$(cat /run/secrets/db_password)
+fi
+
+if [ -s /run/secrets/rclone_config_b64 ]; then
+  base64 -d /run/secrets/rclone_config_b64 > "$RCLONE_CONF"
+elif [ -n "${RCLONE_CONFIG_B64:-}" ]; then
   echo "$RCLONE_CONFIG_B64" | base64 -d > "$RCLONE_CONF"
 fi
 
 if [ ! -s "$RCLONE_CONF" ]; then
-  echo "[backup] ERROR: $RCLONE_CONF is missing or empty. Set RCLONE_CONFIG_B64." >&2
+  echo "[backup] ERROR: $RCLONE_CONF is missing or empty. Configure the rclone_config_b64 secret or RCLONE_CONFIG_B64." >&2
   exit 1
 fi
+chmod 600 "$RCLONE_CONF"
 
 run_backup() {
   local ts file

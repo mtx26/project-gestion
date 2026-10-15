@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+from urllib.parse import quote
 
 import environ
 from django.core.exceptions import ImproperlyConfigured
@@ -24,6 +25,18 @@ env = environ.Env()
 env.read_env(REPO_DIR / ".env")
 
 
+def secret_env(name, default=None):
+    secret_file = env(f"{name}_FILE", default=None)
+    if secret_file:
+        try:
+            return Path(secret_file).read_text(encoding="utf-8").rstrip("\r\n")
+        except OSError as exc:
+            raise ImproperlyConfigured(
+                f"Unable to read secret file configured by {name}_FILE."
+            ) from exc
+    return env(name, default=default)
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
@@ -32,9 +45,12 @@ DEBUG = env.bool("DJANGO_DEBUG", default=True)
 
 # SECURITY WARNING: keep the secret key used in production secret!
 if DEBUG:
-    SECRET_KEY = env("DJANGO_SECRET_KEY", default="django-insecure-dev-only-change-me")
+    SECRET_KEY = secret_env(
+        "DJANGO_SECRET_KEY",
+        default="django-insecure-dev-only-change-me",
+    )
 else:
-    SECRET_KEY = env("DJANGO_SECRET_KEY")
+    SECRET_KEY = secret_env("DJANGO_SECRET_KEY")
 
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["localhost", "127.0.0.1"])
 
@@ -106,12 +122,28 @@ AUTHENTICATION_BACKENDS = [
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    "default": env.db(
-        "DATABASE_URL",
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+database_url = env("DATABASE_URL", default=None)
+database_password_file = env("DB_PASSWORD_FILE", default=None)
+if database_url:
+    database_config = env.db_url_config(database_url)
+elif database_password_file:
+    database_password = secret_env("DB_PASSWORD")
+    database_user = env("DB_USER", default="project_gestion")
+    database_name = env("DB_NAME", default="project_gestion")
+    database_host = env("DB_HOST", default="db")
+    database_port = env("DB_PORT", default="5432")
+    database_url = (
+        f"postgresql://{quote(database_user, safe='')}:"
+        f"{quote(database_password, safe='')}@{database_host}:{database_port}/"
+        f"{quote(database_name, safe='')}"
     )
-}
+    database_config = env.db_url_config(database_url)
+else:
+    database_config = env.db_url_config(
+        f"sqlite:///{BASE_DIR / 'db.sqlite3'}"
+    )
+
+DATABASES = {"default": database_config}
 
 
 # Password validation
@@ -157,8 +189,8 @@ BACKEND_BASE_URL = env("BACKEND_BASE_URL", default="http://127.0.0.1:8000")
 
 S3_ENDPOINT_URL = env("S3_ENDPOINT_URL", default=None)
 S3_PUBLIC_ENDPOINT_URL = env("S3_PUBLIC_ENDPOINT_URL", default=None)
-S3_ACCESS_KEY_ID = env("S3_ACCESS_KEY_ID", default=None)
-S3_SECRET_ACCESS_KEY = env("S3_SECRET_ACCESS_KEY", default=None)
+S3_ACCESS_KEY_ID = secret_env("S3_ACCESS_KEY_ID", default=None)
+S3_SECRET_ACCESS_KEY = secret_env("S3_SECRET_ACCESS_KEY", default=None)
 S3_BUCKET_NAME = env("S3_BUCKET_NAME", default=None)
 PROFILE_PICTURE_S3_BUCKET_NAME = (
     env("PROFILE_PICTURE_S3_BUCKET_NAME", default=None) or S3_BUCKET_NAME
@@ -246,16 +278,16 @@ DEFAULT_REPLY_TO_EMAIL = env("DEFAULT_REPLY_TO_EMAIL", default=None) or None
 # Notifications push : les envois passent par le service Expo Push. Le jeton est
 # facultatif (les envois marchent sans), mais recommande en production : il
 # authentifie l'expediteur aupres d'Expo.
-EXPO_ACCESS_TOKEN = env("EXPO_ACCESS_TOKEN", default="")
+EXPO_ACCESS_TOKEN = secret_env("EXPO_ACCESS_TOKEN", default="")
 
-RESEND_API_KEY = env("RESEND_API_KEY", default="")
+RESEND_API_KEY = secret_env("RESEND_API_KEY", default="")
 # Alias des templates Resend : ils appartiennent au repo (resend_templates/) et
 # sont crees/publies par scripts/sync_resend_templates.py qui les code en dur.
 # Ce sont donc des constantes, pas de la configuration de deploiement.
 RESEND_INVITATION_TEMPLATE_ID = "project-invitation"
 RESEND_PASSWORD_RESET_TEMPLATE_ID = "password-reset"
 RESEND_EMAIL_VERIFICATION_TEMPLATE_ID = "email-verification"
-RESEND_SIGNING_SECRET = env("RESEND_SIGNING_SECRET", default=None)
+RESEND_SIGNING_SECRET = secret_env("RESEND_SIGNING_SECRET", default=None)
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="") or (
     "anymail.backends.resend.EmailBackend"
@@ -396,7 +428,7 @@ SOCIALACCOUNT_PROVIDERS = {
         # flux web headless (provider redirect).
         "APP": {
             "client_id": env("GOOGLE_OAUTH_CLIENT_ID", default=""),
-            "secret": env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
+            "secret": secret_env("GOOGLE_OAUTH_CLIENT_SECRET", default=""),
             "key": "",
         },
     }
