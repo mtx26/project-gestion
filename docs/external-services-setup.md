@@ -317,7 +317,8 @@ les mêmes variables, donc ils restent forcément d'accord.
 
 ```bash
 # .env
-S3_ENDPOINT_URL=https://<endpoint>
+S3_ENDPOINT_URL=http://minio:9000                 # acces backend -> MinIO sur le reseau Docker
+S3_PUBLIC_ENDPOINT_URL=https://<domaine-minio>   # acces navigateur -> MinIO via proxy HTTPS
 S3_ACCESS_KEY_ID=<cle>
 S3_SECRET_ACCESS_KEY=<secret>
 S3_BUCKET_NAME=project-documents
@@ -329,7 +330,11 @@ PROFILE_PICTURE_S3_BUCKET_NAME=profile-pictures   # bucket en lecture publique
 Les deux buckets n'ont pas la même politique, et ce n'est pas un détail :
 
 - `project-documents` reste **privé** : tout passe par des URLs signées valables
-  `S3_PRESIGNED_URL_EXPIRES_SECONDS` (300 s par défaut).
+  `S3_PRESIGNED_URL_EXPIRES_SECONDS` (300 s par défaut). La signature est générée
+  pour `S3_PUBLIC_ENDPOINT_URL`, qui doit donc etre joignable par le navigateur
+  et pointer vers l'API S3 de MinIO (pas vers sa console). Le proxy doit conserver
+  le chemin et la query string. Sans cette variable, les URLs utilisent
+  `S3_ENDPOINT_URL`, ce qui ne convient pas si sa valeur est `http://minio:9000`.
 - `profile-pictures` est en **lecture anonyme** (`mc anonymous set download`), pour que
   les avatars s'affichent sans URL signée — donc sans expiration à gérer côté client.
 

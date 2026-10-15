@@ -34,7 +34,7 @@ def _write_local_bytes(data, relative_file_id):
     path.write_bytes(data)
 
 
-def get_s3_client():
+def get_s3_client(endpoint_url=None):
     missing_settings = [
         name
         for name in [
@@ -53,11 +53,15 @@ def get_s3_client():
 
     return boto3.client(
         "s3",
-        endpoint_url=settings.S3_ENDPOINT_URL,
+        endpoint_url=endpoint_url or settings.S3_ENDPOINT_URL,
         aws_access_key_id=settings.S3_ACCESS_KEY_ID,
         aws_secret_access_key=settings.S3_SECRET_ACCESS_KEY,
         region_name=settings.S3_REGION,
     )
+
+
+def _get_public_s3_endpoint_url():
+    return settings.S3_PUBLIC_ENDPOINT_URL or settings.S3_ENDPOINT_URL
 
 
 def build_document_file_id(file_name, project_id):
@@ -71,7 +75,7 @@ def build_profile_picture_file_id(file_name, user_id):
 
 
 def build_s3_object_url(file_id, bucket_name=None):
-    endpoint_url = settings.S3_ENDPOINT_URL.rstrip("/")
+    endpoint_url = _get_public_s3_endpoint_url().rstrip("/")
     quoted_file_id = quote(file_id, safe="/")
     return f"{endpoint_url}/{bucket_name or settings.S3_BUCKET_NAME}/{quoted_file_id}"
 
@@ -202,7 +206,9 @@ def get_document_download_url(file_id, expires_in=None):
     if file_id.startswith(LOCAL_STORAGE_PREFIX):
         return _local_media_url(file_id[len(LOCAL_STORAGE_PREFIX):])
 
-    return get_s3_client().generate_presigned_url(
+    return get_s3_client(
+        endpoint_url=_get_public_s3_endpoint_url(),
+    ).generate_presigned_url(
         "get_object",
         Params={
             "Bucket": settings.S3_BUCKET_NAME,
