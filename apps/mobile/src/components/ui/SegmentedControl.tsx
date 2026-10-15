@@ -42,7 +42,6 @@ export function SegmentedControl<T extends string>({
             onChange(option.value);
           }
         }}
-        style={{ height: 44 }}
       />
     </View>
   );
